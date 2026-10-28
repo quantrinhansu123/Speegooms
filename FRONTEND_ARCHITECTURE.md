@@ -134,3 +134,32 @@ pnpm build && pnpm start
 ```
 
 Trang kiểm tra UI: `/design-system`.
+
+## Marketing, Khiếu nại, HRM và Pháp chế (UI đề xuất)
+
+Các module dùng lại AppShell, ListView, DataTable, Field/NativeSelect, SectionCard, StatCard,
+StatusBadge, Dialog và HistoryList. Không thêm dependency hoặc kết nối dịch vụ ngoài.
+
+- Marketing: `/marketing` (Ads/Google/Organic), `/marketing/chien-dich`,
+  `/marketing/hieu-qua-nguon`, `/marketing/phan-hoi`; các menu kênh cũ vẫn hoạt động.
+  Chuyển đổi đọc từ CRM, theo cohort ngày tạo lead, đếm lead duy nhất có RFQ chưa hủy hoặc
+  hợp đồng đã ký. Ngân sách chiến dịch là mock độc lập; chưa gán lead theo chiến dịch hay tính ROI/CPL.
+- Khiếu nại: `/khieu-nai`, `/khieu-nai/[id]`. Sales tạo/xem theo tuyến; Vận hành xử lý,
+  thêm bằng chứng dạng mô tả, kết quả và đề xuất đền bù bằng VND. Ban GĐ/Admin quyết định.
+  Không cho đóng ticket thiếu kết quả hoặc còn đề xuất chờ duyệt. Không tạo phiếu chi.
+- HRM: `/hcns/nhan-vien`, `/hcns/nhan-vien/[id]`, `/hcns/co-cau`,
+  `/hcns/tuyen-dung`, `/hcns/cham-cong`. `/hcns` và `/hcns/hanh-chinh` mở danh sách nhân viên.
+  HCNS/Admin sửa hồ sơ, phân phòng/vị trí/quản lý, theo dõi ứng viên và checklist onboarding.
+  Onboarding không tự tạo hồ sơ nhân viên/tài khoản. Chấm công nhập tay cho ngày demo,
+  không hỗ trợ ca qua đêm, tính lương hay máy chấm công. Không nhập giấy tờ cá nhân thật.
+- Pháp chế: `/phap-che`, `/phap-che/yeu-cau`, `/phap-che/yeu-cau/[id]`.
+  Tham chiếu hợp đồng CRM và chứng từ Vận hành; Pháp chế/Admin tạo, rà soát, trình duyệt;
+  Ban GĐ/Admin duyệt hoặc trả lại có lý do. Lịch sử giữ người làm, thời gian, ý kiến.
+  Trạng thái hồ sơ gốc không thay đổi theo phê duyệt mô phỏng.
+
+`features/backoffice/store.ts` dùng store/repository factory hiện có; dữ liệu mới lưu riêng
+trong `speego-backoffice-v1`. Banner của mọi module ghi rõ ngày demo 28/10/2026, lưu localStorage,
+phạm vi đề xuất của SLA, phân quyền thao tác, đền bù, duyệt, hồ sơ và onboarding.
+Auth/quyền vẫn là mock, không phải bảo mật production. Tệp bằng chứng/hồ sơ chỉ có mô tả tham chiếu.
+
+Kiểm tra: `pnpm check:backoffice`, `pnpm lint`, `pnpm build`.

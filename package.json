@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:backoffice": "node --experimental-strip-types --no-warnings src/services/backoffice/rules.check.ts",
     "check:fulfillment": "node --experimental-strip-types --no-warnings src/services/fulfillment/rules.check.ts",
     "check:accounting": "node --experimental-strip-types --no-warnings src/services/accounting/rules.check.ts",
     "check:ops": "node --experimental-strip-types --no-warnings src/services/ops/rules.check.ts",

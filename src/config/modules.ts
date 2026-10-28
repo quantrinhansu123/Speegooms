@@ -31,6 +31,22 @@ export const implementedRoutes: readonly string[] = [
   "/ke-toan/cong-no",
   "/ke-toan/quyet-toan",
   "/ke-toan/thu-chi",
+  "/marketing",
+  "/marketing/chien-dich",
+  "/marketing/hieu-qua-nguon",
+  "/marketing/phan-hoi",
+  "/marketing/organic-content",
+  "/marketing/ads-performance",
+  "/marketing/seo",
+  "/khieu-nai",
+  "/hcns",
+  "/hcns/nhan-vien",
+  "/hcns/co-cau",
+  "/hcns/tuyen-dung",
+  "/hcns/hanh-chinh",
+  "/hcns/cham-cong",
+  "/phap-che",
+  "/phap-che/yeu-cau",
 ];
 
 export const isImplemented = (href: string) => implementedRoutes.includes(href);

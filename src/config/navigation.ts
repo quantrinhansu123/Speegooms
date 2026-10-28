@@ -59,6 +59,10 @@ export const navigation: NavGroup[] = [
         href: "/marketing",
         icon: Megaphone,
         children: [
+          { title: "Tổng quan Marketing", href: "/marketing" },
+          { title: "Chiến dịch", href: "/marketing/chien-dich" },
+          { title: "Nguồn lead & chuyển đổi", href: "/marketing/hieu-qua-nguon" },
+          { title: "Phản hồi từ Sales", href: "/marketing/phan-hoi" },
           { title: "Organic / Content", href: "/marketing/organic-content" },
           { title: "Ads & Performance", href: "/marketing/ads-performance" },
           { title: "SEO", href: "/marketing/seo" },
@@ -122,15 +126,26 @@ export const navigation: NavGroup[] = [
         ],
       },
       {
+        title: "Khiếu nại",
+        href: "/khieu-nai",
+        icon: FileCheck2,
+      },
+      {
         title: "HCNS",
         href: "/hcns",
         icon: UserCog,
         children: [
+          { title: "Nhân viên", href: "/hcns/nhan-vien" },
+          { title: "Cơ cấu tổ chức", href: "/hcns/co-cau" },
+          { title: "Chấm công mock", href: "/hcns/cham-cong" },
           { title: "Tuyển dụng & nhân sự", href: "/hcns/tuyen-dung" },
           { title: "Hành chính & nhân sự", href: "/hcns/hanh-chinh" },
         ],
       },
-      { title: "Pháp chế", href: "/phap-che", icon: FileCheck2 },
+      { title: "Pháp chế", href: "/phap-che", icon: FileCheck2, children: [
+        { title: "Hồ sơ cần rà soát", href: "/phap-che" },
+        { title: "Yêu cầu ý kiến pháp lý", href: "/phap-che/yeu-cau" },
+      ] },
     ],
   },
   {
@@ -154,17 +169,20 @@ export function getBreadcrumbs(pathname: string): Crumb[] {
     for (const item of group.items) {
       const child = item.children?.find((c) => c.href === pathname);
       if (child) {
-        crumbs.push({ title: item.title, href: item.href }, child);
+        if (child.href !== item.href) crumbs.push({ title: item.title, href: item.href });
+        crumbs.push(child);
         return crumbs;
       }
       // Trang chi tiết (ví dụ /crm/leads/MS-...) nằm dưới một mục con
-      const parent = item.children?.find((c) => pathname.startsWith(`${c.href}/`));
+      const parent = item.children?.filter((c) => pathname.startsWith(`${c.href}/`)).sort((a, b) => b.href.length - a.href.length)[0];
       if (parent) {
-        crumbs.push({ title: item.title, href: item.href }, parent, { title: "Chi tiết", href: pathname });
+        if (parent.href !== item.href) crumbs.push({ title: item.title, href: item.href });
+        crumbs.push(parent, { title: "Chi tiết", href: pathname });
         return crumbs;
       }
-      if (item.href === pathname) {
+      if (item.href === pathname || (!item.children && pathname.startsWith(`${item.href}/`))) {
         if (pathname !== "/dashboard") crumbs.push({ title: item.title, href: item.href });
+        if (item.href !== pathname) crumbs.push({ title: "Chi tiết", href: pathname });
         return crumbs;
       }
     }
