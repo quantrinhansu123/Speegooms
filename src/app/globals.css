@@ -166,6 +166,12 @@
   }
 }
 
+.workspace-scroll {
+  scroll-padding-top: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent) transparent;
+}
+
 .sidebar-scroll {
   scrollbar-width: thin;
   scrollbar-gutter: stable;

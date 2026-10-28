@@ -9,7 +9,7 @@ import { RouteGate } from "@/components/shared/route-gate";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="min-h-dvh">
+    <div className="fixed inset-0 overflow-clip">
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
@@ -26,9 +26,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar onNavigate={() => setMenuOpen(false)} />
         </SheetContent>
       </Sheet>
-      <div className="lg:pl-64">
+      <div className="flex h-dvh w-full min-w-0 flex-col lg:pl-64">
         <Header onOpenMenu={() => setMenuOpen(true)} />
-        <main id="main" tabIndex={-1} className="mx-auto w-full min-w-0 max-w-[1440px] px-4 py-6 lg:px-8 lg:py-8">
+        <main id="main" tabIndex={-1} className="workspace-scroll min-h-0 w-full min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
           <RouteGate>{children}</RouteGate>
         </main>
       </div>

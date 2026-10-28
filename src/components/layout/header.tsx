@@ -9,7 +9,7 @@ import { UserMenu } from "./user-menu";
 export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const user = useSession();
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-surface px-4 lg:px-8">
+    <header className="z-20 flex h-16 w-full shrink-0 items-center gap-3 border-b bg-surface pl-4 pr-2 lg:pl-8">
       <Button variant="ghost" size="icon-lg" className="lg:hidden" aria-label="Mở menu" onClick={onOpenMenu}>
         <Menu />
       </Button>
