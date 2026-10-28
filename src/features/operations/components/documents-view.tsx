@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -73,7 +74,8 @@ export function DocumentsView() {
   const filtered = [...ops.documents]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.docId.localeCompare(a.docId))
     .filter((d) => (!status || d.status === status) && matchesQuery(query, d.shipmentId, d.orderId, docTypeLabels[d.type], d.fileName));
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-documents.csv", name: (r) => r.fileName ?? r.type, date: (r) => r.updatedAt, dateLabel: "Ngày cập nhật", columns: [{ label: "Mã", value: (r) => r.docId }, { label: "Tên / nội dung", value: (r) => r.fileName ?? r.type }, { label: "Ngày cập nhật", value: (r) => r.updatedAt }, { label: "order_id", value: (r) => r.orderId }, { label: "shipment_id", value: (r) => r.shipmentId }, { label: "status", value: (r) => r.status }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
   const pending = ops.documents.filter((d) => d.status === "cho-duyet").length;
   const missing = ops.documents.filter((d) => d.status === "thieu").length;
 
@@ -90,6 +92,7 @@ export function DocumentsView() {
           {(Object.keys(docStatusMeta) as DocStatus[]).map((s) => <option key={s} value={s}>{docStatusMeta[s].label}</option>)}
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <div className="overflow-hidden rounded-xl border bg-card shadow-xs"><DocumentsTable docs={paging.slice} /></div>
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

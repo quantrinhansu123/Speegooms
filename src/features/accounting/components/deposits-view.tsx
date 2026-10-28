@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { canPerform } from "@/config/permissions";
 import type { Column } from "@/components/shared/data-table";
 import { ListView } from "@/components/shared/list-view";
 import { depositMeta } from "@/config/crm";
@@ -33,11 +34,11 @@ export function DepositsView() {
       className: "hidden md:table-cell",
     },
     { key: "status", header: "Trạng thái", cell: (c) => <DepositBadge value={c.deposit.status} /> },
-    { key: "act", header: "Thao tác", cell: (c) => <Link href={`/ke-toan/doi-soat/${c.orderId}`}><Button size="sm" variant={c.deposit.status === "cho-ke-toan" && user.role === "ke-toan" ? "default" : "outline"}>{c.deposit.status === "cho-ke-toan" && user.role === "ke-toan" ? "Đối soát" : "Xem"}</Button></Link> },
+    { key: "act", header: "Thao tác", cell: (c) => <Link href={`/ke-toan/doi-soat/${c.orderId}`} className={buttonVariants({ size: "sm", variant: c.deposit.status === "cho-ke-toan" && canPerform(user.role, "deposit.confirm") ? "default" : "outline" })}>{c.deposit.status === "cho-ke-toan" && canPerform(user.role, "deposit.confirm") ? "Đối soát" : "Xem"}</Link> },
   ];
 
   return (
-    <ListView
+    <ListView dateLabel="Ngày yêu cầu cọc" dateValue={(r) => r.deposit.requestedAt}
       title="Cọc cần đối soát"
       description="Yêu cầu xác nhận cọc từ Sale. Chỉ Kế toán xác nhận Đã cọc; chưa xác nhận thì Vận hành không đặt xưởng."
       columns={columns}

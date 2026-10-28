@@ -6,7 +6,8 @@ import type { Repository } from "@/services/repository-factory";
  * nên trạng thái giả lập (cọc, PO, lô hàng, giao nhận, thu chi) luôn đồng bộ.
  */
 export interface StoreState<T> {
-  status: "loading" | "ready";
+  status: "loading" | "ready" | "error";
+  error?: string;
   data: T;
 }
 
@@ -30,6 +31,9 @@ export function createStore<T>(repo: Repository<T>, empty: T) {
       repo.load().then((data) => {
         state = { status: "ready", data };
         emit();
+      }).catch(() => {
+        state = { ...state, status: "error", error: "Không thể tải dữ liệu demo. Vui lòng thử lại." };
+        emit();
       });
     },
     commit(update: (d: T) => T) {
@@ -40,7 +44,8 @@ export function createStore<T>(repo: Repository<T>, empty: T) {
     async reset() {
       state = LOADING;
       emit();
-      state = { status: "ready", data: await repo.reset() };
+      try { state = { status: "ready", data: await repo.reset() }; }
+      catch { state = { ...state, status: "error", error: "Không thể đặt lại dữ liệu demo. Vui lòng thử lại." }; }
       emit();
     },
   };

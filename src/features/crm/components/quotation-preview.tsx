@@ -1,3 +1,4 @@
+import { ArrowText } from "@/components/shared/arrow-text";
 import Image from "next/image";
 import { originLabels, transportLabels } from "@/config/crm";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -58,7 +59,7 @@ export function QuotationPreview({ quote, customer, rfq, ownerName }: { quote: Q
           <div className="sm:col-span-2">
             <dt className="text-xs text-muted-foreground">Yêu cầu</dt>
             <dd>
-              {rfq.goodsName} · {rfq.quantity.toLocaleString("vi-VN")} {rfq.unit} · {originLabels[rfq.goodsOrigin]} · {rfq.originPoint} → {rfq.destination} · {transportLabels[rfq.transportMode]}
+              {rfq.goodsName} · {rfq.quantity.toLocaleString("vi-VN")} {rfq.unit} · {originLabels[rfq.goodsOrigin]} · {rfq.originPoint} <ArrowText>{"→"}</ArrowText> {rfq.destination} · {transportLabels[rfq.transportMode]}
             </dd>
           </div>
         )}

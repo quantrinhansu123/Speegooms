@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useId, useState } from "react";
+import { Download, Search } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
-import { NativeSelect } from "@/components/shared/form-fields";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/csv";
+import { date as dateSchema } from "@/services/backoffice/rules";
 import { usePagination } from "@/features/crm/hooks";
 import { matchesQuery } from "@/lib/text";
 
@@ -48,6 +51,10 @@ export function ListView<T>({
   sort,
   pageSize = 15,
   emptyTitle = "Không có bản ghi phù hợp",
+  exportFilename,
+  headingLevel = 1,
+  dateValue,
+  dateLabel = "Ngày tạo",
 }: {
   title?: string;
   description?: string;
@@ -65,36 +72,54 @@ export function ListView<T>({
   sort?: (a: T, b: T) => number;
   pageSize?: number;
   emptyTitle?: string;
+  exportFilename?: string;
+  headingLevel?: 1 | 2;
+  dateValue?: (row: T) => string | undefined;
+  dateLabel?: string;
 }) {
   const [query, setQuery] = useState("");
+  const dateId = useId();
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(filters.map((f) => [f.id, f.initial ?? ""])));
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(toggles.map((t) => [t.id, t.initial ?? false])));
+  const [sortKey, setSortKey] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const dateValid = (!from || dateSchema.safeParse(from).success) && (!to || dateSchema.safeParse(to).success) && (!from || !to || from <= to);
+  const [exportMessage, setExportMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const exportColumns = columns.filter((c) => c.exportValue);
+  const sortableColumns = columns.filter((c) => c.sortValue);
 
-  const filtered = useMemo(() => {
+  const filtered = (() => {
     const list = rows.filter(
       (r) =>
         matchesQuery(query, ...searchText(r)) &&
+        dateValid && (!from || (dateValue?.(r)?.slice(0, 10) ?? "") >= from) && (!to || (!!dateValue?.(r) && dateValue(r)!.slice(0, 10) <= to)) &&
         filters.every((f) => !values[f.id] || f.match(r, values[f.id])) &&
         toggles.every((t) => !on[t.id] || t.match(r)),
     );
-    return sort ? [...list].sort(sort) : list;
-    // searchText/filters/toggles/sort là cấu hình ổn định của từng màn hình
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, query, values, on]);
+    if (!sortKey) return sort ? list.sort(sort) : list;
+    const [key, direction] = sortKey.split(":");
+    const value = key === "__date" && dateValue ? (r: T) => dateValue(r) ?? "" : columns.find((c) => c.key === key)?.sortValue ?? ((r: T) => searchText(r).find(Boolean) ?? "");
+    return list.sort((a, b) => {
+      const x = value(a), y = value(b);
+      const result = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "vi", { numeric: true });
+      return direction === "desc" ? -result : result;
+    });
+  })();
   const paging = usePagination(filtered, pageSize);
 
   return (
     <>
-      {title && <PageHeader title={title} description={description} actions={actions} />}
+      {title && <PageHeader title={title} description={description} actions={actions} headingLevel={headingLevel} />}
       {banner}
       {summary}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4 shadow-xs">
+        <div className="relative min-w-0 basis-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label={searchLabel} placeholder={searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 pl-8" />
+          <Input aria-label={searchLabel} placeholder={searchPlaceholder} value={query} onChange={(e) => { setQuery(e.target.value); paging.setPage(1); }} className="h-9 pl-8" />
         </div>
         {filters.map((f) => (
-          <NativeSelect key={f.id} aria-label={f.label} className={f.className ?? "w-48"} value={values[f.id]} onChange={(e) => setValues({ ...values, [f.id]: e.target.value })}>
+          <NativeSelect key={f.id} aria-label={f.label} className={f.className ?? "w-full sm:w-48"} value={values[f.id]} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); paging.setPage(1); }}>
             <option value="">{f.label}</option>
             {f.options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -103,13 +128,27 @@ export function ListView<T>({
             ))}
           </NativeSelect>
         ))}
+        {dateValue && <><Field label={`${dateLabel} từ`} htmlFor={`${dateId}-from`}><Input id={`${dateId}-from`} type="date" value={from} onChange={(e) => { setFrom(e.target.value); paging.setPage(1); }} /></Field><Field label="Đến ngày" htmlFor={`${dateId}-to`}><Input id={`${dateId}-to`} type="date" value={to} onChange={(e) => { setTo(e.target.value); paging.setPage(1); }} /></Field></>}
         {toggles.map((t) => (
           <label key={t.id} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={on[t.id]} onChange={(e) => setOn({ ...on, [t.id]: e.target.checked })} />
+            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={on[t.id]} onChange={(e) => { setOn({ ...on, [t.id]: e.target.checked }); paging.setPage(1); }} />
             {t.label}
           </label>
         ))}
+        <NativeSelect aria-label="Sắp xếp dữ liệu" className="w-full sm:w-52" value={sortKey} onChange={(e) => { setSortKey(e.target.value); paging.setPage(1); }}>
+          <option value="">Thứ tự mặc định</option>
+          {dateValue && <><option value="__date:desc">{dateLabel} mới nhất</option><option value="__date:asc">{dateLabel} cũ nhất</option></>}
+          {(sortableColumns.length ? sortableColumns.map((c) => ({ key: c.key, header: c.header })) : [{ key: "search", header: "Mã / tên" }]).flatMap((c) => [<option key={`${c.key}:asc`} value={`${c.key}:asc`}>{c.header} ↑</option>, <option key={`${c.key}:desc`} value={`${c.key}:desc`}>{c.header} ↓</option>])}
+        </NativeSelect>
+        {exportFilename && exportColumns.length > 0 && <Button variant="outline" disabled={!filtered.length} onClick={() => {
+          try {
+            downloadCsv(exportFilename, exportColumns.map((c) => c.header), filtered.map((r) => exportColumns.map((c) => c.exportValue!(r))));
+            setExportMessage({ tone: "success", text: `Đã tạo CSV với ${filtered.length} bản ghi theo bộ lọc và thứ tự hiện tại (toàn bộ trang).` });
+          } catch { setExportMessage({ tone: "danger", text: "Không tạo được CSV. Vui lòng thử lại." }); }
+        }}><Download aria-hidden /> Xuất CSV</Button>}
       </div>
+      {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
+      {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={getRowId} empty={<EmptyState title={emptyTitle} />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

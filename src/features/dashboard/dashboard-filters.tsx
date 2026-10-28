@@ -57,7 +57,7 @@ export function DashboardFilters({
           value={dept}
           disabled={deptLocked}
           onChange={(e) => onDeptChange(e.target.value as DeptFilter)}
-          className="h-9 min-w-48 rounded-lg border border-input bg-surface px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          className="h-9 min-w-48 rounded-lg border border-input bg-surface px-3 text-sm outline-none focus-visible:border-ring/70 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
         >
           <option value="all">Tất cả phòng ban</option>
           {departmentOptions.map((d) => (

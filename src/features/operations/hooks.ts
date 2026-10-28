@@ -46,6 +46,7 @@ export function useOps() {
 
   return {
     ready,
+    error: crm.error ?? state.error,
     ops,
     crm: crm.all,
     orders,

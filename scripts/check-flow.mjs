@@ -1,0 +1,123 @@
+// Isolated process: use the installed TypeScript compiler to exercise real stores without a browser.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import Module from "node:module";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+const root = fileURLToPath(new URL("..", import.meta.url));
+const load = Module.createRequire(import.meta.url);
+const resolve = Module._resolveFilename;
+Module._resolveFilename = function (request, ...args) {
+  return resolve.call(this, request.startsWith("@/") ? path.join(root, "src", request.slice(2)) : request, ...args);
+};
+Module._extensions[".ts"] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+}).outputText, filename);
+const memory = new Map();
+global.window = { localStorage: { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value), removeItem: (key) => memory.delete(key) } };
+
+async function check() {
+  const crm = load("../src/features/crm/store.ts");
+  const ops = load("../src/features/operations/store.ts");
+  const wh = load("../src/features/fulfillment/store.ts");
+  const acc = load("../src/features/accounting/store.ts");
+  const { handoverItems, qcItems, milestones } = load("../src/config/operations.ts");
+  const { leadProfileFields, CRM_TODAY } = load("../src/config/crm.ts");
+  const { createStore } = load("../src/services/store-factory.ts");
+  const sales = { id: "u-svn", role: "sale-vn" }, operations = { id: "u-vh", role: "van-hanh" };
+  const accounting = { id: "u-kt", role: "ke-toan" }, board = { id: "u-bgd", role: "ban-gd" }, admin = { id: "u-admin", role: "admin" };
+  const ok = (result) => { assert.equal(result.ok, true, result.error); return result.id; };
+  const rejected = (result) => assert.equal(result.ok, false);
+  const tick = () => new Promise((r) => setImmediate(r));
+  crm.startCrm(); ops.startOps(); wh.startFulfillment(); acc.startAccounting();
+  for (let i = 0; i < 200 && [crm, ops, wh, acc].some((s) => s.getSnapshot().status === "loading"); i++) await tick();
+  for (const s of [crm, ops, wh, acc]) assert.equal(s.getSnapshot().status, "ready");
+  rejected(crm.actions.createLead(accounting, {}));
+  const messId = ok(crm.actions.createLead(sales, { contactName: "Flow Test", company: "Demo Flow", phone: "0900000999", email: "flow@example.test", source: "organic", goodsOrigin: "vn", ownerId: sales.id, needSummary: "Test lifecycle" }));
+  const rfqInput = { goodsName: "Hàng kiểm thử", quantity: 10, unit: "cái", originPoint: "Hà Nội", destination: "Hồ Chí Minh", transportMode: "air", targetDate: CRM_TODAY, specialRequirements: "", sensitiveGoods: false };
+  rejected(crm.actions.createRfqFromLead(sales, messId, rfqInput));
+  rejected(crm.actions.setTemperature(sales, messId, "hot"));
+  ok(crm.actions.saveProfile(sales, messId, Object.fromEntries(leadProfileFields.map((f) => [f.id, { value: "Đã xác nhận" }]))));
+  ok(crm.actions.setTemperature(sales, messId, "hot"));
+  const rfqId = ok(crm.actions.createRfqFromLead(sales, messId, rfqInput));
+  rejected(crm.actions.createQuotation(sales, rfqId));
+  ok(crm.actions.sendPriceRequest(sales, rfqId, { sourcing: true, logistics: true }));
+  ops.actions.syncRequests();
+  const request = ops.getSnapshot().data.requests.find((r) => r.rfqId === rfqId);
+  assert.ok(request);
+  const supplierId = ops.getSnapshot().data.suppliers[0].supplierId;
+  const supplierQuoteId = ok(ops.actions.addSupplierQuote(operations, request.requestId, { supplierId, goodsUnitPrice: 100000, freightCost: 100000, handlingFee: 0, leadTimeDays: 1, moq: "1", validUntil: "2026-12-01", paymentTerms: "Demo" }));
+  ok(ops.actions.selectQuote(operations, request.requestId, supplierQuoteId));
+  const quoteId = ok(crm.actions.createQuotation(sales, rfqId));
+  const quote = crm.getSnapshot().data.quotations.find((q) => q.quoteId === quoteId);
+  ok(crm.actions.saveQuotation(sales, { ...quote, goods: quote.goods.map((l) => ({ ...l, unitPrice: 150000 })), freight: quote.freight.map((l) => ({ ...l, unitPrice: 200000 })) }));
+  ok(crm.actions.sendQuotation(sales, quoteId));
+  ok(crm.actions.recordQuoteResponse(sales, quoteId, true, "Chấp nhận mock"));
+  const orderId = ok(crm.actions.createContractFromQuote(sales, quoteId));
+  ok(crm.actions.signContract(sales, orderId));
+  rejected(ops.actions.createPo(operations, orderId));
+  rejected(crm.actions.handOverToOperations(sales, orderId));
+  ok(crm.actions.requestDeposit(sales, orderId, { amount: 500000, channel: "tai-khoan-cong-ty", billRef: "DEMO-BILL", note: "" }));
+  rejected(crm.actions.confirmDeposit(admin, orderId));
+  ok(crm.actions.confirmDeposit(accounting, orderId));
+  ok(crm.actions.handOverToOperations(sales, orderId));
+  const items = Object.fromEntries(handoverItems.map((item) => [item.id, true]));
+  rejected(ops.actions.reviewHandover(operations, orderId, {}, "accept", ""));
+  ok(ops.actions.reviewHandover(operations, orderId, items, "accept", ""));
+  const poId = ok(ops.actions.createPo(operations, orderId));
+  ok(ops.actions.placePo(operations, poId));
+  for (let i = 0; i < 3; i++) ok(ops.actions.advancePo(operations, poId));
+  rejected(ops.actions.advancePo(operations, poId));
+  for (const q of qcItems) ok(ops.actions.setQc(operations, poId, q.id, "dat", "Kiểm thử"));
+  ok(ops.actions.advancePo(operations, poId));
+  const shipmentInput = { mode: "air", originPoint: "Hà Nội", destination: "Hồ Chí Minh", partnerId: ops.getSnapshot().data.partners[0].partnerId, startOn: "2026-10-20", estimated: { freight: 100000, customs: 0, handling: 0, other: 0 } };
+  const unrelatedShipmentId = ok(ops.actions.createShipment(operations, orderId, shipmentInput));
+  const shipmentId = ok(ops.actions.createShipment(operations, orderId, shipmentInput));
+  rejected(wh.actions.createInbound(operations, shipmentId, wh.getSnapshot().data.warehouses[0].warehouseId, 10));
+  rejected(ops.actions.completeMilestone(operations, shipmentId, "arrive", CRM_TODAY));
+  for (const milestone of milestones.filter((m) => m.key !== "deliver")) ok(ops.actions.completeMilestone(operations, shipmentId, milestone.key, CRM_TODAY));
+  for (const milestone of milestones.filter((m) => m.key !== "deliver")) ok(ops.actions.completeMilestone(operations, unrelatedShipmentId, milestone.key, CRM_TODAY));
+  const receiptId = ok(wh.actions.createInbound(operations, shipmentId, wh.getSnapshot().data.warehouses[0].warehouseId, 10));
+  rejected(wh.actions.createInbound(operations, shipmentId, wh.getSnapshot().data.warehouses[0].warehouseId, 10));
+  ok(wh.actions.receiveInbound(operations, receiptId, 10, 5, "A-01-01", ""));
+  const outboundId = ok(wh.actions.createOutbound(operations, orderId));
+  rejected(wh.actions.packOutbound(operations, outboundId, 5, 1));
+  const outbound = wh.getSnapshot().data.outbounds.find((o) => o.outboundId === outboundId);
+  for (const packageId of outbound.packageIds) ok(wh.actions.pickPackage(operations, outboundId, packageId));
+  ok(wh.actions.packOutbound(operations, outboundId, 5, 1));
+  const deliveryId = ok(wh.actions.dispatchDelivery(operations, outboundId, "Đối tác demo"));
+  rejected(wh.actions.confirmPod(operations, deliveryId, "", "", ""));
+  ok(wh.actions.failDelivery(operations, deliveryId, "Khách vắng mặt (test)"));
+  ok(wh.actions.redispatch(operations, deliveryId));
+  ok(wh.actions.confirmPod(operations, deliveryId, "Người nhận demo", "Đã nhận đủ", "pod-demo.jpg"));
+  assert.equal(ops.getSnapshot().data.shipments.find((s) => s.shipmentId === shipmentId).milestones.deliver.actualOn, CRM_TODAY);
+  assert.equal(ops.getSnapshot().data.shipments.find((s) => s.shipmentId === unrelatedShipmentId).milestones.deliver.actualOn, undefined, "POD must not mark an unrelated shipment of the same order delivered");
+  // The operations module also supports manual milestone confirmation in the existing demo.
+  ok(ops.actions.completeMilestone(operations, unrelatedShipmentId, "deliver", CRM_TODAY));
+  rejected(acc.actions.closeSettlement(accounting, orderId, ""));
+  const contract = crm.getSnapshot().data.contracts.find((c) => c.orderId === orderId);
+  ok(acc.actions.recordReceipt(accounting, orderId, contract.value - contract.deposit.amount, "DEMO-RECEIPT"));
+  const paymentId = ok(acc.actions.createPayment(operations, { kind: "nha-cung-cap", payeeId: supplierId, orderId, refId: poId, purpose: "thanh-toan-xuong", amount: 1000000 }));
+  ok(acc.actions.submitPayment(operations, paymentId));
+  rejected(acc.actions.reviewPayment(operations, paymentId, true, ""));
+  ok(acc.actions.reviewPayment(board, paymentId, true, ""));
+  rejected(acc.actions.markPaid(board, paymentId, "DEMO-PAID"));
+  ok(acc.actions.markPaid(accounting, paymentId, "DEMO-PAID"));
+  ok(acc.actions.reconcilePayment(accounting, paymentId));
+  for (const document of ops.getSnapshot().data.documents.filter((d) => d.orderId === orderId)) {
+    ok(ops.actions.addDocument(operations, document.shipmentId, document.type, `demo-${document.type}.pdf`));
+    ok(ops.actions.reviewDocument(operations, document.docId, true, ""));
+  }
+  ok(ops.actions.saveActualCosts(operations, shipmentId, { freight: 100000, customs: 0, handling: 0, other: 0 }));
+  ok(acc.actions.startSettlement(accounting, orderId));
+  ok(acc.actions.closeSettlement(accounting, orderId, "Hoàn tất kiểm thử luồng"));
+  assert.equal(acc.getSnapshot().data.settlements.find((s) => s.orderId === orderId).status, "da-quyet-toan");
+
+  const errorStore = createStore({ load: async () => { throw Error("offline"); }, save: async () => {}, reset: async () => { throw Error("offline"); } }, {});
+  errorStore.start(); await tick();
+  assert.equal(errorStore.getSnapshot().status, "error");
+  await errorStore.reset(); assert.equal(errorStore.getSnapshot().status, "error");
+  console.log("PASS: Lead → RFQ → sourcing → quotation → contract → deposit → PO/QC → shipment → inbound → pick/pack → failed delivery/retry → POD → settlement; permission gates and load errors.");
+}
+check().catch((error) => { console.error(error); process.exitCode = 1; });

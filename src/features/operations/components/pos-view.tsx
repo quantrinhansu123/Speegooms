@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -40,7 +41,8 @@ export function PosView() {
   const filtered = [...ops.pos]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.poId.localeCompare(a.poId))
     .filter((p) => (!status || p.status === status) && (!supplier || p.supplierId === supplier) && matchesQuery(query, p.poId, p.orderId, supplierName.get(p.supplierId)));
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-pos.csv", name: (r) => r.supplierId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.poId }, { label: "Tên / nội dung", value: (r) => r.supplierId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "order_id", value: (r) => r.orderId }, { label: "amount_vnd", value: (r) => r.amount }, { label: "status", value: (r) => r.status }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<PurchaseOrder>[] = [
     { key: "po", header: "PO", cell: (p) => <Link href={`/van-hanh/po/${p.poId}`} className="font-mono text-xs font-medium text-primary hover:underline">{p.poId}</Link> },
@@ -79,6 +81,7 @@ export function PosView() {
           {ops.suppliers.map((s) => <option key={s.supplierId} value={s.supplierId}>{s.name}</option>)}
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(p) => p.poId} empty={<EmptyState title="Không có PO phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

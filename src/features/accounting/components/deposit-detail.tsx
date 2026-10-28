@@ -13,6 +13,7 @@ import { DepositBadge } from "@/features/crm/components/meta-badges";
 import { formatDate, formatMoney } from "@/lib/format";
 import { matchStatement } from "@/services/accounting/rules";
 import { useAccounting } from "../hooks";
+import { canPerform } from "@/config/permissions";
 
 /**
  * Xác nhận "Đã cọc": dùng thao tác của CRM store (chỉ Kế toán), nên trạng thái cọc thay đổi đồng thời
@@ -29,7 +30,7 @@ export function DepositDetail({ orderId }: { orderId: string }) {
   const customer = crm.customers.find((x) => x.customerId === c.customerId);
   const d = c.deposit;
   const match = matchStatement(c, acc.statementLines);
-  const isAccountant = user.role === "ke-toan";
+  const isAccountant = canPerform(user.role, "deposit.confirm");
   const run = (r: { ok: boolean; error?: string }, success?: string) => setMsg(r.ok ? (success ? { tone: "success", text: success } : undefined) : { tone: "danger", text: r.error ?? "Không thực hiện được" });
 
   return (

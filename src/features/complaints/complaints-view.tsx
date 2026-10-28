@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -43,7 +45,7 @@ export function ComplaintsView() {
   const [open, setOpen] = useState(false);
   const writable = canWrite(user.role, "complaints") || canWrite(user.role, "feedback");
   return <>
-    <ListView title="Khiếu nại" description="Theo dõi sự cố theo đơn hàng, người xử lý và thời hạn. SLA và trách nhiệm xử lý là đề xuất." rows={tickets} getRowId={(c) => c.id} searchLabel="Tìm khiếu nại" searchPlaceholder="Mã ticket, đơn hàng, nội dung…" searchText={(c) => [c.id, c.orderId, c.title, c.description]}
+    <ListView dateValue={(r) => r.history[0]?.at} title="Khiếu nại" description="Theo dõi sự cố theo đơn hàng, người xử lý và thời hạn. SLA và trách nhiệm xử lý là đề xuất." rows={tickets} getRowId={(c) => c.id} searchLabel="Tìm khiếu nại" searchPlaceholder="Mã ticket, đơn hàng, nội dung…" searchText={(c) => [c.id, c.orderId, c.title, c.description]}
       actions={writable && <Button disabled={!ops.ready || !contracts.length} onClick={() => setOpen(true)}>Tạo khiếu nại</Button>}
       summary={<div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label="Đang mở" value={String(tickets.filter((t) => t.status !== "hoan-tat").length)} /><StatCard label="Quá hạn" value={String(tickets.filter((t) => t.status !== "hoan-tat" && t.dueOn < CRM_TODAY).length)} caption="Theo ngày demo 28/10/2026" /><StatCard label="Chờ duyệt đền bù" value={String(tickets.filter((t) => t.compensation.status === "cho-duyet").length)} caption="Mô phỏng, chưa phát sinh chi tiền" /></div>}
       filters={[
@@ -121,7 +123,7 @@ export function ComplaintDetail({ id }: { id: string }) {
   if (!ticket) return <EmptyState title="Không tìm thấy ticket trong phạm vi truy cập" action={<Link href="/khieu-nai">Về danh sách</Link>} />;
   return <>
     <PageHeader title={ticket.title} description={`${ticket.id} · ${ticket.orderId} · ${ticket.category}`} actions={<TicketBadge ticket={ticket} />} />
-    <div className="mb-6 flex flex-wrap gap-4 text-sm"><Link href="/khieu-nai" className="text-primary hover:underline">← Danh sách khiếu nại</Link>{canAccess(user.role, "/van-hanh/don-hang") && <Link href={`/van-hanh/don-hang/${ticket.orderId}`} className="text-primary hover:underline">Xem đơn hàng</Link>}</div>
+    <div className="mb-6 flex flex-wrap gap-4 text-sm"><Link href="/khieu-nai" className="text-primary hover:underline"><ArrowText>{"←"}</ArrowText> Danh sách khiếu nại</Link>{canAccess(user.role, "/van-hanh/don-hang") && <Link href={`/van-hanh/don-hang/${ticket.orderId}`} className="text-primary hover:underline">Xem đơn hàng</Link>}</div>
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-6"><SectionCard title="Thông tin sự cố"><p className="mb-4 whitespace-pre-wrap text-sm">{ticket.description}</p><dl className="grid grid-cols-2 gap-3 text-sm"><dt className="text-muted-foreground">Người xử lý</dt><dd>{ops.staffName(ticket.assigneeId)}</dd><dt className="text-muted-foreground">Thời hạn</dt><dd>{formatDate(ticket.dueOn)}</dd><dt className="text-muted-foreground">Ưu tiên</dt><dd>{ticket.priority}</dd><dt className="text-muted-foreground">Kết quả</dt><dd className="whitespace-pre-wrap">{ticket.result || "Chưa có kết quả"}</dd></dl></SectionCard>
         {canWrite(user.role, "complaints") && ticket.status !== "hoan-tat" && <ComplaintEditor key={`${ticket.id}-${ticket.status}`} ticket={ticket} />}

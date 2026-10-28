@@ -21,6 +21,7 @@ export function useFulfillment() {
   return {
     ...ops,
     ready: ops.ready && state.status === "ready",
+    error: ops.error ?? state.error,
     wh: state.data,
     whActions: bound,
     canWh: (a: FulfillmentAction = "wh.write") => fulfillmentPermissions[a].includes(ops.user.role),

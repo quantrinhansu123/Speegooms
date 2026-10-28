@@ -109,7 +109,7 @@ export function PaymentsView() {
 
   return (
     <>
-      <ListView
+      <ListView dateLabel="Ngày đề nghị" dateValue={(r) => r.requestedAt}
         title="Đề nghị thanh toán"
         description="Nhà cung cấp và đối tác vận chuyển. Ba bước tách nhau: nhập (Vận hành), duyệt (theo cấp), chi (Kế toán). Chỉ ghi nhận trạng thái."
         actions={canAcc("pay.create") && <Button size="lg" onClick={() => setCreating(true)}><Plus /> Nhập đề nghị</Button>}

@@ -1,3 +1,4 @@
+import { canPerform } from "../../config/permissions.ts";
 import { z } from "zod";
 import type { Complaint, LegalTicket } from "../../types/backoffice.ts";
 import type { Contract, Lead, Rfq } from "../../types/crm.ts";
@@ -37,13 +38,10 @@ export const compensationSchema = z.object({ amount: z.number().finite().positiv
 export const noteSchema = text;
 
 export function canWrite(role: Role, module: "marketing" | "complaints" | "hrm" | "legal" | "feedback") {
-  if (role === "admin") return true;
-  const roles: Record<typeof module, Role[]> = {
-    marketing: ["marketing"], complaints: ["van-hanh", "ban-gd"], hrm: ["hcns"], legal: ["phap-che"], feedback: ["sale-vn", "sale-global"],
-  };
-  return roles[module].includes(role);
+  const action = module === "feedback" ? "feedback.write" : `${module}.write` as const;
+  return canPerform(role, action);
 }
-export const canApprove = (role: Role) => role === "admin" || role === "ban-gd";
+export const canApprove = (role: Role) => canPerform(role, "board.approve");
 export const complaintTransitions: Record<Complaint["status"], Complaint["status"][]> = {
   moi: ["dang-xu-ly"], "dang-xu-ly": ["cho-khach", "hoan-tat"], "cho-khach": ["dang-xu-ly", "hoan-tat"], "hoan-tat": [],
 };

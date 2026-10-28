@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { Megaphone, Target, Users, ShoppingBag } from "lucide-react";
@@ -54,8 +56,8 @@ export function MarketingDashboard({ conversion = false }: { conversion?: boolea
       </SectionCard>
       <SectionCard title="Cách đọc chỉ số" description="Dữ liệu đọc trực tiếp từ CRM trong trình duyệt">
         <ul className="space-y-3 text-sm text-muted-foreground">
-          <li>Lead → RFQ: lead có ít nhất một RFQ chưa hủy / tổng lead của nguồn.</li>
-          <li>Lead → đơn: lead có ít nhất một hợp đồng đã ký / tổng lead của nguồn.</li>
+          <li>Lead <ArrowText>{"→"}</ArrowText> RFQ: lead có ít nhất một RFQ chưa hủy / tổng lead của nguồn.</li>
+          <li>Lead <ArrowText>{"→"}</ArrowText> đơn: lead có ít nhất một hợp đồng đã ký / tổng lead của nguồn.</li>
           <li>Không cộng lặp khi một lead có nhiều RFQ hoặc đơn. Affiliate chưa triển khai nên không nằm trong ba nguồn này.</li>
           <li>Chi phí chiến dịch là dữ liệu mẫu độc lập. Chưa có liên kết lead–chiến dịch, chưa tính CPL/ROI để tránh gán doanh thu sai.</li>
         </ul>
@@ -87,7 +89,7 @@ export function CampaignsView({ source }: { source?: LeadSource }) {
     ...(writable ? [{ key: "action", header: "Thao tác", cell: (c: Campaign) => <Button size="sm" variant="outline" disabled={c.status === "ket-thuc"} onClick={() => setError(actions.toggleCampaign(user, c.id))}>{c.status === "dang-chay" ? "Tạm dừng" : "Tiếp tục"}</Button> }] : []),
   ];
   return <>
-    <ListView title={source ? `Chiến dịch · ${sourceLabels[source]}` : "Chiến dịch Marketing"} description="Danh sách và ngân sách mẫu; thay đổi trạng thái chỉ có hiệu lực trong demo." rows={data.campaigns.filter((c) => !source || c.source === source)} columns={columns} getRowId={(c) => c.id} searchLabel="Tìm chiến dịch" searchPlaceholder="Tên, mã chiến dịch…" searchText={(c) => [c.id, c.name]} filters={[{ id: "source", label: "Mọi nguồn", options: activeSources.map((s) => ({ value: s, label: sourceLabels[s] })), match: (c, v) => c.source === v }]} actions={writable && <Button onClick={() => setOpen(true)}>Tạo chiến dịch</Button>} banner={error && <InlineAlert className="mb-4">{error}</InlineAlert>} />
+    <ListView dateLabel="Ngày bắt đầu" dateValue={(r) => r.startOn} title={source ? `Chiến dịch · ${sourceLabels[source]}` : "Chiến dịch Marketing"} description="Danh sách và ngân sách mẫu; thay đổi trạng thái chỉ có hiệu lực trong demo." rows={data.campaigns.filter((c) => !source || c.source === source)} columns={columns} getRowId={(c) => c.id} searchLabel="Tìm chiến dịch" searchPlaceholder="Tên, mã chiến dịch…" searchText={(c) => [c.id, c.name]} filters={[{ id: "source", label: "Mọi nguồn", options: activeSources.map((s) => ({ value: s, label: sourceLabels[s] })), match: (c, v) => c.source === v }]} actions={writable && <Button onClick={() => setOpen(true)}>Tạo chiến dịch</Button>} banner={error && <InlineAlert className="mb-4">{error}</InlineAlert>} />
     {open && <FormDialog title="Tạo chiến dịch mẫu" description="Chưa kết nối nền tảng Ads/Google; số tiền nhập bằng VND." onClose={() => setOpen(false)} onSave={(f) => actions.saveCampaign(user, { ...Object.fromEntries(f), budget: Number(f.get("budget")), spent: Number(f.get("spent")) })}>
       <Field label="Tên chiến dịch" htmlFor="c-name" required><Input id="c-name" name="name" required maxLength={160} /></Field>
       <Field label="Nguồn" htmlFor="c-source"><NativeSelect id="c-source" name="source" defaultValue={source ?? "ads"}>{activeSources.map((s) => <option key={s} value={s}>{sourceLabels[s]}</option>)}</NativeSelect></Field>
@@ -112,7 +114,7 @@ export function FeedbackView() {
     { key: "at", header: "Ngày", cell: (f) => formatDate(f.at.slice(0, 10)) },
   ];
   return <>
-    <ListView title="Phản hồi chất lượng lead" description="Sales đánh giá theo tuyến phụ trách. Marketing xem để cải thiện nguồn lead; tiêu chí đánh giá đang ở mức đề xuất." rows={data.feedback.filter((f) => leadMap.has(f.messId))} columns={columns} getRowId={(f) => f.id} searchLabel="Tìm phản hồi" searchPlaceholder="Tên khách, mã lead, nội dung…" searchText={(f) => [f.messId, f.note, leadMap.get(f.messId)?.contactName]} filters={[{ id: "quality", label: "Mọi đánh giá", options: qualityOptions.map((q) => ({ value: q, label: q })), match: (f, v) => f.quality === v }]} actions={canWrite(user.role, "feedback") && <Button disabled={!crm.ready || !leads.length} onClick={() => setOpen(true)}>Gửi phản hồi</Button>} />
+    <ListView dateLabel="Ngày phản hồi" dateValue={(r) => r.at} title="Phản hồi chất lượng lead" description="Sales đánh giá theo tuyến phụ trách. Marketing xem để cải thiện nguồn lead; tiêu chí đánh giá đang ở mức đề xuất." rows={data.feedback.filter((f) => leadMap.has(f.messId))} columns={columns} getRowId={(f) => f.id} searchLabel="Tìm phản hồi" searchPlaceholder="Tên khách, mã lead, nội dung…" searchText={(f) => [f.messId, f.note, leadMap.get(f.messId)?.contactName]} filters={[{ id: "quality", label: "Mọi đánh giá", options: qualityOptions.map((q) => ({ value: q, label: q })), match: (f, v) => f.quality === v }]} actions={canWrite(user.role, "feedback") && <Button disabled={!crm.ready || !leads.length} onClick={() => setOpen(true)}>Gửi phản hồi</Button>} />
     {open && <FormDialog title="Phản hồi lead" description="Đánh giá nội bộ từ Sales, không gửi ra ngoài." onClose={() => setOpen(false)} onSave={(f) => actions.addFeedback(user, Object.fromEntries(f))}>
       <Field label="Lead" htmlFor="f-lead" required><NativeSelect id="f-lead" name="messId" required>{leads.map((l) => <option key={l.messId} value={l.messId}>{l.contactName} · {l.messId}</option>)}</NativeSelect></Field>
       <Field label="Chất lượng" htmlFor="f-quality"><NativeSelect id="f-quality" name="quality">{qualityOptions.map((q) => <option key={q}>{q}</option>)}</NativeSelect></Field>

@@ -1,7 +1,9 @@
+import { ArrowText } from "@/components/shared/arrow-text";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./empty-state";
 import { TableSkeleton } from "./loading-skeleton";
+import type { CsvValue } from "@/lib/csv";
 
 export interface Column<T> {
   key: string;
@@ -9,6 +11,8 @@ export interface Column<T> {
   cell: (row: T) => React.ReactNode;
   align?: "left" | "right";
   className?: string;
+  sortValue?: (row: T) => string | number;
+  exportValue?: (row: T) => CsvValue;
 }
 
 /**
@@ -54,7 +58,7 @@ export function DataTable<T>({
                     col.className,
                   )}
                 >
-                  {col.header}
+                  <ArrowText>{col.header}</ArrowText>
                 </TableHead>
               ))}
             </TableRow>

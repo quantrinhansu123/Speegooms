@@ -16,14 +16,13 @@ src/
 │  ├─ page.tsx               # redirect → /dashboard
 │  └─ (app)/                 # Route group dùng AppShell
 │     ├─ layout.tsx
-│     ├─ design-system/      # Trang demo component
 │     └─ [...slug]/          # Trang giữ chỗ cho mọi module trong sidebar
 ├─ components/
 │  ├─ ui/                    # shadcn/ui primitives (sinh bằng CLI)
 │  ├─ layout/                # AppShell, Sidebar, Header, Breadcrumbs, UserMenu
 │  └─ shared/                # PageHeader, StatCard, DataTable, StatusBadge, EmptyState, skeleton, ConfirmDialog
 ├─ features/                 # Code theo module nghiệp vụ (mỗi module một thư mục)
-│  └─ design-system/         # Chỉ trang demo
+│  └─ ...                    # CRM, vận hành, kế toán và các module phòng ban
 ├─ config/navigation.ts      # Cây module/phòng ban + breadcrumb helper
 ├─ services/                 # Tầng truy cập dữ liệu (hiện trả mock)
 ├─ mocks/                    # Dữ liệu mẫu có tổ chức
@@ -47,11 +46,11 @@ src/
 
 - **Luồng:** `proxy.ts` chuyển người chưa có cookie về `/login`, người đã đăng nhập khỏi `/login`. `(app)/layout.tsx` đọc session phía server (trong `Suspense`), truyền xuống `SessionProvider`; client dùng `useSession()`.
 - **Tài khoản demo:** `mocks/users.json`, 9 vai trò (Admin, Ban GĐ, Marketing, Sale VN, Sale Global, Vận hành, Kế toán, HCNS, Pháp chế). Trang login có nút chọn vai trò để điền sẵn.
-- **Phân quyền menu tập trung:** `config/roles.ts` (`roleConfig`: module được truy cập, phạm vi dashboard). `navigationForRole()` lọc sidebar; `canAccess()` chặn trang giữ chỗ và `/design-system` bằng `<Forbidden />`. Chỉ Admin thấy nhóm "Hệ thống". Đây là kiểm tra giao diện, quyền thật phải do backend áp dụng.
-- **KPI bấm được:** `config/modules.ts` liệt kê route đã có trang thật. KPI chỉ thành link khi route đích nằm trong danh sách đó và vai trò có quyền. Hiện chưa module nghiệp vụ nào được triển khai nên KPI chưa link; thêm route vào `implementedRoutes` là KPI tự bật.
-- **Dữ liệu dashboard:** `mocks/data/*.json` (khách hàng, lead, RFQ, đơn hàng, công việc) có quan hệ `lead → rfq → đơn` và cùng một tuyến VN/Global. Ngày "hôm nay" cố định `2026-10-28`. `services/dashboard.service.ts` trả dữ liệu (đổi sang API sau này), `features/dashboard/metrics.ts` là hàm thuần tính chỉ số theo bộ lọc. Chạy `pnpm check:metrics` để kiểm tra quy tắc tính.
-- **Quy ước chỉ số:** lead mới, RFQ, đơn, giá trị hợp đồng tính theo ngày tạo trong khoảng thời gian; RFQ đang xử lý, đơn đang thực hiện, đơn chờ cọc, công nợ là số tại thời điểm hiện tại. Bộ lọc Sale VN/Global theo tuyến; các phòng khác theo phòng đang giữ bản ghi.
-- **Dashboard theo vai trò:** Admin và Ban GĐ xem toàn công ty và đổi được phòng ban. Vai trò theo phòng bị khóa vào phòng của mình. HCNS và Pháp chế chưa có chỉ số nghiệp vụ nên chỉ thấy công việc.
+- **Phân quyền tập trung:** `config/roles.ts` cho menu/route, `config/permissions.ts` cho thao tác, `config/reports.ts` cho loại báo cáo. `RouteGate` chặn FE ở AppShell, các shell/action kiểm tiếp quyền của module. Chỉ Admin thấy nhóm "Hệ thống". Đây là quyền demo, không phải bảo mật Backend.
+- **KPI bấm được:** chỉ dẫn đến route thật mà vai trò có quyền. `config/modules.ts` đăng ký các module đã triển khai.
+- **Dữ liệu dashboard:** `/dashboard` dùng `features/dashboard/role-dashboard.tsx`, đọc trực tiếp các store qua `features/reports/use-platform-data.ts`; thay đổi nghiệp vụ trong trình duyệt được phản ánh ngay. Bộ metrics/JSON tĩnh của giai đoạn trước được giữ cho kiểm thử hồi quy, không còn là nguồn của trang dashboard.
+- **Quy ước chỉ số:** thẻ theo kỳ ghi rõ ngày tạo/cohort; thẻ số dư và hàng đợi hiện tại không bị lọc theo kỳ. Không cộng VND/USD. Ngày demo cố định `2026-10-28`.
+- **Dashboard theo vai trò:** Admin/Ban GĐ có KPI điều hành và hàng đợi duyệt; Sales khóa tuyến VN/Global; Marketing có nguồn lead/phản hồi; Vận hành có đơn/lô/kho; Kế toán có cọc/công nợ/chi; HCNS có nhân sự/onboarding/chấm công; Pháp chế có rà soát/quá hạn/chờ duyệt.
 
 ## CRM và Sales (giai đoạn 3)
 
@@ -59,7 +58,7 @@ Màn hình: `/crm/leads`, `/crm/khach-hang`, `/crm/rfq`, `/crm/bao-gia`, `/crm/h
 
 **Dữ liệu và lưu trữ (mock có giải thích):**
 - Seed JSON ở `mocks/crm/*.json`, sinh từ cùng nguồn với dashboard nên số lượng khớp (410 lead, 259 RFQ, 124 hợp đồng). Seed tải bằng `import()` động, chỉ khi vào CRM.
-- Lần đầu nạp seed vào **localStorage** (`speego_crm_demo_v1`); mọi thêm/sửa/đổi trạng thái được lưu lại và còn sau khi tải lại trang. Dữ liệu chỉ nằm trong trình duyệt này, không đồng bộ giữa người dùng/thiết bị. Nút "Đặt lại dữ liệu demo" nạp lại seed. Dashboard vẫn đọc JSON tĩnh nên **không** phản ánh dữ liệu CRM bạn tạo thêm.
+- Lần đầu nạp seed vào **localStorage** (`speego_crm_demo_v1`); mọi thêm/sửa/đổi trạng thái được lưu lại và còn sau khi tải lại trang. Dữ liệu chỉ nằm trong trình duyệt này, không đồng bộ giữa người dùng/thiết bị. Dashboard và Reports dùng cùng store nên phản ánh thay đổi CRM.
 
 **Tách lớp (để gắn backend):**
 - `types/crm.ts`: DTO snake_case (`mess_id`, `rfq_id`, `order_id`, `customer_id`) và model camelCase suy ra từ DTO bằng kiểu `Camelize`.
@@ -85,7 +84,7 @@ Màn hình dưới `/van-hanh/*` (mỗi mục có trang chi tiết `[id]`): Sour
 
 **Liên kết với CRM:** đơn hàng Vận hành chính là hợp đồng CRM đã ký (`order_id`), nên khách hàng, RFQ, báo giá, cọc đều đọc từ CRM store (không sao chép). Chọn báo giá nhà cung cấp sẽ gọi `returnPrices` bên CRM để RFQ chuyển sang "Đã có giá". Seed `mocks/ops/*.json` sinh từ chính dữ liệu CRM (213 yêu cầu tìm nguồn, 113 PO đúng bằng số hợp đồng đã cọc, 90 lô hàng).
 
-**Lưu trữ:** như CRM, seed JSON nạp vào localStorage (`speego_ops_demo_v2`), chỉ nằm trong trình duyệt này; nút "Đặt lại dữ liệu Vận hành" nạp lại seed (không ảnh hưởng CRM).
+**Lưu trữ:** như CRM, seed JSON nạp vào localStorage (`speego_ops_demo_v2`), chỉ nằm trong trình duyệt này.
 
 **Cấu trúc:** `types/ops.ts` (DTO + model, dùng lại `Camelize`), `services/ops/{repository,rules}.ts`, `features/operations/{store,hooks,ops-shell}` và `components/*`, `config/operations.ts` (nhãn, checklist, quyền). `buildOrderViews()` dựng danh sách đơn: giai đoạn suy ra từ cọc, bàn giao, PO, lô hàng; cảnh báo thiếu thông tin, quá hạn, chờ xác nhận. Kiểm tra bằng `pnpm check:ops`.
 
@@ -116,7 +115,7 @@ Màn hình dưới `/van-hanh/*` (mỗi mục có trang chi tiết `[id]`): Sour
 - **Ngưỡng duyệt chi: CẦN CẤU HÌNH** (`config/accounting.ts`, `paymentApproval.configured = false`). Ba cấp hiển thị chỉ mô phỏng luồng; giao diện hiện banner cảnh báo ở mọi nơi dùng ngưỡng. Tài liệu chưa có ngưỡng tiền và mẫu đề nghị chi.
 - **Không có thanh toán thật:** "Đã chi" chỉ là ghi nhận trạng thái; sao kê là dữ liệu demo, không kết nối ngân hàng. Giao diện ghi rõ điều này.
 - Chủ quyết toán chưa được phân trong tài liệu; demo cho Kế toán chốt. Số ngày cảnh báo hàng chờ nhập kho (`inboundAlertDays`) chỉ để demo, tài liệu chưa có SLA kho. Minh chứng POD và chứng từ chỉ ghi tên file, không lưu tệp.
-- Dữ liệu chỉ nằm trong trình duyệt này (localStorage), mỗi module có nút đặt lại riêng.
+- Dữ liệu chỉ nằm trong trình duyệt này (localStorage); giao diện không hiển thị nút đặt lại.
 
 ## Lưu ý kỹ thuật
 
@@ -132,8 +131,6 @@ pnpm dev        # http://localhost:3000 (→ /dashboard)
 pnpm lint
 pnpm build && pnpm start
 ```
-
-Trang kiểm tra UI: `/design-system`.
 
 ## Marketing, Khiếu nại, HRM và Pháp chế (UI đề xuất)
 
@@ -158,8 +155,27 @@ StatusBadge, Dialog và HistoryList. Không thêm dependency hoặc kết nối 
   Trạng thái hồ sơ gốc không thay đổi theo phê duyệt mô phỏng.
 
 `features/backoffice/store.ts` dùng store/repository factory hiện có; dữ liệu mới lưu riêng
-trong `speego-backoffice-v1`. Banner của mọi module ghi rõ ngày demo 28/10/2026, lưu localStorage,
-phạm vi đề xuất của SLA, phân quyền thao tác, đền bù, duyệt, hồ sơ và onboarding.
+trong `speego-backoffice-v1`. Thông tin nguồn dữ liệu và giới hạn được mô tả tại Demo Guide;
+các chú thích nghiệp vụ đề xuất nằm trong form và màn chi tiết liên quan.
 Auth/quyền vẫn là mock, không phải bảo mật production. Tệp bằng chứng/hồ sơ chỉ có mô tả tham chiếu.
 
 Kiểm tra: `pnpm check:backoffice`, `pnpm lint`, `pnpm build`.
+
+## Giai đoạn cuối: Dashboard, Reports và nghiệm thu FE
+
+`/dashboard` dùng RoleDashboard với cùng store nghiệp vụ; `/reports` có 8 loại báo cáo theo
+quyền và tuyến. Reports có date filter, search, sort, pagination và CSV cho toàn bộ tập đã lọc.
+11 danh sách CRM/Vận hành có useListTools dùng chung (date khi có mốc ngày, sort và CSV),
+giữ nguyên các filter nghiệp vụ và Kanban. ListView hỗ trợ dateValue/dateLabel theo ngữ nghĩa
+của từng màn; dữ liệu tồn kho hiện tại hoặc NCC không có ngày tạo không bị gán ngày giả.
+
+Quyền thao tác nằm ở config/permissions.ts, quyền route/menu ở config/roles.ts và quyền từng
+loại report ở config/reports.ts. Các export quyền cũ giữ tương thích cho hook/store.
+Backend vẫn phải thực thi quyền và phạm vi bản ghi thật.
+
+ErrorState, Loading, EmptyState và InlineAlert được dùng chung; store có nhánh lỗi tải/reset.
+Field liên kết mô tả/lỗi cho screen reader, bảng cuộn bằng bàn phím, modal giới hạn chiều cao,
+mobile có điều khiển 44px và giảm motion theo cài đặt hệ thống. Không tuyên bố chứng nhận WCAG.
+
+Xem FINAL_AUDIT.md để biết kiểm chứng, phần còn giữ chỗ và giới hạn. API_INTEGRATION_GUIDE.md
+là hướng dẫn bàn giao Backend; endpoint mới chỉ là đề xuất, chưa có kết nối mạng nghiệp vụ.

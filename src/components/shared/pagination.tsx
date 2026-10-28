@@ -18,7 +18,7 @@ export function Pagination({
   const to = Math.min(page * pageSize, total);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="tabular text-sm text-muted-foreground">
+      <p role="status" aria-atomic="true" className="tabular text-sm text-muted-foreground">
         {from}–{to} / {total} bản ghi
       </p>
       <div className="flex items-center gap-2">

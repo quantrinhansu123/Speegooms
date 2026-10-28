@@ -1,3 +1,4 @@
+import { actionPermissions } from "./permissions.ts";
 import type { Role } from "@/types/role";
 import type { StatusTone } from "@/types/status";
 import type { DeliveryStatus, InquiryStatus, OutboundStatus, PackageStatus, ReceiptStatus } from "@/types/fulfillment";
@@ -57,7 +58,4 @@ export const inboundAlertDays = 2;
 export type FulfillmentAction = "wh.write" | "inquiry.create";
 
 /** Quyền thao tác Fulfillment trong demo. Sale chỉ được tạo yêu cầu hỏi tình trạng. Quyền thật do backend quyết định. */
-export const fulfillmentPermissions: Record<FulfillmentAction, Role[]> = {
-  "wh.write": ["van-hanh", "admin"],
-  "inquiry.create": ["sale-vn", "sale-global", "admin"],
-};
+export const fulfillmentPermissions: Record<FulfillmentAction, Role[]> = actionPermissions;

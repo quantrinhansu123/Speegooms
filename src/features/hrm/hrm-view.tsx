@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { Users } from "lucide-react";
@@ -40,7 +42,7 @@ export function EmployeesView() {
   const { data, user } = useBackoffice();
   const [open, setOpen] = useState(false);
   return <>
-    <ListView title="Nhân viên" description="Phòng ban, vị trí và trạng thái lao động. Dữ liệu nhân sự mẫu, độc lập với phân quyền đăng nhập." rows={data.employees} getRowId={(e) => e.id} searchLabel="Tìm nhân viên" searchPlaceholder="Tên, mã, email, vị trí…" searchText={(e) => [e.id, e.name, e.email, e.position]}
+    <ListView dateLabel="Ngày vào làm" dateValue={(r) => r.joinedOn} title="Nhân viên" description="Phòng ban, vị trí và trạng thái lao động. Dữ liệu nhân sự mẫu, độc lập với phân quyền đăng nhập." rows={data.employees} getRowId={(e) => e.id} searchLabel="Tìm nhân viên" searchPlaceholder="Tên, mã, email, vị trí…" searchText={(e) => [e.id, e.name, e.email, e.position]}
       actions={canWrite(user.role, "hrm") && <Button onClick={() => setOpen(true)}>Thêm nhân viên</Button>}
       summary={<div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label="Đang làm việc" value={String(data.employees.filter((e) => ["thu-viec", "chinh-thuc"].includes(e.status)).length)} icon={Users} /><StatCard label="Thử việc" value={String(data.employees.filter((e) => e.status === "thu-viec").length)} /><StatCard label="Phòng ban" value={String(new Set(data.employees.map((e) => e.department)).size)} /></div>}
       filters={[{ id: "department", label: "Mọi phòng ban", options: departmentOptions, match: (e, v) => e.department === v }, { id: "status", label: "Mọi trạng thái", options: Object.entries(employeeStatuses).map(([value, label]) => ({ value, label })), match: (e, v) => e.status === v }]}
@@ -62,7 +64,7 @@ export function EmployeeDetail({ id }: { id: string }) {
   if (!employee) return <EmptyState title="Không tìm thấy nhân viên" action={<Link href="/hcns/nhan-vien">Về danh sách</Link>} />;
   return <>
     <PageHeader title={employee.name} description={`${employee.id} · ${departmentLabels[employee.department]} · ${employee.position}`} actions={canWrite(user.role, "hrm") && <Button onClick={() => setOpen(true)}>Chỉnh sửa hồ sơ</Button>} />
-    <Link href="/hcns/nhan-vien" className="mb-6 inline-block text-sm text-primary hover:underline">← Danh sách nhân viên</Link>
+    <Link href="/hcns/nhan-vien" className="mb-6 inline-block text-sm text-primary hover:underline"><ArrowText>{"←"}</ArrowText> Danh sách nhân viên</Link>
     <div className="grid gap-6 lg:grid-cols-2"><SectionCard title="Hồ sơ lao động" description="Thông tin mẫu, chưa dùng để quản lý hợp đồng lao động thực tế"><dl className="grid grid-cols-2 gap-4 text-sm"><dt className="text-muted-foreground">Trạng thái</dt><dd>{employeeStatuses[employee.status]}</dd><dt className="text-muted-foreground">Email</dt><dd className="break-all">{employee.email}</dd><dt className="text-muted-foreground">Ngày vào làm</dt><dd>{formatDate(employee.joinedOn)}</dd><dt className="text-muted-foreground">Loại hợp đồng</dt><dd>{employee.contractType}</dd><dt className="text-muted-foreground">Hết hạn</dt><dd>{employee.contractEnd ? formatDate(employee.contractEnd) : "Chưa khai báo"}</dd><dt className="text-muted-foreground">Quản lý trực tiếp</dt><dd>{data.employees.find((e) => e.id === employee.managerId)?.name ?? "Chưa phân công"}</dd></dl></SectionCard><SectionCard title="Danh mục hồ sơ" description="Tên hồ sơ tham chiếu; chưa lưu tệp"><ul className="space-y-2 text-sm">{employee.documents.map((s, i) => <li key={i} className="rounded-lg bg-muted p-3">{s}</li>)}</ul>{!employee.documents.length && <p className="text-sm text-muted-foreground">Chưa có hồ sơ.</p>}</SectionCard></div>
     {open && <EmployeeForm employee={employee} onClose={() => setOpen(false)} />}
   </>;
@@ -93,7 +95,7 @@ function CandidateDetail({ candidate, onClose }: { candidate: Candidate; onClose
   return <FormDialog title={candidate.name} description={`${candidate.position} · ${departmentLabels[candidate.department]} · Ngày dự kiến: ${formatDate(candidate.startOn)}. Hoàn tất checklist không tự tạo tài khoản; hồ sơ nhân viên được thêm tại danh sách nhân viên.`} onClose={onClose} onSave={() => writable ? actions.updateCandidate(user, candidate.id, status, tasks) : null} submitLabel={writable ? "Lưu tiến độ" : "Đóng"}>
     <Field label="Giai đoạn" htmlFor="uv-status"><NativeSelect id="uv-status" value={status} disabled={!writable} onChange={(e) => setStatus(e.target.value as Candidate["status"])}>{flow.filter((_, i) => i === index || i === index + 1).map((s) => <option key={s} value={s}>{candidateStatuses[s]}</option>)}</NativeSelect></Field>
     {(candidate.status === "onboarding" || candidate.status === "hoan-tat") && <fieldset className="space-y-3"><legend className="mb-3 font-medium">Checklist onboarding · đề xuất</legend>{onboardingTasks.map((task) => <label key={task} className="flex min-h-9 items-center gap-3"><input type="checkbox" className="size-4" disabled={!writable} checked={tasks.includes(task)} onChange={(e) => setTasks(e.target.checked ? [...tasks, task] : tasks.filter((t) => t !== task))} />{task}</label>)}</fieldset>}
-    <InlineAlert tone="info">Luồng đề xuất: Ứng tuyển → Phỏng vấn → Offer → Onboarding → Hoàn tất. Cần đủ checklist để hoàn tất onboarding.</InlineAlert>
+    <InlineAlert tone="info">Luồng đề xuất: Ứng tuyển <ArrowText>{"→"}</ArrowText> Phỏng vấn <ArrowText>{"→"}</ArrowText> Offer <ArrowText>{"→"}</ArrowText> Onboarding <ArrowText>{"→"}</ArrowText> Hoàn tất. Cần đủ checklist để hoàn tất onboarding.</InlineAlert>
   </FormDialog>;
 }
 
@@ -103,7 +105,7 @@ export function RecruitmentView() {
   const [selected, setSelected] = useState<string>();
   const current = data.candidates.find((c) => c.id === selected);
   return <>
-    <ListView title="Tuyển dụng & onboarding" description="Pipeline ứng viên và checklist hội nhập ở mức đề xuất. Không gửi email hoặc tạo tài khoản ngoài hệ thống." rows={data.candidates} getRowId={(c) => c.id} searchLabel="Tìm ứng viên" searchPlaceholder="Tên, email, vị trí…" searchText={(c) => [c.name, c.email, c.position]} actions={canWrite(user.role, "hrm") && <Button onClick={() => setCreating(true)}>Thêm ứng viên</Button>}
+    <ListView dateLabel="Dự kiến nhận việc" dateValue={(r) => r.startOn} title="Tuyển dụng & onboarding" description="Pipeline ứng viên và checklist hội nhập ở mức đề xuất. Không gửi email hoặc tạo tài khoản ngoài hệ thống." rows={data.candidates} getRowId={(c) => c.id} searchLabel="Tìm ứng viên" searchPlaceholder="Tên, email, vị trí…" searchText={(c) => [c.name, c.email, c.position]} actions={canWrite(user.role, "hrm") && <Button onClick={() => setCreating(true)}>Thêm ứng viên</Button>}
       filters={[{ id: "department", label: "Mọi phòng ban", options: departmentOptions, match: (c, v) => c.department === v }, { id: "status", label: "Mọi giai đoạn", options: Object.entries(candidateStatuses).map(([value, label]) => ({ value, label })), match: (c, v) => c.status === v }]}
       columns={[
         { key: "name", header: "Ứng viên", cell: (c) => <div><p className="font-medium">{c.name}</p><p className="text-xs text-muted-foreground">{c.email}</p></div> },

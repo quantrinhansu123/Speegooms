@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Column } from "@/components/shared/data-table";
-import { Field, InlineAlert } from "@/components/shared/form-fields";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { FormDialog } from "@/features/backoffice/form-dialog";
 import { ListView } from "@/components/shared/list-view";
 import { receiptStatusMeta } from "@/config/fulfillment";
 import { formatDate } from "@/lib/format";
@@ -52,8 +53,10 @@ function ReceiveDialog({ receipt, onClose }: { receipt: InboundReceipt; onClose:
 }
 
 export function InboundView() {
-  const { wh, crm, canWh, today } = useFulfillment();
+  const { wh, crm, ops, whActions, canWh, today } = useFulfillment();
   const [receiving, setReceiving] = useState<InboundReceipt>();
+  const [creating, setCreating] = useState(false);
+  const available = ops.shipments.filter((s) => s.milestones.arrive.actualOn && !s.milestones.deliver.actualOn && !wh.receipts.some((r) => r.shipmentId === s.shipmentId));
   const customerOf = new Map(crm.contracts.map((c) => [c.orderId, crm.customers.find((x) => x.customerId === c.customerId)?.name ?? c.customerId]));
   const whName = new Map(wh.warehouses.map((w) => [w.warehouseId, w.name]));
 
@@ -93,8 +96,9 @@ export function InboundView() {
 
   return (
     <>
-      <ListView
+      <ListView dateLabel="Ngày về kho" dateValue={(r) => r.arrivedOn}
         title="Hàng nhập kho"
+        actions={canWh() && <Button disabled={!available.length} onClick={() => setCreating(true)}>Lập phiếu từ lô về kho</Button>}
         description="Hàng của lô đã về kho đích. Kiểm đếm và nhập kho để sinh kiện hàng với vị trí lưu kho."
         columns={columns}
         rows={wh.receipts}
@@ -110,6 +114,14 @@ export function InboundView() {
         sort={(a, b) => (a.status === "cho-nhap" ? 0 : 1) - (b.status === "cho-nhap" ? 0 : 1) || b.arrivedOn.localeCompare(a.arrivedOn)}
       />
       {receiving && <ReceiveDialog receipt={receiving} onClose={() => setReceiving(undefined)} />}
+      {creating && <FormDialog title="Lập phiếu nhập · đề xuất" description="Chọn lô đã về kho. Số lượng dự kiến nhập tay theo phân bổ thực tế của lô; chưa có quy tắc tự chia số lượng đơn nhiều lô." onClose={() => setCreating(false)} onSave={(f) => {
+        const result = whActions.createInbound(String(f.get("shipmentId")), String(f.get("warehouseId")), Number(f.get("expectedQty")));
+        return result.ok ? null : result.error;
+      }}>
+        <Field label="Lô đã về kho" htmlFor="new-inbound-shipment" required><NativeSelect id="new-inbound-shipment" name="shipmentId" required>{available.map((s) => <option key={s.shipmentId} value={s.shipmentId}>{s.shipmentId} · {s.orderId}</option>)}</NativeSelect></Field>
+        <Field label="Kho nhận" htmlFor="new-inbound-warehouse" required><NativeSelect id="new-inbound-warehouse" name="warehouseId" required>{wh.warehouses.map((w) => <option key={w.warehouseId} value={w.warehouseId}>{w.name}</option>)}</NativeSelect></Field>
+        <Field label="Số lượng dự kiến của lô" htmlFor="new-inbound-qty" required><Input id="new-inbound-qty" name="expectedQty" type="number" min="1" step="1" required /></Field>
+      </FormDialog>}
     </>
   );
 }

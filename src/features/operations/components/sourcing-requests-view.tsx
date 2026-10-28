@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -40,7 +41,8 @@ export function SourcingRequestsView() {
         (!assignee || r.assigneeId === assignee) &&
         matchesQuery(query, r.requestId, r.rfqId, rfqById.get(r.rfqId)?.goodsName, customerName.get(r.customerId)),
     );
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-sourcing-requests.csv", name: (r) => r.rfqId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.requestId }, { label: "Tên / nội dung", value: (r) => r.rfqId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "status", value: (r) => r.status }, { label: "due_on", value: (r) => r.dueOn }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
   const waiting = ops.requests.filter((r) => r.status === "moi" || r.status === "dang-tim").length;
 
   const columns: Column<SourcingRequest>[] = [
@@ -97,6 +99,7 @@ export function SourcingRequestsView() {
           ))}
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(r) => r.requestId} empty={<EmptyState title="Không có yêu cầu phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

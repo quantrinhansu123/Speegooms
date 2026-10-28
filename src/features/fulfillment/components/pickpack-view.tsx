@@ -79,7 +79,7 @@ export function PickPackView() {
 
   return (
     <>
-      <ListView
+      <ListView dateValue={(r) => r.createdAt}
         title="Pick / Pack"
         description="Lệnh xuất kho: pick từng kiện, đóng gói rồi giao đối tác giao chặng cuối."
         actions={canWh() && <Button size="lg" onClick={() => setCreating(true)}><Plus /> Tạo lệnh pick</Button>}

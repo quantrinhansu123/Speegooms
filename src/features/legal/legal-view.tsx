@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -70,7 +72,7 @@ export function LegalTicketsView() {
   const { ready, staffName } = useOps();
   const [open, setOpen] = useState(false);
   return <>
-    <ListView title="Yêu cầu ý kiến pháp lý" description="Phân công, thời hạn và lịch sử phê duyệt riêng cho từng yêu cầu. Phê duyệt ở đây chỉ là mô phỏng." rows={data.legal} getRowId={(t) => t.id} searchLabel="Tìm ticket pháp lý" searchPlaceholder="Mã yêu cầu, nội dung, hồ sơ…" searchText={(t) => [t.id, t.title, t.refId, t.request]} actions={canWrite(user.role, "legal") && <Button disabled={!ready} onClick={() => setOpen(true)}>Tạo yêu cầu</Button>}
+    <ListView dateValue={(r) => r.history[0]?.at} title="Yêu cầu ý kiến pháp lý" description="Phân công, thời hạn và lịch sử phê duyệt riêng cho từng yêu cầu. Phê duyệt ở đây chỉ là mô phỏng." rows={data.legal} getRowId={(t) => t.id} searchLabel="Tìm ticket pháp lý" searchPlaceholder="Mã yêu cầu, nội dung, hồ sơ…" searchText={(t) => [t.id, t.title, t.refId, t.request]} actions={canWrite(user.role, "legal") && <Button disabled={!ready} onClick={() => setOpen(true)}>Tạo yêu cầu</Button>}
       filters={[{ id: "status", label: "Mọi trạng thái", options: Object.entries(statuses).map(([value, label]) => ({ value, label })), match: (t, v) => t.status === v }]}
       columns={[
         { key: "title", header: "Yêu cầu", cell: (t) => <div><Link className="font-medium text-primary hover:underline" href={`/phap-che/yeu-cau/${t.id}`}>{t.title}</Link><p className="text-xs text-muted-foreground">{t.id} · {t.refId}</p></div> },
@@ -92,7 +94,7 @@ export function LegalTicketDetail({ id }: { id: string }) {
   const next = legalTransitions[ticket.status].filter((s) => s === "da-duyet" || s === "tra-lai" ? canApprove(user.role) : canWrite(user.role, "legal"));
   return <>
     <PageHeader title={ticket.title} description={`${ticket.id} · Hồ sơ ${ticket.refId} · Hạn ${formatDate(ticket.dueOn)}`} actions={<LegalBadge status={ticket.status} />} />
-    <Link href="/phap-che/yeu-cau" className="mb-6 inline-block text-sm text-primary hover:underline">← Danh sách yêu cầu</Link>
+    <Link href="/phap-che/yeu-cau" className="mb-6 inline-block text-sm text-primary hover:underline"><ArrowText>{"←"}</ArrowText> Danh sách yêu cầu</Link>
     <div className="grid gap-6 lg:grid-cols-2"><div className="space-y-6"><SectionCard title="Nội dung yêu cầu" description={`Người xử lý: ${staffName(ticket.assigneeId)}`}><p className="whitespace-pre-wrap text-sm">{ticket.request}</p><p className="mt-4 text-sm font-medium">Ý kiến gần nhất</p><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{ticket.opinion || "Chưa có ý kiến"}</p></SectionCard>
       {next.length > 0 && <SectionCard title="Xử lý & phê duyệt · đề xuất" description="Pháp chế rà soát và trình duyệt; Ban Giám đốc duyệt hoặc trả lại có lý do.">
         <Field label="Ý kiến / lý do quyết định" htmlFor="legal-opinion" required><Textarea id="legal-opinion" value={opinion} onChange={(e) => setOpinion(e.target.value)} rows={5} maxLength={2000} /></Field>

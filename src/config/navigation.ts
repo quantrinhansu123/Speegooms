@@ -6,13 +6,14 @@ import {
   Globe2,
   LayoutDashboard,
   Megaphone,
-  Palette,
   Settings2,
   Truck,
   Warehouse,
   UserCog,
   Users,
   Wallet,
+  ChartNoAxesCombined,
+  BookOpen,
 } from "lucide-react";
 import type { NavGroup } from "@/types/navigation";
 
@@ -25,6 +26,8 @@ export const navigation: NavGroup[] = [
     label: "Điều hành",
     items: [
       { title: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
+      { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
+      { title: "Demo Guide", href: "/demo-guide", icon: BookOpen },
       { title: "COA – Hệ thống & chỉ số", href: "/coa", icon: Compass },
       {
         title: "Khách hàng & Điều phối",
@@ -151,7 +154,6 @@ export const navigation: NavGroup[] = [
   {
     label: "Hệ thống",
     items: [
-      { title: "Design System", href: "/design-system", icon: Palette },
       { title: "Cài đặt", href: "/cai-dat", icon: Settings2 },
     ],
   },

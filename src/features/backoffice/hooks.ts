@@ -8,5 +8,5 @@ export function useBackoffice() {
   const user = useSession();
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => start(), []);
-  return { user, ready: state.status === "ready", data: state.data, actions };
+  return { user, ready: state.status === "ready", error: state.error, data: state.data, actions };
 }

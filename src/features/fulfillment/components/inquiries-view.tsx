@@ -101,7 +101,7 @@ export function InquiriesView() {
 
   return (
     <>
-      <ListView
+      <ListView dateLabel="Ngày hỏi" dateValue={(r) => r.askedAt}
         title="Yêu cầu hỏi tình trạng đơn"
         description="Sale hỏi tình trạng đơn/lô hàng; Fulfillment là một cửa trả lời. Sale tạo yêu cầu từ trang chi tiết hợp đồng."
         columns={columns}

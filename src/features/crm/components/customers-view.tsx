@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Search } from "lucide-react";
@@ -63,7 +64,8 @@ export function CustomersView() {
   const dupIds = useMemo(() => new Set(findDuplicateGroups(data.customers).flatMap((g) => g.customers.map((c) => c.customerId))), [data.customers]);
 
   const filtered = data.customers.filter((c) => (!route || c.route === route) && matchesQuery(query, c.name, c.contactName, c.phone, c.email, c.customerId));
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-customers.csv", name: (r) => r.name, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.customerId }, { label: "Tên / nội dung", value: (r) => r.name }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "route", value: (r) => r.route }, { label: "contact", value: (r) => r.contactName }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<Customer>[] = [
     { key: "id", header: "Mã", cell: (c) => <span className="font-mono text-xs">{c.customerId}</span> },
@@ -113,6 +115,7 @@ export function CustomersView() {
           </NativeSelect>
         )}
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(c) => c.customerId} empty={<EmptyState title="Không có khách hàng phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

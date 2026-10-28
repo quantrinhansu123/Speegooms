@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -27,7 +28,8 @@ export function ContractsView() {
   const filtered = data.contracts.filter(
     (c) => (!deposit || c.deposit.status === deposit) && matchesQuery(query, c.orderId, c.contractNo, c.rfqId, c.messId, customerName.get(c.customerId)),
   );
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-contracts.csv", name: (r) => r.contractNo, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.orderId }, { label: "Tên / nội dung", value: (r) => r.contractNo }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "currency", value: (r) => r.currency }, { label: "value", value: (r) => r.value }, { label: "status", value: (r) => r.status }, { label: "deposit_status", value: (r) => r.deposit.status }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<Contract>[] = [
     { key: "order", header: "order_id", cell: (c) => <Link href={`/crm/hop-dong/${c.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{c.orderId}</Link> },
@@ -63,6 +65,7 @@ export function ContractsView() {
           ))}
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(c) => c.orderId} empty={<EmptyState title="Không có hợp đồng phù hợp" description="Hợp đồng được tạo từ báo giá mà khách đã chấp nhận." />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# SpeeGo Management Platform
 
-## Getting Started
+Frontend demo quản trị logistics với Next.js 16, React 19, TypeScript và component dùng chung.
+Dữ liệu lưu localStorage; không kết nối dịch vụ ngoài. Auth, phân quyền FE và phê duyệt chỉ là mô phỏng.
 
-First, run the development server:
+## Chạy ứng dụng
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở địa chỉ được Next.js in ra. Tại trang Đăng nhập, chọn vai trò demo; xem kịch bản và giới hạn tại `/demo-guide`.
+Ngày tham chiếu của dữ liệu: 28/10/2026. Dữ liệu đã chỉnh sửa được giữ khi tải lại trang.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Kiểm tra
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm lint
+pnpm typecheck
+pnpm check
+pnpm build
+pnpm start
+```
 
-## Learn More
+`pnpm check` chạy kiểm thử rules CRM, Vận hành, Fulfillment, Kế toán, Backoffice, metrics, Reports/CSV,
+kiểm thử xuyên store từ Lead đến Quyết toán và contrast token. Kiểm thử store dùng bộ nhớ riêng,
+không sửa dữ liệu trình duyệt. Chưa thay thế E2E API hoặc kiểm thử đa người dùng.
 
-To learn more about Next.js, take a look at the following resources:
+## Màn hình và tài liệu
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Dashboard riêng theo 9 vai trò: `/dashboard`.
+- CRM/Sales, Vận hành, Fulfillment, Kế toán, Marketing, Khiếu nại, HRM và Pháp chế dùng chung layout.
+- Tám báo cáo có date filter, search, sorting, pagination và CSV theo quyền/tuyến: `/reports`.
+- Tài khoản, quy trình trình diễn và các màn còn giữ chỗ: `/demo-guide`.
+- [API Integration Guide](API_INTEGRATION_GUIDE.md): điểm thay adapter, DTO, scope, commands, lỗi, transaction và phần cần chốt.
+- [Frontend Architecture](FRONTEND_ARCHITECTURE.md), [Design System](DESIGN_SYSTEM.md).
+- [Báo cáo nghiệm thu FE demo](FINAL_AUDIT.md).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Chưa có Backend/auth production, upload tệp, hãng vận chuyển/ngân hàng thật hoặc nghiệp vụ HRM/đền bù đã duyệt.
+Các trang COA, Khách hàng & Điều phối, nhóm phụ Sales, lương/chi phí và cài đặt vẫn được đánh dấu chưa triển khai.

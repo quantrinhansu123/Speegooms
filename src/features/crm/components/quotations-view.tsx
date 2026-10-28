@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -24,7 +25,8 @@ export function QuotationsView() {
   const customerName = new Map(all.customers.map((c) => [c.customerId, c.name]));
 
   const filtered = data.quotations.filter((q) => (!status || q.status === status) && matchesQuery(query, q.quoteId, q.rfqId, q.messId, customerName.get(q.customerId)));
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-quotations.csv", name: (r) => r.rfqId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.quoteId }, { label: "Tên / nội dung", value: (r) => r.rfqId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "currency", value: (r) => r.currency }, { label: "status", value: (r) => r.status }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<Quotation>[] = [
     { key: "id", header: "Báo giá", cell: (q) => <Link href={`/crm/bao-gia/${q.quoteId}`} className="font-mono text-xs font-medium text-primary hover:underline">{q.quoteId}</Link> },
@@ -53,6 +55,7 @@ export function QuotationsView() {
           ))}
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(q) => q.quoteId} empty={<EmptyState title="Không có báo giá phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

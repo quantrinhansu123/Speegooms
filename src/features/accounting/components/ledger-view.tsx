@@ -52,7 +52,7 @@ export function LedgerView() {
   ];
 
   return (
-    <ListView
+    <ListView dateLabel="Ngày ghi sổ" dateValue={(r) => r.date}
       title="Lịch sử thu chi và đối soát"
       description="Sổ thu chi suy ra từ cọc đã xác nhận, khoản thu và đề nghị đã ghi nhận chi. Sao kê là dữ liệu demo."
       summary={

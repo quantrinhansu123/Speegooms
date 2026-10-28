@@ -1,3 +1,4 @@
+import { ArrowText } from "@/components/shared/arrow-text";
 import { cn } from "@/lib/utils";
 
 /** Khối nội dung có tiêu đề: dùng cho biểu đồ, danh sách, bảng trên dashboard. */
@@ -20,8 +21,8 @@ export function SectionCard({
     <section className={cn("flex flex-col rounded-xl border bg-card shadow-xs", className)}>
       <header className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+          <h2 className="text-lg font-semibold text-foreground"><ArrowText>{title}</ArrowText></h2>
+          {description && <p className="mt-0.5 text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
         </div>
         {action}
       </header>

@@ -1,5 +1,6 @@
 "use client";
 
+import { canPerform } from "@/config/permissions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,7 +91,7 @@ export function QuotationEditor({ quoteId }: { quoteId: string }) {
       </div>
     );
   }
-  return <EditorInner key={`${stored.quoteId}-${stored.status}-${stored.approval.state}`} stored={stored} actions={actions} can={can} role={user.role} title={user.title} staffName={staffName} />;
+  return <EditorInner key={`${stored.quoteId}-${stored.status}-${stored.approval.state}`} stored={stored} actions={actions} can={can} role={user.role} staffName={staffName} />;
 }
 
 function EditorInner({
@@ -98,14 +99,12 @@ function EditorInner({
   actions,
   can,
   role,
-  title,
   staffName,
 }: {
   stored: Quotation;
   actions: ReturnType<typeof useCrm>["actions"];
   can: ReturnType<typeof useCrm>["can"];
-  role: string;
-  title: string;
+  role: import("@/types/role").Role;
   staffName: (id: string) => string;
 }) {
   const { all } = useCrm();
@@ -122,7 +121,7 @@ function EditorInner({
   const rfq = all.rfqs.find((r) => r.rfqId === stored.rfqId);
   const customer = all.customers.find((c) => c.customerId === stored.customerId);
   const contract = all.contracts.find((c) => c.rfqId === stored.rfqId && c.status !== "huy");
-  const isReviewer = role === "ban-gd" || role === "admin" || title.startsWith("Trưởng");
+  const isReviewer = canPerform(role, "quote.review");
   const run = (r: { ok: boolean; error?: string }, success?: string) =>
     setMsg(r.ok ? (success ? { tone: "success", text: success } : undefined) : { tone: "danger", text: r.error ?? "Không thực hiện được" });
 

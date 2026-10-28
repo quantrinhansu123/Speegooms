@@ -1,3 +1,4 @@
+import { ArrowText } from "@/components/shared/arrow-text";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ export function StatCard({ label, value, icon: Icon, delta, deltaLabel, caption,
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-muted-foreground"><ArrowText>{label}</ArrowText></p>
         {Icon && (
           <span className="flex size-8 items-center justify-center rounded-md bg-accent text-primary">
             <Icon aria-hidden className="size-4" />
@@ -42,7 +43,7 @@ export function StatCard({ label, value, icon: Icon, delta, deltaLabel, caption,
             {deltaLabel && <span className="text-muted-foreground">{deltaLabel}</span>}
           </p>
         ) : (
-          <p className="text-muted-foreground">{caption}</p>
+          <p className="text-muted-foreground">{caption && <ArrowText>{caption}</ArrowText>}</p>
         )}
         {href && <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />}
       </div>

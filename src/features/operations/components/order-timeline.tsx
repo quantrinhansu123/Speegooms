@@ -1,3 +1,4 @@
+import { ArrowText } from "@/components/shared/arrow-text";
 import { Check, Circle, Lock } from "lucide-react";
 import { SectionCard } from "@/components/shared/section-card";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ export function OrderTimeline({ stage }: { stage: OrderStage }) {
                 {i < orderStages.length - 1 && <span aria-hidden className={cn("w-px grow", state === "done" ? "bg-success/50" : "bg-border")} style={{ minHeight: "1.25rem" }} />}
               </div>
               <p className={cn("pb-4 text-sm", state === "current" ? "font-semibold" : state === "locked" ? "text-muted-foreground" : "")}>
-                {s.label}
+                <ArrowText>{s.label}</ArrowText>
                 <span className="sr-only">{state === "done" ? " (đã xong)" : state === "current" ? " (đang ở bước này)" : " (chưa tới)"}</span>
               </p>
             </li>

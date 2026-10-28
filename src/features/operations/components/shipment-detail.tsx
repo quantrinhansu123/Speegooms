@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Info } from "lucide-react";
@@ -56,7 +58,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
             <p className="mt-0.5 text-sm text-muted-foreground">
               {modeLabels[s.mode]} · {partner?.name} · phụ trách {staffName(s.assigneeId)}
             </p>
-            <p className="mt-1 text-sm">{s.originPoint} → {s.destination}</p>
+            <p className="mt-1 text-sm">{s.originPoint} <ArrowText>{"→"}</ArrowText> {s.destination}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <ShipmentBadge value={shipmentStatus(s)} />
               {delay > 0 && <StatusBadge tone="danger">Chậm tiến độ {delay} ngày</StatusBadge>}
@@ -64,7 +66,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
           </div>
           <div className="text-right text-sm">
             <p className="text-muted-foreground">ETD / ETA kế hoạch</p>
-            <p className="tabular font-medium">{formatDate(s.etd)} → {formatDate(s.eta)}</p>
+            <p className="tabular font-medium">{formatDate(s.etd)} <ArrowText>{"→"}</ArrowText> {formatDate(s.eta)}</p>
             <p className="mt-1 font-mono text-xs text-muted-foreground">Mã demo {s.trackingRef}</p>
           </div>
         </div>

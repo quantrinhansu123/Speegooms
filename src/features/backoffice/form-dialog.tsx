@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { ArrowText } from "@/components/shared/arrow-text";
+
+import { useEffect, useRef, useState } from "react";
 import { InlineAlert } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,9 +13,11 @@ export function FormDialog({ title, description, onClose, onSave, children, subm
   onSave: (data: FormData) => string | null; children: React.ReactNode; submitLabel?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
     <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-      <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription><ArrowText>{description}</ArrowText></DialogDescription></DialogHeader>
       <form className="space-y-4" onSubmit={(e) => {
         e.preventDefault();
         const message = onSave(new FormData(e.currentTarget));
@@ -21,7 +25,7 @@ export function FormDialog({ title, description, onClose, onSave, children, subm
         if (!message) onClose();
       }}>
         {children}
-        {error && <InlineAlert>{error}</InlineAlert>}
+        {error && <div tabIndex={-1} ref={errorRef}><InlineAlert>{error}</InlineAlert></div>}
         <DialogFooter><Button type="button" variant="outline" onClick={onClose}>Hủy</Button><Button type="submit">{submitLabel}</Button></DialogFooter>
       </form>
     </DialogContent>

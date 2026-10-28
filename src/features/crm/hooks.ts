@@ -49,6 +49,7 @@ export function useCrm() {
 
   return {
     ready: state.status === "ready",
+    error: state.error,
     /** Toàn bộ dữ liệu, dùng khi cần tra cứu chéo (ví dụ tên khách của hợp đồng) */
     all: data,
     /** Dữ liệu trong phạm vi tuyến của vai trò hiện tại */
@@ -62,14 +63,14 @@ export function useCrm() {
 }
 
 /** Phân trang phía client: tự kẹp trang khi danh sách ngắn lại. */
-export function usePagination<T>(items: T[], pageSize = 15) {
-  const [requested, setPage] = useState(1);
+export function usePagination<T>(items: T[], pageSize = 15, resetKey = "") {
+  const [requested, setRequested] = useState({ page: 1, key: resetKey });
   const pages = Math.max(1, Math.ceil(items.length / pageSize));
-  const page = Math.min(requested, pages);
+  const page = Math.min(requested.key === resetKey ? requested.page : 1, pages);
   return {
     page,
     pages,
-    setPage,
+    setPage: (page: number) => setRequested({ page, key: resetKey }),
     total: items.length,
     pageSize,
     slice: items.slice((page - 1) * pageSize, page * pageSize),

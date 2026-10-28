@@ -1,3 +1,4 @@
+import { canViewReport, reportConfig, type ReportKey } from "./reports";
 import { navigation } from "@/config/navigation";
 import type { NavGroup } from "@/types/navigation";
 import type { Department, Role } from "@/types/role";
@@ -53,11 +54,13 @@ export const roleConfig: Record<Role, RoleConfig> = {
   },
   "van-hanh": { label: "Vận hành", dashboard: "department", department: "van-hanh", modules: ["/dashboard", "/van-hanh", "/fulfillment", "/khieu-nai", "/ke-toan/de-nghi-thanh-toan", "/ke-toan/duyet-thanh-toan"] },
   "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong"] },
-  hcns: { label: "HCNS", dashboard: "tasks-only", department: "hcns", modules: ["/dashboard", "/hcns"] },
-  "phap-che": { label: "Pháp chế", dashboard: "tasks-only", department: "phap-che", modules: ["/dashboard", "/phap-che"] },
+  hcns: { label: "HCNS", dashboard: "department", department: "hcns", modules: ["/dashboard", "/hcns"] },
+  "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che"] },
 };
 
 export function canAccess(role: Role, href: string): boolean {
+  if (href === "/demo-guide" || href.startsWith("/demo-guide/")) return true;
+  if (href === "/reports" || href.startsWith("/reports/")) return (Object.keys(reportConfig) as ReportKey[]).some((key) => canViewReport(role, key));
   const { modules } = roleConfig[role];
   return modules === "*" || modules.some((m) => href === m || href.startsWith(`${m}/`));
 }

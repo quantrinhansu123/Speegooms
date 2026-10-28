@@ -21,7 +21,7 @@ Màu trạng thái (mỗi màu có bản `-soft` làm nền, chữ đạt AA tr�
 
 | Trạng thái | Chữ | Nền soft | Ý nghĩa |
 |---|---|---|---|
-| `success` | `#15803D` | `#E6F6EC` | Hoàn tất, đã cọc |
+| `success` | `#147A3A` | `#E6F6EC` | Hoàn tất, đã cọc |
 | `warning` | `#A15C07` | `#FDF1DC` | Chờ duyệt, sắp trễ |
 | `danger` | `#C0392B` | `#FDECEB` | Sự cố, lỗi, nguy hiểm |
 | `info` | `#1D4ED8` | `#E8EFFF` | Đang xử lý |

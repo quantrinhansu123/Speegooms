@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
@@ -91,7 +92,8 @@ export function SuppliersView() {
       s.rating >= minRating &&
       matchesQuery(query, s.name, s.city, s.supplierId, s.contactName),
   );
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-suppliers.csv", name: (r) => r.name,  columns: [{ label: "Mã", value: (r) => r.supplierId }, { label: "Tên / nội dung", value: (r) => r.name }, { label: "country", value: (r) => r.country }, { label: "rating", value: (r) => r.rating }, { label: "on_time_rate_mock", value: (r) => r.onTimeRate }, { label: "status", value: (r) => r.status }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<Supplier>[] = [
     {
@@ -144,6 +146,7 @@ export function SuppliersView() {
           <option value={4.5}>Từ 4,5 sao</option>
         </NativeSelect>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(s) => s.supplierId} empty={<EmptyState title="Không có nhà cung cấp phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

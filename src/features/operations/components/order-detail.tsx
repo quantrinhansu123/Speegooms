@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowText } from "@/components/shared/arrow-text";
+
 import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Lock, Plus } from "lucide-react";
@@ -225,7 +227,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                   <li key={s.shipmentId} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                     <div>
                       <Link href={`/van-hanh/logistics/${s.shipmentId}`} className="font-mono font-medium text-primary hover:underline">{s.shipmentId}</Link>
-                      <p className="text-xs text-muted-foreground">{modeLabels[s.mode]} · {s.originPoint} → {s.destination} · ETA {formatDate(s.eta)}</p>
+                      <p className="text-xs text-muted-foreground">{modeLabels[s.mode]} · {s.originPoint} <ArrowText>{"→"}</ArrowText> {s.destination} · ETA {formatDate(s.eta)}</p>
                     </div>
                     <ShipmentBadge value={shipmentStatus(s)} />
                   </li>

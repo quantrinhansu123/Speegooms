@@ -27,6 +27,21 @@ const LOCATION = /^[A-Z]-\d{2}-\d{2}$/;
 const patchPkgs = (d: FulfillmentSnapshot, ids: string[], status: Package["status"]) => d.packages.map((p) => (ids.includes(p.packageId) ? { ...p, status } : p));
 
 export const actions = {
+  /** Đề xuất UI: phân bổ số lượng từng lô nhập tay, chưa tự chia số lượng của đơn nhiều lô. */
+  createInbound(actor: Actor, shipmentId: string, warehouseId: string, expectedQty: number): Result {
+    if (!can(actor)) return denied();
+    const shipment = getOps().data.shipments.find((s) => s.shipmentId === shipmentId);
+    if (!shipment?.milestones.arrive.actualOn || shipment.milestones.deliver.actualOn) return fail("Lô phải đã về kho và chưa hoàn tất giao hàng");
+    if (state().receipts.some((r) => r.shipmentId === shipmentId)) return fail("Lô hàng đã có phiếu nhập");
+    if (!state().warehouses.some((w) => w.warehouseId === warehouseId)) return fail("Kho không tồn tại");
+    if (!Number.isSafeInteger(expectedQty) || expectedQty <= 0) return fail("Nhập số lượng dự kiến nguyên dương");
+    let id = "";
+    commit((d) => {
+      id = nextSeq("NK-", d.receipts.map((r) => r.receiptId), 4);
+      return { ...d, receipts: [...d.receipts, { receiptId: id, shipmentId, orderId: shipment.orderId, warehouseId, arrivedOn: shipment.milestones.arrive.actualOn!, status: "cho-nhap", expectedQty, receivedQty: 0 }] };
+    });
+    return ok(id);
+  },
   // ---------- Nhập kho ----------
   /** Kiểm đếm và nhập kho một lô hàng đã về. Lệch số lượng phải ghi chú. Tạo kiện hàng với vị trí lưu kho. */
   receiveInbound(actor: Actor, receiptId: string, receivedQty: number, weightKg: number, location: string, note: string): Result {
@@ -158,8 +173,18 @@ export const actions = {
       deliveries: d.deliveries.map((x) => (x.deliveryId === deliveryId ? { ...x, status: "da-giao", deliveredAt: CRM_TODAY, failureReason: undefined, pod: { receivedBy: receivedBy.trim(), signedOn: CRM_TODAY, note: note.trim(), evidenceFile: evidenceFile.trim() || `POD-${deliveryId}.jpg` } } : x)),
       packages: patchPkgs(d, o?.packageIds ?? [], "da-giao"),
     }));
-    const ship = getOps().data.shipments.find((s) => s.orderId === dl.orderId && s.milestones.deliver.actualOn === undefined && s.milestones.arrive.actualOn);
-    if (ship) opsActions.completeMilestone(actor, ship.shipmentId, "deliver", CRM_TODAY);
+    const packageIds = new Set(o?.packageIds ?? []);
+    const receiptIds = new Set(state().packages.filter((p) => packageIds.has(p.packageId)).map((p) => p.receiptId));
+    const shipmentIds = new Set(state().receipts.filter((r) => receiptIds.has(r.receiptId)).map((r) => r.shipmentId));
+    for (const shipmentId of shipmentIds) {
+      const receipts = state().receipts.filter((r) => r.shipmentId === shipmentId);
+      const ids = new Set(receipts.map((r) => r.receiptId));
+      const packages = state().packages.filter((p) => ids.has(p.receiptId));
+      const ship = getOps().data.shipments.find((s) => s.shipmentId === shipmentId);
+      if (ship?.milestones.arrive.actualOn && !ship.milestones.deliver.actualOn && receipts.every((r) => r.status !== "cho-nhap") && packages.length > 0 && packages.every((p) => p.status === "da-giao")) {
+        opsActions.completeMilestone(actor, shipmentId, "deliver", CRM_TODAY);
+      }
+    }
     return ok(deliveryId);
   },
 

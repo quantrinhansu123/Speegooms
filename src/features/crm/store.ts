@@ -1,3 +1,4 @@
+import { canPerform } from "@/config/permissions";
 import { CRM_TODAY, crmPermissions, simulatedApprovals, type CrmAction } from "@/config/crm";
 import { opsPermissions } from "@/config/operations";
 import { localCrmRepository } from "@/services/crm/repository";
@@ -42,7 +43,8 @@ export interface Actor {
 export type Result<T = undefined> = { ok: true; id?: string; data?: T } | { ok: false; error: string };
 
 export interface CrmState {
-  status: "loading" | "ready";
+  status: "loading" | "ready" | "error";
+  error?: string;
   data: CrmSnapshot;
 }
 
@@ -68,6 +70,9 @@ export function startCrm() {
   repo.load().then((data) => {
     state = { status: "ready", data };
     emit();
+  }).catch(() => {
+    state = { ...state, status: "error", error: "Không thể tải dữ liệu CRM. Vui lòng thử lại." };
+    emit();
   });
 }
 
@@ -80,7 +85,8 @@ function commit(update: (d: CrmSnapshot) => CrmSnapshot) {
 export async function resetCrm() {
   state = LOADING;
   emit();
-  state = { status: "ready", data: await repo.reset() };
+  try { state = { status: "ready", data: await repo.reset() }; }
+  catch { state = { ...state, status: "error", error: "Không thể đặt lại dữ liệu CRM. Vui lòng thử lại." }; }
   emit();
 }
 
@@ -448,8 +454,7 @@ export const actions = {
 
   /** MÔ PHỎNG phê duyệt: Trưởng phòng Sale / Ban GĐ. Duyệt xong báo giá về nháp, Sale bấm gửi. */
   reviewQuotation(actor: Actor, quoteId: string, approve: boolean, note: string): Result {
-    const isLead = actor.role === "sale-vn" || actor.role === "sale-global";
-    if (!(crmPermissions["board.approve"].includes(actor.role) || isLead)) return denied();
+    if (!canPerform(actor.role, "quote.review")) return denied();
     const q = state.data.quotations.find((x) => x.quoteId === quoteId);
     if (!q || q.status !== "cho-duyet") return fail("Báo giá không ở trạng thái chờ duyệt");
     if (!approve && !note.trim()) return fail("Từ chối cần ghi lý do");

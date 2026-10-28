@@ -21,6 +21,7 @@ export function useAccounting() {
   return {
     ...ops,
     ready: ops.ready && state.status === "ready",
+    error: ops.error ?? state.error,
     acc: state.data,
     accActions: bound,
     actor,

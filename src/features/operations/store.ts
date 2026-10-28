@@ -29,7 +29,8 @@ export interface Actor {
 }
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
 export interface OpsState {
-  status: "loading" | "ready";
+  status: "loading" | "ready" | "error";
+  error?: string;
   data: OpsSnapshot;
 }
 
@@ -54,6 +55,9 @@ export function startOps() {
   repo.load().then((data) => {
     state = { status: "ready", data };
     emit();
+  }).catch(() => {
+    state = { ...state, status: "error", error: "Không thể tải dữ liệu Vận hành. Vui lòng thử lại." };
+    emit();
   });
 }
 
@@ -66,7 +70,8 @@ function commit(update: (d: OpsSnapshot) => OpsSnapshot) {
 export async function resetOps() {
   state = LOADING;
   emit();
-  state = { status: "ready", data: await repo.reset() };
+  try { state = { status: "ready", data: await repo.reset() }; }
+  catch { state = { ...state, status: "error", error: "Không thể đặt lại dữ liệu Vận hành. Vui lòng thử lại." }; }
   emit();
 }
 

@@ -29,7 +29,7 @@ export function SettlementsView() {
   ];
 
   return (
-    <ListView
+    <ListView dateValue={(r) => r.createdAt}
       title="Quyết toán hợp đồng"
       description="Đơn đã giao xong. Chốt quyết toán khi đã thu đủ, chi xong và chứng từ đủ. Chủ quyết toán chưa được phân trong tài liệu (cần Ban GĐ chốt)."
       columns={columns}

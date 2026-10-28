@@ -1,3 +1,4 @@
+import { actionPermissions } from "./permissions.ts";
 import type { Role } from "@/types/role";
 import type { StatusTone } from "@/types/status";
 import type { PaymentKind, PaymentPurpose, PaymentStatus, SettlementStatus } from "@/types/accounting";
@@ -64,11 +65,7 @@ export type AccountingAction = "pay.create" | "pay.pay" | "ledger.write";
  * Quyền thao tác Kế toán trong demo. Nhập: Vận hành. Duyệt: theo cấp ở trên. Chi và ghi sổ: chỉ Kế toán.
  * Xác nhận "Đã cọc" dùng quyền deposit.confirm của CRM (chỉ Kế toán). Quyền thật do backend quyết định.
  */
-export const accountingPermissions: Record<AccountingAction, Role[]> = {
-  "pay.create": ["van-hanh", "admin"],
-  "pay.pay": ["ke-toan"],
-  "ledger.write": ["ke-toan"],
-};
+export const accountingPermissions: Record<AccountingAction, Role[]> = actionPermissions;
 
 export const accountingDisclaimer =
   "Chỉ ghi nhận trạng thái trên hệ thống. Không có thao tác chuyển tiền hay thanh toán thật, và sao kê là dữ liệu demo.";

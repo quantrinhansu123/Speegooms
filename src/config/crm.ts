@@ -1,3 +1,4 @@
+import { actionPermissions } from "./permissions.ts";
 import type { Role } from "@/types/role";
 import type {
   ApprovalState,
@@ -140,18 +141,8 @@ export type CrmAction =
   | "deposit.confirm"
   | "board.approve";
 
-const sale: Role[] = ["sale-vn", "sale-global", "admin"];
-
 /** Quyền thao tác trong demo. Chỉ Kế toán được xác nhận "Đã cọc". Quyền thật do backend quyết định. */
-export const crmPermissions: Record<CrmAction, Role[]> = {
-  "lead.write": sale,
-  "rfq.write": sale,
-  "quote.write": sale,
-  "contract.write": sale,
-  "deposit.request": sale,
-  "deposit.confirm": ["ke-toan"],
-  "board.approve": ["ban-gd", "admin"],
-};
+export const crmPermissions: Record<CrmAction, Role[]> = actionPermissions;
 
 /** Phạm vi tuyến theo vai trò: Sale VN chỉ thấy tuyến VN, Sale Global chỉ thấy Global. */
 export const roleRouteScope: Partial<Record<Role, RouteCode>> = {

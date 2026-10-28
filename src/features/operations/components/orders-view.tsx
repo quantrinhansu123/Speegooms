@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Search } from "lucide-react";
@@ -45,7 +46,8 @@ export function OrdersView() {
         ),
     [orders, route, stage, person, onlyAlerts, query],
   );
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-orders.csv", name: (r) => r.customer?.name ?? r.contract.orderId, date: (r) => r.contract.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.contract.orderId }, { label: "Tên / nội dung", value: (r) => r.customer?.name ?? r.contract.orderId }, { label: "Ngày tạo", value: (r) => r.contract.createdAt }, { label: "route", value: (r) => r.contract.route }, { label: "stage", value: (r) => r.stage }, { label: "due_on", value: (r) => r.state.dueOn }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
   const alertCount = orders.filter((o) => o.alerts.length > 0).length;
 
   const columns: Column<OrderView>[] = [
@@ -125,6 +127,7 @@ export function OrdersView() {
           Chỉ đơn có cảnh báo
         </label>
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(o) => o.contract.orderId} empty={<EmptyState title="Không có đơn phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -34,7 +35,8 @@ export function RfqsView() {
       (!route || r.route === route) &&
       matchesQuery(query, r.rfqId, r.messId, r.goodsName, customerName.get(r.customerId)),
   );
-  const paging = usePagination(filtered, 15);
+  const listTools = useListTools(filtered, { filename: "speego-rfqs.csv", name: (r) => r.goodsName, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.rfqId }, { label: "Tên / nội dung", value: (r) => r.goodsName }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "route", value: (r) => r.route }, { label: "status", value: (r) => r.status }, { label: "quantity", value: (r) => r.quantity }] });
+  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
 
   const columns: Column<Rfq>[] = [
     { key: "id", header: "rfq_id", cell: (r) => <Link href={`/crm/rfq/${r.rfqId}`} className="font-mono text-xs font-medium text-primary hover:underline">{r.rfqId}</Link> },
@@ -91,6 +93,7 @@ export function RfqsView() {
           </NativeSelect>
         )}
       </div>
+      {listTools.toolbar}
       <div className="space-y-4">
         <DataTable columns={columns} rows={paging.slice} getRowId={(r) => r.rfqId} empty={<EmptyState title="Không có RFQ phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />

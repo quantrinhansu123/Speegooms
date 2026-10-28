@@ -1,3 +1,4 @@
+import { actionPermissions } from "./permissions.ts";
 import type { Role } from "@/types/role";
 import type { StatusTone } from "@/types/status";
 import type {
@@ -127,10 +128,7 @@ export const costLabels = { freight: "Cước vận chuyển", customs: "Thuế/
 export type OpsAction = "ops.write" | "price.return";
 
 /** Quyền thao tác Vận hành trong demo. Ban GĐ chỉ xem. Quyền thật do backend quyết định. */
-export const opsPermissions: Record<OpsAction, Role[]> = {
-  "ops.write": ["van-hanh", "admin"],
-  "price.return": ["van-hanh", "admin"],
-};
+export const opsPermissions: Record<OpsAction, Role[]> = actionPermissions;
 
 /** Nhãn bắt buộc cho dữ liệu tracking: không có nguồn thời gian thực. */
 export const trackingDisclaimer = "Dữ liệu tracking là dữ liệu demo hoặc nhập tay, không phải theo dõi thời gian thực từ hãng vận chuyển.";

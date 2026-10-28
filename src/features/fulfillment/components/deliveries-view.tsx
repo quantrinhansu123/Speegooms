@@ -33,7 +33,7 @@ export function DeliveriesView() {
   ];
 
   return (
-    <ListView
+    <ListView dateLabel="Ngày xuất giao" dateValue={(r) => r.dispatchedAt}
       title="Giao hàng chặng cuối và POD"
       description="Lần giao đã xuất kho. Xác nhận POD (người nhận, ghi chú, minh chứng) để hoàn tất; POD ghi ngược mốc giao của lô hàng."
       columns={columns}
