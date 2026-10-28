@@ -1,0 +1,36 @@
+/**
+ * Các route đã có trang thật. KPI/menu chỉ dẫn link tới route nằm trong danh sách này;
+ * route khác hiển thị trang giữ chỗ. Thêm route vào đây khi module được triển khai.
+ */
+export const implementedRoutes: readonly string[] = [
+  "/dashboard",
+  "/design-system",
+  "/crm",
+  "/crm/leads",
+  "/crm/khach-hang",
+  "/crm/rfq",
+  "/crm/bao-gia",
+  "/crm/hop-dong",
+  "/van-hanh",
+  "/van-hanh/sourcing-bao-gia",
+  "/van-hanh/nha-cung-cap",
+  "/van-hanh/po",
+  "/van-hanh/don-hang",
+  "/van-hanh/logistics",
+  "/van-hanh/chung-tu",
+  "/fulfillment",
+  "/fulfillment/nhap-kho",
+  "/fulfillment/ton-kho",
+  "/fulfillment/pick-pack",
+  "/fulfillment/giao-hang",
+  "/fulfillment/hoi-tinh-trang",
+  "/ke-toan",
+  "/ke-toan/doi-soat",
+  "/ke-toan/de-nghi-thanh-toan",
+  "/ke-toan/duyet-thanh-toan",
+  "/ke-toan/cong-no",
+  "/ke-toan/quyet-toan",
+  "/ke-toan/thu-chi",
+];
+
+export const isImplemented = (href: string) => implementedRoutes.includes(href);

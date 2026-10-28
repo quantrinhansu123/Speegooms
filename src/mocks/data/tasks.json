@@ -1,0 +1,442 @@
+[
+ {
+  "id": "CV-001",
+  "title": "Cập nhật tag nguồn lead Ads",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-10-19",
+  "priority": "trung-binh",
+  "done": true
+ },
+ {
+  "id": "CV-002",
+  "title": "Cập nhật tag nguồn lead Ads",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-10-26",
+  "priority": "cao",
+  "done": false
+ },
+ {
+  "id": "CV-003",
+  "title": "Báo cáo chất lượng lead tuần",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-11-04",
+  "priority": "trung-binh",
+  "done": false
+ },
+ {
+  "id": "CV-004",
+  "title": "Duyệt creative chiến dịch mới",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-10-19",
+  "priority": "cao",
+  "done": true
+ },
+ {
+  "id": "CV-005",
+  "title": "Báo cáo chất lượng lead tuần",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-11-01",
+  "priority": "trung-binh",
+  "done": true
+ },
+ {
+  "id": "CV-006",
+  "title": "Cập nhật tag nguồn lead Ads",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-10-22",
+  "priority": "cao",
+  "done": false
+ },
+ {
+  "id": "CV-007",
+  "title": "Báo cáo chất lượng lead tuần",
+  "department": "marketing",
+  "assignee": "Vũ Khánh Linh",
+  "dueDate": "2026-10-30",
+  "priority": "trung-binh",
+  "done": true
+ },
+ {
+  "id": "CV-008",
+  "title": "Duyệt creative chiến dịch mới",
+  "department": "marketing",
+  "assignee": "Đỗ Hải Yến",
+  "dueDate": "2026-10-24",
+  "priority": "trung-binh",
+  "done": false
+ },
+ {
+  "id": "CV-009",
+  "title": "Gọi lại lead chưa phản hồi",
+  "department": "sale-vn",
+  "assignee": "Trần Thị Bình",
+  "dueDate": "2026-11-03",
+  "priority": "thap",
+  "done": false,
+  "orderId": "DH-2026-0103"
+ },
+ {
+  "id": "CV-010",
+  "title": "Soạn hợp đồng khách Việt Nam",
+  "department": "sale-vn",
+  "assignee": "Ngô Quang Huy",
+  "dueDate": "2026-10-31",
+  "priority": "thap",
+  "done": true,
+  "orderId": "DH-2026-0047"
+ },
+ {
+  "id": "CV-011",
+  "title": "Gọi lại lead chưa phản hồi",
+  "department": "sale-vn",
+  "assignee": "Trần Thị Bình",
+  "dueDate": "2026-10-24",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0064"
+ },
+ {
+  "id": "CV-012",
+  "title": "Gọi lại lead chưa phản hồi",
+  "department": "sale-vn",
+  "assignee": "Ngô Quang Huy",
+  "dueDate": "2026-10-23",
+  "priority": "trung-binh",
+  "done": true,
+  "orderId": "DH-2026-0116"
+ },
+ {
+  "id": "CV-013",
+  "title": "Gọi lại lead chưa phản hồi",
+  "department": "sale-vn",
+  "assignee": "Trần Thị Bình",
+  "dueDate": "2026-10-28",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0002"
+ },
+ {
+  "id": "CV-014",
+  "title": "Soạn hợp đồng khách Việt Nam",
+  "department": "sale-vn",
+  "assignee": "Trần Thị Bình",
+  "dueDate": "2026-11-03",
+  "priority": "thap",
+  "done": false,
+  "orderId": "DH-2026-0092"
+ },
+ {
+  "id": "CV-015",
+  "title": "Gửi báo giá cho khách",
+  "department": "sale-vn",
+  "assignee": "Ngô Quang Huy",
+  "dueDate": "2026-10-26",
+  "priority": "trung-binh",
+  "done": true
+ },
+ {
+  "id": "CV-016",
+  "title": "Gửi báo giá cho khách",
+  "department": "sale-vn",
+  "assignee": "Ngô Quang Huy",
+  "dueDate": "2026-11-03",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0050"
+ },
+ {
+  "id": "CV-017",
+  "title": "Soạn hợp đồng khách Global",
+  "department": "sale-global",
+  "assignee": "Đặng Thu Trang",
+  "dueDate": "2026-11-03",
+  "priority": "thap",
+  "done": true,
+  "orderId": "DH-2026-0023"
+ },
+ {
+  "id": "CV-018",
+  "title": "Soạn hợp đồng khách Global",
+  "department": "sale-global",
+  "assignee": "Đặng Thu Trang",
+  "dueDate": "2026-10-23",
+  "priority": "cao",
+  "done": false
+ },
+ {
+  "id": "CV-019",
+  "title": "Soạn hợp đồng khách Global",
+  "department": "sale-global",
+  "assignee": "Đặng Thu Trang",
+  "dueDate": "2026-11-05",
+  "priority": "thap",
+  "done": false
+ },
+ {
+  "id": "CV-020",
+  "title": "Cập nhật phiếu bàn giao sang Vận hành",
+  "department": "sale-global",
+  "assignee": "Lê Minh Châu",
+  "dueDate": "2026-10-25",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0117"
+ },
+ {
+  "id": "CV-021",
+  "title": "Soạn hợp đồng khách Global",
+  "department": "sale-global",
+  "assignee": "Đặng Thu Trang",
+  "dueDate": "2026-11-04",
+  "priority": "cao",
+  "done": false
+ },
+ {
+  "id": "CV-022",
+  "title": "Cập nhật phiếu bàn giao sang Vận hành",
+  "department": "sale-global",
+  "assignee": "Lê Minh Châu",
+  "dueDate": "2026-10-29",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0073"
+ },
+ {
+  "id": "CV-023",
+  "title": "Cập nhật phiếu bàn giao sang Vận hành",
+  "department": "sale-global",
+  "assignee": "Lê Minh Châu",
+  "dueDate": "2026-10-19",
+  "priority": "thap",
+  "done": true,
+  "orderId": "DH-2026-0056"
+ },
+ {
+  "id": "CV-024",
+  "title": "Follow khách Mỹ sau báo giá",
+  "department": "sale-global",
+  "assignee": "Lê Minh Châu",
+  "dueDate": "2026-11-03",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0059"
+ },
+ {
+  "id": "CV-025",
+  "title": "Theo dõi PO xưởng của đơn",
+  "department": "van-hanh",
+  "assignee": "Bùi Thế Anh",
+  "dueDate": "2026-10-21",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0006"
+ },
+ {
+  "id": "CV-026",
+  "title": "Theo dõi PO xưởng của đơn",
+  "department": "van-hanh",
+  "assignee": "Bùi Thế Anh",
+  "dueDate": "2026-10-27",
+  "priority": "thap",
+  "done": false,
+  "orderId": "DH-2026-0043"
+ },
+ {
+  "id": "CV-027",
+  "title": "Cập nhật tracking quốc tế",
+  "department": "van-hanh",
+  "assignee": "Phạm Quốc Dũng",
+  "dueDate": "2026-10-26",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0075"
+ },
+ {
+  "id": "CV-028",
+  "title": "Đối chiếu chứng từ xuất nhập khẩu",
+  "department": "van-hanh",
+  "assignee": "Phạm Quốc Dũng",
+  "dueDate": "2026-10-20",
+  "priority": "trung-binh",
+  "done": true,
+  "orderId": "DH-2026-0123"
+ },
+ {
+  "id": "CV-029",
+  "title": "Đối chiếu chứng từ xuất nhập khẩu",
+  "department": "van-hanh",
+  "assignee": "Bùi Thế Anh",
+  "dueDate": "2026-10-22",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0115"
+ },
+ {
+  "id": "CV-030",
+  "title": "Xác nhận booking lô hàng",
+  "department": "van-hanh",
+  "assignee": "Bùi Thế Anh",
+  "dueDate": "2026-11-01",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0056"
+ },
+ {
+  "id": "CV-031",
+  "title": "Xác nhận booking lô hàng",
+  "department": "van-hanh",
+  "assignee": "Phạm Quốc Dũng",
+  "dueDate": "2026-10-25",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0048"
+ },
+ {
+  "id": "CV-032",
+  "title": "Đối chiếu chứng từ xuất nhập khẩu",
+  "department": "van-hanh",
+  "assignee": "Lý Gia Bảo",
+  "dueDate": "2026-10-27",
+  "priority": "trung-binh",
+  "done": false
+ },
+ {
+  "id": "CV-033",
+  "title": "Đối soát thanh toán đơn hàng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-29",
+  "priority": "cao",
+  "done": true,
+  "orderId": "DH-2026-0123"
+ },
+ {
+  "id": "CV-034",
+  "title": "Lập lệnh chi xưởng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-29",
+  "priority": "trung-binh",
+  "done": true
+ },
+ {
+  "id": "CV-035",
+  "title": "Lập lệnh chi xưởng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-11-05",
+  "priority": "trung-binh",
+  "done": true,
+  "orderId": "DH-2026-0115"
+ },
+ {
+  "id": "CV-036",
+  "title": "Đối soát công nợ đối tác",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-23",
+  "priority": "thap",
+  "done": true,
+  "orderId": "DH-2026-0101"
+ },
+ {
+  "id": "CV-037",
+  "title": "Đối soát công nợ đối tác",
+  "department": "ke-toan",
+  "assignee": "Hoàng Thu Hà",
+  "dueDate": "2026-10-29",
+  "priority": "trung-binh",
+  "done": true,
+  "orderId": "DH-2026-0024"
+ },
+ {
+  "id": "CV-038",
+  "title": "Lập lệnh chi xưởng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-25",
+  "priority": "thap",
+  "done": false,
+  "orderId": "DH-2026-0120"
+ },
+ {
+  "id": "CV-039",
+  "title": "Đối soát thanh toán đơn hàng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-20",
+  "priority": "trung-binh",
+  "done": false,
+  "orderId": "DH-2026-0007"
+ },
+ {
+  "id": "CV-040",
+  "title": "Đối soát thanh toán đơn hàng",
+  "department": "ke-toan",
+  "assignee": "Mai Phương",
+  "dueDate": "2026-10-19",
+  "priority": "cao",
+  "done": false,
+  "orderId": "DH-2026-0095"
+ },
+ {
+  "id": "CV-041",
+  "title": "Chốt công tháng",
+  "department": "hcns",
+  "assignee": "Đinh Ngọc Lan",
+  "dueDate": "2026-10-23",
+  "priority": "cao",
+  "done": false
+ },
+ {
+  "id": "CV-042",
+  "title": "Hoàn tất hồ sơ nhân sự mới",
+  "department": "hcns",
+  "assignee": "Đinh Ngọc Lan",
+  "dueDate": "2026-10-20",
+  "priority": "cao",
+  "done": true
+ },
+ {
+  "id": "CV-043",
+  "title": "Chốt công tháng",
+  "department": "hcns",
+  "assignee": "Đinh Ngọc Lan",
+  "dueDate": "2026-10-28",
+  "priority": "thap",
+  "done": false
+ },
+ {
+  "id": "CV-044",
+  "title": "Rà soát hợp đồng mẫu",
+  "department": "phap-che",
+  "assignee": "Trương Văn Khoa",
+  "dueDate": "2026-11-02",
+  "priority": "cao",
+  "done": true
+ },
+ {
+  "id": "CV-045",
+  "title": "Rà soát hợp đồng mẫu",
+  "department": "phap-che",
+  "assignee": "Trương Văn Khoa",
+  "dueDate": "2026-10-21",
+  "priority": "thap",
+  "done": false
+ },
+ {
+  "id": "CV-046",
+  "title": "Rà soát hợp đồng mẫu",
+  "department": "phap-che",
+  "assignee": "Trương Văn Khoa",
+  "dueDate": "2026-11-02",
+  "priority": "cao",
+  "done": true
+ }
+]

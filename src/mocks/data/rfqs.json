@@ -1,0 +1,2592 @@
+[
+ {
+  "id": "RFQ-0001",
+  "leadId": "LD-0001",
+  "createdAt": "2026-07-02",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0002",
+  "leadId": "LD-0002",
+  "createdAt": "2026-07-02",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0003",
+  "leadId": "LD-0003",
+  "createdAt": "2026-07-04",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0004",
+  "leadId": "LD-0004",
+  "createdAt": "2026-07-04",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0005",
+  "leadId": "LD-0005",
+  "createdAt": "2026-07-02",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0006",
+  "leadId": "LD-0006",
+  "createdAt": "2026-07-04",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0007",
+  "leadId": "LD-0007",
+  "createdAt": "2026-07-04",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0008",
+  "leadId": "LD-0008",
+  "createdAt": "2026-07-05",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0009",
+  "leadId": "LD-0009",
+  "createdAt": "2026-07-06",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0010",
+  "leadId": "LD-0011",
+  "createdAt": "2026-07-07",
+  "route": "vn",
+  "customerId": "KH-010",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0011",
+  "leadId": "LD-0014",
+  "createdAt": "2026-07-07",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0012",
+  "leadId": "LD-0015",
+  "createdAt": "2026-07-05",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0013",
+  "leadId": "LD-0016",
+  "createdAt": "2026-07-06",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0014",
+  "leadId": "LD-0019",
+  "createdAt": "2026-07-09",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0015",
+  "leadId": "LD-0020",
+  "createdAt": "2026-07-09",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0016",
+  "leadId": "LD-0021",
+  "createdAt": "2026-07-10",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0017",
+  "leadId": "LD-0022",
+  "createdAt": "2026-07-10",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0018",
+  "leadId": "LD-0023",
+  "createdAt": "2026-07-10",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0019",
+  "leadId": "LD-0027",
+  "createdAt": "2026-07-11",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0020",
+  "leadId": "LD-0028",
+  "createdAt": "2026-07-11",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0021",
+  "leadId": "LD-0029",
+  "createdAt": "2026-07-12",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Hàng gia dụng",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0022",
+  "leadId": "LD-0030",
+  "createdAt": "2026-07-11",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0023",
+  "leadId": "LD-0032",
+  "createdAt": "2026-07-13",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0024",
+  "leadId": "LD-0035",
+  "createdAt": "2026-07-13",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0025",
+  "leadId": "LD-0036",
+  "createdAt": "2026-07-12",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0026",
+  "leadId": "LD-0039",
+  "createdAt": "2026-07-14",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0027",
+  "leadId": "LD-0040",
+  "createdAt": "2026-07-15",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0028",
+  "leadId": "LD-0043",
+  "createdAt": "2026-07-16",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0029",
+  "leadId": "LD-0044",
+  "createdAt": "2026-07-15",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0030",
+  "leadId": "LD-0045",
+  "createdAt": "2026-07-14",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0031",
+  "leadId": "LD-0046",
+  "createdAt": "2026-07-16",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0032",
+  "leadId": "LD-0048",
+  "createdAt": "2026-07-16",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0033",
+  "leadId": "LD-0049",
+  "createdAt": "2026-07-18",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0034",
+  "leadId": "LD-0050",
+  "createdAt": "2026-07-16",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0035",
+  "leadId": "LD-0051",
+  "createdAt": "2026-07-18",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0036",
+  "leadId": "LD-0052",
+  "createdAt": "2026-07-18",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0037",
+  "leadId": "LD-0054",
+  "createdAt": "2026-07-18",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0038",
+  "leadId": "LD-0055",
+  "createdAt": "2026-07-17",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0039",
+  "leadId": "LD-0056",
+  "createdAt": "2026-07-18",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0040",
+  "leadId": "LD-0057",
+  "createdAt": "2026-07-20",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0041",
+  "leadId": "LD-0058",
+  "createdAt": "2026-07-20",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0042",
+  "leadId": "LD-0059",
+  "createdAt": "2026-07-19",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0043",
+  "leadId": "LD-0063",
+  "createdAt": "2026-07-20",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0044",
+  "leadId": "LD-0064",
+  "createdAt": "2026-07-22",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0045",
+  "leadId": "LD-0065",
+  "createdAt": "2026-07-20",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0046",
+  "leadId": "LD-0068",
+  "createdAt": "2026-07-23",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0047",
+  "leadId": "LD-0070",
+  "createdAt": "2026-07-22",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0048",
+  "leadId": "LD-0073",
+  "createdAt": "2026-07-23",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0049",
+  "leadId": "LD-0074",
+  "createdAt": "2026-07-25",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0050",
+  "leadId": "LD-0075",
+  "createdAt": "2026-07-25",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0051",
+  "leadId": "LD-0077",
+  "createdAt": "2026-07-25",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0052",
+  "leadId": "LD-0080",
+  "createdAt": "2026-07-25",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0053",
+  "leadId": "LD-0082",
+  "createdAt": "2026-07-26",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0054",
+  "leadId": "LD-0083",
+  "createdAt": "2026-07-26",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0055",
+  "leadId": "LD-0084",
+  "createdAt": "2026-07-26",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0056",
+  "leadId": "LD-0085",
+  "createdAt": "2026-07-27",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0057",
+  "leadId": "LD-0086",
+  "createdAt": "2026-07-27",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0058",
+  "leadId": "LD-0087",
+  "createdAt": "2026-07-27",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0059",
+  "leadId": "LD-0088",
+  "createdAt": "2026-07-28",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0060",
+  "leadId": "LD-0089",
+  "createdAt": "2026-07-27",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0061",
+  "leadId": "LD-0090",
+  "createdAt": "2026-07-28",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0062",
+  "leadId": "LD-0092",
+  "createdAt": "2026-07-29",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0063",
+  "leadId": "LD-0093",
+  "createdAt": "2026-07-29",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0064",
+  "leadId": "LD-0095",
+  "createdAt": "2026-07-29",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0065",
+  "leadId": "LD-0096",
+  "createdAt": "2026-07-29",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0066",
+  "leadId": "LD-0098",
+  "createdAt": "2026-07-29",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0067",
+  "leadId": "LD-0099",
+  "createdAt": "2026-07-31",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0068",
+  "leadId": "LD-0100",
+  "createdAt": "2026-07-31",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Thiết bị văn phòng",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0069",
+  "leadId": "LD-0101",
+  "createdAt": "2026-08-02",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0070",
+  "leadId": "LD-0102",
+  "createdAt": "2026-08-01",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0071",
+  "leadId": "LD-0105",
+  "createdAt": "2026-08-02",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0072",
+  "leadId": "LD-0107",
+  "createdAt": "2026-08-02",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0073",
+  "leadId": "LD-0108",
+  "createdAt": "2026-08-04",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0074",
+  "leadId": "LD-0110",
+  "createdAt": "2026-08-03",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0075",
+  "leadId": "LD-0113",
+  "createdAt": "2026-08-04",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0076",
+  "leadId": "LD-0114",
+  "createdAt": "2026-08-05",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0077",
+  "leadId": "LD-0116",
+  "createdAt": "2026-08-06",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0078",
+  "leadId": "LD-0117",
+  "createdAt": "2026-08-07",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0079",
+  "leadId": "LD-0118",
+  "createdAt": "2026-08-07",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0080",
+  "leadId": "LD-0119",
+  "createdAt": "2026-08-08",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0081",
+  "leadId": "LD-0121",
+  "createdAt": "2026-08-08",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0082",
+  "leadId": "LD-0124",
+  "createdAt": "2026-08-08",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0083",
+  "leadId": "LD-0125",
+  "createdAt": "2026-08-08",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0084",
+  "leadId": "LD-0126",
+  "createdAt": "2026-08-09",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0085",
+  "leadId": "LD-0127",
+  "createdAt": "2026-08-08",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0086",
+  "leadId": "LD-0129",
+  "createdAt": "2026-08-10",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0087",
+  "leadId": "LD-0131",
+  "createdAt": "2026-08-12",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0088",
+  "leadId": "LD-0134",
+  "createdAt": "2026-08-12",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0089",
+  "leadId": "LD-0135",
+  "createdAt": "2026-08-12",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Hàng gia dụng",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0090",
+  "leadId": "LD-0136",
+  "createdAt": "2026-08-11",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0091",
+  "leadId": "LD-0138",
+  "createdAt": "2026-08-13",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0092",
+  "leadId": "LD-0139",
+  "createdAt": "2026-08-13",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0093",
+  "leadId": "LD-0140",
+  "createdAt": "2026-08-14",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0094",
+  "leadId": "LD-0142",
+  "createdAt": "2026-08-13",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Thiết bị văn phòng",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0095",
+  "leadId": "LD-0146",
+  "createdAt": "2026-08-16",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0096",
+  "leadId": "LD-0150",
+  "createdAt": "2026-08-17",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0097",
+  "leadId": "LD-0152",
+  "createdAt": "2026-08-17",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0098",
+  "leadId": "LD-0154",
+  "createdAt": "2026-08-18",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0099",
+  "leadId": "LD-0155",
+  "createdAt": "2026-08-19",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0100",
+  "leadId": "LD-0156",
+  "createdAt": "2026-08-19",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0101",
+  "leadId": "LD-0157",
+  "createdAt": "2026-08-19",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0102",
+  "leadId": "LD-0158",
+  "createdAt": "2026-08-19",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0103",
+  "leadId": "LD-0161",
+  "createdAt": "2026-08-19",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0104",
+  "leadId": "LD-0165",
+  "createdAt": "2026-08-20",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0105",
+  "leadId": "LD-0166",
+  "createdAt": "2026-08-20",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0106",
+  "leadId": "LD-0167",
+  "createdAt": "2026-08-21",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0107",
+  "leadId": "LD-0169",
+  "createdAt": "2026-08-23",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0108",
+  "leadId": "LD-0173",
+  "createdAt": "2026-08-24",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0109",
+  "leadId": "LD-0174",
+  "createdAt": "2026-08-24",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0110",
+  "leadId": "LD-0175",
+  "createdAt": "2026-08-23",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0111",
+  "leadId": "LD-0176",
+  "createdAt": "2026-08-23",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0112",
+  "leadId": "LD-0177",
+  "createdAt": "2026-08-24",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0113",
+  "leadId": "LD-0179",
+  "createdAt": "2026-08-25",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0114",
+  "leadId": "LD-0180",
+  "createdAt": "2026-08-23",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0115",
+  "leadId": "LD-0181",
+  "createdAt": "2026-08-24",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0116",
+  "leadId": "LD-0184",
+  "createdAt": "2026-08-26",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0117",
+  "leadId": "LD-0188",
+  "createdAt": "2026-08-28",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0118",
+  "leadId": "LD-0189",
+  "createdAt": "2026-08-26",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0119",
+  "leadId": "LD-0192",
+  "createdAt": "2026-08-28",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0120",
+  "leadId": "LD-0193",
+  "createdAt": "2026-08-28",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0121",
+  "leadId": "LD-0195",
+  "createdAt": "2026-08-29",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0122",
+  "leadId": "LD-0202",
+  "createdAt": "2026-08-31",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0123",
+  "leadId": "LD-0203",
+  "createdAt": "2026-09-01",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0124",
+  "leadId": "LD-0206",
+  "createdAt": "2026-09-02",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0125",
+  "leadId": "LD-0208",
+  "createdAt": "2026-09-01",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0126",
+  "leadId": "LD-0214",
+  "createdAt": "2026-09-02",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0127",
+  "leadId": "LD-0215",
+  "createdAt": "2026-09-03",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0128",
+  "leadId": "LD-0216",
+  "createdAt": "2026-09-03",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0129",
+  "leadId": "LD-0218",
+  "createdAt": "2026-09-03",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0130",
+  "leadId": "LD-0219",
+  "createdAt": "2026-09-04",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0131",
+  "leadId": "LD-0221",
+  "createdAt": "2026-09-05",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0132",
+  "leadId": "LD-0222",
+  "createdAt": "2026-09-05",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0133",
+  "leadId": "LD-0223",
+  "createdAt": "2026-09-05",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0134",
+  "leadId": "LD-0224",
+  "createdAt": "2026-09-05",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0135",
+  "leadId": "LD-0226",
+  "createdAt": "2026-09-05",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0136",
+  "leadId": "LD-0228",
+  "createdAt": "2026-09-05",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0137",
+  "leadId": "LD-0230",
+  "createdAt": "2026-09-07",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0138",
+  "leadId": "LD-0231",
+  "createdAt": "2026-09-06",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0139",
+  "leadId": "LD-0234",
+  "createdAt": "2026-09-09",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0140",
+  "leadId": "LD-0235",
+  "createdAt": "2026-09-09",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0141",
+  "leadId": "LD-0236",
+  "createdAt": "2026-09-07",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0142",
+  "leadId": "LD-0237",
+  "createdAt": "2026-09-07",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0143",
+  "leadId": "LD-0238",
+  "createdAt": "2026-09-08",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0144",
+  "leadId": "LD-0239",
+  "createdAt": "2026-09-10",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0145",
+  "leadId": "LD-0241",
+  "createdAt": "2026-09-11",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0146",
+  "leadId": "LD-0242",
+  "createdAt": "2026-09-10",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0147",
+  "leadId": "LD-0243",
+  "createdAt": "2026-09-09",
+  "route": "vn",
+  "customerId": "KH-010",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0148",
+  "leadId": "LD-0244",
+  "createdAt": "2026-09-12",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0149",
+  "leadId": "LD-0245",
+  "createdAt": "2026-09-11",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0150",
+  "leadId": "LD-0246",
+  "createdAt": "2026-09-13",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0151",
+  "leadId": "LD-0247",
+  "createdAt": "2026-09-12",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0152",
+  "leadId": "LD-0249",
+  "createdAt": "2026-09-11",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0153",
+  "leadId": "LD-0250",
+  "createdAt": "2026-09-14",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0154",
+  "leadId": "LD-0252",
+  "createdAt": "2026-09-13",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0155",
+  "leadId": "LD-0258",
+  "createdAt": "2026-09-15",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0156",
+  "leadId": "LD-0259",
+  "createdAt": "2026-09-17",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0157",
+  "leadId": "LD-0260",
+  "createdAt": "2026-09-15",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0158",
+  "leadId": "LD-0261",
+  "createdAt": "2026-09-16",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0159",
+  "leadId": "LD-0262",
+  "createdAt": "2026-09-17",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Quần áo thời trang",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0160",
+  "leadId": "LD-0264",
+  "createdAt": "2026-09-16",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0161",
+  "leadId": "LD-0265",
+  "createdAt": "2026-09-16",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Thiết bị văn phòng",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0162",
+  "leadId": "LD-0266",
+  "createdAt": "2026-09-18",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0163",
+  "leadId": "LD-0267",
+  "createdAt": "2026-09-16",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0164",
+  "leadId": "LD-0268",
+  "createdAt": "2026-09-19",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0165",
+  "leadId": "LD-0269",
+  "createdAt": "2026-09-17",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0166",
+  "leadId": "LD-0270",
+  "createdAt": "2026-09-18",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0167",
+  "leadId": "LD-0273",
+  "createdAt": "2026-09-18",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0168",
+  "leadId": "LD-0275",
+  "createdAt": "2026-09-19",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0169",
+  "leadId": "LD-0278",
+  "createdAt": "2026-09-21",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0170",
+  "leadId": "LD-0280",
+  "createdAt": "2026-09-22",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0171",
+  "leadId": "LD-0281",
+  "createdAt": "2026-09-22",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0172",
+  "leadId": "LD-0282",
+  "createdAt": "2026-09-21",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0173",
+  "leadId": "LD-0283",
+  "createdAt": "2026-09-22",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0174",
+  "leadId": "LD-0285",
+  "createdAt": "2026-09-22",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0175",
+  "leadId": "LD-0289",
+  "createdAt": "2026-09-24",
+  "route": "vn",
+  "customerId": "KH-010",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-huy",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0176",
+  "leadId": "LD-0292",
+  "createdAt": "2026-09-26",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0177",
+  "leadId": "LD-0295",
+  "createdAt": "2026-09-27",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0178",
+  "leadId": "LD-0296",
+  "createdAt": "2026-09-27",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0179",
+  "leadId": "LD-0297",
+  "createdAt": "2026-09-27",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0180",
+  "leadId": "LD-0299",
+  "createdAt": "2026-09-28",
+  "route": "vn",
+  "customerId": "KH-003",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0181",
+  "leadId": "LD-0300",
+  "createdAt": "2026-09-28",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0182",
+  "leadId": "LD-0301",
+  "createdAt": "2026-09-27",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0183",
+  "leadId": "LD-0303",
+  "createdAt": "2026-09-30",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0184",
+  "leadId": "LD-0304",
+  "createdAt": "2026-09-28",
+  "route": "vn",
+  "customerId": "KH-001",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0185",
+  "leadId": "LD-0306",
+  "createdAt": "2026-10-01",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0186",
+  "leadId": "LD-0307",
+  "createdAt": "2026-09-30",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0187",
+  "leadId": "LD-0308",
+  "createdAt": "2026-10-01",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0188",
+  "leadId": "LD-0309",
+  "createdAt": "2026-09-30",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0189",
+  "leadId": "LD-0311",
+  "createdAt": "2026-10-02",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0190",
+  "leadId": "LD-0312",
+  "createdAt": "2026-10-01",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0191",
+  "leadId": "LD-0314",
+  "createdAt": "2026-10-02",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0192",
+  "leadId": "LD-0315",
+  "createdAt": "2026-10-01",
+  "route": "vn",
+  "customerId": "KH-010",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0193",
+  "leadId": "LD-0316",
+  "createdAt": "2026-10-03",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0194",
+  "leadId": "LD-0317",
+  "createdAt": "2026-10-04",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0195",
+  "leadId": "LD-0318",
+  "createdAt": "2026-10-03",
+  "route": "vn",
+  "customerId": "KH-007",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0196",
+  "leadId": "LD-0319",
+  "createdAt": "2026-10-04",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0197",
+  "leadId": "LD-0321",
+  "createdAt": "2026-10-04",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0198",
+  "leadId": "LD-0322",
+  "createdAt": "2026-10-04",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0199",
+  "leadId": "LD-0323",
+  "createdAt": "2026-10-05",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0200",
+  "leadId": "LD-0324",
+  "createdAt": "2026-10-04",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0201",
+  "leadId": "LD-0326",
+  "createdAt": "2026-10-06",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0202",
+  "leadId": "LD-0327",
+  "createdAt": "2026-10-06",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0203",
+  "leadId": "LD-0328",
+  "createdAt": "2026-10-06",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0204",
+  "leadId": "LD-0329",
+  "createdAt": "2026-10-04",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0205",
+  "leadId": "LD-0332",
+  "createdAt": "2026-10-06",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0206",
+  "leadId": "LD-0333",
+  "createdAt": "2026-10-06",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0207",
+  "leadId": "LD-0334",
+  "createdAt": "2026-10-08",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0208",
+  "leadId": "LD-0335",
+  "createdAt": "2026-10-08",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0209",
+  "leadId": "LD-0336",
+  "createdAt": "2026-10-07",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0210",
+  "leadId": "LD-0337",
+  "createdAt": "2026-10-08",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0211",
+  "leadId": "LD-0338",
+  "createdAt": "2026-10-10",
+  "route": "vn",
+  "customerId": "KH-005",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0212",
+  "leadId": "LD-0340",
+  "createdAt": "2026-10-09",
+  "route": "global",
+  "customerId": "KH-020",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0213",
+  "leadId": "LD-0343",
+  "createdAt": "2026-10-10",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0214",
+  "leadId": "LD-0344",
+  "createdAt": "2026-10-11",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0215",
+  "leadId": "LD-0345",
+  "createdAt": "2026-10-12",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0216",
+  "leadId": "LD-0346",
+  "createdAt": "2026-10-10",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0217",
+  "leadId": "LD-0347",
+  "createdAt": "2026-10-13",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0218",
+  "leadId": "LD-0348",
+  "createdAt": "2026-10-13",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0219",
+  "leadId": "LD-0349",
+  "createdAt": "2026-10-11",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0220",
+  "leadId": "LD-0352",
+  "createdAt": "2026-10-13",
+  "route": "global",
+  "customerId": "KH-013",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0221",
+  "leadId": "LD-0355",
+  "createdAt": "2026-10-14",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0222",
+  "leadId": "LD-0356",
+  "createdAt": "2026-10-14",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Quần áo thời trang",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0223",
+  "leadId": "LD-0357",
+  "createdAt": "2026-10-13",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0224",
+  "leadId": "LD-0358",
+  "createdAt": "2026-10-16",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0225",
+  "leadId": "LD-0360",
+  "createdAt": "2026-10-16",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0226",
+  "leadId": "LD-0361",
+  "createdAt": "2026-10-14",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0227",
+  "leadId": "LD-0362",
+  "createdAt": "2026-10-15",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0228",
+  "leadId": "LD-0363",
+  "createdAt": "2026-10-16",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0229",
+  "leadId": "LD-0364",
+  "createdAt": "2026-10-16",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Thiết bị văn phòng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0230",
+  "leadId": "LD-0366",
+  "createdAt": "2026-10-18",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0231",
+  "leadId": "LD-0367",
+  "createdAt": "2026-10-17",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0232",
+  "leadId": "LD-0368",
+  "createdAt": "2026-10-16",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0233",
+  "leadId": "LD-0369",
+  "createdAt": "2026-10-16",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0234",
+  "leadId": "LD-0370",
+  "createdAt": "2026-10-17",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0235",
+  "leadId": "LD-0371",
+  "createdAt": "2026-10-17",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0236",
+  "leadId": "LD-0372",
+  "createdAt": "2026-10-19",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0237",
+  "leadId": "LD-0373",
+  "createdAt": "2026-10-17",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Hàng gia dụng",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0238",
+  "leadId": "LD-0374",
+  "createdAt": "2026-10-19",
+  "route": "global",
+  "customerId": "KH-017",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0239",
+  "leadId": "LD-0376",
+  "createdAt": "2026-10-19",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-huy",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0240",
+  "leadId": "LD-0380",
+  "createdAt": "2026-10-19",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0241",
+  "leadId": "LD-0381",
+  "createdAt": "2026-10-20",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0242",
+  "leadId": "LD-0382",
+  "createdAt": "2026-10-22",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Linh kiện điện tử",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0243",
+  "leadId": "LD-0383",
+  "createdAt": "2026-10-22",
+  "route": "global",
+  "customerId": "KH-018",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0244",
+  "leadId": "LD-0384",
+  "createdAt": "2026-10-23",
+  "route": "vn",
+  "customerId": "KH-012",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0245",
+  "leadId": "LD-0385",
+  "createdAt": "2026-10-22",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Hàng gia dụng",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0246",
+  "leadId": "LD-0387",
+  "createdAt": "2026-10-22",
+  "route": "vn",
+  "customerId": "KH-008",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0247",
+  "leadId": "LD-0388",
+  "createdAt": "2026-10-22",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0248",
+  "leadId": "LD-0390",
+  "createdAt": "2026-10-25",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "da-chot",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0249",
+  "leadId": "LD-0392",
+  "createdAt": "2026-10-26",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Quần áo thời trang",
+  "status": "da-chot",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0250",
+  "leadId": "LD-0393",
+  "createdAt": "2026-10-25",
+  "route": "global",
+  "customerId": "KH-014",
+  "cargo": "Đồ nội thất nhỏ",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0251",
+  "leadId": "LD-0394",
+  "createdAt": "2026-10-26",
+  "route": "vn",
+  "customerId": "KH-006",
+  "cargo": "Phụ kiện điện thoại",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0252",
+  "leadId": "LD-0397",
+  "createdAt": "2026-10-27",
+  "route": "global",
+  "customerId": "KH-016",
+  "cargo": "Dụng cụ làm đẹp",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0253",
+  "leadId": "LD-0399",
+  "createdAt": "2026-10-26",
+  "route": "vn",
+  "customerId": "KH-011",
+  "cargo": "Hàng gia dụng",
+  "status": "da-bao-gia",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0254",
+  "leadId": "LD-0402",
+  "createdAt": "2026-10-27",
+  "route": "global",
+  "customerId": "KH-015",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0255",
+  "leadId": "LD-0403",
+  "createdAt": "2026-10-27",
+  "route": "vn",
+  "customerId": "KH-009",
+  "cargo": "Linh kiện điện tử",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0256",
+  "leadId": "LD-0404",
+  "createdAt": "2026-10-29",
+  "route": "vn",
+  "customerId": "KH-004",
+  "cargo": "Thiết bị văn phòng",
+  "status": "dang-xu-ly",
+  "department": "sale-vn"
+ },
+ {
+  "id": "RFQ-0257",
+  "leadId": "LD-0405",
+  "createdAt": "2026-10-28",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Đồ chơi trẻ em",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ },
+ {
+  "id": "RFQ-0258",
+  "leadId": "LD-0406",
+  "createdAt": "2026-10-27",
+  "route": "vn",
+  "customerId": "KH-002",
+  "cargo": "Quần áo thời trang",
+  "status": "dang-xu-ly",
+  "department": "van-hanh"
+ },
+ {
+  "id": "RFQ-0259",
+  "leadId": "LD-0407",
+  "createdAt": "2026-10-28",
+  "route": "global",
+  "customerId": "KH-019",
+  "cargo": "Hàng gia dụng",
+  "status": "dang-xu-ly",
+  "department": "sale-global"
+ }
+]

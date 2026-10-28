@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * SpeeGo design tokens. Brand: Navy #082A59, Orange #F26522, nền phụ #F6F8FC.
+ * Component chỉ dùng token semantic (bg-primary, text-success...), không dùng hex trực tiếp.
+ * Xem DESIGN_SYSTEM.md.
+ */
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-text: var(--brand-orange-text);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius);
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --shadow-xs: 0 1px 2px 0 rgb(8 42 89 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(8 42 89 / 0.08), 0 1px 2px -1px rgb(8 42 89 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(8 42 89 / 0.1), 0 2px 4px -2px rgb(8 42 89 / 0.06);
+  --shadow-lg: 0 12px 28px -6px rgb(8 42 89 / 0.16), 0 4px 8px -4px rgb(8 42 89 / 0.08);
+
+  /* Thang cỡ chữ: 12 / 13 / 14 / 16 / 20 / 24 / 30 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+}
+
+:root {
+  --radius: 8px;
+
+  /* Brand */
+  --brand-navy: #082a59;
+  --brand-orange: #f26522;
+  /* Cam đậm hơn dùng cho chữ/icon nhỏ trên nền trắng (đạt AA 4.5:1) */
+  --brand-orange-text: #c2410c;
+
+  /* Surface */
+  --background: #f6f8fc;
+  --surface: #ffffff;
+  --foreground: #0f1b2d;
+  --card: #ffffff;
+  --card-foreground: #0f1b2d;
+  --popover: #ffffff;
+  --popover-foreground: #0f1b2d;
+
+  --primary: var(--brand-navy);
+  --primary-foreground: #ffffff;
+  --secondary: #eaeff7;
+  --secondary-foreground: var(--brand-navy);
+  --muted: #eef2f8;
+  --muted-foreground: #526078;
+  --accent: #e8eef8;
+  --accent-foreground: var(--brand-navy);
+
+  --border: #dde3ee;
+  --input: #cfd7e5;
+  --ring: #2f5d9f;
+  --destructive: var(--danger);
+
+  /* Màu trạng thái: chữ đạt AA trên nền soft tương ứng */
+  --success: #15803d;
+  --success-soft: #e6f6ec;
+  --warning: #a15c07;
+  --warning-soft: #fdf1dc;
+  --danger: #c0392b;
+  --danger-soft: #fdeceb;
+  --info: #1d4ed8;
+  --info-soft: #e8efff;
+  --neutral: #475569;
+  --neutral-soft: #eceff4;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #26364f;
+  --sidebar-accent: #eaf0fa;
+  --sidebar-accent-foreground: var(--brand-navy);
+  --sidebar-border: #e3e8f1;
+
+  --chart-1: var(--brand-navy);
+  --chart-2: var(--brand-orange);
+  --chart-3: #2f7f79;
+  --chart-4: #6b3fa0;
+  --chart-5: #8a97ad;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground text-base antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Số liệu thẳng hàng trong bảng/thẻ KPI */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  button,
+  [role="button"],
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

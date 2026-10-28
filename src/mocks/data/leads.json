@@ -1,0 +1,3282 @@
+[
+ {
+  "id": "LD-0001",
+  "createdAt": "2026-07-01",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0002",
+  "createdAt": "2026-07-01",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0003",
+  "createdAt": "2026-07-02",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0004",
+  "createdAt": "2026-07-02",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0005",
+  "createdAt": "2026-07-02",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0006",
+  "createdAt": "2026-07-02",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0007",
+  "createdAt": "2026-07-03",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0008",
+  "createdAt": "2026-07-03",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0009",
+  "createdAt": "2026-07-04",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0010",
+  "createdAt": "2026-07-04",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0011",
+  "createdAt": "2026-07-05",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0012",
+  "createdAt": "2026-07-05",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0013",
+  "createdAt": "2026-07-05",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0014",
+  "createdAt": "2026-07-05",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0015",
+  "createdAt": "2026-07-05",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0016",
+  "createdAt": "2026-07-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0017",
+  "createdAt": "2026-07-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0018",
+  "createdAt": "2026-07-07",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0019",
+  "createdAt": "2026-07-07",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0020",
+  "createdAt": "2026-07-07",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0021",
+  "createdAt": "2026-07-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0022",
+  "createdAt": "2026-07-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0023",
+  "createdAt": "2026-07-08",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0024",
+  "createdAt": "2026-07-09",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0025",
+  "createdAt": "2026-07-09",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0026",
+  "createdAt": "2026-07-09",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0027",
+  "createdAt": "2026-07-09",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0028",
+  "createdAt": "2026-07-09",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0029",
+  "createdAt": "2026-07-10",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0030",
+  "createdAt": "2026-07-10",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0031",
+  "createdAt": "2026-07-11",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0032",
+  "createdAt": "2026-07-11",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0033",
+  "createdAt": "2026-07-11",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0034",
+  "createdAt": "2026-07-11",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0035",
+  "createdAt": "2026-07-12",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0036",
+  "createdAt": "2026-07-12",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0037",
+  "createdAt": "2026-07-12",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0038",
+  "createdAt": "2026-07-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0039",
+  "createdAt": "2026-07-13",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0040",
+  "createdAt": "2026-07-13",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0041",
+  "createdAt": "2026-07-14",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0042",
+  "createdAt": "2026-07-14",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0043",
+  "createdAt": "2026-07-14",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0044",
+  "createdAt": "2026-07-14",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0045",
+  "createdAt": "2026-07-14",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0046",
+  "createdAt": "2026-07-15",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0047",
+  "createdAt": "2026-07-15",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0048",
+  "createdAt": "2026-07-15",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0049",
+  "createdAt": "2026-07-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0050",
+  "createdAt": "2026-07-16",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0051",
+  "createdAt": "2026-07-16",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0052",
+  "createdAt": "2026-07-17",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0053",
+  "createdAt": "2026-07-17",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0054",
+  "createdAt": "2026-07-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0055",
+  "createdAt": "2026-07-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0056",
+  "createdAt": "2026-07-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0057",
+  "createdAt": "2026-07-18",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0058",
+  "createdAt": "2026-07-18",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0059",
+  "createdAt": "2026-07-18",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0060",
+  "createdAt": "2026-07-19",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0061",
+  "createdAt": "2026-07-19",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0062",
+  "createdAt": "2026-07-19",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0063",
+  "createdAt": "2026-07-19",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0064",
+  "createdAt": "2026-07-20",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0065",
+  "createdAt": "2026-07-20",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0066",
+  "createdAt": "2026-07-21",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0067",
+  "createdAt": "2026-07-21",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0068",
+  "createdAt": "2026-07-21",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0069",
+  "createdAt": "2026-07-21",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0070",
+  "createdAt": "2026-07-22",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0071",
+  "createdAt": "2026-07-22",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0072",
+  "createdAt": "2026-07-23",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0073",
+  "createdAt": "2026-07-23",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0074",
+  "createdAt": "2026-07-23",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0075",
+  "createdAt": "2026-07-23",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0076",
+  "createdAt": "2026-07-24",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0077",
+  "createdAt": "2026-07-24",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0078",
+  "createdAt": "2026-07-25",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0079",
+  "createdAt": "2026-07-25",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0080",
+  "createdAt": "2026-07-25",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0081",
+  "createdAt": "2026-07-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0082",
+  "createdAt": "2026-07-25",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0083",
+  "createdAt": "2026-07-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0084",
+  "createdAt": "2026-07-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0085",
+  "createdAt": "2026-07-26",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0086",
+  "createdAt": "2026-07-26",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0087",
+  "createdAt": "2026-07-27",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0088",
+  "createdAt": "2026-07-27",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0089",
+  "createdAt": "2026-07-27",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0090",
+  "createdAt": "2026-07-27",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0091",
+  "createdAt": "2026-07-28",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0092",
+  "createdAt": "2026-07-28",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0093",
+  "createdAt": "2026-07-28",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0094",
+  "createdAt": "2026-07-29",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0095",
+  "createdAt": "2026-07-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0096",
+  "createdAt": "2026-07-29",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0097",
+  "createdAt": "2026-07-29",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0098",
+  "createdAt": "2026-07-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0099",
+  "createdAt": "2026-07-30",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0100",
+  "createdAt": "2026-07-30",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0101",
+  "createdAt": "2026-07-31",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0102",
+  "createdAt": "2026-07-31",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0103",
+  "createdAt": "2026-07-31",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0104",
+  "createdAt": "2026-07-31",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0105",
+  "createdAt": "2026-08-01",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0106",
+  "createdAt": "2026-08-01",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0107",
+  "createdAt": "2026-08-02",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0108",
+  "createdAt": "2026-08-02",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0109",
+  "createdAt": "2026-08-02",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0110",
+  "createdAt": "2026-08-03",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0111",
+  "createdAt": "2026-08-03",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0112",
+  "createdAt": "2026-08-04",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0113",
+  "createdAt": "2026-08-04",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0114",
+  "createdAt": "2026-08-04",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0115",
+  "createdAt": "2026-08-05",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0116",
+  "createdAt": "2026-08-05",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0117",
+  "createdAt": "2026-08-06",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0118",
+  "createdAt": "2026-08-06",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0119",
+  "createdAt": "2026-08-06",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0120",
+  "createdAt": "2026-08-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0121",
+  "createdAt": "2026-08-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0122",
+  "createdAt": "2026-08-07",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0123",
+  "createdAt": "2026-08-07",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0124",
+  "createdAt": "2026-08-08",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0125",
+  "createdAt": "2026-08-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0126",
+  "createdAt": "2026-08-08",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0127",
+  "createdAt": "2026-08-08",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0128",
+  "createdAt": "2026-08-09",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0129",
+  "createdAt": "2026-08-09",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0130",
+  "createdAt": "2026-08-09",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0131",
+  "createdAt": "2026-08-10",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0132",
+  "createdAt": "2026-08-10",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0133",
+  "createdAt": "2026-08-10",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0134",
+  "createdAt": "2026-08-10",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0135",
+  "createdAt": "2026-08-11",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0136",
+  "createdAt": "2026-08-11",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0137",
+  "createdAt": "2026-08-11",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0138",
+  "createdAt": "2026-08-12",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0139",
+  "createdAt": "2026-08-12",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0140",
+  "createdAt": "2026-08-12",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0141",
+  "createdAt": "2026-08-12",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0142",
+  "createdAt": "2026-08-13",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0143",
+  "createdAt": "2026-08-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0144",
+  "createdAt": "2026-08-13",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0145",
+  "createdAt": "2026-08-13",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0146",
+  "createdAt": "2026-08-14",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0147",
+  "createdAt": "2026-08-14",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0148",
+  "createdAt": "2026-08-15",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0149",
+  "createdAt": "2026-08-15",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0150",
+  "createdAt": "2026-08-15",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0151",
+  "createdAt": "2026-08-15",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0152",
+  "createdAt": "2026-08-16",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0153",
+  "createdAt": "2026-08-16",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0154",
+  "createdAt": "2026-08-17",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0155",
+  "createdAt": "2026-08-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0156",
+  "createdAt": "2026-08-18",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0157",
+  "createdAt": "2026-08-18",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0158",
+  "createdAt": "2026-08-18",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0159",
+  "createdAt": "2026-08-18",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0160",
+  "createdAt": "2026-08-18",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0161",
+  "createdAt": "2026-08-19",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0162",
+  "createdAt": "2026-08-19",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0163",
+  "createdAt": "2026-08-20",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0164",
+  "createdAt": "2026-08-20",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0165",
+  "createdAt": "2026-08-20",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0166",
+  "createdAt": "2026-08-20",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0167",
+  "createdAt": "2026-08-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0168",
+  "createdAt": "2026-08-21",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0169",
+  "createdAt": "2026-08-21",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0170",
+  "createdAt": "2026-08-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0171",
+  "createdAt": "2026-08-21",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0172",
+  "createdAt": "2026-08-22",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0173",
+  "createdAt": "2026-08-22",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0174",
+  "createdAt": "2026-08-22",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0175",
+  "createdAt": "2026-08-22",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0176",
+  "createdAt": "2026-08-22",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0177",
+  "createdAt": "2026-08-23",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0178",
+  "createdAt": "2026-08-23",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0179",
+  "createdAt": "2026-08-23",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0180",
+  "createdAt": "2026-08-23",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0181",
+  "createdAt": "2026-08-24",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0182",
+  "createdAt": "2026-08-24",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0183",
+  "createdAt": "2026-08-25",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0184",
+  "createdAt": "2026-08-25",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0185",
+  "createdAt": "2026-08-25",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0186",
+  "createdAt": "2026-08-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0187",
+  "createdAt": "2026-08-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0188",
+  "createdAt": "2026-08-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0189",
+  "createdAt": "2026-08-26",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0190",
+  "createdAt": "2026-08-26",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0191",
+  "createdAt": "2026-08-27",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0192",
+  "createdAt": "2026-08-27",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0193",
+  "createdAt": "2026-08-27",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0194",
+  "createdAt": "2026-08-27",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0195",
+  "createdAt": "2026-08-28",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0196",
+  "createdAt": "2026-08-28",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0197",
+  "createdAt": "2026-08-28",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0198",
+  "createdAt": "2026-08-29",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0199",
+  "createdAt": "2026-08-29",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0200",
+  "createdAt": "2026-08-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0201",
+  "createdAt": "2026-08-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0202",
+  "createdAt": "2026-08-30",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0203",
+  "createdAt": "2026-08-30",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0204",
+  "createdAt": "2026-08-30",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0205",
+  "createdAt": "2026-08-30",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0206",
+  "createdAt": "2026-08-31",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0207",
+  "createdAt": "2026-08-31",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0208",
+  "createdAt": "2026-08-31",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0209",
+  "createdAt": "2026-08-31",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0210",
+  "createdAt": "2026-08-31",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0211",
+  "createdAt": "2026-09-01",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0212",
+  "createdAt": "2026-09-01",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0213",
+  "createdAt": "2026-09-01",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0214",
+  "createdAt": "2026-09-01",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0215",
+  "createdAt": "2026-09-01",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0216",
+  "createdAt": "2026-09-02",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0217",
+  "createdAt": "2026-09-02",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0218",
+  "createdAt": "2026-09-02",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0219",
+  "createdAt": "2026-09-02",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0220",
+  "createdAt": "2026-09-02",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0221",
+  "createdAt": "2026-09-03",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0222",
+  "createdAt": "2026-09-03",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0223",
+  "createdAt": "2026-09-03",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0224",
+  "createdAt": "2026-09-04",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0225",
+  "createdAt": "2026-09-04",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0226",
+  "createdAt": "2026-09-04",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0227",
+  "createdAt": "2026-09-04",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0228",
+  "createdAt": "2026-09-04",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0229",
+  "createdAt": "2026-09-05",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0230",
+  "createdAt": "2026-09-05",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0231",
+  "createdAt": "2026-09-05",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0232",
+  "createdAt": "2026-09-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0233",
+  "createdAt": "2026-09-06",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0234",
+  "createdAt": "2026-09-07",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0235",
+  "createdAt": "2026-09-07",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0236",
+  "createdAt": "2026-09-07",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0237",
+  "createdAt": "2026-09-07",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0238",
+  "createdAt": "2026-09-07",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0239",
+  "createdAt": "2026-09-08",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0240",
+  "createdAt": "2026-09-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0241",
+  "createdAt": "2026-09-09",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0242",
+  "createdAt": "2026-09-09",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0243",
+  "createdAt": "2026-09-09",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0244",
+  "createdAt": "2026-09-10",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0245",
+  "createdAt": "2026-09-10",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0246",
+  "createdAt": "2026-09-11",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0247",
+  "createdAt": "2026-09-11",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0248",
+  "createdAt": "2026-09-11",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0249",
+  "createdAt": "2026-09-11",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0250",
+  "createdAt": "2026-09-12",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0251",
+  "createdAt": "2026-09-12",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0252",
+  "createdAt": "2026-09-13",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0253",
+  "createdAt": "2026-09-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0254",
+  "createdAt": "2026-09-13",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0255",
+  "createdAt": "2026-09-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0256",
+  "createdAt": "2026-09-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0257",
+  "createdAt": "2026-09-14",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0258",
+  "createdAt": "2026-09-14",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0259",
+  "createdAt": "2026-09-15",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0260",
+  "createdAt": "2026-09-15",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0261",
+  "createdAt": "2026-09-15",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0262",
+  "createdAt": "2026-09-15",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0263",
+  "createdAt": "2026-09-15",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0264",
+  "createdAt": "2026-09-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0265",
+  "createdAt": "2026-09-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0266",
+  "createdAt": "2026-09-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0267",
+  "createdAt": "2026-09-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0268",
+  "createdAt": "2026-09-17",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0269",
+  "createdAt": "2026-09-17",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0270",
+  "createdAt": "2026-09-17",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0271",
+  "createdAt": "2026-09-18",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0272",
+  "createdAt": "2026-09-18",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0273",
+  "createdAt": "2026-09-18",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0274",
+  "createdAt": "2026-09-19",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0275",
+  "createdAt": "2026-09-19",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0276",
+  "createdAt": "2026-09-20",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0277",
+  "createdAt": "2026-09-20",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0278",
+  "createdAt": "2026-09-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0279",
+  "createdAt": "2026-09-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0280",
+  "createdAt": "2026-09-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0281",
+  "createdAt": "2026-09-21",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0282",
+  "createdAt": "2026-09-21",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0283",
+  "createdAt": "2026-09-22",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0284",
+  "createdAt": "2026-09-22",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0285",
+  "createdAt": "2026-09-22",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0286",
+  "createdAt": "2026-09-23",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0287",
+  "createdAt": "2026-09-23",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0288",
+  "createdAt": "2026-09-23",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0289",
+  "createdAt": "2026-09-24",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0290",
+  "createdAt": "2026-09-24",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0291",
+  "createdAt": "2026-09-25",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0292",
+  "createdAt": "2026-09-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0293",
+  "createdAt": "2026-09-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0294",
+  "createdAt": "2026-09-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0295",
+  "createdAt": "2026-09-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0296",
+  "createdAt": "2026-09-26",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0297",
+  "createdAt": "2026-09-26",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0298",
+  "createdAt": "2026-09-26",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0299",
+  "createdAt": "2026-09-27",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0300",
+  "createdAt": "2026-09-27",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0301",
+  "createdAt": "2026-09-27",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0302",
+  "createdAt": "2026-09-28",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0303",
+  "createdAt": "2026-09-28",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0304",
+  "createdAt": "2026-09-28",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-001",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0305",
+  "createdAt": "2026-09-28",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0306",
+  "createdAt": "2026-09-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0307",
+  "createdAt": "2026-09-29",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0308",
+  "createdAt": "2026-09-29",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0309",
+  "createdAt": "2026-09-29",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0310",
+  "createdAt": "2026-09-30",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0311",
+  "createdAt": "2026-09-30",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0312",
+  "createdAt": "2026-10-01",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0313",
+  "createdAt": "2026-10-01",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0314",
+  "createdAt": "2026-10-01",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0315",
+  "createdAt": "2026-10-01",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0316",
+  "createdAt": "2026-10-01",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0317",
+  "createdAt": "2026-10-02",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0318",
+  "createdAt": "2026-10-02",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0319",
+  "createdAt": "2026-10-02",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0320",
+  "createdAt": "2026-10-02",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0321",
+  "createdAt": "2026-10-02",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0322",
+  "createdAt": "2026-10-03",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0323",
+  "createdAt": "2026-10-03",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0324",
+  "createdAt": "2026-10-03",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0325",
+  "createdAt": "2026-10-03",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-007",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0326",
+  "createdAt": "2026-10-04",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0327",
+  "createdAt": "2026-10-04",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0328",
+  "createdAt": "2026-10-04",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0329",
+  "createdAt": "2026-10-04",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0330",
+  "createdAt": "2026-10-05",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0331",
+  "createdAt": "2026-10-05",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0332",
+  "createdAt": "2026-10-06",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0333",
+  "createdAt": "2026-10-06",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0334",
+  "createdAt": "2026-10-07",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0335",
+  "createdAt": "2026-10-07",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0336",
+  "createdAt": "2026-10-07",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0337",
+  "createdAt": "2026-10-07",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0338",
+  "createdAt": "2026-10-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0339",
+  "createdAt": "2026-10-08",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0340",
+  "createdAt": "2026-10-08",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0341",
+  "createdAt": "2026-10-09",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0342",
+  "createdAt": "2026-10-09",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0343",
+  "createdAt": "2026-10-09",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0344",
+  "createdAt": "2026-10-10",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0345",
+  "createdAt": "2026-10-10",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0346",
+  "createdAt": "2026-10-10",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0347",
+  "createdAt": "2026-10-11",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0348",
+  "createdAt": "2026-10-11",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0349",
+  "createdAt": "2026-10-11",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0350",
+  "createdAt": "2026-10-11",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0351",
+  "createdAt": "2026-10-12",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0352",
+  "createdAt": "2026-10-12",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0353",
+  "createdAt": "2026-10-12",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0354",
+  "createdAt": "2026-10-13",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0355",
+  "createdAt": "2026-10-13",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0356",
+  "createdAt": "2026-10-13",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0357",
+  "createdAt": "2026-10-13",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0358",
+  "createdAt": "2026-10-14",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0359",
+  "createdAt": "2026-10-14",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-005",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0360",
+  "createdAt": "2026-10-14",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0361",
+  "createdAt": "2026-10-14",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0362",
+  "createdAt": "2026-10-15",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0363",
+  "createdAt": "2026-10-15",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0364",
+  "createdAt": "2026-10-15",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0365",
+  "createdAt": "2026-10-15",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0366",
+  "createdAt": "2026-10-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0367",
+  "createdAt": "2026-10-16",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0368",
+  "createdAt": "2026-10-16",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0369",
+  "createdAt": "2026-10-16",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0370",
+  "createdAt": "2026-10-16",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0371",
+  "createdAt": "2026-10-17",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0372",
+  "createdAt": "2026-10-17",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0373",
+  "createdAt": "2026-10-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0374",
+  "createdAt": "2026-10-17",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0375",
+  "createdAt": "2026-10-17",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-003",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0376",
+  "createdAt": "2026-10-18",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0377",
+  "createdAt": "2026-10-18",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-013",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0378",
+  "createdAt": "2026-10-18",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0379",
+  "createdAt": "2026-10-19",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0380",
+  "createdAt": "2026-10-19",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0381",
+  "createdAt": "2026-10-20",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0382",
+  "createdAt": "2026-10-20",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0383",
+  "createdAt": "2026-10-21",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-018",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0384",
+  "createdAt": "2026-10-21",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0385",
+  "createdAt": "2026-10-22",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0386",
+  "createdAt": "2026-10-22",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0387",
+  "createdAt": "2026-10-22",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-008",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0388",
+  "createdAt": "2026-10-22",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0389",
+  "createdAt": "2026-10-22",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-010",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0390",
+  "createdAt": "2026-10-23",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0391",
+  "createdAt": "2026-10-23",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0392",
+  "createdAt": "2026-10-24",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0393",
+  "createdAt": "2026-10-24",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-014",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0394",
+  "createdAt": "2026-10-25",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-006",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0395",
+  "createdAt": "2026-10-25",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0396",
+  "createdAt": "2026-10-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-020",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0397",
+  "createdAt": "2026-10-25",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-016",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0398",
+  "createdAt": "2026-10-26",
+  "source": "google",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0399",
+  "createdAt": "2026-10-26",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-011",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0400",
+  "createdAt": "2026-10-26",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0401",
+  "createdAt": "2026-10-26",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-017",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0402",
+  "createdAt": "2026-10-26",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0403",
+  "createdAt": "2026-10-27",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-009",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0404",
+  "createdAt": "2026-10-27",
+  "source": "ads",
+  "route": "vn",
+  "customerId": "KH-004",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0405",
+  "createdAt": "2026-10-27",
+  "source": "organic",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0406",
+  "createdAt": "2026-10-27",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "sale-vn"
+ },
+ {
+  "id": "LD-0407",
+  "createdAt": "2026-10-27",
+  "source": "ads",
+  "route": "global",
+  "customerId": "KH-019",
+  "department": "sale-global"
+ },
+ {
+  "id": "LD-0408",
+  "createdAt": "2026-10-28",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-002",
+  "department": "marketing"
+ },
+ {
+  "id": "LD-0409",
+  "createdAt": "2026-10-28",
+  "source": "organic",
+  "route": "vn",
+  "customerId": "KH-012",
+  "department": "marketing"
+ },
+ {
+  "id": "LD-0410",
+  "createdAt": "2026-10-28",
+  "source": "google",
+  "route": "global",
+  "customerId": "KH-015",
+  "department": "marketing"
+ }
+]

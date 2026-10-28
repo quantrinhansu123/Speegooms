@@ -1,0 +1,122 @@
+[
+ {
+  "id": "KH-001",
+  "name": "Công ty TNHH Minh Phát",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-002",
+  "name": "Công ty TNHH Hoàng Long",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-003",
+  "name": "Công ty TNHH An Khang",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-004",
+  "name": "Công ty TNHH Thành Đạt",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-005",
+  "name": "Công ty TNHH Đại Phú",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-006",
+  "name": "Công ty TNHH Gia Hưng",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-007",
+  "name": "Công ty TNHH Bảo Châu",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-008",
+  "name": "Công ty TNHH Việt Tiến",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-009",
+  "name": "Công ty TNHH Hải Nam",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-010",
+  "name": "Công ty TNHH Phúc Lộc",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-011",
+  "name": "Công ty TNHH Kim Ngân",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-012",
+  "name": "Công ty TNHH Nam Việt",
+  "route": "vn",
+  "country": "Việt Nam"
+ },
+ {
+  "id": "KH-013",
+  "name": "Pacific Home Goods",
+  "route": "global",
+  "country": "Hoa Kỳ"
+ },
+ {
+  "id": "KH-014",
+  "name": "Lone Star Retail",
+  "route": "global",
+  "country": "Canada"
+ },
+ {
+  "id": "KH-015",
+  "name": "Golden Bay Boutique",
+  "route": "global",
+  "country": "Hoa Kỳ"
+ },
+ {
+  "id": "KH-016",
+  "name": "Nguyen's Mart",
+  "route": "global",
+  "country": "Hoa Kỳ"
+ },
+ {
+  "id": "KH-017",
+  "name": "Orchid Trading",
+  "route": "global",
+  "country": "Canada"
+ },
+ {
+  "id": "KH-018",
+  "name": "Summit Supply",
+  "route": "global",
+  "country": "Hoa Kỳ"
+ },
+ {
+  "id": "KH-019",
+  "name": "Harbor Lane Store",
+  "route": "global",
+  "country": "Canada"
+ },
+ {
+  "id": "KH-020",
+  "name": "Bluebird Import",
+  "route": "global",
+  "country": "Hoa Kỳ"
+ }
+]
