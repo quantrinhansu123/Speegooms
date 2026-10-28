@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Trash2, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -39,7 +40,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel><X /> {cancelLabel}</AlertDialogCancel>
           <Button
             variant={destructive ? "destructive" : "default"}
             onClick={() => {
@@ -47,7 +48,7 @@ export function ConfirmDialog({
               onOpenChange(false);
             }}
           >
-            {confirmLabel}
+            {destructive ? <Trash2 /> : <Check />} {confirmLabel}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -85,7 +86,7 @@ export function RfqForm({
         <div className="flex justify-end gap-2 sm:col-span-2">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel}>
-              Hủy
+              <X /> Hủy
             </Button>
           )}
           <Button type="submit">{submitLabel}</Button>

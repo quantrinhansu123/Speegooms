@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Unlink, UserCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -106,7 +106,7 @@ export function LeadFormDialog({ open, onOpenChange, onCreated }: { open: boolea
                     Lead sẽ gắn với khách có sẵn <strong>{linked.customerId}</strong> · {linked.name}
                   </span>
                   <Button type="button" variant="outline" size="sm" onClick={() => setCustomerId(undefined)}>
-                    Bỏ gắn
+                    <Unlink /> Bỏ gắn
                   </Button>
                 </InlineAlert>
               ) : (
@@ -129,7 +129,7 @@ export function LeadFormDialog({ open, onOpenChange, onCreated }: { open: boolea
                             setValue("company", c.name);
                           }}
                         >
-                          Dùng khách này
+                          <UserCheck /> Dùng khách này
                         </Button>
                       </li>
                     ))}
@@ -180,9 +180,9 @@ export function LeadFormDialog({ open, onOpenChange, onCreated }: { open: boolea
           {error && <InlineAlert className="sm:col-span-2">{error}</InlineAlert>}
           <DialogFooter className="sm:col-span-2">
             <Button type="button" variant="outline" onClick={() => close(false)}>
-              Hủy
+              <X /> Hủy
             </Button>
-            <Button type="submit">Tạo lead</Button>
+            <Button type="submit">Tạo mới</Button>
           </DialogFooter>
         </form>
       </DialogContent>

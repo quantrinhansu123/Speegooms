@@ -1,5 +1,6 @@
 "use client";
 
+import { Send, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -59,9 +60,9 @@ export function DepositRequestDialog({ contract, open, onOpenChange }: { contrac
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
+            <X /> Hủy
           </Button>
-          <Button onClick={submit}>Gửi yêu cầu</Button>
+          <Button onClick={submit}><Send /> Gửi yêu cầu</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

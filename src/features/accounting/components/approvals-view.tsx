@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -31,8 +32,8 @@ function RejectDialog({ payment, onClose }: { payment: PaymentRequest; onClose: 
         <Textarea aria-label="Lý do từ chối" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button variant="destructive" onClick={() => { const r = accActions.reviewPayment(payment.paymentId, false, note); if (r.ok) onClose(); else setError(r.error); }}>Xác nhận từ chối</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button variant="destructive" onClick={() => { const r = accActions.reviewPayment(payment.paymentId, false, note); if (r.ok) onClose(); else setError(r.error); }}><X /> Xác nhận từ chối</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -60,8 +61,8 @@ export function ApprovalsView() {
         const gate = canApprove(p, actor);
         return gate.ok ? (
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => setMsg(accActions.reviewPayment(p.paymentId, true, "").ok ? undefined : "Không duyệt được")}>Duyệt</Button>
-            <Button size="sm" variant="destructive" onClick={() => setRejecting(p)}>Từ chối</Button>
+            <Button size="sm" onClick={() => setMsg(accActions.reviewPayment(p.paymentId, true, "").ok ? undefined : "Không duyệt được")}><Check /> Duyệt</Button>
+            <Button size="sm" variant="destructive" onClick={() => setRejecting(p)}><X /> Từ chối</Button>
           </div>
         ) : (
           <span className="block max-w-48 text-xs text-muted-foreground" title={gate.reason}>Bạn không thể duyệt: {gate.reason}</span>

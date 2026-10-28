@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { ShipmentDetail } from "@/features/operations/components/shipment-detail";
+import { WithParams } from "@/components/shared/with-params";
 
 export const metadata: Metadata = { title: "Chi tiết lô hàng" };
 
-export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <ShipmentDetail shipmentId={decodeURIComponent(id)} />;
+export const instant = false;
+
+export default function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return <WithParams params={params}>{({ id }) => <ShipmentDetail shipmentId={decodeURIComponent(id)} />}</WithParams>;
 }

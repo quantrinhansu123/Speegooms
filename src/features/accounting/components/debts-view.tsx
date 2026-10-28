@@ -1,5 +1,6 @@
 "use client";
 
+import { NotebookPen, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -34,8 +35,8 @@ function ReceiptDialog({ row, onClose }: { row: ReceivableRow; onClose: () => vo
         <Field label="Mã tham chiếu sao kê" htmlFor="rc-ref" required><Input id="rc-ref" value={ref} onChange={(e) => setRef(e.target.value)} /></Field>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={() => { const r = accActions.recordReceipt(row.contract.orderId, amount, ref); if (r.ok) onClose(); else setError(r.error); }}>Ghi nhận thu</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button onClick={() => { const r = accActions.recordReceipt(row.contract.orderId, amount, ref); if (r.ok) onClose(); else setError(r.error); }}><NotebookPen /> Ghi nhận thu</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -60,7 +61,7 @@ export function DebtsView() {
     { key: "n", header: "Còn phải thu", align: "right", cell: (r) => <strong className={r.outstanding > 0 ? "" : "text-muted-foreground"}>{formatMoney(r.outstanding, "VND")}</strong> },
     { key: "d", header: "Hạn giao", cell: (r) => <span className="tabular text-muted-foreground">{r.dueOn ? formatDate(r.dueOn) : "—"}</span>, className: "hidden xl:table-cell" },
     { key: "od", header: "Quá hạn", cell: (r) => (r.overdueDays > 0 ? <StatusBadge tone="danger">Quá {r.overdueDays} ngày</StatusBadge> : <span className="text-xs text-muted-foreground">—</span>) },
-    { key: "a", header: "Thao tác", cell: (r) => (r.outstanding > 0 && canAcc("ledger.write") && r.contract.deposit.status === "da-coc" ? <Button size="sm" variant="outline" onClick={() => setReceiving(r)}>Ghi nhận thu</Button> : null) },
+    { key: "a", header: "Thao tác", cell: (r) => (r.outstanding > 0 && canAcc("ledger.write") && r.contract.deposit.status === "da-coc" ? <Button size="sm" variant="outline" onClick={() => setReceiving(r)}><NotebookPen /> Ghi nhận thu</Button> : null) },
   ];
   const apCols: Column<PayableRow>[] = [
     { key: "n", header: "Đối tượng", cell: (r) => <div><p className="font-medium">{r.name}</p><p className="text-xs text-muted-foreground">{paymentKindLabels[r.kind]}</p></div> },

@@ -3,6 +3,8 @@ import { LedgerView } from "@/features/accounting/components/ledger-view";
 
 export const metadata: Metadata = { title: "Thu chi và đối soát" };
 
+export const instant = false;
+
 export default function LedgerPage() {
   return <LedgerView />;
 }

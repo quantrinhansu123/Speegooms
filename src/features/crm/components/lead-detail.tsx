@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FilePlus2, RotateCcw, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Check, FilePlus2, RotateCcw, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -243,7 +243,7 @@ export function LeadDetail({ messId }: { messId: string }) {
                       actions.setNextTask(messId, undefined);
                     }}
                   >
-                    Đánh dấu hoàn thành
+                    <Check /> Đánh dấu hoàn thành
                   </Button>
                 )}
               </div>
@@ -264,7 +264,7 @@ export function LeadDetail({ messId }: { messId: string }) {
                 <div className="flex gap-2">
                   <Input aria-label="Hạn công việc" type="date" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} />
                   <Button type="submit" variant="outline">
-                    {lead.nextTask && !lead.nextTask.done ? "Thay việc" : "Đặt việc"}
+                    <CalendarPlus /> {lead.nextTask && !lead.nextTask.done ? "Thay việc" : "Đặt việc"}
                   </Button>
                 </div>
               </form>

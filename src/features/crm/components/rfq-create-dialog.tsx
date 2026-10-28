@@ -68,7 +68,7 @@ export function RfqCreateDialog({
           <RfqForm
             key={lead.messId}
             defaultValues={defaults}
-            submitLabel="Tạo RFQ"
+            submitLabel="Tạo mới"
             onCancel={() => onOpenChange(false)}
             onSubmit={(v) => {
               const res = actions.createRfqFromLead(lead.messId, v);

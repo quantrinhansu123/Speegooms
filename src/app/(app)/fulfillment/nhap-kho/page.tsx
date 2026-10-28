@@ -3,6 +3,8 @@ import { InboundView } from "@/features/fulfillment/components/inbound-view";
 
 export const metadata: Metadata = { title: "Nhập kho" };
 
+export const instant = false;
+
 export default function InboundPage() {
   return <InboundView />;
 }

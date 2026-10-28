@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useEffect, useRef, useState } from "react";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /** Các form mock dùng chung phản hồi lỗi và giữ nguyên dữ liệu khi lưu thất bại. */
-export function FormDialog({ title, description, onClose, onSave, children, submitLabel = "Lưu" }: {
+export function FormDialog({ title, description, onClose, onSave, children, submitLabel = "Tạo mới" }: {
   title: string; description: string; onClose: () => void;
   onSave: (data: FormData) => string | null; children: React.ReactNode; submitLabel?: string;
 }) {
@@ -16,17 +17,20 @@ export function FormDialog({ title, description, onClose, onSave, children, subm
   const errorRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-      <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription><ArrowText>{description}</ArrowText></DialogDescription></DialogHeader>
-      <form className="space-y-4" onSubmit={(e) => {
+    <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogHeader className="px-5 pt-5 pr-12 pb-3"><DialogTitle>{title}</DialogTitle><DialogDescription><ArrowText>{description}</ArrowText></DialogDescription></DialogHeader>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => {
         e.preventDefault();
         const message = onSave(new FormData(e.currentTarget));
         setError(message);
         if (!message) onClose();
       }}>
-        {children}
-        {error && <div tabIndex={-1} ref={errorRef}><InlineAlert>{error}</InlineAlert></div>}
-        <DialogFooter><Button type="button" variant="outline" onClick={onClose}>Hủy</Button><Button type="submit">{submitLabel}</Button></DialogFooter>
+        {/* chỉ phần nhập liệu cuộn; thanh cuộn ẩn nhưng vẫn cuộn bằng chuột/phím/cảm ứng */}
+        <div className="no-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-2">
+          {children}
+          {error && <div tabIndex={-1} ref={errorRef}><InlineAlert>{error}</InlineAlert></div>}
+        </div>
+        <DialogFooter className="m-0 px-5"><Button type="button" variant="outline" onClick={onClose}><X /> Hủy</Button><Button type="submit">{submitLabel}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

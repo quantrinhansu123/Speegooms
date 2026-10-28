@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Phone, Settings2, StickyNote, type LucideIcon } from "lucide-react";
+import { MessageSquare, Phone, Plus, Settings2, StickyNote, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -48,7 +48,7 @@ export function InteractionTimeline({ messId }: { messId: string }) {
           <Textarea aria-label="Nội dung tương tác" rows={2} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Nội dung trao đổi với khách…" />
           {error && <InlineAlert>{error}</InlineAlert>}
           <div className="flex justify-end">
-            <Button onClick={submit}>Thêm</Button>
+            <Button onClick={submit}><Plus /> Thêm</Button>
           </div>
         </div>
       )}

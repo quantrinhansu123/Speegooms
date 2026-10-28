@@ -55,6 +55,7 @@ export function ListView<T>({
   headingLevel = 1,
   dateValue,
   dateLabel = "Ngày tạo",
+  onRowClick,
 }: {
   title?: string;
   description?: string;
@@ -76,6 +77,7 @@ export function ListView<T>({
   headingLevel?: 1 | 2;
   dateValue?: (row: T) => string | undefined;
   dateLabel?: string;
+  onRowClick?: (row: T) => void;
 }) {
   const [query, setQuery] = useState("");
   const dateId = useId();
@@ -129,12 +131,6 @@ export function ListView<T>({
           </NativeSelect>
         ))}
         {dateValue && <><Field label={`${dateLabel} từ`} htmlFor={`${dateId}-from`}><Input id={`${dateId}-from`} type="date" value={from} onChange={(e) => { setFrom(e.target.value); paging.setPage(1); }} /></Field><Field label="Đến ngày" htmlFor={`${dateId}-to`}><Input id={`${dateId}-to`} type="date" value={to} onChange={(e) => { setTo(e.target.value); paging.setPage(1); }} /></Field></>}
-        {toggles.map((t) => (
-          <label key={t.id} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={on[t.id]} onChange={(e) => { setOn({ ...on, [t.id]: e.target.checked }); paging.setPage(1); }} />
-            {t.label}
-          </label>
-        ))}
         <NativeSelect aria-label="Sắp xếp dữ liệu" className="w-full sm:w-52" value={sortKey} onChange={(e) => { setSortKey(e.target.value); paging.setPage(1); }}>
           <option value="">Thứ tự mặc định</option>
           {dateValue && <><option value="__date:desc">{dateLabel} mới nhất</option><option value="__date:asc">{dateLabel} cũ nhất</option></>}
@@ -146,11 +142,17 @@ export function ListView<T>({
             setExportMessage({ tone: "success", text: `Đã tạo CSV với ${filtered.length} bản ghi theo bộ lọc và thứ tự hiện tại (toàn bộ trang).` });
           } catch { setExportMessage({ tone: "danger", text: "Không tạo được CSV. Vui lòng thử lại." }); }
         }}><Download aria-hidden /> Xuất CSV</Button>}
+        {toggles.map((t) => (
+          <label key={t.id} className="flex h-9 cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={on[t.id]} onChange={(e) => { setOn({ ...on, [t.id]: e.target.checked }); paging.setPage(1); }} />
+            {t.label}
+          </label>
+        ))}
       </div>
       {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
       {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}
       <div className="space-y-4">
-        <DataTable columns={columns} rows={paging.slice} getRowId={getRowId} empty={<EmptyState title={emptyTitle} />} />
+        <DataTable columns={columns} rows={paging.slice} getRowId={getRowId} onRowClick={onRowClick} empty={<EmptyState title={emptyTitle} />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />
       </div>
     </>

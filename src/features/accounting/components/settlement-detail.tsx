@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, X } from "lucide-react";
+import { ArrowLeft, Check, FolderOpen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -81,9 +81,9 @@ export function SettlementDetail({ orderId }: { orderId: string }) {
             <p className="text-sm">Đã quyết toán ngày {rec?.closedAt && formatDate(rec.closedAt)} bởi {staffName(rec?.closedBy ?? "")}{rec?.note ? `: ${rec.note}` : ""}.</p>
           ) : canAcc("ledger.write") ? (
             <div className="space-y-3">
-              {status === "chua-quyet-toan" && <Button variant="outline" onClick={() => run(accActions.startSettlement(orderId), "Đã mở hồ sơ quyết toán")}>Mở hồ sơ quyết toán</Button>}
+              {status === "chua-quyet-toan" && <Button variant="outline" onClick={() => run(accActions.startSettlement(orderId), "Đã mở hồ sơ quyết toán")}><FolderOpen /> Mở hồ sơ quyết toán</Button>}
               <Textarea aria-label="Ghi chú quyết toán" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú khi chốt (tuỳ chọn)" />
-              <Button disabled={!view.canClose} onClick={() => run(accActions.closeSettlement(orderId, note), "Đã chốt quyết toán")}>Chốt quyết toán</Button>
+              <Button disabled={!view.canClose} onClick={() => run(accActions.closeSettlement(orderId, note), "Đã chốt quyết toán")}><Check /> Chốt quyết toán</Button>
               {!view.canClose && <p className="text-xs text-muted-foreground">Chưa đủ điều kiện chốt.</p>}
             </div>
           ) : (

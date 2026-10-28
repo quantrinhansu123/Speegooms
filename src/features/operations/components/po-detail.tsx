@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Circle, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Ban, Check, Circle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -103,10 +103,10 @@ export function PoDetail({ poId }: { poId: string }) {
               )}
               {next && po.status !== "nhap" && (
                 <Button className="w-full" onClick={() => run(actions.advancePo(poId), `PO chuyển sang: ${poStatusMeta[next].label}`)}>
-                  Chuyển sang: {poStatusMeta[next].label}
+                  <ArrowRight /> Chuyển sang: {poStatusMeta[next].label}
                 </Button>
               )}
-              {po.status !== "da-giao-vc" && <Button className="w-full" variant="destructive" onClick={() => setCancelOpen(true)}>Hủy PO</Button>}
+              {po.status !== "da-giao-vc" && <Button className="w-full" variant="destructive" onClick={() => setCancelOpen(true)}><Ban /> Hủy PO</Button>}
             </div>
           )}
         </SectionCard>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ListChecks } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export function LedgerView() {
         e.reconciled ? (
           <StatusBadge tone="success">Đã đối soát</StatusBadge>
         ) : canAcc("ledger.write") && e.paymentId ? (
-          <Button size="sm" variant="outline" onClick={() => { const r = accActions.reconcilePayment(e.paymentId!); setError(r.ok ? undefined : r.error); }}>Đối soát</Button>
+          <Button size="sm" variant="outline" onClick={() => { const r = accActions.reconcilePayment(e.paymentId!); setError(r.ok ? undefined : r.error); }}><ListChecks /> Đối soát</Button>
         ) : (
           <StatusBadge tone="warning">Chờ đối soát</StatusBadge>
         ),

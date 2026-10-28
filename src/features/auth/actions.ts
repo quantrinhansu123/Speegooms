@@ -19,7 +19,8 @@ export async function loginAction(input: LoginInput): Promise<{ error: string } 
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    // ghi nhớ: giữ phiên 30 ngày, mặc định 8 giờ
+    maxAge: parsed.data.remember ? 60 * 60 * 24 * 30 : 60 * 60 * 8,
     secure: process.env.NODE_ENV === "production",
   });
   redirect("/dashboard");

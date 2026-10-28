@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, Check, Info, NotebookPen, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +64,7 @@ export function DeliveryDetail({ deliveryId }: { deliveryId: string }) {
               <Field label="Người nhận hàng" htmlFor="pod-by" required><Input id="pod-by" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} placeholder={d.recipientName} /></Field>
               <Field label="Ghi chú giao nhận" htmlFor="pod-note" required><Textarea id="pod-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Tình trạng hàng khi giao, số thùng..." /></Field>
               <Field label="Tên file minh chứng" htmlFor="pod-file"><Input id="pod-file" value={file} onChange={(e) => setFile(e.target.value)} placeholder={`POD-${d.deliveryId}.jpg`} /></Field>
-              <Button className="w-full" onClick={() => run(whActions.confirmPod(deliveryId, receivedBy, note, file), "Đã xác nhận POD. Mốc Giao hàng của lô hàng bên Vận hành đã được cập nhật")}>Xác nhận đã giao (POD)</Button>
+              <Button className="w-full" onClick={() => run(whActions.confirmPod(deliveryId, receivedBy, note, file), "Đã xác nhận POD. Mốc Giao hàng của lô hàng bên Vận hành đã được cập nhật")}><Check /> Xác nhận đã giao (POD)</Button>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">{d.status === "giao-that-bai" ? "Lần giao không thành, giao lại để tiếp tục." : "Chưa có POD."}</p>
@@ -76,10 +76,10 @@ export function DeliveryDetail({ deliveryId }: { deliveryId: string }) {
           {writable && d.status === "dang-giao" && (
             <div className="space-y-3">
               <Field label="Lý do giao không thành" htmlFor="fail-reason"><Input id="fail-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Khách vắng, sai địa chỉ…" /></Field>
-              <Button variant="destructive" className="w-full" onClick={() => run(whActions.failDelivery(deliveryId, reason), "Đã ghi nhận giao không thành")}>Ghi nhận giao không thành</Button>
+              <Button variant="destructive" className="w-full" onClick={() => run(whActions.failDelivery(deliveryId, reason), "Đã ghi nhận giao không thành")}><NotebookPen /> Ghi nhận giao không thành</Button>
             </div>
           )}
-          {writable && d.status === "giao-that-bai" && <Button className="w-full" onClick={() => run(whActions.redispatch(deliveryId), "Đã giao lại")}>Giao lại</Button>}
+          {writable && d.status === "giao-that-bai" && <Button className="w-full" onClick={() => run(whActions.redispatch(deliveryId), "Đã giao lại")}><RotateCcw /> Giao lại</Button>}
           {d.status === "da-giao" && <p className="text-sm text-muted-foreground">Đã giao thành công.</p>}
         </SectionCard>
       </div>

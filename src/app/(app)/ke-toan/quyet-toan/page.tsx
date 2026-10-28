@@ -3,6 +3,8 @@ import { SettlementsView } from "@/features/accounting/components/settlements-vi
 
 export const metadata: Metadata = { title: "Quyết toán hợp đồng" };
 
+export const instant = false;
+
 export default function SettlementsPage() {
   return <SettlementsView />;
 }

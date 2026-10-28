@@ -1,6 +1,6 @@
 import { LegalTicketDetail } from "@/features/legal/legal-view";
+import { WithParams } from "@/components/shared/with-params";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <LegalTicketDetail id={id} />;
+export default function Page({ params }: { params: Promise<{ id: string }> }) {
+  return <WithParams params={params}>{({ id }) => <LegalTicketDetail id={id} />}</WithParams>;
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowText } from "@/components/shared/arrow-text";
+import { ArrowLeft, ArrowRight, Plus, ShieldCheck } from "lucide-react";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -47,12 +48,13 @@ export function LegalReviewsView() {
   const { data, user } = useBackoffice();
   const { crm, ops, ready } = useOps();
   const [creating, setCreating] = useState<{ refId: string; refType: LegalTicket["refType"] }>();
+  const router = useRouter();
   const rows = [
     ...crm.contracts.filter((c) => c.status !== "huy").map((c) => ({ id: c.orderId, name: c.contractNo, type: "hop-dong" as const, orderId: c.orderId, originStatus: c.status === "da-ky" ? "Đã ký" : "Soạn thảo" })),
     ...ops.documents.map((d) => ({ id: d.docId, name: d.fileName ?? d.type, type: "chung-tu" as const, orderId: d.orderId, originStatus: d.status === "da-duyet" ? "Đã duyệt chứng từ" : d.status === "thieu" ? "Thiếu chứng từ" : d.status === "tu-choi" ? "Từ chối chứng từ" : "Chờ duyệt chứng từ" })),
   ].map((r) => ({ ...r, ticket: data.legal.find((t) => t.refType === r.type && t.refId === r.id) }));
   return <>
-    <ListView title="Hồ sơ cần rà soát pháp lý" description="Hợp đồng và chứng từ đọc từ CRM/Vận hành. Chưa có tiêu chí tự động xác định hồ sơ bắt buộc rà soát; danh mục dưới đây là đề xuất." rows={ready ? rows : []} getRowId={(r) => `${r.type}-${r.id}`} searchLabel="Tìm hồ sơ pháp lý" searchPlaceholder="Số hợp đồng, chứng từ, đơn hàng…" searchText={(r) => [r.id, r.name, r.orderId]}
+    <ListView onRowClick={(r) => { if (r.ticket) router.push(`/phap-che/yeu-cau/${r.ticket.id}`); }} title="Hồ sơ cần rà soát pháp lý" description="Hợp đồng và chứng từ đọc từ CRM/Vận hành. Chưa có tiêu chí tự động xác định hồ sơ bắt buộc rà soát; danh mục dưới đây là đề xuất." rows={ready ? rows : []} getRowId={(r) => `${r.type}-${r.id}`} searchLabel="Tìm hồ sơ pháp lý" searchPlaceholder="Số hợp đồng, chứng từ, đơn hàng…" searchText={(r) => [r.id, r.name, r.orderId]}
       filters={[{ id: "type", label: "Mọi loại hồ sơ", options: [{ value: "hop-dong", label: "Hợp đồng" }, { value: "chung-tu", label: "Chứng từ" }], match: (r, v) => r.type === v }]}
       toggles={[{ id: "pending", label: "Chưa hoàn tất rà soát", match: (r) => r.ticket?.status !== "da-duyet", initial: true }]}
       banner={!ready && <p role="status" className="mb-4 text-sm">Đang tải hồ sơ liên quan…</p>}
@@ -61,7 +63,7 @@ export function LegalReviewsView() {
         { key: "type", header: "Loại", cell: (r) => r.type === "hop-dong" ? "Hợp đồng" : "Chứng từ" },
         { key: "origin", header: "Trạng thái gốc", cell: (r) => r.originStatus },
         { key: "review", header: "Rà soát pháp lý", cell: (r) => r.ticket ? <LegalBadge status={r.ticket.status} /> : <StatusBadge>Chưa có yêu cầu</StatusBadge> },
-        { key: "action", header: "Thao tác", cell: (r) => r.ticket ? <Link href={`/phap-che/yeu-cau/${r.ticket.id}`} className="text-primary hover:underline">Xem ticket</Link> : canWrite(user.role, "legal") ? <Button size="sm" variant="outline" onClick={() => setCreating({ refId: r.id, refType: r.type })}>Yêu cầu rà soát</Button> : "—" },
+        { key: "action", header: "Thao tác", cell: (r) => r.ticket ? null : canWrite(user.role, "legal") ? <Button size="sm" variant="outline" onClick={() => setCreating({ refId: r.id, refType: r.type })}><ShieldCheck /> Yêu cầu rà soát</Button> : "—" },
       ]} />
     {creating && <LegalRequestForm initial={creating} onClose={() => setCreating(undefined)} />}
   </>;
@@ -72,7 +74,7 @@ export function LegalTicketsView() {
   const { ready, staffName } = useOps();
   const [open, setOpen] = useState(false);
   return <>
-    <ListView dateValue={(r) => r.history[0]?.at} title="Yêu cầu ý kiến pháp lý" description="Phân công, thời hạn và lịch sử phê duyệt riêng cho từng yêu cầu. Phê duyệt ở đây chỉ là mô phỏng." rows={data.legal} getRowId={(t) => t.id} searchLabel="Tìm ticket pháp lý" searchPlaceholder="Mã yêu cầu, nội dung, hồ sơ…" searchText={(t) => [t.id, t.title, t.refId, t.request]} actions={canWrite(user.role, "legal") && <Button disabled={!ready} onClick={() => setOpen(true)}>Tạo yêu cầu</Button>}
+    <ListView dateValue={(r) => r.history[0]?.at} title="Yêu cầu ý kiến pháp lý" description="Phân công, thời hạn và lịch sử phê duyệt riêng cho từng yêu cầu. Phê duyệt ở đây chỉ là mô phỏng." rows={data.legal} getRowId={(t) => t.id} searchLabel="Tìm ticket pháp lý" searchPlaceholder="Mã yêu cầu, nội dung, hồ sơ…" searchText={(t) => [t.id, t.title, t.refId, t.request]} actions={canWrite(user.role, "legal") && <Button disabled={!ready} onClick={() => setOpen(true)}><Plus /> Tạo yêu cầu</Button>}
       filters={[{ id: "status", label: "Mọi trạng thái", options: Object.entries(statuses).map(([value, label]) => ({ value, label })), match: (t, v) => t.status === v }]}
       columns={[
         { key: "title", header: "Yêu cầu", cell: (t) => <div><Link className="font-medium text-primary hover:underline" href={`/phap-che/yeu-cau/${t.id}`}>{t.title}</Link><p className="text-xs text-muted-foreground">{t.id} · {t.refId}</p></div> },
@@ -94,12 +96,12 @@ export function LegalTicketDetail({ id }: { id: string }) {
   const next = legalTransitions[ticket.status].filter((s) => s === "da-duyet" || s === "tra-lai" ? canApprove(user.role) : canWrite(user.role, "legal"));
   return <>
     <PageHeader title={ticket.title} description={`${ticket.id} · Hồ sơ ${ticket.refId} · Hạn ${formatDate(ticket.dueOn)}`} actions={<LegalBadge status={ticket.status} />} />
-    <Link href="/phap-che/yeu-cau" className="mb-6 inline-block text-sm text-primary hover:underline"><ArrowText>{"←"}</ArrowText> Danh sách yêu cầu</Link>
+    <Link href="/phap-che/yeu-cau" className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" /> Danh sách yêu cầu</Link>
     <div className="grid gap-6 lg:grid-cols-2"><div className="space-y-6"><SectionCard title="Nội dung yêu cầu" description={`Người xử lý: ${staffName(ticket.assigneeId)}`}><p className="whitespace-pre-wrap text-sm">{ticket.request}</p><p className="mt-4 text-sm font-medium">Ý kiến gần nhất</p><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{ticket.opinion || "Chưa có ý kiến"}</p></SectionCard>
       {next.length > 0 && <SectionCard title="Xử lý & phê duyệt · đề xuất" description="Pháp chế rà soát và trình duyệt; Ban Giám đốc duyệt hoặc trả lại có lý do.">
         <Field label="Ý kiến / lý do quyết định" htmlFor="legal-opinion" required><Textarea id="legal-opinion" value={opinion} onChange={(e) => setOpinion(e.target.value)} rows={5} maxLength={2000} /></Field>
         {message && <InlineAlert className="mt-3">{message}</InlineAlert>}
-        <div className="mt-4 flex flex-wrap gap-2">{next.map((s) => <Button key={s} variant={s === "tra-lai" ? "outline" : "default"} onClick={() => { const error = actions.updateLegal(user, id, s, opinion); setMessage(error); if (!error) setOpinion(""); }}>{s === "dang-ra-soat" ? "Tiếp nhận rà soát" : s === "cho-duyet" ? "Trình duyệt" : s === "da-duyet" ? "Duyệt mô phỏng" : "Trả lại"}</Button>)}</div>
+        <div className="mt-4 flex flex-wrap gap-2">{next.map((s) => <Button key={s} variant={s === "tra-lai" ? "outline" : "default"} onClick={() => { const error = actions.updateLegal(user, id, s, opinion); setMessage(error); if (!error) setOpinion(""); }}><ArrowRight /> {s === "dang-ra-soat" ? "Tiếp nhận rà soát" : s === "cho-duyet" ? "Trình duyệt" : s === "da-duyet" ? "Duyệt mô phỏng" : "Trả lại"}</Button>)}</div>
       </SectionCard>}
     </div><HistoryList title="Lịch sử xử lý & phê duyệt" entries={ticket.history} staffName={staffName} /></div>
   </>;

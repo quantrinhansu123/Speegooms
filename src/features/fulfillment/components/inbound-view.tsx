@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, FilePlus2, PackagePlus, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,8 +45,8 @@ function ReceiveDialog({ receipt, onClose }: { receipt: InboundReceipt; onClose:
         </div>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={submit}>Xác nhận nhập kho</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button onClick={submit}><Check /> Xác nhận nhập kho</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -90,7 +91,7 @@ export function InboundView() {
     {
       key: "act",
       header: "Thao tác",
-      cell: (r) => (r.status === "cho-nhap" && canWh() ? <Button size="sm" onClick={() => setReceiving(r)}>Nhập kho</Button> : null),
+      cell: (r) => (r.status === "cho-nhap" && canWh() ? <Button size="sm" onClick={() => setReceiving(r)}><PackagePlus /> Nhập kho</Button> : null),
     },
   ];
 
@@ -98,7 +99,7 @@ export function InboundView() {
     <>
       <ListView dateLabel="Ngày về kho" dateValue={(r) => r.arrivedOn}
         title="Hàng nhập kho"
-        actions={canWh() && <Button disabled={!available.length} onClick={() => setCreating(true)}>Lập phiếu từ lô về kho</Button>}
+        actions={canWh() && <Button disabled={!available.length} onClick={() => setCreating(true)}><FilePlus2 /> Lập phiếu từ lô về kho</Button>}
         description="Hàng của lô đã về kho đích. Kiểm đếm và nhập kho để sinh kiện hàng với vị trí lưu kho."
         columns={columns}
         rows={wh.receipts}

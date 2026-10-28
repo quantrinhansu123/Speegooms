@@ -3,6 +3,8 @@ import { PickPackView } from "@/features/fulfillment/components/pickpack-view";
 
 export const metadata: Metadata = { title: "Pick / Pack" };
 
+export const instant = false;
+
 export default function PickPackPage() {
   return <PickPackView />;
 }

@@ -219,3 +219,23 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Trang đăng nhập: xuất hiện lần lượt (đặt --i trên phần tử). prefers-reduced-motion đã được xử lý ở trên. */
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.auth-rise {
+  animation: auth-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* Cuộn được nhưng không hiện thanh cuộn (dùng cho vùng nhập liệu trong dialog). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

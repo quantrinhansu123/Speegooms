@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpen } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { Field, InlineAlert } from "@/components/shared/form-fields";
@@ -103,7 +104,7 @@ export function RoleDashboard() {
   }
   if (p.error) return <ErrorState message={p.error} />;
   return <>
-    <PageHeader title={executive ? "Tổng quan điều hành" : `Tổng quan ${roleConfig[role].label}`} description="Dữ liệu trực tiếp từ các module demo. Chỉ số theo kỳ và chỉ số tại thời điểm hiện tại được ghi rõ trên từng thẻ." actions={<Link className={buttonVariants({ variant: "outline" })} href="/demo-guide">Demo Guide</Link>} />
+    <PageHeader title={executive ? "Tổng quan điều hành" : `Tổng quan ${roleConfig[role].label}`} description="Dữ liệu trực tiếp từ các module demo. Chỉ số theo kỳ và chỉ số tại thời điểm hiện tại được ghi rõ trên từng thẻ." actions={<Link className={buttonVariants({ variant: "outline" })} href="/demo-guide"><BookOpen /> Demo Guide</Link>} />
     <div className="mb-6 flex flex-wrap gap-4 rounded-xl border bg-card p-4"><Field label="Từ ngày" htmlFor="dash-from"><Input id="dash-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field><Field label="Đến ngày" htmlFor="dash-to"><Input id="dash-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field><p className="self-end pb-2 text-sm text-muted-foreground">{scope ? `Khóa phạm vi: ${roleConfig[role].label}` : `Vai trò: ${roleConfig[role].label}`} · Ngày demo 28/10/2026</p></div>
     {!valid && <InlineAlert className="mb-4">Vui lòng chọn khoảng ngày hợp lệ.</InlineAlert>}
     {!p.ready ? <TableSkeleton rows={8} columns={5} /> : <>

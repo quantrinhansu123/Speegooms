@@ -3,6 +3,8 @@ import { DeliveriesView } from "@/features/fulfillment/components/deliveries-vie
 
 export const metadata: Metadata = { title: "Giao hàng" };
 
+export const instant = false;
+
 export default function DeliveriesPage() {
   return <DeliveriesView />;
 }

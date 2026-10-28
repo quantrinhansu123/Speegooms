@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowText } from "@/components/shared/arrow-text";
+import { ArrowLeft, Check, Plus, Save, Send, X } from "lucide-react";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -46,7 +46,7 @@ export function ComplaintsView() {
   const writable = canWrite(user.role, "complaints") || canWrite(user.role, "feedback");
   return <>
     <ListView dateValue={(r) => r.history[0]?.at} title="Khiếu nại" description="Theo dõi sự cố theo đơn hàng, người xử lý và thời hạn. SLA và trách nhiệm xử lý là đề xuất." rows={tickets} getRowId={(c) => c.id} searchLabel="Tìm khiếu nại" searchPlaceholder="Mã ticket, đơn hàng, nội dung…" searchText={(c) => [c.id, c.orderId, c.title, c.description]}
-      actions={writable && <Button disabled={!ops.ready || !contracts.length} onClick={() => setOpen(true)}>Tạo khiếu nại</Button>}
+      actions={writable && <Button disabled={!ops.ready || !contracts.length} onClick={() => setOpen(true)}><Plus /> Tạo khiếu nại</Button>}
       summary={<div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label="Đang mở" value={String(tickets.filter((t) => t.status !== "hoan-tat").length)} /><StatCard label="Quá hạn" value={String(tickets.filter((t) => t.status !== "hoan-tat" && t.dueOn < CRM_TODAY).length)} caption="Theo ngày demo 28/10/2026" /><StatCard label="Chờ duyệt đền bù" value={String(tickets.filter((t) => t.compensation.status === "cho-duyet").length)} caption="Mô phỏng, chưa phát sinh chi tiền" /></div>}
       filters={[
         { id: "status", label: "Mọi trạng thái", options: Object.entries(statuses).map(([value, label]) => ({ value, label })), match: (c, v) => c.status === v },
@@ -92,7 +92,7 @@ function ComplaintEditor({ ticket }: { ticket: Complaint }) {
       <Field label="Thêm bằng chứng" htmlFor="edit-evidence" hint="Mô tả bằng chứng hoặc tên tệp; không tải lên dịch vụ ngoài."><Textarea id="edit-evidence" name="evidence" maxLength={2000} /></Field>
       <Field label="Kết quả" htmlFor="edit-result" required={status === "hoan-tat"}><Textarea id="edit-result" value={result} onChange={(e) => setResult(e.target.value)} maxLength={2000} required={status === "hoan-tat"} /></Field>
       {message && <InlineAlert>{message}</InlineAlert>}{saved && !message && <InlineAlert tone="success">Đã lưu xử lý ticket.</InlineAlert>}
-      <Button type="submit">Lưu xử lý</Button>
+      <Button type="submit"><Save /> Lưu xử lý</Button>
     </form>
   </SectionCard>;
 }
@@ -106,11 +106,11 @@ function CompensationCard({ ticket }: { ticket: Complaint }) {
     {ticket.compensation.reason && <p className="mb-4 whitespace-pre-wrap text-sm">{ticket.compensation.reason}</p>}
     {canWrite(user.role, "complaints") && !["moi", "hoan-tat"].includes(ticket.status) && ["chua", "tu-choi"].includes(ticket.compensation.status) && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setMessage(actions.proposeCompensation(user, ticket.id, { amount: Number(f.get("amount")), reason: String(f.get("reason")) })); }}>
       <Field label="Số tiền đề xuất (VND)" htmlFor="comp-amount" required><Input id="comp-amount" name="amount" type="number" min="1" max="1000000000000" step="1" required /></Field>
-      <Field label="Căn cứ đề xuất" htmlFor="comp-reason" required><Textarea id="comp-reason" name="reason" maxLength={2000} required /></Field><Button type="submit" variant="outline">Gửi đề xuất đền bù</Button>
+      <Field label="Căn cứ đề xuất" htmlFor="comp-reason" required><Textarea id="comp-reason" name="reason" maxLength={2000} required /></Field><Button type="submit" variant="outline"><Send /> Gửi đề xuất đền bù</Button>
     </form>}
     {canApprove(user.role) && ticket.compensation.status === "cho-duyet" && <div className="space-y-3">
       <Field label="Lý do quyết định" htmlFor="comp-decision" required><Textarea id="comp-decision" value={decision} onChange={(e) => setDecision(e.target.value)} maxLength={2000} /></Field>
-      <div className="flex flex-wrap gap-2"><Button onClick={() => setMessage(actions.decideCompensation(user, ticket.id, true, decision))}>Duyệt mô phỏng</Button><Button variant="outline" onClick={() => setMessage(actions.decideCompensation(user, ticket.id, false, decision))}>Từ chối</Button></div>
+      <div className="flex flex-wrap gap-2"><Button onClick={() => setMessage(actions.decideCompensation(user, ticket.id, true, decision))}><Check /> Duyệt mô phỏng</Button><Button variant="outline" onClick={() => setMessage(actions.decideCompensation(user, ticket.id, false, decision))}><X /> Từ chối</Button></div>
     </div>}
     {message && <InlineAlert className="mt-3">{message}</InlineAlert>}
   </SectionCard>;
@@ -123,7 +123,7 @@ export function ComplaintDetail({ id }: { id: string }) {
   if (!ticket) return <EmptyState title="Không tìm thấy ticket trong phạm vi truy cập" action={<Link href="/khieu-nai">Về danh sách</Link>} />;
   return <>
     <PageHeader title={ticket.title} description={`${ticket.id} · ${ticket.orderId} · ${ticket.category}`} actions={<TicketBadge ticket={ticket} />} />
-    <div className="mb-6 flex flex-wrap gap-4 text-sm"><Link href="/khieu-nai" className="text-primary hover:underline"><ArrowText>{"←"}</ArrowText> Danh sách khiếu nại</Link>{canAccess(user.role, "/van-hanh/don-hang") && <Link href={`/van-hanh/don-hang/${ticket.orderId}`} className="text-primary hover:underline">Xem đơn hàng</Link>}</div>
+    <div className="mb-6 flex flex-wrap gap-4 text-sm"><Link href="/khieu-nai" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" /> Danh sách khiếu nại</Link>{canAccess(user.role, "/van-hanh/don-hang") && <Link href={`/van-hanh/don-hang/${ticket.orderId}`} className="text-sm text-primary transition-colors hover:text-primary/70">Xem đơn hàng</Link>}</div>
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-6"><SectionCard title="Thông tin sự cố"><p className="mb-4 whitespace-pre-wrap text-sm">{ticket.description}</p><dl className="grid grid-cols-2 gap-3 text-sm"><dt className="text-muted-foreground">Người xử lý</dt><dd>{ops.staffName(ticket.assigneeId)}</dd><dt className="text-muted-foreground">Thời hạn</dt><dd>{formatDate(ticket.dueOn)}</dd><dt className="text-muted-foreground">Ưu tiên</dt><dd>{ticket.priority}</dd><dt className="text-muted-foreground">Kết quả</dt><dd className="whitespace-pre-wrap">{ticket.result || "Chưa có kết quả"}</dd></dl></SectionCard>
         {canWrite(user.role, "complaints") && ticket.status !== "hoan-tat" && <ComplaintEditor key={`${ticket.id}-${ticket.status}`} ticket={ticket} />}

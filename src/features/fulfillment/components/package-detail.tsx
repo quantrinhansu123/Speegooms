@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -65,7 +65,7 @@ export function PackageDetail({ packageId }: { packageId: string }) {
               }}
             >
               <Input aria-label="Vị trí mới (khu-hàng-kệ)" placeholder="Vị trí mới, ví dụ A-03-12" value={loc} onChange={(e) => setLoc(e.target.value)} />
-              <Button type="submit" variant="outline">Đổi vị trí</Button>
+              <Button type="submit" variant="outline"><MapPin /> Đổi vị trí</Button>
             </form>
           )}
         </SectionCard>

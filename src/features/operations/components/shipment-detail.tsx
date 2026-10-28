@@ -4,7 +4,7 @@ import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, Check, Info, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -112,7 +112,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
             <Field label={`Hoàn thành mốc: ${next.label}`} htmlFor="sd-date">
               <Input id="sd-date" type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
             </Field>
-            <Button onClick={() => run(actions.completeMilestone(shipmentId, next.key, date), `Đã hoàn thành mốc ${next.label}`)}>Xác nhận hoàn thành</Button>
+            <Button onClick={() => run(actions.completeMilestone(shipmentId, next.key, date), `Đã hoàn thành mốc ${next.label}`)}><Check /> Xác nhận hoàn thành</Button>
           </div>
         )}
       </SectionCard>
@@ -135,7 +135,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
             >
               <Input aria-label="Vị trí" placeholder="Vị trí" value={evLoc} onChange={(e) => setEvLoc(e.target.value)} />
               <Input aria-label="Nội dung sự kiện" placeholder="Nội dung (nhập tay)" value={evText} onChange={(e) => setEvText(e.target.value)} />
-              <Button type="submit" variant="outline">Thêm</Button>
+              <Button type="submit" variant="outline"><Plus /> Thêm</Button>
             </form>
           )}
           {events.length === 0 ? (
@@ -195,7 +195,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
           </table>
           {writable && (
             <div className="flex justify-end px-5 pt-4">
-              <Button variant="outline" disabled={!actual} onClick={() => { run(actions.saveActualCosts(shipmentId, costs), "Đã lưu chi phí thực tế"); setActual(undefined); }}>Lưu chi phí thực tế</Button>
+              <Button variant="outline" disabled={!actual} onClick={() => { run(actions.saveActualCosts(shipmentId, costs), "Đã lưu chi phí thực tế"); setActual(undefined); }}><Save /> Lưu chi phí thực tế</Button>
             </div>
           )}
         </SectionCard>

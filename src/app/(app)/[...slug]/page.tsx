@@ -1,7 +1,9 @@
 import { Hammer } from "lucide-react";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Forbidden } from "@/components/shared/forbidden";
+import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { allHrefs, findTitle } from "@/config/navigation";
 import { implementedRoutes } from "@/config/modules";
@@ -12,8 +14,7 @@ export function generateStaticParams() {
   return allHrefs.filter((h) => !implementedRoutes.includes(h)).map((h) => ({ slug: h.slice(1).split("/") }));
 }
 
-/** Trang giữ chỗ cho mọi module trong sidebar, thay bằng route thật khi làm giai đoạn sau. */
-export default async function ModulePlaceholder({ params }: { params: Promise<{ slug: string[] }> }) {
+async function ModuleContent({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
   const href = `/${slug.join("/")}`;
   const title = findTitle(href);
@@ -33,5 +34,14 @@ export default async function ModulePlaceholder({ params }: { params: Promise<{ 
         />
       </div>
     </>
+  );
+}
+
+/** Trang giữ chỗ cho mọi module trong sidebar, thay bằng route thật khi làm giai đoạn sau. */
+export default function ModulePlaceholder({ params }: { params: Promise<{ slug: string[] }> }) {
+  return (
+    <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
+      <ModuleContent params={params} />
+    </Suspense>
   );
 }

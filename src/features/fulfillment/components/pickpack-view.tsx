@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Column } from "@/components/shared/data-table";
@@ -46,8 +46,8 @@ function CreateOutboundDialog({ onClose }: { onClose: () => void }) {
         </Field>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={submit}>Tạo lệnh</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button onClick={submit}>Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

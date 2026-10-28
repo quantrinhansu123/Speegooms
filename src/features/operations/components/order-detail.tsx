@@ -256,7 +256,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                 }}
               >
                 <Input aria-label="Ghi chú cho đơn" placeholder="Thêm ghi chú vào lịch sử đơn…" value={note} onChange={(e) => setNote(e.target.value)} />
-                <Button type="submit" variant="outline">Thêm ghi chú</Button>
+                <Button type="submit" variant="outline"><Plus /> Thêm ghi chú</Button>
               </form>
             )}
             <HistoryList title="Lịch sử thao tác" entries={history} staffName={staffName} />

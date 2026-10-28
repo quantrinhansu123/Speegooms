@@ -19,8 +19,8 @@ export function PageHeader({
   return (
     <div className={cn("mb-6 flex flex-wrap items-start justify-between gap-4", className)}>
       <div className="min-w-0">
-        <Heading className={cn("font-semibold tracking-tight text-primary", headingLevel === 1 ? "text-2xl" : "text-xl")}><ArrowText>{title}</ArrowText></Heading>
-        {description && <p className="mt-1 max-w-2xl text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
+        <Heading className={cn("font-bold tracking-tight text-primary", headingLevel === 1 ? "text-2xl" : "text-xl")}><ArrowText>{title}</ArrowText></Heading>
+        {description && <p className="mt-1 text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>

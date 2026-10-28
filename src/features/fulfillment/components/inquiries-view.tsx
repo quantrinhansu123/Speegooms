@@ -1,5 +1,6 @@
 "use client";
 
+import { Reply, Send, UserCheck, X } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -64,9 +65,9 @@ function AnswerDialog({ inquiry, onClose }: { inquiry: Inquiry; onClose: () => v
         )}
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Đóng</Button>
-          {!done && inquiry.status === "moi" && <Button variant="outline" onClick={() => { const r = whActions.takeInquiry(inquiry.inquiryId); if (!r.ok) setError(r.error); else onClose(); }}>Nhận xử lý</Button>}
-          {!done && <Button onClick={() => { const r = whActions.answerInquiry(inquiry.inquiryId, answer); if (r.ok) onClose(); else setError(r.error); }}>Gửi trả lời</Button>}
+          <Button variant="outline" onClick={onClose}><X /> Đóng</Button>
+          {!done && inquiry.status === "moi" && <Button variant="outline" onClick={() => { const r = whActions.takeInquiry(inquiry.inquiryId); if (!r.ok) setError(r.error); else onClose(); }}><UserCheck /> Nhận xử lý</Button>}
+          {!done && <Button onClick={() => { const r = whActions.answerInquiry(inquiry.inquiryId, answer); if (r.ok) onClose(); else setError(r.error); }}><Send /> Gửi trả lời</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -96,12 +97,12 @@ export function InquiriesView() {
     { key: "pri", header: "Ưu tiên", cell: (q) => (q.priority === "cao" ? <StatusBadge tone="danger">Cao</StatusBadge> : <span className="text-xs text-muted-foreground">Thường</span>), className: "hidden md:table-cell" },
     { key: "status", header: "Trạng thái", cell: (q) => <InquiryBadge value={q.status} /> },
     { key: "who", header: "Xử lý", cell: (q) => (q.assigneeId ? staffName(q.assigneeId) : "—"), className: "hidden xl:table-cell" },
-    { key: "act", header: "Thao tác", cell: (q) => <Button size="sm" variant={q.status === "da-tra-loi" ? "outline" : "default"} onClick={() => setOpen(q.inquiryId)}>{q.status === "da-tra-loi" ? "Xem" : canWh() ? "Trả lời" : "Xem"}</Button> },
+    { key: "act", header: "Thao tác", cell: (q) => q.status !== "da-tra-loi" && canWh() ? <Button size="sm" onClick={() => setOpen(q.inquiryId)}><Reply /> Trả lời</Button> : null },
   ];
 
   return (
     <>
-      <ListView dateLabel="Ngày hỏi" dateValue={(r) => r.askedAt}
+      <ListView onRowClick={(q) => setOpen(q.inquiryId)} dateLabel="Ngày hỏi" dateValue={(r) => r.askedAt}
         title="Yêu cầu hỏi tình trạng đơn"
         description="Sale hỏi tình trạng đơn/lô hàng; Fulfillment là một cửa trả lời. Sale tạo yêu cầu từ trang chi tiết hợp đồng."
         columns={columns}
@@ -146,7 +147,7 @@ export function OrderInquiryCard({ orderId }: { orderId: string }) {
               <option value="thuong">Ưu tiên thường</option>
               <option value="cao">Ưu tiên cao</option>
             </NativeSelect>
-            <Button type="submit">Gửi câu hỏi</Button>
+            <Button type="submit"><Send /> Gửi câu hỏi</Button>
           </div>
         </form>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -58,10 +59,10 @@ export function LostReasonDialog({ messId, open, onOpenChange }: { messId: strin
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
-            Hủy
+            <X /> Hủy
           </Button>
           <Button variant="destructive" onClick={submit}>
-            Xác nhận mất khách
+            <Check /> Xác nhận mất khách
           </Button>
         </DialogFooter>
       </DialogContent>

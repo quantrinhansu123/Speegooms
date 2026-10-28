@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Circle, Lock } from "lucide-react";
+import { ArrowLeft, Ban, Check, Circle, Lock, NotebookPen, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,16 +80,16 @@ export function PaymentDetail({ paymentId }: { paymentId: string }) {
           <div className="space-y-4">
             {p.status === "nhap" && canAcc("pay.create") && (
               <div className="flex gap-2">
-                <Button onClick={() => run(accActions.submitPayment(paymentId), "Đã gửi duyệt")}>Gửi duyệt</Button>
-                <Button variant="outline" onClick={() => run(accActions.cancelPayment(paymentId))}>Hủy đề nghị</Button>
+                <Button onClick={() => run(accActions.submitPayment(paymentId), "Đã gửi duyệt")}><Send /> Gửi duyệt</Button>
+                <Button variant="outline" onClick={() => run(accActions.cancelPayment(paymentId))}><Ban /> Hủy đề nghị</Button>
               </div>
             )}
             {p.status === "cho-duyet" && (
               <div className="space-y-2">
                 <Textarea aria-label="Ghi chú duyệt" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú (bắt buộc khi từ chối)" />
                 <div className="flex gap-2">
-                  <Button disabled={!approveGate.ok} onClick={() => run(accActions.reviewPayment(paymentId, true, note), "Đã duyệt")}>Duyệt</Button>
-                  <Button variant="destructive" disabled={!approveGate.ok} onClick={() => run(accActions.reviewPayment(paymentId, false, note))}>Từ chối</Button>
+                  <Button disabled={!approveGate.ok} onClick={() => run(accActions.reviewPayment(paymentId, true, note), "Đã duyệt")}><Check /> Duyệt</Button>
+                  <Button variant="destructive" disabled={!approveGate.ok} onClick={() => run(accActions.reviewPayment(paymentId, false, note))}><X /> Từ chối</Button>
                 </div>
                 {!approveGate.ok && <p className="text-xs text-muted-foreground">{approveGate.reason}</p>}
               </div>
@@ -98,20 +98,20 @@ export function PaymentDetail({ paymentId }: { paymentId: string }) {
               <div className="space-y-2">
                 <InlineAlert tone="info" className="text-xs">{accountingDisclaimer}</InlineAlert>
                 <Input aria-label="Mã tham chiếu chứng từ chi" placeholder="Số ủy nhiệm chi / mã tham chiếu" value={bankRef} onChange={(e) => setBankRef(e.target.value)} disabled={!payGate.ok || !canAcc("pay.pay")} />
-                <Button disabled={!payGate.ok || !canAcc("pay.pay")} onClick={() => run(accActions.markPaid(paymentId, bankRef), "Đã ghi nhận chi (không phải chuyển tiền thật)")}>Ghi nhận đã chi</Button>
+                <Button disabled={!payGate.ok || !canAcc("pay.pay")} onClick={() => run(accActions.markPaid(paymentId, bankRef), "Đã ghi nhận chi (không phải chuyển tiền thật)")}><NotebookPen /> Ghi nhận đã chi</Button>
                 {!canAcc("pay.pay") ? <p className="text-xs text-muted-foreground">Chỉ Kế toán ghi nhận chi.</p> : !payGate.ok && <p className="text-xs text-muted-foreground">{payGate.reason}</p>}
               </div>
             )}
             {p.status === "da-chi" && (
               <div className="space-y-2 text-sm">
                 <p>Đã ghi nhận chi ngày {p.paidAt && formatDate(p.paidAt)} · tham chiếu <span className="font-mono text-xs">{p.bankRef}</span></p>
-                {p.reconciledAt ? <p className="text-success">Đã đối soát ngày {formatDate(p.reconciledAt)}</p> : canAcc("ledger.write") ? <Button variant="outline" onClick={() => run(accActions.reconcilePayment(paymentId), "Đã đối soát")}>Đánh dấu đã đối soát sao kê</Button> : <p className="text-muted-foreground">Chờ Kế toán đối soát.</p>}
+                {p.reconciledAt ? <p className="text-success">Đã đối soát ngày {formatDate(p.reconciledAt)}</p> : canAcc("ledger.write") ? <Button variant="outline" onClick={() => run(accActions.reconcilePayment(paymentId), "Đã đối soát")}><Check /> Đánh dấu đã đối soát sao kê</Button> : <p className="text-muted-foreground">Chờ Kế toán đối soát.</p>}
               </div>
             )}
             {(p.status === "tu-choi" || p.status === "huy") && (
               <div className="space-y-2 text-sm">
                 <p>{p.status === "tu-choi" ? `Bị từ chối: ${p.rejectReason}` : "Đề nghị đã hủy."}</p>
-                {p.status === "tu-choi" && canAcc("pay.create") && <Button variant="outline" onClick={() => run(accActions.cancelPayment(paymentId))}>Hủy đề nghị</Button>}
+                {p.status === "tu-choi" && canAcc("pay.create") && <Button variant="outline" onClick={() => run(accActions.cancelPayment(paymentId))}><Ban /> Hủy đề nghị</Button>}
               </div>
             )}
           </div>

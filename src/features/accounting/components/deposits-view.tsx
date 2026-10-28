@@ -1,5 +1,6 @@
 "use client";
 
+import { ListChecks } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { canPerform } from "@/config/permissions";
@@ -34,7 +35,7 @@ export function DepositsView() {
       className: "hidden md:table-cell",
     },
     { key: "status", header: "Trạng thái", cell: (c) => <DepositBadge value={c.deposit.status} /> },
-    { key: "act", header: "Thao tác", cell: (c) => <Link href={`/ke-toan/doi-soat/${c.orderId}`} className={buttonVariants({ size: "sm", variant: c.deposit.status === "cho-ke-toan" && canPerform(user.role, "deposit.confirm") ? "default" : "outline" })}>{c.deposit.status === "cho-ke-toan" && canPerform(user.role, "deposit.confirm") ? "Đối soát" : "Xem"}</Link> },
+    { key: "act", header: "Thao tác", cell: (c) => c.deposit.status === "cho-ke-toan" && canPerform(user.role, "deposit.confirm") ? <Link href={`/ke-toan/doi-soat/${c.orderId}`} className={buttonVariants({ size: "sm" })}><ListChecks /> Đối soát</Link> : null },
   ];
 
   return (

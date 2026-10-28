@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Check, Eye, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -98,8 +98,8 @@ function AddQuoteDialog({ requestId, route, taken, onClose }: { requestId: strin
         </div>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={submit}>Thêm báo giá</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button onClick={submit}>Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -229,8 +229,8 @@ export function SourcingRequestDetail({ requestId }: { requestId: string }) {
                     {quotes.map((q) => (
                       <td key={q.quoteId} className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => setDetail(q.quoteId)}>Chi tiết</Button>
-                          {writable && open && <Button size="sm" onClick={() => run(actions.selectQuote(requestId, q.quoteId), "Đã chọn xưởng và trả giá cho Sale")}>Chọn</Button>}
+                          <Button size="sm" variant="outline" onClick={() => setDetail(q.quoteId)}><Eye /> Chi tiết</Button>
+                          {writable && open && <Button size="sm" onClick={() => run(actions.selectQuote(requestId, q.quoteId), "Đã chọn xưởng và trả giá cho Sale")}><Check /> Chọn</Button>}
                         </div>
                       </td>
                     ))}

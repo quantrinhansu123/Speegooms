@@ -3,6 +3,8 @@ import { FulfillmentDashboard } from "@/features/fulfillment/components/fulfillm
 
 export const metadata: Metadata = { title: "Fulfillment" };
 
+export const instant = false;
+
 export default function FulfillmentPage() {
   return <FulfillmentDashboard />;
 }

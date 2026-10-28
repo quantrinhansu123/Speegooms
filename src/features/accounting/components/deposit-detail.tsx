@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -104,8 +104,8 @@ export function DepositDetail({ orderId }: { orderId: string }) {
             <div className="space-y-3">
               <Textarea aria-label="Điểm không khớp" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi rõ điểm không khớp nếu từ chối (số tiền, người chuyển, ngày…)" />
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => run(crmActions.confirmDeposit(orderId), "Đã xác nhận Đã cọc. Vận hành được phép đặt xưởng cho đơn này")}>Xác nhận “Đã cọc”</Button>
-                <Button variant="destructive" onClick={() => run(crmActions.markDepositMismatch(orderId, note))}>Không khớp</Button>
+                <Button onClick={() => run(crmActions.confirmDeposit(orderId), "Đã xác nhận Đã cọc. Vận hành được phép đặt xưởng cho đơn này")}><Check /> Xác nhận “Đã cọc”</Button>
+                <Button variant="destructive" onClick={() => run(crmActions.markDepositMismatch(orderId, note))}><X /> Không khớp</Button>
               </div>
             </div>
           ) : (

@@ -3,7 +3,7 @@
 import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Check, Search, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type Column } from "@/components/shared/data-table";
@@ -30,16 +30,16 @@ function DocActions({ doc, onMessage }: { doc: OpsDocument; onMessage: (m?: stri
     return (
       <div className="flex items-center gap-2">
         <Input aria-label={`Tên file ${docTypeLabels[doc.type]}`} className="h-8 w-40" placeholder="Tên file (mô phỏng)" value={file} onChange={(e) => setFile(e.target.value)} />
-        <Button size="sm" variant="outline" onClick={() => { report(actions.addDocument(doc.shipmentId, doc.type, file)); setFile(""); }}>Tải lên</Button>
+        <Button size="sm" variant="outline" onClick={() => { report(actions.addDocument(doc.shipmentId, doc.type, file)); setFile(""); }}><Upload /> Tải lên</Button>
       </div>
     );
   }
   if (doc.status === "cho-duyet") {
     return (
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => report(actions.reviewDocument(doc.docId, true, ""))}>Duyệt</Button>
+        <Button size="sm" onClick={() => report(actions.reviewDocument(doc.docId, true, ""))}><Check /> Duyệt</Button>
         <Input aria-label={`Lý do từ chối ${docTypeLabels[doc.type]}`} className="h-8 w-36" placeholder="Lý do từ chối" value={file} onChange={(e) => setFile(e.target.value)} />
-        <Button size="sm" variant="destructive" onClick={() => report(actions.reviewDocument(doc.docId, false, file))}>Từ chối</Button>
+        <Button size="sm" variant="destructive" onClick={() => report(actions.reviewDocument(doc.docId, false, file))}><X /> Từ chối</Button>
       </div>
     );
   }

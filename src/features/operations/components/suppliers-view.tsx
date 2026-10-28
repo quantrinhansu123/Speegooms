@@ -3,7 +3,7 @@
 import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -67,8 +67,8 @@ function AddSupplierDialog({ onClose, onCreated }: { onClose: () => void; onCrea
         </div>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={submit}>Thêm nhà cung cấp</Button>
+          <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
+          <Button onClick={submit}>Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

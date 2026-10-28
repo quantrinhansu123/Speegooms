@@ -23,7 +23,7 @@ export function StatCard({ label, value, icon: Icon, delta, deltaLabel, caption,
   const Arrow = up ? ArrowUpRight : ArrowDownRight;
   const body = (
     <>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex min-h-8 items-start justify-between gap-3">
         <p className="text-sm font-medium text-muted-foreground"><ArrowText>{label}</ArrowText></p>
         {Icon && (
           <span className="flex size-8 items-center justify-center rounded-md bg-accent text-primary">

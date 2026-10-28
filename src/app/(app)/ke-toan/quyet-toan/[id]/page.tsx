@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { SettlementDetail } from "@/features/accounting/components/settlement-detail";
+import { WithParams } from "@/components/shared/with-params";
 
 export const metadata: Metadata = { title: "Chi tiết quyết toán" };
 
-export default async function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <SettlementDetail orderId={decodeURIComponent(id)} />;
+export const instant = false;
+
+export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return <WithParams params={params}>{({ id }) => <SettlementDetail orderId={decodeURIComponent(id)} />}</WithParams>;
 }

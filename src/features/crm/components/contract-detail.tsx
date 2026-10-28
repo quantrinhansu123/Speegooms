@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Circle, Lock } from "lucide-react";
+import { ArrowLeft, Check, Circle, Lock, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -126,7 +126,7 @@ export function ContractDetail({ orderId }: { orderId: string }) {
           {contract.status === "soan-thao" && can("contract.write") && (
             <div className="mt-4 space-y-2">
               <Button className="w-full" onClick={() => run(actions.signContract(orderId), "Hợp đồng đã ký")}>
-                Đánh dấu đã ký
+                <Check /> Đánh dấu đã ký
               </Button>
               {needsBoard && !boardOk && (
                 <p className="text-xs text-muted-foreground">Hợp đồng vượt ngưỡng mô phỏng {formatMoney(simulatedApprovals.contractBoardVnd, "VND")}, cần Ban GĐ duyệt trước khi ký.</p>
@@ -135,8 +135,8 @@ export function ContractDetail({ orderId }: { orderId: string }) {
           )}
           {contract.boardApproval === "cho-duyet" && can("board.approve") && (
             <div className="mt-4 flex gap-2">
-              <Button onClick={() => run(actions.boardReview(orderId, true), "Ban GĐ đã duyệt (mô phỏng)")}>Duyệt (Ban GĐ)</Button>
-              <Button variant="destructive" onClick={() => run(actions.boardReview(orderId, false))}>Từ chối</Button>
+              <Button onClick={() => run(actions.boardReview(orderId, true), "Ban GĐ đã duyệt (mô phỏng)")}><Check /> Duyệt (Ban GĐ)</Button>
+              <Button variant="destructive" onClick={() => run(actions.boardReview(orderId, false))}><X /> Từ chối</Button>
             </div>
           )}
         </SectionCard>
@@ -162,15 +162,15 @@ export function ContractDetail({ orderId }: { orderId: string }) {
 
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
             {canRequestDeposit(contract) && can("deposit.request") && (
-              <Button onClick={() => setDepositOpen(true)}>{d.status === "khong-khop" ? "Gửi lại yêu cầu xác nhận cọc" : "Tạo yêu cầu xác nhận cọc"}</Button>
+              <Button onClick={() => setDepositOpen(true)}><Send /> {d.status === "khong-khop" ? "Gửi lại yêu cầu xác nhận cọc" : "Tạo yêu cầu xác nhận cọc"}</Button>
             )}
             {d.status === "cho-ke-toan" &&
               (can("deposit.confirm") ? (
                 <div className="w-full space-y-2">
                   <Textarea aria-label="Điểm không khớp" rows={2} placeholder="Ghi rõ điểm không khớp nếu từ chối (số tiền, người chuyển, ngày…)" value={note} onChange={(e) => setNote(e.target.value)} />
                   <div className="flex gap-2">
-                    <Button onClick={() => run(actions.confirmDeposit(orderId), "Đã xác nhận Đã cọc")}>Xác nhận “Đã cọc”</Button>
-                    <Button variant="destructive" onClick={() => run(actions.markDepositMismatch(orderId, note))}>Không khớp</Button>
+                    <Button onClick={() => run(actions.confirmDeposit(orderId), "Đã xác nhận Đã cọc")}><Check /> Xác nhận “Đã cọc”</Button>
+                    <Button variant="destructive" onClick={() => run(actions.markDepositMismatch(orderId, note))}><X /> Không khớp</Button>
                   </div>
                 </div>
               ) : (

@@ -4,7 +4,7 @@ import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useState } from "react";
 import Link from "next/link";
-import { Megaphone, Target, Users, ShoppingBag } from "lucide-react";
+import { Megaphone, Pause, Play, Plus, Send, ShoppingBag, Target, Users } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { ListView } from "@/components/shared/list-view";
@@ -86,10 +86,10 @@ export function CampaignsView({ source }: { source?: LeadSource }) {
     { key: "budget", header: "Ngân sách", cell: (c) => formatVnd(c.budget), align: "right" },
     { key: "spent", header: "Đã chi (mock)", cell: (c) => formatVnd(c.spent), align: "right" },
     { key: "status", header: "Trạng thái", cell: (c) => <StatusBadge tone={c.status === "dang-chay" ? "success" : "neutral"}>{c.status === "dang-chay" ? "Đang chạy" : c.status === "tam-dung" ? "Tạm dừng" : "Kết thúc"}</StatusBadge> },
-    ...(writable ? [{ key: "action", header: "Thao tác", cell: (c: Campaign) => <Button size="sm" variant="outline" disabled={c.status === "ket-thuc"} onClick={() => setError(actions.toggleCampaign(user, c.id))}>{c.status === "dang-chay" ? "Tạm dừng" : "Tiếp tục"}</Button> }] : []),
+    ...(writable ? [{ key: "action", header: "Thao tác", cell: (c: Campaign) => <Button size="sm" variant="outline" disabled={c.status === "ket-thuc"} onClick={() => setError(actions.toggleCampaign(user, c.id))}>{c.status === "dang-chay" ? <Pause /> : <Play />} {c.status === "dang-chay" ? "Tạm dừng" : "Tiếp tục"}</Button> }] : []),
   ];
   return <>
-    <ListView dateLabel="Ngày bắt đầu" dateValue={(r) => r.startOn} title={source ? `Chiến dịch · ${sourceLabels[source]}` : "Chiến dịch Marketing"} description="Danh sách và ngân sách mẫu; thay đổi trạng thái chỉ có hiệu lực trong demo." rows={data.campaigns.filter((c) => !source || c.source === source)} columns={columns} getRowId={(c) => c.id} searchLabel="Tìm chiến dịch" searchPlaceholder="Tên, mã chiến dịch…" searchText={(c) => [c.id, c.name]} filters={[{ id: "source", label: "Mọi nguồn", options: activeSources.map((s) => ({ value: s, label: sourceLabels[s] })), match: (c, v) => c.source === v }]} actions={writable && <Button onClick={() => setOpen(true)}>Tạo chiến dịch</Button>} banner={error && <InlineAlert className="mb-4">{error}</InlineAlert>} />
+    <ListView dateLabel="Ngày bắt đầu" dateValue={(r) => r.startOn} title={source ? `Chiến dịch · ${sourceLabels[source]}` : "Chiến dịch Marketing"} description="Danh sách và ngân sách mẫu; thay đổi trạng thái chỉ có hiệu lực trong demo." rows={data.campaigns.filter((c) => !source || c.source === source)} columns={columns} getRowId={(c) => c.id} searchLabel="Tìm chiến dịch" searchPlaceholder="Tên, mã chiến dịch…" searchText={(c) => [c.id, c.name]} filters={[{ id: "source", label: "Mọi nguồn", options: activeSources.map((s) => ({ value: s, label: sourceLabels[s] })), match: (c, v) => c.source === v }]} actions={writable && <Button onClick={() => setOpen(true)}><Plus /> Tạo chiến dịch</Button>} banner={error && <InlineAlert className="mb-4">{error}</InlineAlert>} />
     {open && <FormDialog title="Tạo chiến dịch mẫu" description="Chưa kết nối nền tảng Ads/Google; số tiền nhập bằng VND." onClose={() => setOpen(false)} onSave={(f) => actions.saveCampaign(user, { ...Object.fromEntries(f), budget: Number(f.get("budget")), spent: Number(f.get("spent")) })}>
       <Field label="Tên chiến dịch" htmlFor="c-name" required><Input id="c-name" name="name" required maxLength={160} /></Field>
       <Field label="Nguồn" htmlFor="c-source"><NativeSelect id="c-source" name="source" defaultValue={source ?? "ads"}>{activeSources.map((s) => <option key={s} value={s}>{sourceLabels[s]}</option>)}</NativeSelect></Field>
@@ -114,7 +114,7 @@ export function FeedbackView() {
     { key: "at", header: "Ngày", cell: (f) => formatDate(f.at.slice(0, 10)) },
   ];
   return <>
-    <ListView dateLabel="Ngày phản hồi" dateValue={(r) => r.at} title="Phản hồi chất lượng lead" description="Sales đánh giá theo tuyến phụ trách. Marketing xem để cải thiện nguồn lead; tiêu chí đánh giá đang ở mức đề xuất." rows={data.feedback.filter((f) => leadMap.has(f.messId))} columns={columns} getRowId={(f) => f.id} searchLabel="Tìm phản hồi" searchPlaceholder="Tên khách, mã lead, nội dung…" searchText={(f) => [f.messId, f.note, leadMap.get(f.messId)?.contactName]} filters={[{ id: "quality", label: "Mọi đánh giá", options: qualityOptions.map((q) => ({ value: q, label: q })), match: (f, v) => f.quality === v }]} actions={canWrite(user.role, "feedback") && <Button disabled={!crm.ready || !leads.length} onClick={() => setOpen(true)}>Gửi phản hồi</Button>} />
+    <ListView dateLabel="Ngày phản hồi" dateValue={(r) => r.at} title="Phản hồi chất lượng lead" description="Sales đánh giá theo tuyến phụ trách. Marketing xem để cải thiện nguồn lead; tiêu chí đánh giá đang ở mức đề xuất." rows={data.feedback.filter((f) => leadMap.has(f.messId))} columns={columns} getRowId={(f) => f.id} searchLabel="Tìm phản hồi" searchPlaceholder="Tên khách, mã lead, nội dung…" searchText={(f) => [f.messId, f.note, leadMap.get(f.messId)?.contactName]} filters={[{ id: "quality", label: "Mọi đánh giá", options: qualityOptions.map((q) => ({ value: q, label: q })), match: (f, v) => f.quality === v }]} actions={canWrite(user.role, "feedback") && <Button disabled={!crm.ready || !leads.length} onClick={() => setOpen(true)}><Send /> Gửi phản hồi</Button>} />
     {open && <FormDialog title="Phản hồi lead" description="Đánh giá nội bộ từ Sales, không gửi ra ngoài." onClose={() => setOpen(false)} onSave={(f) => actions.addFeedback(user, Object.fromEntries(f))}>
       <Field label="Lead" htmlFor="f-lead" required><NativeSelect id="f-lead" name="messId" required>{leads.map((l) => <option key={l.messId} value={l.messId}>{l.contactName} · {l.messId}</option>)}</NativeSelect></Field>
       <Field label="Chất lượng" htmlFor="f-quality"><NativeSelect id="f-quality" name="quality">{qualityOptions.map((q) => <option key={q}>{q}</option>)}</NativeSelect></Field>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarClock, MoreHorizontal } from "lucide-react";
+import { CalendarClock, ChevronDown, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CRM_TODAY, temperatureMeta } from "@/config/crm";
@@ -107,7 +107,7 @@ export function LeadKanban({ leads, onLost }: { leads: Lead[]; onLost: (messId: 
               )}
               {items.length > shown[col] && (
                 <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setShown((s) => ({ ...s, [col]: s[col] + PAGE }))}>
-                  Xem thêm ({items.length - shown[col]})
+                  <ChevronDown /> Xem thêm ({items.length - shown[col]})
                 </Button>
               )}
             </section>

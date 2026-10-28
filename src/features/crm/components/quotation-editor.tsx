@@ -4,7 +4,7 @@ import { canPerform } from "@/config/permissions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Plus, Save, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -223,7 +223,7 @@ function EditorInner({
               {editable && (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" disabled={!dirty} onClick={() => run(actions.saveQuotation(draft), "Đã lưu nháp")}>
-                    Lưu nháp
+                    <Save /> Lưu nháp
                   </Button>
                   <Button
                     onClick={() => {
@@ -232,7 +232,7 @@ function EditorInner({
                       run(actions.submitQuotation(draft.quoteId), needsApproval && draft.approval.state !== "da-duyet" ? "Đã gửi duyệt" : "Đã gửi báo giá cho khách");
                     }}
                   >
-                    {needsApproval && stored.approval.state !== "da-duyet" ? "Gửi duyệt" : "Gửi khách"}
+                    <Send /> {needsApproval && stored.approval.state !== "da-duyet" ? "Gửi duyệt" : "Gửi khách"}
                   </Button>
                 </div>
               )}
@@ -241,8 +241,8 @@ function EditorInner({
                   <div className="space-y-2">
                     <Textarea aria-label="Ghi chú duyệt" rows={2} placeholder="Ghi chú (bắt buộc khi từ chối)" value={note} onChange={(e) => setNote(e.target.value)} />
                     <div className="flex gap-2">
-                      <Button onClick={() => run(actions.reviewQuotation(stored.quoteId, true, note), "Đã duyệt (mô phỏng), Sale có thể gửi khách")}>Duyệt</Button>
-                      <Button variant="destructive" onClick={() => run(actions.reviewQuotation(stored.quoteId, false, note))}>Từ chối</Button>
+                      <Button onClick={() => run(actions.reviewQuotation(stored.quoteId, true, note), "Đã duyệt (mô phỏng), Sale có thể gửi khách")}><Check /> Duyệt</Button>
+                      <Button variant="destructive" onClick={() => run(actions.reviewQuotation(stored.quoteId, false, note))}><X /> Từ chối</Button>
                     </div>
                   </div>
                 ) : (
@@ -253,8 +253,8 @@ function EditorInner({
                 <div className="space-y-2">
                   <Textarea aria-label="Phản hồi của khách" rows={2} placeholder="Phản hồi của khách (bắt buộc khi từ chối)" value={note} onChange={(e) => setNote(e.target.value)} />
                   <div className="flex gap-2">
-                    <Button onClick={() => run(actions.recordQuoteResponse(stored.quoteId, true, note), "Đã ghi nhận khách chấp nhận")}>Khách chấp nhận</Button>
-                    <Button variant="destructive" onClick={() => run(actions.recordQuoteResponse(stored.quoteId, false, note))}>Khách từ chối</Button>
+                    <Button onClick={() => run(actions.recordQuoteResponse(stored.quoteId, true, note), "Đã ghi nhận khách chấp nhận")}><Check /> Khách chấp nhận</Button>
+                    <Button variant="destructive" onClick={() => run(actions.recordQuoteResponse(stored.quoteId, false, note))}><X /> Khách từ chối</Button>
                   </div>
                 </div>
               )}
@@ -274,7 +274,7 @@ function EditorInner({
                       else run(r);
                     }}
                   >
-                    Tạo hợp đồng
+                    <Plus /> Tạo hợp đồng
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">Khách đã chấp nhận. Sale tạo hợp đồng ở bước tiếp theo.</p>

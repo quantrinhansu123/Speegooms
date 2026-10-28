@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Send } from "lucide-react";
+import { ArrowLeft, Ban, FileText, Play, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -72,7 +72,7 @@ export function RfqDetail({ rfqId }: { rfqId: string }) {
           </div>
           {writable && (
             <Button variant="destructive" size="lg" onClick={() => setCancelOpen(true)}>
-              Hủy RFQ
+              <Ban /> Hủy RFQ
             </Button>
           )}
         </div>
@@ -101,7 +101,7 @@ export function RfqDetail({ rfqId }: { rfqId: string }) {
               sensitiveGoods: rfq.sensitiveGoods,
             }}
             disabled={!writable}
-            submitLabel="Lưu yêu cầu"
+            submitLabel="Cập nhật"
             onSubmit={(v) => {
               run(actions.updateRfq(rfqId, v));
               setSaved(true);
@@ -146,7 +146,7 @@ export function RfqDetail({ rfqId }: { rfqId: string }) {
                 </Button>
                 {rfq.status === "cho-gia" && (
                   <Button variant="outline" className="w-full" onClick={() => run(actions.simulatePriceReturn(rfqId), "Vận hành đã trả giá (mô phỏng)")}>
-                    Mô phỏng Vận hành trả giá
+                    <Play /> Mô phỏng Vận hành trả giá
                   </Button>
                 )}
                 <p className="text-xs text-muted-foreground">Module Vận hành chưa có, nút mô phỏng chỉ để demo luồng tới bước báo giá.</p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ export function useListTools<T>(items: T[], config: {
       <Button variant="outline" disabled={!rows.length} onClick={() => {
         try { downloadCsv(config.filename, config.columns.map((c) => c.label), rows.map((row) => config.columns.map((c) => c.value(row)))); setMessage({ tone: "success", text: `Đã tạo CSV với ${rows.length} bản ghi theo bộ lọc và thứ tự hiện tại, gồm mọi trang.` }); }
         catch { setMessage({ tone: "danger", text: "Không tạo được CSV. Vui lòng thử lại." }); }
-      }}>Xuất CSV</Button>
+      }}><Download /> Xuất CSV</Button>
     </div>
     {!valid && <InlineAlert>Khoảng ngày không hợp lệ.</InlineAlert>}
     {message && <InlineAlert tone={message.tone}>{message.text}</InlineAlert>}

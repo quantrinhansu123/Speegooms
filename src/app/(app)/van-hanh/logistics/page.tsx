@@ -3,6 +3,8 @@ import { ShipmentsView } from "@/features/operations/components/shipments-view";
 
 export const metadata: Metadata = { title: "Logistics" };
 
+export const instant = false;
+
 export default function LogisticsPage() {
   return <ShipmentsView />;
 }

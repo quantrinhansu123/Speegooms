@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronDown, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { roleConfig } from "@/config/roles";
@@ -25,16 +25,29 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
     register,
     handleSubmit,
     setValue,
+    setFocus,
     control,
     formState: { errors },
-  } = useForm<LoginInput>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "" } });
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    mode: "onTouched",
+    defaultValues: { email: "", password: "", remember: false },
+  });
   const email = useWatch({ control, name: "email" });
+
+  // Chỉ tự focus trên desktop để tránh bật bàn phím ảo trên điện thoại.
+  useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) setFocus("email");
+  }, [setFocus]);
 
   const onSubmit = (values: LoginInput) => {
     setServerError(undefined);
     startTransition(async () => {
       const result = await loginAction(values);
-      if (result?.error) setServerError(result.error);
+      if (result?.error) {
+        setServerError(result.error);
+        setFocus("password");
+      }
     });
   };
 
@@ -43,6 +56,8 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
     setValue("password", DEMO_PASSWORD, { shouldValidate: true });
     setServerError(undefined);
   };
+
+  const field = "h-11 rounded-lg border-input bg-background pl-11 text-sm shadow-xs transition-[border-color,box-shadow] duration-200 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/15";
 
   return (
     <div>
@@ -55,19 +70,23 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
         )}
 
         <div className="space-y-1.5">
-          <label htmlFor="email" className="text-sm font-medium">
+          <label htmlFor="email" className="text-sm font-medium text-foreground">
             Email công ty
           </label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="username"
-            placeholder="ten@speego.vn"
-            aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? "email-error" : undefined}
-            className="h-10"
-            {...register("email")}
-          />
+          <div className="relative">
+            <Mail aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="username"
+              inputMode="email"
+              placeholder="ten@speego.vn"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? "email-error" : undefined}
+              className={field}
+              {...register("email")}
+            />
+          </div>
           {errors.email && (
             <p id="email-error" className="text-sm text-danger">
               {errors.email.message}
@@ -76,24 +95,27 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="password" className="text-sm font-medium">
+          <label htmlFor="password" className="text-sm font-medium text-foreground">
             Mật khẩu
           </label>
           <div className="relative">
+            <LockKeyhole aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              placeholder="Nhập mật khẩu"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? "password-error" : undefined}
-              className="h-10 pr-10"
+              className={cn(field, "pr-12")}
               {...register("password")}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-              className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-pressed={showPassword}
+              className="absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none"
             >
               {showPassword ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
             </button>
@@ -105,36 +127,58 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
           )}
         </div>
 
-        <Button type="submit" size="lg" className="h-10 w-full text-sm" disabled={pending}>
+        <label htmlFor="remember" className="flex w-fit cursor-pointer items-center gap-2.5 text-sm select-none">
+          <input
+            id="remember"
+            type="checkbox"
+            className="size-4 cursor-pointer rounded accent-primary focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none"
+            {...register("remember")}
+          />
+          Ghi nhớ đăng nhập
+        </label>
+
+        {/* Nút cam: chữ navy đạt tương phản ~4.5:1, chữ trắng trên cam chỉ ~3.2:1 */}
+        <Button
+          type="submit"
+          size="lg"
+          disabled={pending}
+          aria-busy={pending}
+          className="h-11 w-full cursor-pointer bg-brand-orange text-sm font-semibold text-primary shadow-sm transition-all duration-200 hover:bg-brand-orange/90 hover:shadow-md focus-visible:ring-brand-orange/40 disabled:opacity-80"
+        >
           {pending && <Loader2 aria-hidden className="animate-spin" />}
           {pending ? "Đang đăng nhập…" : "Đăng nhập"}
         </Button>
       </form>
 
-      <div className="mt-8 rounded-xl border bg-background p-4">
-        <p className="text-sm font-medium">Tài khoản demo theo vai trò</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Chọn một vai trò để điền sẵn thông tin, sau đó bấm Đăng nhập. Chỉ để xem giao diện, không phải xác thực thật.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {accounts.map((acc) => (
-            <button
-              key={acc.role}
-              type="button"
-              onClick={() => fillDemo(acc)}
-              aria-pressed={email === acc.email}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                email === acc.email
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-surface text-foreground hover:bg-muted",
-              )}
-            >
-              {roleConfig[acc.role].label}
-            </button>
-          ))}
+      <details className="group mt-8 rounded-xl border bg-background">
+        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-4 py-3 text-sm font-medium focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+          Tài khoản demo theo vai trò
+          <ChevronDown aria-hidden className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t px-4 pt-3 pb-4">
+          <p className="text-xs text-muted-foreground">
+            Chọn một vai trò để điền sẵn thông tin, sau đó bấm Đăng nhập. Chỉ để xem giao diện, không phải xác thực thật.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {accounts.map((acc) => (
+              <button
+                key={acc.role}
+                type="button"
+                onClick={() => fillDemo(acc)}
+                aria-pressed={email === acc.email}
+                className={cn(
+                  "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none",
+                  email === acc.email
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-surface text-foreground hover:bg-muted",
+                )}
+              >
+                {roleConfig[acc.role].label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   );
 }

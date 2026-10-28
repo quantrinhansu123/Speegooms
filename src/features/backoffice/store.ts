@@ -126,6 +126,28 @@ export const actions = {
     store.commit((s) => ({ ...s, employees: employeeId ? s.employees.map((e) => e.id === employeeId ? item : e) : [...s.employees, item] }));
     return null;
   },
+  deleteEmployee(user: CurrentUser, employeeId: string) {
+    if (!canWrite(user.role, "hrm")) return denied;
+    const d = getSnapshot().data;
+    if (!d.employees.some((e) => e.id === employeeId)) return "Không tìm thấy nhân viên";
+    if (d.employees.some((e) => e.managerId === employeeId)) return "Nhân viên đang là người quản lý trực tiếp của người khác";
+    store.commit((s) => ({ ...s, employees: s.employees.filter((e) => e.id !== employeeId), attendance: s.attendance.filter((a) => a.employeeId !== employeeId) }));
+    return null;
+  },
+  saveCandidate(user: CurrentUser, candidateId: string, input: unknown) {
+    if (!canWrite(user.role, "hrm")) return denied;
+    const parsed = candidateSchema.safeParse(input);
+    if (!parsed.success) return parsed.error.issues[0].message;
+    if (!getSnapshot().data.candidates.some((c) => c.id === candidateId)) return "Không tìm thấy ứng viên";
+    store.commit((d) => ({ ...d, candidates: d.candidates.map((c) => c.id === candidateId ? { ...c, ...parsed.data } : c) }));
+    return null;
+  },
+  deleteCandidate(user: CurrentUser, candidateId: string) {
+    if (!canWrite(user.role, "hrm")) return denied;
+    if (!getSnapshot().data.candidates.some((c) => c.id === candidateId)) return "Không tìm thấy ứng viên";
+    store.commit((d) => ({ ...d, candidates: d.candidates.filter((c) => c.id !== candidateId) }));
+    return null;
+  },
   addCandidate(user: CurrentUser, input: unknown) {
     if (!canWrite(user.role, "hrm")) return denied;
     const parsed = candidateSchema.safeParse(input);

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Circle } from "lucide-react";
+import { ArrowLeft, Check, Circle, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -76,7 +76,7 @@ export function OutboundDetail({ outboundId }: { outboundId: string }) {
                   <div className="flex items-center gap-3">
                     <PackageBadge value={p.status} />
                     {writable && !picked && (o.status === "cho-pick" || o.status === "dang-pick") && (
-                      <Button size="sm" onClick={() => run(whActions.pickPackage(outboundId, p.packageId), `Đã pick ${p.packageId}`)}>Xác nhận pick</Button>
+                      <Button size="sm" onClick={() => run(whActions.pickPackage(outboundId, p.packageId), `Đã pick ${p.packageId}`)}><Check /> Xác nhận pick</Button>
                     )}
                   </div>
                 </li>
@@ -97,7 +97,7 @@ export function OutboundDetail({ outboundId }: { outboundId: string }) {
               <div className="space-y-3">
                 <Field label="Trọng lượng sau đóng gói (kg)" htmlFor="pk-w"><Input id="pk-w" type="number" min={0} disabled={!!packBlock} value={weight} onChange={(e) => setWeight(Number(e.target.value))} /></Field>
                 <Field label="Số thùng" htmlFor="pk-b"><Input id="pk-b" type="number" min={1} disabled={!!packBlock} value={boxes} onChange={(e) => setBoxes(Number(e.target.value))} /></Field>
-                <Button className="w-full" disabled={!!packBlock} onClick={() => run(whActions.packOutbound(outboundId, weight, boxes), "Đã đóng gói")}>Xác nhận đóng gói</Button>
+                <Button className="w-full" disabled={!!packBlock} onClick={() => run(whActions.packOutbound(outboundId, weight, boxes), "Đã đóng gói")}><Check /> Xác nhận đóng gói</Button>
               </div>
             ) : <p className="text-sm text-muted-foreground">Chưa đóng gói.</p>}
           </SectionCard>
@@ -121,7 +121,7 @@ export function OutboundDetail({ outboundId }: { outboundId: string }) {
                     else run(r);
                   }}
                 >
-                  Giao cho đơn vị giao
+                  <Truck /> Giao cho đơn vị giao
                 </Button>
               </div>
             ) : <p className="text-sm text-muted-foreground">Chỉ giao khi lệnh đã đóng gói.</p>}
