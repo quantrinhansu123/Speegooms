@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useState } from "react";
@@ -74,18 +75,57 @@ export function EmployeeDetail({ id }: { id: string }) {
   </>;
 }
 
+const initials = (name: string) => name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
+
+function Avatar({ name, className }: { name: string; className?: string }) {
+  return <span aria-hidden className={cn("flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary", className)}>{initials(name)}</span>;
+}
+
 export function OrganizationView() {
   const { data } = useBackoffice();
+  const byId = new Map(data.employees.map((e) => [e.id, e]));
   return <>
-    <PageHeader title="Cơ cấu tổ chức" description="Ban Giám đốc → phòng ban → nhân viên. Quan hệ quản lý trực tiếp là dữ liệu đề xuất, cập nhật từ hồ sơ nhân sự." />
-    <div className="mb-6 rounded-xl border bg-primary p-5 text-primary-foreground"><p className="font-semibold">Ban Giám đốc</p><p className="mt-1 text-sm">Trần Thế Tài · Giám đốc điều hành (demo)</p></div>
-    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{departmentOptions.map((d) => {
-      const employees = data.employees.filter((e) => e.department === d.value && e.status !== "nghi-viec");
-      return <SectionCard key={d.value} title={d.label} description={`${employees.length} nhân viên · gồm cả nhân sự tạm nghỉ`}>
-        {!employees.length && <p className="text-sm text-muted-foreground">Chưa phân bổ nhân viên.</p>}
-        <ul className="divide-y">{employees.map((e) => <li key={e.id} className="py-3 text-sm"><Link className="font-medium text-primary hover:underline" href={`/hcns/nhan-vien/${e.id}`}>{e.name}</Link><p>{e.position} · {employeeStatuses[e.status]}</p><p className="mt-1 text-xs text-muted-foreground">Quản lý: {data.employees.find((x) => x.id === e.managerId)?.name ?? "Chưa phân công"}</p></li>)}</ul>
-      </SectionCard>;
-    })}</div>
+    <PageHeader title="Cơ cấu tổ chức" description="Sơ đồ Ban Giám đốc, phòng ban và nhân sự. Quan hệ quản lý lấy từ hồ sơ nhân sự." />
+
+    <div className="flex items-center gap-4 rounded-xl border bg-card p-4 shadow-xs">
+      <Avatar name="Trần Thế Tài" className="size-11 bg-primary text-sm text-primary-foreground" />
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ban Giám đốc</p>
+        <p className="font-semibold">Trần Thế Tài</p>
+        <p className="text-sm text-muted-foreground">Giám đốc điều hành (demo)</p>
+      </div>
+    </div>
+
+    <ul className="ml-5 border-l border-border pt-4 pl-6 sm:ml-7 sm:pl-8">
+      {departmentOptions.map((d) => {
+        const employees = data.employees.filter((e) => e.department === d.value && e.status !== "nghi-viec");
+        const away = employees.filter((e) => e.status === "tam-nghi").length;
+        return <li key={d.value} className="relative pb-4 last:pb-0">
+          {/* nhánh nối từ trục dọc sang từng phòng ban */}
+          <span aria-hidden className="absolute top-8 -left-6 h-px w-6 bg-border sm:-left-8 sm:w-8" />
+          <section aria-label={d.label} className="grid overflow-hidden rounded-xl border bg-card shadow-xs sm:grid-cols-[13rem_1fr]">
+            <header className="flex items-baseline justify-between gap-3 border-b bg-muted/40 px-4 py-3 sm:block sm:border-r sm:border-b-0">
+              <h2 className="font-semibold text-primary">{d.label}</h2>
+              <p className="text-sm text-muted-foreground sm:mt-0.5">{employees.length} nhân sự{away > 0 && ` · ${away} tạm nghỉ`}</p>
+            </header>
+            {employees.length === 0
+              ? <p className="px-4 py-4 text-sm text-muted-foreground">Chưa phân bổ nhân sự.</p>
+              : <ul className="divide-y">{employees.map((e) => {
+                const manager = e.managerId ? byId.get(e.managerId) : undefined;
+                return <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
+                  <Avatar name={e.name} />
+                  <div className="min-w-0 flex-1">
+                    <Link className="font-medium transition-colors hover:text-primary" href={`/hcns/nhan-vien/${e.id}`}>{e.name}</Link>
+                    <p className="text-sm text-muted-foreground">{e.position}</p>
+                  </div>
+                  {manager && <p className="text-sm text-muted-foreground">Báo cáo: {manager.name}</p>}
+                  {e.status !== "chinh-thuc" && <StatusBadge tone="neutral">{employeeStatuses[e.status]}</StatusBadge>}
+                </li>;
+              })}</ul>}
+          </section>
+        </li>;
+      })}
+    </ul>
   </>;
 }
 

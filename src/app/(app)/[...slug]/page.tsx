@@ -5,14 +5,9 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Forbidden } from "@/components/shared/forbidden";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
-import { allHrefs, findTitle } from "@/config/navigation";
-import { implementedRoutes } from "@/config/modules";
+import { findTitle } from "@/config/navigation";
 import { canAccess } from "@/config/roles";
 import { getSession } from "@/lib/session";
-
-export function generateStaticParams() {
-  return allHrefs.filter((h) => !implementedRoutes.includes(h)).map((h) => ({ slug: h.slice(1).split("/") }));
-}
 
 async function ModuleContent({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;

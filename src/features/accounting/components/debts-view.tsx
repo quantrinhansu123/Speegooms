@@ -1,6 +1,6 @@
 "use client";
 
-import { NotebookPen, X } from "lucide-react";
+import { AlarmClock, HandCoins, NotebookPen, Wallet, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -76,9 +76,9 @@ export function DebtsView() {
     <>
       <PageHeader title="Công nợ" description="Phải thu theo hợp đồng và phải trả theo nhà cung cấp, đối tác vận chuyển. Số liệu suy ra từ cọc, khoản thu và đề nghị chi." />
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Tổng phải thu" value={formatVndCompact(totalAr)} caption="Giá trị hợp đồng chưa thu đủ" />
-        <StatCard label="Phải thu quá hạn" value={formatVndCompact(overdueAr)} caption="Quá hạn giao hàng, chưa thu đủ" />
-        <StatCard label="Tổng phải trả còn lại" value={formatVndCompact(totalAp)} caption="Đề nghị còn hiệu lực chưa chi" />
+        <StatCard label="Tổng phải thu" icon={HandCoins} value={formatVndCompact(totalAr)} caption="Giá trị hợp đồng chưa thu đủ" />
+        <StatCard label="Phải thu quá hạn" icon={AlarmClock} value={formatVndCompact(overdueAr)} caption="Quá hạn giao hàng, chưa thu đủ" />
+        <StatCard label="Tổng phải trả còn lại" icon={Wallet} value={formatVndCompact(totalAp)} caption="Đề nghị còn hiệu lực chưa chi" />
       </div>
       <Tabs defaultValue="ar">
         <TabsList className="mb-4">

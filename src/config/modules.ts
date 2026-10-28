@@ -4,6 +4,13 @@
  */
 export const implementedRoutes: readonly string[] = [
   "/dashboard",
+  "/coa",
+  "/khach-hang-dieu-phoi",
+  "/sale-viet-nam",
+  "/sale-viet-nam/sales-mkt-intern",
+  "/sale-global",
+  "/sale-global/sale-my",
+  "/cai-dat",
   "/reports",
   "/demo-guide",
   "/crm",
@@ -32,6 +39,7 @@ export const implementedRoutes: readonly string[] = [
   "/ke-toan/cong-no",
   "/ke-toan/quyet-toan",
   "/ke-toan/thu-chi",
+  "/ke-toan/luong-chi-phi",
   "/marketing",
   "/marketing/chien-dich",
   "/marketing/hieu-qua-nguon",

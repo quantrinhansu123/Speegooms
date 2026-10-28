@@ -1,5 +1,6 @@
 "use client";
 
+import { Boxes, Package as PackageIcon, Weight } from "lucide-react";
 import Link from "next/link";
 import type { Column } from "@/components/shared/data-table";
 import { ListView } from "@/components/shared/list-view";
@@ -33,9 +34,9 @@ export function InventoryView() {
       description="Kiện hàng và vị trí lưu kho. Tìm theo SKU hoặc mã kiện. Mặc định chỉ hiện kiện còn trong kho."
       summary={
         <div className="mb-4 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Kiện trong kho" value={formatNumber(stock.length)} />
-          <StatCard label="Tổng số lượng" value={formatNumber(stock.reduce((a, p) => a + p.quantity, 0))} />
-          <StatCard label="Tổng trọng lượng (kg)" value={formatNumber(stock.reduce((a, p) => a + p.weightKg, 0))} />
+          <StatCard label="Kiện trong kho" icon={PackageIcon} value={formatNumber(stock.length)} />
+          <StatCard label="Tổng số lượng" icon={Boxes} value={formatNumber(stock.reduce((a, p) => a + p.quantity, 0))} />
+          <StatCard label="Tổng trọng lượng (kg)" icon={Weight} value={formatNumber(stock.reduce((a, p) => a + p.weightKg, 0))} />
         </div>
       }
       columns={columns}

@@ -13,6 +13,7 @@ import type { CurrentUser } from "@/types/user";
 const empty: BackofficeSnapshot = { campaigns: [], feedback: [], complaints: [], employees: [], candidates: [], attendance: [], legal: [] };
 const store = createStore(createLocalRepository<BackofficeSnapshot>("speego-backoffice-v1", async () => backofficeSeed()), empty);
 export const { subscribe, getSnapshot, getServerSnapshot, start } = store;
+export const resetBackoffice = store.reset;
 const denied = "Vai trò hiện tại không có quyền thao tác";
 const now = () => `${CRM_TODAY}T${new Date().toTimeString().slice(0, 8)}`;
 const activity = (user: CurrentUser, text: string, orderId = ""): Activity => ({ id: crypto.randomUUID(), at: now(), by: user.id, text, orderId });

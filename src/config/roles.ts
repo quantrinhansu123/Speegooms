@@ -60,6 +60,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
 
 export function canAccess(role: Role, href: string): boolean {
   if (href === "/demo-guide" || href.startsWith("/demo-guide/")) return true;
+  if (href === "/cai-dat") return true;
   if (href === "/reports" || href.startsWith("/reports/")) return (Object.keys(reportConfig) as ReportKey[]).some((key) => canViewReport(role, key));
   const { modules } = roleConfig[role];
   return modules === "*" || modules.some((m) => href === m || href.startsWith(`${m}/`));

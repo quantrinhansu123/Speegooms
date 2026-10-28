@@ -33,7 +33,6 @@ export const navigation: NavGroup[] = [
         title: "Khách hàng & Điều phối",
         href: "/khach-hang-dieu-phoi",
         icon: Users,
-        tag: "Chưa phân bổ",
       },
     ],
   },

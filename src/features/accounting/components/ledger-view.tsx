@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecks } from "lucide-react";
+import { FileQuestion, Hourglass, ListChecks, TrendingDown, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -59,10 +59,10 @@ export function LedgerView() {
       summary={
         <>
           <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Tổng thu ghi nhận" value={formatVndCompact(thu)} />
-            <StatCard label="Tổng chi ghi nhận" value={formatVndCompact(chi)} />
-            <StatCard label="Khoản chi chờ đối soát" value={String(unreconciled)} caption="Chưa khớp sao kê" />
-            <StatCard label="Dòng sao kê chưa khớp" value={String(unmatched)} caption="Không gắn được đơn hoặc đề nghị" />
+            <StatCard label="Tổng thu ghi nhận" icon={TrendingUp} value={formatVndCompact(thu)} />
+            <StatCard label="Tổng chi ghi nhận" icon={TrendingDown} value={formatVndCompact(chi)} />
+            <StatCard label="Khoản chi chờ đối soát" icon={Hourglass} value={String(unreconciled)} caption="Chưa khớp sao kê" />
+            <StatCard label="Dòng sao kê chưa khớp" icon={FileQuestion} value={String(unmatched)} caption="Không gắn được đơn hoặc đề nghị" />
           </div>
           {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
         </>

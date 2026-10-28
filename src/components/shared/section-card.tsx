@@ -9,6 +9,7 @@ export function SectionCard({
   children,
   className,
   bodyClassName,
+  flush = false,
 }: {
   title: string;
   description?: string;
@@ -16,17 +17,19 @@ export function SectionCard({
   children: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** Thẻ chứa bảng sát mép: tiêu đề cân đối trên dưới, thân không có padding. */
+  flush?: boolean;
 }) {
   return (
     <section className={cn("flex flex-col rounded-xl border bg-card shadow-xs", className)}>
-      <header className="flex items-start justify-between gap-3 px-5 pt-5">
+      <header className={cn("flex items-start justify-between gap-3 px-5", flush ? "items-center border-b py-4" : "pt-5")}>
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-foreground"><ArrowText>{title}</ArrowText></h2>
           {description && <p className="mt-0.5 text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
         </div>
         {action}
       </header>
-      <div className={cn("flex-1 p-5", bodyClassName)}>{children}</div>
+      <div className={cn("flex-1", flush ? "p-0" : "p-5", bodyClassName)}>{children}</div>
     </section>
   );
 }

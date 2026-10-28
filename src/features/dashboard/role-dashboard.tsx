@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
+import { type LucideIcon, Banknote, BarChart3, BookOpen, ClipboardList, Clock, FileSignature, HandCoins, Megaphone, MessageCircleQuestion, MessageSquare, PackagePlus, Scale, ShieldCheck, Ship, TrendingUp, UserPlus, Users, UsersRound } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { Field, InlineAlert } from "@/components/shared/form-fields";
@@ -23,6 +23,15 @@ import { delayDays } from "@/services/ops/rules";
 
 interface WorkItem { id: string; title: string; due: string; status: string; href: string }
 
+/** Icon cho thẻ KPI theo từ khóa trong nhãn; thứ tự khớp từ cụ thể đến chung. */
+const cardIcons: [RegExp, LucideIcon][] = [
+  [/Lead → đơn/, TrendingUp], [/^Lead/, Users], [/Giá trị/, Banknote], [/Hợp đồng/, FileSignature],
+  [/Cọc|Phải thu|ghi nhận chi|chi chờ duyệt|Đề nghị chi/, HandCoins], [/Chiến dịch/, Megaphone], [/Phản hồi/, MessageSquare],
+  [/Lô hàng/, Ship], [/Phiếu nhập/, PackagePlus], [/Yêu cầu Sale/, MessageCircleQuestion], [/Yêu cầu|rà soát/, Scale],
+  [/Đơn/, ClipboardList], [/Ban Giám đốc duyệt/, ShieldCheck], [/giờ vào/, Clock], [/Ứng viên/, UserPlus], [/Nhân/, UsersRound],
+];
+const cardIcon = (label: string) => cardIcons.find(([rx]) => rx.test(label))?.[1] ?? BarChart3;
+
 export function RoleDashboard() {
   const p = usePlatformData();
   const [from, setFrom] = useState("2026-10-01");
@@ -42,7 +51,7 @@ export function RoleDashboard() {
   const hr = p.backoffice;
   const cards: StatCardProps[] = [];
   const work: WorkItem[] = [];
-  const card = (label: string, value: string | number, href: string, caption: string) => cards.push({ label, value: String(value), href: canAccess(role, href) ? href : undefined, caption });
+  const card = (label: string, value: string | number, href: string, caption: string) => cards.push({ label, value: String(value), href: canAccess(role, href) ? href : undefined, caption, icon: cardIcon(label) });
   const task = (id: string, title: string, due: string, status: string, href: string) => { if (canAccess(role, href)) work.push({ id, title, due, status, href }); };
   const executive = role === "admin" || role === "ban-gd";
   const sales = role === "sale-vn" || role === "sale-global";

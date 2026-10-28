@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, Plus, Save, Send, X } from "lucide-react";
+import { AlarmClock, ArrowLeft, Check, HandCoins, Inbox, Plus, Save, Send, X } from "lucide-react";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -47,7 +47,7 @@ export function ComplaintsView() {
   return <>
     <ListView dateValue={(r) => r.history[0]?.at} title="Khiếu nại" description="Theo dõi sự cố theo đơn hàng, người xử lý và thời hạn. SLA và trách nhiệm xử lý là đề xuất." rows={tickets} getRowId={(c) => c.id} searchLabel="Tìm khiếu nại" searchPlaceholder="Mã ticket, đơn hàng, nội dung…" searchText={(c) => [c.id, c.orderId, c.title, c.description]}
       actions={writable && <Button disabled={!ops.ready || !contracts.length} onClick={() => setOpen(true)}><Plus /> Tạo khiếu nại</Button>}
-      summary={<div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label="Đang mở" value={String(tickets.filter((t) => t.status !== "hoan-tat").length)} /><StatCard label="Quá hạn" value={String(tickets.filter((t) => t.status !== "hoan-tat" && t.dueOn < CRM_TODAY).length)} caption="Theo ngày demo 28/10/2026" /><StatCard label="Chờ duyệt đền bù" value={String(tickets.filter((t) => t.compensation.status === "cho-duyet").length)} caption="Mô phỏng, chưa phát sinh chi tiền" /></div>}
+      summary={<div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label="Đang mở" icon={Inbox} value={String(tickets.filter((t) => t.status !== "hoan-tat").length)} /><StatCard label="Quá hạn" icon={AlarmClock} value={String(tickets.filter((t) => t.status !== "hoan-tat" && t.dueOn < CRM_TODAY).length)} caption="Theo ngày demo 28/10/2026" /><StatCard label="Chờ duyệt đền bù" icon={HandCoins} value={String(tickets.filter((t) => t.compensation.status === "cho-duyet").length)} caption="Mô phỏng, chưa phát sinh chi tiền" /></div>}
       filters={[
         { id: "status", label: "Mọi trạng thái", options: Object.entries(statuses).map(([value, label]) => ({ value, label })), match: (c, v) => c.status === v },
         { id: "priority", label: "Mọi mức ưu tiên", options: priorities.map((p) => ({ value: p, label: p })), match: (c, v) => c.priority === v },
