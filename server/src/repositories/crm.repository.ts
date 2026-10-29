@@ -10,6 +10,7 @@ import type {
   CreateMessageInput,
   CrmLane,
   OpsContractInput,
+  QuoteCurrency,
   QuoteBank,
   QuoteDesk,
   QuoteNotes,
@@ -148,6 +149,7 @@ export interface ContractRecord {
   shipTo: string | null;
   product: string | null;
   quantity: number | null;
+  currency: QuoteCurrency;
   productValue: number;
   shippingCost: number;
   totalValue: number;

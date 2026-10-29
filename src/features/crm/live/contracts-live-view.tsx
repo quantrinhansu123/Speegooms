@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, createContractSchema, opsContractSchema, opsStatusOptions, type CrmLane } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, createContractSchema, opsContractSchema, opsStatusOptions, quoteCurrencies, type CrmLane, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
+import { formatMoney } from "@/lib/format";
 import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -30,6 +31,7 @@ export type ContractRecord = {
   shipTo: string | null;
   product: string | null;
   quantity: number | null;
+  currency: QuoteCurrency;
   productValue: number;
   shippingCost: number;
   totalValue: number;
@@ -64,9 +66,8 @@ const opsRoles: Role[] = ["admin", "van-hanh"];
 const accountingRoles: Role[] = ["admin", "ke-toan"];
 const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
-function money(value: number | null): string {
-  if (value == null) return "—";
-  return value.toLocaleString("vi-VN");
+function money(value: number | null, currency: QuoteCurrency): string {
+  return value == null ? "—" : formatMoney(value, currency);
 }
 
 function shownStamp(value: string | null): string {
@@ -256,8 +257,8 @@ export function ContractsLiveView({
                 <td className="px-3 py-3">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3">{row.customerName}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
-                <td className="px-3 py-3">{money(row.totalValue)}</td>
-                <td className="px-3 py-3">{money(row.balance)}</td>
+                <td className="px-3 py-3">{money(row.totalValue, row.currency)}</td>
+                <td className="px-3 py-3">{money(row.balance, row.currency)}</td>
                 <td className="max-w-56 px-3 py-3">
                   <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
                 </td>
@@ -365,6 +366,7 @@ function ContractDialog({
   onSaved: (contract: ContractRecord, message: string) => void;
   onResend: (contract: ContractRecord) => Promise<void>;
 }) {
+  const [currency, setCurrency] = useState<QuoteCurrency>(contract.currency);
   const [customerName, setCustomerName] = useState(contract.customerName);
   const [saleName, setSaleName] = useState(contract.saleName ?? "");
   const [shipTo, setShipTo] = useState(contract.shipTo ?? "");
@@ -396,6 +398,7 @@ function ContractDialog({
 
   const saveCommercial = async (resendAfter: boolean) => {
     const parsed = createContractSchema.safeParse({
+      currency,
       customerName,
       saleName,
       shipTo,
@@ -527,6 +530,11 @@ function ContractDialog({
                 <Field label="Ngày ký" htmlFor="contract-signed">
                   <Input id="contract-signed" type="date" value={signedOn} onChange={(event) => setSignedOn(event.target.value)} />
                 </Field>
+                <Field label="Loại tiền" htmlFor="contract-currency" hint="Áp dụng cho mọi số tiền của hợp đồng">
+                  <NativeSelect id="contract-currency" value={currency} onChange={(event) => setCurrency(event.target.value as QuoteCurrency)}>
+                    {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
+                  </NativeSelect>
+                </Field>
                 <Field label="Giá trị sản phẩm" htmlFor="contract-product-value">
                   <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(event.target.value)} />
                 </Field>
@@ -551,11 +559,11 @@ function ContractDialog({
                 <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
                 <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
                 <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-                <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue)}</p>
-                <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost)}</p>
-                <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue)}</p>
-                <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount)}</p>
-                <p><span className="text-muted-foreground">Còn lại: </span>{money(contract.balance)}</p>
+                <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
+                <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
+                <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
+                <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
+                <p><span className="text-muted-foreground">Còn lại: </span>{money(contract.balance, contract.currency)}</p>
               </>
             )}
           </section>

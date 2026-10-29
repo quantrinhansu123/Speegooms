@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createContractSchema, type CrmLane, type QuoteOrder } from "@speego/shared";
-import { Field, InlineAlert } from "@/components/shared/form-fields";
+import { createContractSchema, quoteCurrencies, type CrmLane, type QuoteCurrency, type QuoteOrder } from "@speego/shared";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,10 +19,11 @@ type QuoteSource = {
   orders: QuoteOrder[];
 };
 
-function goodsTotal(orders: QuoteOrder[]): number {
+/** Mẫu đang chọn: tổng tiền hàng và loại tiền của chính mẫu đó. */
+function selectedOrder(orders: QuoteOrder[]): { total: number; currency: QuoteCurrency } {
   const order = orders.find((item) => item.selected) ?? orders[0];
-  if (!order) return 0;
-  return order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
+  if (!order) return { total: 0, currency: "VND" };
+  return { total: order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0), currency: order.currency };
 }
 
 function numberValue(value: string): number | null {
@@ -43,7 +44,8 @@ export function ContractCreateDialog({
   onCreated: () => void;
 }) {
   const user = useSession();
-  const productValue = goodsTotal(quote.orders);
+  const { total: productValue, currency: orderCurrency } = selectedOrder(quote.orders);
+  const [currency, setCurrency] = useState<QuoteCurrency>(orderCurrency);
   const [customerName, setCustomerName] = useState(quote.customerName ?? "");
   const [saleName, setSaleName] = useState(user.name);
   const [shipTo, setShipTo] = useState(quote.address ?? "");
@@ -59,6 +61,7 @@ export function ContractCreateDialog({
 
   const submit = async () => {
     const parsed = createContractSchema.safeParse({
+      currency,
       customerName,
       saleName,
       shipTo,
@@ -113,6 +116,11 @@ export function ContractCreateDialog({
           </Field>
           <Field label="Ngày ký" htmlFor="contract-signed">
             <Input id="contract-signed" type="date" value={signedOn} onChange={(event) => setSignedOn(event.target.value)} />
+          </Field>
+          <Field label="Loại tiền" htmlFor="contract-currency" hint="Lấy theo mẫu báo giá đang chọn, có thể đổi">
+            <NativeSelect id="contract-currency" value={currency} onChange={(event) => setCurrency(event.target.value as QuoteCurrency)}>
+              {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
+            </NativeSelect>
           </Field>
           <Field label="Giá trị sản phẩm" htmlFor="contract-product-value">
             <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(event.target.value)} />
