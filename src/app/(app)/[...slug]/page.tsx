@@ -12,6 +12,7 @@ import { getSession } from "@/lib/session";
 async function ModuleContent({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
   const href = `/${slug.join("/")}`;
+  if (href === "/crm" || href === "/fulfillment") notFound();
   const title = findTitle(href);
   if (!title) notFound();
 

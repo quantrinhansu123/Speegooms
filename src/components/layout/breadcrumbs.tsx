@@ -12,6 +12,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { getBreadcrumbs } from "@/config/navigation";
+import { isImplemented } from "@/config/modules";
 
 export function Breadcrumbs() {
   const crumbs = getBreadcrumbs(usePathname() ?? "");
@@ -25,6 +26,8 @@ export function Breadcrumbs() {
               <BreadcrumbItem>
                 {last ? (
                   <BreadcrumbPage>{crumb.title}</BreadcrumbPage>
+                ) : !isImplemented(crumb.href) ? (
+                  <span>{crumb.title}</span>
                 ) : (
                   <BreadcrumbLink render={<Link href={crumb.href} />}>{crumb.title}</BreadcrumbLink>
                 )}
