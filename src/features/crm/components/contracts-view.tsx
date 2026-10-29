@@ -54,7 +54,7 @@ export function ContractsView({ routeScope, accounting = false }: { routeScope?:
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm hợp đồng" placeholder="Tìm order_id, số hợp đồng, rfq_id, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 pl-8" />
+          <Input aria-label="Tìm hợp đồng" placeholder="Tìm order_id, số hợp đồng, rfq_id, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>
         <NativeSelect aria-label="Lọc trạng thái cọc" className="w-56" value={deposit} onChange={(e) => setDeposit(e.target.value as DepositStatus | "")}>
           <option value="">Mọi trạng thái cọc</option>

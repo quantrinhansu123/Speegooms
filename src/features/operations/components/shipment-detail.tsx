@@ -4,7 +4,7 @@ import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Info, Plus, Save } from "lucide-react";
+import { ArrowLeft, Check, Info, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -195,7 +195,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
           </table>
           {writable && (
             <div className="flex justify-end px-5 pt-4">
-              <Button variant="outline" disabled={!actual} onClick={() => { run(actions.saveActualCosts(shipmentId, costs), "Đã lưu chi phí thực tế"); setActual(undefined); }}><Save /> Lưu chi phí thực tế</Button>
+              <Button variant="outline" disabled={!actual} onClick={() => { run(actions.saveActualCosts(shipmentId, costs), "Đã lưu chi phí thực tế"); setActual(undefined); }}><RefreshCw aria-hidden /> Lưu chi phí thực tế</Button>
             </div>
           )}
         </SectionCard>

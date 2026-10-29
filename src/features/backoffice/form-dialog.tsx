@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, RefreshCw, Save } from "lucide-react";
 import { ArrowText } from "@/components/shared/arrow-text";
 
 import { useEffect, useRef, useState } from "react";
@@ -30,7 +30,7 @@ export function FormDialog({ title, description, onClose, onSave, children, subm
           {children}
           {error && <div tabIndex={-1} ref={errorRef}><InlineAlert>{error}</InlineAlert></div>}
         </div>
-        <DialogFooter className="m-0 px-5"><Button type="button" variant="outline" onClick={onClose}><X /> Hủy</Button><Button type="submit">{submitLabel}</Button></DialogFooter>
+        <DialogFooter className="m-0 px-5"><Button type="button" variant="outline" onClick={onClose}><X /> Hủy</Button><Button type="submit">{submitLabel === "Cập nhật" ? <RefreshCw aria-hidden /> : submitLabel === "Đóng" ? <X aria-hidden /> : <Save aria-hidden />}{submitLabel}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

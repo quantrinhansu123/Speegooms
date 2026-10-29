@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, Save } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -66,7 +66,7 @@ export function ShipmentCreateDialog({ orderId, onClose, onCreated }: { orderId:
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
-          <Button onClick={submit}>Tạo mới</Button>
+          <Button onClick={submit}><Save aria-hidden /> Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

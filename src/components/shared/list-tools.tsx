@@ -35,7 +35,7 @@ export function useListTools<T>(items: T[], config: {
       <Field label="Sắp xếp danh sách" htmlFor={`${id}-sort`}><NativeSelect id={`${id}-sort`} value={sort} onChange={(e) => setSort(e.target.value)}>
         <option value="">Thứ tự mặc định</option><option value="name-asc">Mã / tên A–Z</option><option value="name-desc">Mã / tên Z–A</option>{config.date && <><option value="date-desc">Ngày mới nhất</option><option value="date-asc">Ngày cũ nhất</option></>}
       </NativeSelect></Field>
-      <Button variant="outline" disabled={!rows.length} onClick={() => {
+      <Button className="h-10" variant="outline" disabled={!rows.length} onClick={() => {
         try { downloadCsv(config.filename, config.columns.map((c) => c.label), rows.map((row) => config.columns.map((c) => c.value(row)))); setMessage({ tone: "success", text: `Đã tạo CSV với ${rows.length} bản ghi theo bộ lọc và thứ tự hiện tại, gồm mọi trang.` }); }
         catch { setMessage({ tone: "danger", text: "Không tạo được CSV. Vui lòng thử lại." }); }
       }}><Download /> Xuất CSV</Button>

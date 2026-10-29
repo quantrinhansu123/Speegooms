@@ -1,6 +1,6 @@
 "use client";
 
-import { AlarmClock, ArrowLeft, Check, HandCoins, Inbox, Plus, Save, Send, X } from "lucide-react";
+import { AlarmClock, ArrowLeft, Check, HandCoins, Inbox, Plus, Send, X, RefreshCw } from "lucide-react";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -92,7 +92,7 @@ function ComplaintEditor({ ticket }: { ticket: Complaint }) {
       <Field label="Thêm bằng chứng" htmlFor="edit-evidence" hint="Mô tả bằng chứng hoặc tên tệp; không tải lên dịch vụ ngoài."><Textarea id="edit-evidence" name="evidence" maxLength={2000} /></Field>
       <Field label="Kết quả" htmlFor="edit-result" required={status === "hoan-tat"}><Textarea id="edit-result" value={result} onChange={(e) => setResult(e.target.value)} maxLength={2000} required={status === "hoan-tat"} /></Field>
       {message && <InlineAlert>{message}</InlineAlert>}{saved && !message && <InlineAlert tone="success">Đã lưu xử lý ticket.</InlineAlert>}
-      <Button type="submit"><Save /> Lưu xử lý</Button>
+      <Button type="submit"><RefreshCw aria-hidden /> Lưu xử lý</Button>
     </form>
   </SectionCard>;
 }

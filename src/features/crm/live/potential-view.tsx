@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { FileText, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { updatePotentialSchema, type CrmLane, type UpdatePotentialInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { ListView } from "@/components/shared/list-view";
+import type { Column } from "@/components/shared/data-table";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -154,6 +157,24 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không xóa được"));
   };
 
+  const columns: Column<PotentialRecord>[] = [
+    { key: "code", header: "Tiềm năng", sortValue: (row) => row.leadCode, cell: (row) => (<div><p className="font-mono text-xs font-semibold text-primary">{row.leadCode}</p><p className="mt-1 text-xs text-muted-foreground">{row.messCode || "Không có mess"}</p></div>) },
+    { key: "customer", header: "Khách hàng / liên hệ", cell: (row) => (<div className="min-w-48"><p className="font-medium">{row.fullName || "Chưa có tên"}</p><p className="text-xs text-muted-foreground">{row.companyName}</p><p className="mt-1 text-xs">{row.phone || "—"}</p><p className="text-xs text-muted-foreground">{row.email}</p></div>) },
+    { key: "source", header: "Nguồn / chăm sóc", cell: (row) => (<div><BrandTag brand={row.brand} /><p className="mt-1 text-xs text-muted-foreground">{row.careChannel || "Chưa chọn kênh"}</p></div>) },
+    { key: "stage", header: "Giai đoạn", cell: (row) => (<StatusBadge tone={row.potential === "DEPOSITED" ? "success" : row.potential === "CLOSING" ? "warning" : "neutral"}>{labelOf(potentialOptions, row.potential)}</StatusBadge>) },
+    { key: "kind", header: "Loại khách", cell: (row) => (<div><p>{labelOf(customerKindOptions, row.customerKind)}</p><p className="text-xs text-muted-foreground">{labelOf(customerTypeOptions, row.customerType)}</p></div>) },
+    { key: "goods", header: "Hàng hóa / vận chuyển", cell: (row) => (<div className="max-w-64 whitespace-normal"><p className="font-medium">{row.productInterest || "—"}</p><p className="text-xs text-muted-foreground">{[row.quantityNote, row.packSpec, row.weightKg == null ? "" : `${row.weightKg} kg`, row.classification, row.logisticsClass].filter(Boolean).join(" · ")}</p><p className="mt-1 text-xs text-muted-foreground">{[row.shipFromAddress, row.shipToAddress].filter(Boolean).join(" → ") || row.address}</p></div>) },
+    { key: "note", header: "Ghi chú Sale", cell: (row) => (<p className="max-w-56 whitespace-normal">{row.saleNote || "—"}</p>) },
+    { key: "actions", header: "Thao tác", className: "w-16", cell: (row) => { return (<RowMenu
+                    label={`Thao tác ${row.leadCode}`}
+                    items={canWrite ? [
+                      { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => requestQuote(row) },
+                      { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
+                      { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+                    ] : []}
+                  />); } }
+  ];
+
   return (
     <>
       <PageHeader
@@ -163,93 +184,44 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1680px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Công ty</th>
-              <th className="px-3 py-2 font-medium">Số điện thoại</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Mess</th>
-              <th className="px-3 py-2 font-medium">Nguồn</th>
-              <th className="px-3 py-2 font-medium">Giai đoạn</th>
-              <th className="px-3 py-2 font-medium">Loại khách</th>
-              <th className="px-3 py-2 font-medium">Đối tượng</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Số lượng</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ</th>
-              <th className="px-3 py-2 font-medium">Ghi chú sale</th>
-              <th className="px-3 py-2 font-medium">Kênh chăm sóc</th>
-              <th className="px-3 py-2 font-medium">Phân loại</th>
-              <th className="px-3 py-2 font-medium">Quy cách</th>
-              <th className="px-3 py-2 font-medium">Trọng lượng</th>
-              <th className="px-3 py-2 font-medium">Phân loại logistics</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ gửi</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ nhận</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">Chưa có khách hàng tiềm năng.</td></tr>}
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-medium">{row.leadCode}</td>
-                <td className="px-3 py-3">{row.fullName}</td>
-                <td className="px-3 py-3">{row.companyName || "—"}</td>
-                <td className="px-3 py-3">{row.phone || "—"}</td>
-                <td className="px-3 py-3">{row.email || "—"}</td>
-                <td className="px-3 py-3">{row.messCode ?? "—"}</td>
-                <td className="px-3 py-3"><BrandTag brand={row.brand} /></td>
-                <td className="px-3 py-3">{labelOf(potentialOptions, row.potential)}</td>
-                <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
-                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
-                <td className="px-3 py-3">{row.productInterest || "—"}</td>
-                <td className="px-3 py-3">{row.quantityNote || "—"}</td>
-                <td className="px-3 py-3">{row.address || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.saleNote ?? undefined}>{row.saleNote || "—"}</td>
-                <td className="px-3 py-3">{row.careChannel || "—"}</td>
-                <td className="px-3 py-3">{row.classification || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.weightKg == null ? undefined : String(row.weightKg)}>{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.logisticsClass ?? undefined}>{row.logisticsClass || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.shipFromAddress ?? undefined}>{row.shipFromAddress || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.shipToAddress ?? undefined}>{row.shipToAddress || "—"}</td>
-                <td className="px-3 py-3">
-                  <RowMenu
-                    label={`Thao tác ${row.leadCode}`}
-                    items={canWrite ? [
-                      { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => requestQuote(row) },
-                      { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
-                      { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
-                    ] : []}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ListView<PotentialRecord>
+        key={lane}
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        searchLabel="Tìm kiếm"
+        searchPlaceholder="Mã tiềm năng, tên khách, công ty, liên hệ…"
+        searchText={(row) => [row.leadCode, row.fullName ?? "", row.companyName ?? "", row.phone ?? "", row.email ?? "", row.productInterest ?? "", row.messCode ?? ""]}
+        dateValue={(row) => row.createdAt}
+        dateLabel="Ngày tạo"
+        filters={[
+          { id: "potential", label: "Giai đoạn", options: potentialOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.potential === value },
+          { id: "customerKind", label: "Loại khách", options: customerKindOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.customerKind === value },
+          { id: "brand", label: "Nguồn", options: brandOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.brand === value },
+          { id: "careChannel", label: "Kênh chăm sóc", options: careChannelOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.careChannel === value }
+        ]}
+        sort={(a, b) => b.createdAt.localeCompare(a.createdAt)}
+      />
 
       <Dialog open={draft !== null} onOpenChange={(openDialog) => { if (!openDialog) { setDraft(null); setEditing(null); } }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Sửa khách hàng tiềm năng</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="grid max-h-[60vh] gap-3 overflow-y-auto pr-1">
-              {formError && <InlineAlert>{formError}</InlineAlert>}
+            <div className="grid max-h-[65dvh] gap-4 overflow-y-auto px-1 pb-2 sm:grid-cols-2">
+              {formError && <InlineAlert className="sm:col-span-2">{formError}</InlineAlert>}
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Thông tin khách hàng</h3><p className="mt-1 text-xs text-muted-foreground">Hồ sơ và thông tin liên hệ của khách tiềm năng.</p></div>
               <Field label="Tên khách" htmlFor="pot-name" required>
                 <Input id="pot-name" value={draft.fullName} onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} />
               </Field>
               <Field label="Công ty" htmlFor="pot-company">
                 <Input id="pot-company" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Số điện thoại" htmlFor="pot-phone"><Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
-                <Field label="Email" htmlFor="pot-email"><Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
-              </div>
+              <Field label="Số điện thoại" htmlFor="pot-phone"><Input type="tel" autoComplete="tel" id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
+              <Field label="Email" htmlFor="pot-email"><Input type="email" autoComplete="email" id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
+              <Field className="sm:col-span-2" label="Địa chỉ" htmlFor="pot-address"><Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></Field>
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Phân loại & chăm sóc</h3><p className="mt-1 text-xs text-muted-foreground">Chọn loại khách trước khi tạo yêu cầu báo giá.</p></div>
               <Field label="Nguồn" htmlFor="pot-brand">
                 <NativeSelect id="pot-brand" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
                   <option value="">Chưa chọn</option>
@@ -273,23 +245,22 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {customerTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Hàng hóa" htmlFor="pot-goods"><Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} /></Field>
-              <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
-              <Field label="Địa chỉ" htmlFor="pot-address"><Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></Field>
-              <Field label="Ghi chú sale" htmlFor="pot-note"><Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} /></Field>
               <Field label="Kênh chăm sóc" htmlFor="pot-care">
                 <NativeSelect id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value as Draft["careChannel"] })}>
                   <option value="">Chưa chọn</option>
                   {careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Hàng hóa & vận chuyển</h3><p className="mt-1 text-xs text-muted-foreground">Thông số hàng hóa, đóng gói và địa chỉ giao nhận.</p></div>
+              <Field className="sm:col-span-2" label="Hàng hóa" htmlFor="pot-goods"><Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} /></Field>
+              <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
               <Field label="Phân loại" htmlFor="pot-class">
                 <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack">
+              <Field className="sm:col-span-2" label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack">
                 <Textarea id="pot-pack" rows={3} value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} />
               </Field>
               <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">
@@ -307,11 +278,13 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Địa chỉ nhận hàng (KH logistics)" htmlFor="pot-to">
                 <Textarea id="pot-to" rows={3} value={draft.shipToAddress} onChange={(event) => setDraft({ ...draft, shipToAddress: event.target.value })} />
               </Field>
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Ghi chú Sale</h3><p className="mt-1 text-xs text-muted-foreground">Thông tin bổ sung để phối hợp với Vận hành.</p></div>
+              <Field className="sm:col-span-2" label="Ghi chú sale" htmlFor="pot-note"><Textarea rows={3} id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} /></Field>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDraft(null); setEditing(null); }}>Hủy</Button>
-            <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+            <Button disabled={pending} onClick={save}><RefreshCw aria-hidden />{pending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Save, Undo2 } from "lucide-react";
+import { Check, Undo2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineAlert } from "@/components/shared/form-fields";
@@ -53,7 +53,7 @@ export function HandoverCard({ view }: { view: OrderView }) {
         <div className="mt-4 space-y-2 border-t pt-4">
           <Textarea aria-label="Lý do trả lại Sale" rows={2} placeholder="Nếu trả lại Sale: ghi rõ còn thiếu gì" value={note} onChange={(e) => setNote(e.target.value)} />
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => run(actions.saveHandoverItems(orderId, items), "Đã lưu checklist")}><Save /> Lưu checklist</Button>
+            <Button variant="outline" onClick={() => run(actions.saveHandoverItems(orderId, items), "Đã lưu checklist")}><RefreshCw aria-hidden /> Lưu checklist</Button>
             <Button onClick={() => run(actions.reviewHandover(orderId, items, "accept", ""), "Đã nhận bàn giao")}><Check /> Xác nhận đủ, nhận bàn giao</Button>
             <Button variant="destructive" onClick={() => run(actions.reviewHandover(orderId, items, "return", note))}><Undo2 /> Trả lại Sale</Button>
           </div>

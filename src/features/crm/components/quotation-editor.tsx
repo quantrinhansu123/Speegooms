@@ -4,7 +4,7 @@ import { canPerform } from "@/config/permissions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Plus, Save, Send, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Plus, Send, Trash2, X, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -223,7 +223,7 @@ function EditorInner({
               {editable && (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" disabled={!dirty} onClick={() => run(actions.saveQuotation(draft), "Đã lưu nháp")}>
-                    <Save /> Lưu nháp
+                    <RefreshCw aria-hidden /> Lưu nháp
                   </Button>
                   <Button
                     onClick={() => {

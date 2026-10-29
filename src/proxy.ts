@@ -7,7 +7,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/login") {
-    return hasSession ? NextResponse.redirect(new URL("/dashboard", request.url)) : NextResponse.next();
+    // Cookie presence does not prove the session is still valid.
+    return NextResponse.next();
   }
   if (!hasSession) return NextResponse.redirect(new URL("/login", request.url));
   return NextResponse.next();

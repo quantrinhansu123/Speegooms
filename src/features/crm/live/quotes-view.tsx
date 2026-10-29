@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { FileText, Pencil, Trash2, RefreshCw, Save } from "lucide-react";
 import { quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { Field, InlineAlert } from "@/components/shared/form-fields";
+import { ListView } from "@/components/shared/list-view";
+import type { Column } from "@/components/shared/data-table";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -137,7 +140,19 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       .catch((err: unknown) => setTemplateError(err instanceof ApiError ? err.message : "Không xóa được mẫu"));
   };
 
-  const columnCount = desk === "sourcing" ? 11 : 10;
+  const columns: Column<QuoteRecord>[] = [
+    { key: "code", header: "Mã / ngày tạo", sortValue: (row) => row.code, cell: (row) => (<div><p className="font-mono text-xs font-semibold text-primary">{row.code}</p><p className="mt-1 text-xs text-muted-foreground">{shownDate(row.createdAt)}</p></div>) },
+    { key: "customer", header: "Khách hàng", cell: (row) => (<div className="max-w-56 whitespace-normal"><p>{row.customerName || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{row.leadCode}</p></div>) },
+    { key: "customerKind", header: "Loại khách", cell: (row) => (<div className="max-w-56 whitespace-normal">{labelOf(customerKindOptions, row.customerKind)}</div>) },
+    { key: "goods", header: "Hàng hóa", cell: (row) => (<div className="max-w-56 whitespace-normal">{row.goods || "—"}</div>) },
+    { key: "template", header: "Mẫu báo giá", cell: (row) => (<div className="max-w-56 whitespace-normal">{row.templateName || "—"}</div>) },
+    { key: "note", header: "Ghi chú VH", cell: (row) => (<div className="max-w-56 whitespace-normal">{row.opsNote || "—"}</div>) },
+    { key: "quoteStatus", header: "Trạng thái báo giá", cell: (row) => (<StatusBadge tone={row.quoteStatus.startsWith("CHUA_") ? "warning" : "success"}>{labelOf(quoteStatusOptions, row.quoteStatus)}</StatusBadge>) },
+    { key: "contractStatus", header: "Hợp đồng", cell: (row) => (<StatusBadge tone={row.contractStatus === "DA_TAO" ? "success" : "neutral"}>{labelOf(contractStatusOptions, row.contractStatus)}</StatusBadge>) },
+    ...(desk === "sourcing" ? [{ key: "logistics", header: "Logistics", cell: (row) => (<>{row.customerKind === "SOURCING_LOGISTICS" ? labelOf(quoteStatusOptions, row.logisticsSheet?.quoteStatus ?? null) : "—"}</>) } satisfies Column<QuoteRecord>] : []),
+    { key: "actions", header: "Thao tác", className: "w-16", cell: (row) => { return (<RowMenu label={`Thao tác ${row.code}`} items={[{ key: "quote", label: "Mở báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } }]} />); } }
+  ];
 
   return (
     <>
@@ -158,59 +173,23 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         </InlineAlert>
       )}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1100px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Loại khách</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Mẫu báo giá</th>
-              <th className="px-3 py-2 font-medium">Ghi chú VH</th>
-              <th className="px-3 py-2 font-medium">Trạng thái báo giá</th>
-              <th className="px-3 py-2 font-medium">Hợp đồng</th>
-              {desk === "sourcing" && <th className="px-3 py-2 font-medium">Logistics</th>}
-              <th className="px-3 py-2 font-medium">Ngày</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">Chưa có báo giá.</td></tr>
-            )}
-            {rows.map((row) => {
-              const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [
-                { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } },
-              ];
-              return (
-                <tr key={row.id} className={row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" ? "border-b bg-amber-50 last:border-0" : "border-b last:border-0"}>
-                  <td className="px-3 py-3 font-medium">{row.code}</td>
-                  <td className="px-3 py-3">
-                    <p>{row.customerName || "—"}</p>
-                    <p className="text-xs text-muted-foreground">{row.leadCode}</p>
-                  </td>
-                  <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
-                  <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
-                  <td className="px-3 py-3">{row.templateName || "—"}</td>
-                  <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>
-                  <td className="px-3 py-3">{labelOf(quoteStatusOptions, row.quoteStatus)}</td>
-                  <td className="px-3 py-3">{labelOf(contractStatusOptions, row.contractStatus)}</td>
-                  {desk === "sourcing" && (
-                    <td className="px-3 py-3">
-                      {row.customerKind === "SOURCING_LOGISTICS" ? labelOf(quoteStatusOptions, row.logisticsSheet?.quoteStatus ?? null) : "—"}
-                    </td>
-                  )}
-                  <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
-                  <td className="px-3 py-3">
-                    <RowMenu label={`Thao tác ${row.code}`} items={items} />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ListView<QuoteRecord>
+        key={`${lane}-${desk}`}
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        searchLabel="Tìm kiếm"
+        searchPlaceholder="Mã báo giá, khách hàng, hàng hóa, mẫu…"
+        searchText={(row) => [row.code, row.leadCode, row.customerName ?? "", row.goods ?? "", row.templateName ?? "", row.opsNote ?? ""]}
+        dateValue={(row) => row.createdAt}
+        dateLabel="Ngày tạo"
+        filters={[
+          { id: "quoteStatus", label: "Trạng thái báo giá", options: quoteStatusOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.quoteStatus === value },
+          { id: "customerKind", label: "Loại khách", options: customerKindOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.customerKind === value },
+          { id: "contractStatus", label: "Hợp đồng", options: contractStatusOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.contractStatus === value }
+        ]}
+        sort={(a, b) => b.createdAt.localeCompare(a.createdAt)}
+      />
 
       {editing && (
         <QuoteEditor
@@ -269,7 +248,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setTemplateDraft(null)}>Hủy</Button>
-            <Button type="button" disabled={pending} onClick={saveTemplate}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+            <Button type="button" disabled={pending} onClick={saveTemplate}>{templateDraft?.id ? <RefreshCw aria-hidden /> : <Save aria-hidden />}{pending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

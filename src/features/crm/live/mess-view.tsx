@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { Pencil, Plus, Trash2, UserPlus, RefreshCw, Save } from "lucide-react";
 import { createMessageSchema, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { ListView } from "@/components/shared/list-view";
+import type { Column } from "@/components/shared/data-table";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -151,6 +154,30 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không xóa được mess"));
   };
 
+  const columns: Column<MessageRecord>[] = [
+    { key: "code", header: "Mess", sortValue: (row) => row.messCode, cell: (row) => (<div><p className="font-mono text-xs font-semibold text-primary">{row.messCode}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(dateInputFromIso(row.receivedAt))}</p></div>) },
+    { key: "customer", header: "Khách hàng", cell: (row) => (<div className="min-w-44"><p className="font-medium">{row.customerName || "Chưa có tên"}</p><p className="text-xs text-muted-foreground">{row.phone || row.email || "Chưa có liên hệ"}</p><p className="text-xs text-muted-foreground">{row.market || "Chưa có thị trường"}</p></div>) },
+    { key: "class", header: "Phân loại", cell: (row) => (<div><StatusBadge tone={row.classification === "HOT" ? "danger" : row.classification === "WARM" ? "warning" : "neutral"}>{labelOf(messageClassificationOptions, row.classification)}</StatusBadge><p className="mt-1 text-xs text-muted-foreground">{labelOf(customerTypeOptions, row.customerType)}</p></div>) },
+    { key: "demand", header: "Nhu cầu / hàng hóa", cell: (row) => (<div className="max-w-56 whitespace-normal"><p>{labelOf(demandOptions, row.demand)}</p><p className="text-xs text-muted-foreground">{row.goods || "Chưa có hàng hóa"}</p></div>) },
+    { key: "sale", header: "Sale phụ trách", cell: (row) => (<span>{row.saleName || "Chưa phân công"}</span>) },
+    { key: "note", header: "Nội dung chăm sóc", cell: (row) => (<div className="max-w-64 whitespace-normal"><p>{row.painPoint || "—"}</p><p className="mt-1 text-xs text-muted-foreground">{row.note}</p></div>) },
+    { key: "status", header: "Trạng thái", cell: (row) => (<StatusBadge tone={row.leadId ? "success" : "neutral"}>{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</StatusBadge>) },
+    { key: "actions", header: "Thao tác", className: "w-16", cell: (row) => { return (<RowMenu
+                    label={`Thao tác ${row.messCode}`}
+                    items={[
+                      ...(canConvert && !row.leadId && row.status !== "LOST"
+                        ? [{ key: "convert", label: "Chuyển tiềm năng", icon: <UserPlus />, onClick: () => convert(row) }]
+                        : []),
+                      ...(canWrite
+                        ? [
+                            { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setEditingId(row.id); setFormError(undefined); setDraft(draftFrom(row)); } },
+                            { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+                          ]
+                        : []),
+                    ]}
+                  />); } }
+  ];
+
   return (
     <>
       <PageHeader
@@ -164,79 +191,49 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1680px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Ngày</th>
-              <th className="px-3 py-2 font-medium">Tên khách</th>
-              <th className="px-3 py-2 font-medium">Thị trường</th>
-              <th className="px-3 py-2 font-medium">Phân loại</th>
-              <th className="px-3 py-2 font-medium">Đối tượng</th>
-              <th className="px-3 py-2 font-medium">Nhu cầu</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Sales - hot & warm</th>
-              <th className="px-3 py-2 font-medium">Pain-Point của KH</th>
-              <th className="px-3 py-2 font-medium">Ghi chú Sale</th>
-              <th className="px-3 py-2 font-medium">Trạng thái</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">Chưa có mess.</td></tr>}
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-medium">{row.messCode}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{row.receivedAt ? formatDate(dateInputFromIso(row.receivedAt)) : "—"}</td>
-                <td className="px-3 py-3">{row.customerName}</td>
-                <td className="px-3 py-3">{row.market || "—"}</td>
-                <td className="px-3 py-3">{labelOf(messageClassificationOptions, row.classification)}</td>
-                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
-                <td className="px-3 py-3">{labelOf(demandOptions, row.demand)}</td>
-                <td className="px-3 py-3">{row.goods || "—"}</td>
-                <td className="px-3 py-3">{row.saleName || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.painPoint ?? undefined}>{row.painPoint || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.note ?? undefined}>{row.note || "—"}</td>
-                <td className="px-3 py-3">{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</td>
-                <td className="px-3 py-3">
-                  <RowMenu
-                    label={`Thao tác ${row.messCode}`}
-                    items={[
-                      ...(canConvert && !row.leadId && row.status !== "LOST"
-                        ? [{ key: "convert", label: "Chuyển tiềm năng", icon: <UserPlus />, onClick: () => convert(row) }]
-                        : []),
-                      ...(canWrite
-                        ? [
-                            { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setEditingId(row.id); setFormError(undefined); setDraft(draftFrom(row)); } },
-                            { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
-                          ]
-                        : []),
-                    ]}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ListView<MessageRecord>
+        key={lane}
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id}
+        searchLabel="Tìm kiếm"
+        searchPlaceholder="Mã mess, khách hàng, điện thoại, hàng hóa…"
+        searchText={(row) => [row.messCode, row.customerName ?? "", row.phone ?? "", row.email ?? "", row.goods ?? "", row.saleName ?? "", row.market ?? ""]}
+        dateValue={(row) => dateInputFromIso(row.receivedAt)}
+        dateLabel="Ngày tiếp nhận"
+        filters={[
+          { id: "status", label: "Trạng thái", options: Object.entries(messageStatusLabels).map(([value, label]) => ({ value, label })), match: (row, value) => row.status === value },
+          { id: "classification", label: "Phân loại", options: messageClassificationOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.classification === value },
+          { id: "demand", label: "Nhu cầu", options: demandOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.demand === value },
+          { id: "customerType", label: "Đối tượng", options: customerTypeOptions.map(([value, label]) => ({ value, label })), match: (row, value) => row.customerType === value }
+        ]}
+        sort={(a, b) => b.receivedAt.localeCompare(a.receivedAt)}
+      />
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{editingId ? "Sửa mess" : "Tạo mess"}</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid max-h-[65dvh] gap-4 overflow-y-auto px-1 pb-2 sm:grid-cols-2">
               {formError && <InlineAlert className="sm:col-span-2">{formError}</InlineAlert>}
-              <Field label="Ngày" htmlFor="mess-date" required>
-                <Input id="mess-date" type="date" value={draft.receivedOn} onChange={(event) => setDraft({ ...draft, receivedOn: event.target.value })} />
-              </Field>
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Thông tin khách hàng</h3><p className="mt-1 text-xs text-muted-foreground">Thông tin liên hệ để Sale tiếp nhận và chăm sóc.</p></div>
               <Field label="Tên khách" htmlFor="mess-name" required>
                 <Input id="mess-name" value={draft.customerName} onChange={(event) => setDraft({ ...draft, customerName: event.target.value })} />
               </Field>
+              <Field label="Số điện thoại" htmlFor="mess-phone">
+                <Input type="tel" autoComplete="tel" id="mess-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
+              </Field>
+              <Field label="Email" htmlFor="mess-email">
+                <Input id="mess-email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
+              </Field>
               <Field label="Thị trường" htmlFor="mess-market">
                 <Input id="mess-market" value={draft.market} placeholder="Ví dụ: Mỹ, Úc, Canada" onChange={(event) => setDraft({ ...draft, market: event.target.value })} />
+              </Field>
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Phân loại & nhu cầu</h3><p className="mt-1 text-xs text-muted-foreground">Xác định mức độ quan tâm và dịch vụ khách cần.</p></div>
+              <Field label="Ngày tiếp nhận" htmlFor="mess-date" required>
+                <Input id="mess-date" type="date" value={draft.receivedOn} onChange={(event) => setDraft({ ...draft, receivedOn: event.target.value })} />
               </Field>
               <Field label="Phân loại" htmlFor="mess-class">
                 <NativeSelect id="mess-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as MessDraft["classification"] })}>
@@ -256,29 +253,24 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {demandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2">
+              <Field className="sm:col-span-2" label="Hàng hóa" htmlFor="mess-goods">
                 <Input id="mess-goods" value={draft.goods} onChange={(event) => setDraft({ ...draft, goods: event.target.value })} />
               </Field>
-              <Field label="Sales - hot & warm" htmlFor="mess-sale" className="sm:col-span-2">
+              <Field label="Sale phụ trách" htmlFor="mess-sale">
                 <Input id="mess-sale" value={draft.saleName} placeholder="Tên sale phụ trách" onChange={(event) => setDraft({ ...draft, saleName: event.target.value })} />
               </Field>
-              <Field label="Pain-Point của KH" htmlFor="mess-pain" className="sm:col-span-2">
+              <div className="border-b pb-3 pt-2 sm:col-span-2"><h3 className="font-semibold text-foreground">Nội dung chăm sóc</h3><p className="mt-1 text-xs text-muted-foreground">Ghi nhận vấn đề cần giải quyết và thông tin trao đổi.</p></div>
+              <Field className="sm:col-span-2" label="Vấn đề / mong muốn của khách" htmlFor="mess-pain">
                 <Textarea id="mess-pain" value={draft.painPoint} onChange={(event) => setDraft({ ...draft, painPoint: event.target.value })} />
               </Field>
-              <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2">
+              <Field className="sm:col-span-2" label="Ghi chú Sale" htmlFor="mess-note">
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
-              </Field>
-              <Field label="Số điện thoại" htmlFor="mess-phone">
-                <Input id="mess-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
-              </Field>
-              <Field label="Email" htmlFor="mess-email">
-                <Input id="mess-email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
               </Field>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDraft(null)}>Hủy</Button>
-            <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+            <Button disabled={pending} onClick={save}>{editingId ? <RefreshCw aria-hidden /> : <Save aria-hidden />}{pending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

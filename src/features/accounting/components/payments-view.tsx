@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -83,7 +83,7 @@ function CreatePaymentDialog({ onClose }: { onClose: () => void }) {
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
-          <Button onClick={submit} disabled={!orderId || !target.payeeId}>Tạo mới</Button>
+          <Button onClick={submit} disabled={!orderId || !target.payeeId}><Save aria-hidden /> Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Save } from "lucide-react";
+import { AlertTriangle, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineAlert } from "@/components/shared/form-fields";
@@ -107,7 +107,7 @@ export function LeadProfileForm({ lead }: { lead: Lead }) {
               Đã lưu
             </span>
           )}
-          <Button onClick={save}><Save /> Lưu thông tin</Button>
+          <Button onClick={save}><RefreshCw aria-hidden /> Lưu thông tin</Button>
         </div>
       )}
     </SectionCard>

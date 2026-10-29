@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2, RefreshCw, Save } from "lucide-react";
 import {
   quoteOrderSchema,
   updateQuoteSchema,
@@ -344,7 +344,7 @@ export function QuoteEditor({
       {canEdit && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {!canEdit && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
-      {canEdit && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+      {canEdit && <Button type="button" disabled={pending} onClick={save}><RefreshCw aria-hidden />{pending ? "Đang lưu…" : "Lưu"}</Button>}
     </>
   );
 
@@ -353,7 +353,8 @@ export function QuoteEditor({
       <div className={embedded ? "grid gap-4" : "grid max-h-[68vh] gap-4 overflow-y-auto pr-1"}>
             {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
             {needsNewQuote && canEdit && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
-            <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
+            <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 text-sm sm:grid-cols-2">
+              <h3 className="font-semibold sm:col-span-2">Thông tin khách hàng</h3>
               <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
               <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
               <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
@@ -414,6 +415,7 @@ export function QuoteEditor({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
+              <h3 className="mt-2 border-b pb-3 font-semibold sm:col-span-2">Điều kiện báo giá & đặt cọc</h3>
               <Field label="Tổng giá trị hàng hóa" htmlFor={fieldId("note-total")}>
                 <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} />
               </Field>
@@ -426,6 +428,7 @@ export function QuoteEditor({
               <Field className="sm:col-span-2" label="Thông tin đặt cọc" htmlFor={fieldId("note-deposit")}>
                 <Input id={fieldId("note-deposit")} value={notes.deposit} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, deposit: event.target.value })} />
               </Field>
+              <h3 className="mt-3 border-b pb-3 font-semibold sm:col-span-2">Thông tin thanh toán</h3>
               <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
                 <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEdit} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
               </Field>
@@ -438,6 +441,7 @@ export function QuoteEditor({
               <Field label="Routing Number" htmlFor={fieldId("bank-routing")}>
                 <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEdit} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
               </Field>
+              <h3 className="mt-3 border-b pb-3 font-semibold sm:col-span-2">Xử lý báo giá</h3>
               <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
                 <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEdit} onChange={(event) => setTemplateId(event.target.value)}>
                   <option value="">Chưa chọn</option>
@@ -509,7 +513,7 @@ export function QuoteEditor({
             <DialogFooter>
               {draft.mode === "view" && <Button type="button" variant="outline" onClick={() => printOrder(draft.order)}><Printer />In</Button>}
               <Button type="button" variant="outline" onClick={() => setDraft(null)}>Đóng</Button>
-              {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+              {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{draft.mode === "edit" ? <RefreshCw aria-hidden /> : <Save aria-hidden />}{pending ? "Đang lưu…" : "Lưu"}</Button>}
             </DialogFooter>
           </DialogContent>
         </Dialog>
