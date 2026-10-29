@@ -23,20 +23,6 @@ import type { NavGroup } from "@/types/navigation";
  */
 export const navigation: NavGroup[] = [
   {
-    label: "Điều hành",
-    items: [
-      { title: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
-      { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
-      { title: "Demo Guide", href: "/demo-guide", icon: BookOpen },
-      { title: "COA – Hệ thống & chỉ số", href: "/coa", icon: Compass },
-      {
-        title: "Khách hàng & Điều phối",
-        href: "/khach-hang-dieu-phoi",
-        icon: Users,
-      },
-    ],
-  },
-  {
     label: "Bán hàng",
     items: [
       {
@@ -156,6 +142,20 @@ export const navigation: NavGroup[] = [
     label: "Hệ thống",
     items: [
       { title: "Cài đặt", href: "/cai-dat", icon: Settings2 },
+    ],
+  },
+  {
+    label: "Điều hành",
+    items: [
+      { title: "Tổng quan", href: "/dashboard", icon: LayoutDashboard },
+      { title: "Reports", href: "/reports", icon: ChartNoAxesCombined },
+      { title: "Demo Guide", href: "/demo-guide", icon: BookOpen },
+      { title: "COA – Hệ thống & chỉ số", href: "/coa", icon: Compass },
+      {
+        title: "Khách hàng & Điều phối",
+        href: "/khach-hang-dieu-phoi",
+        icon: Users,
+      },
     ],
   },
 ];
