@@ -120,26 +120,33 @@ export function MessView() {
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">Mã</th>
               <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Liên hệ</th>
+              <th className="px-3 py-2 font-medium">Số điện thoại</th>
+              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Nhu cầu</th>
+              <th className="px-3 py-2 font-medium">Đối tượng</th>
+              <th className="px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="px-3 py-2 font-medium">Ghi chú</th>
               <th className="px-3 py-2 font-medium">Trạng thái</th>
               <th className="px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">Chưa có mess.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">Chưa có mess.</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
-                <td className="px-3 py-3">
-                  <p>{row.customerName}</p>
-                  <p className="text-xs text-muted-foreground">{row.goods || labelOf(demandOptions, row.demand)}</p>
-                </td>
-                <td className="px-3 py-3">{row.phone || row.email}</td>
+                <td className="px-3 py-3">{row.customerName}</td>
+                <td className="px-3 py-3">{row.phone || "—"}</td>
+                <td className="px-3 py-3">{row.email || "—"}</td>
+                <td className="px-3 py-3">{labelOf(demandOptions, row.demand)}</td>
+                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
+                <td className="px-3 py-3">{row.goods || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.note ?? undefined}>{row.note || "—"}</td>
                 <td className="px-3 py-3">{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</td>
                 <td className="px-3 py-3">
                   <div className="flex flex-wrap gap-1">

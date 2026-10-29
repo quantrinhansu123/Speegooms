@@ -39,6 +39,13 @@ type PotentialRow = {
   customer_kind: string | null;
   customer_type: string | null;
   brand: string | null;
+  care_channel: string | null;
+  classification: string | null;
+  pack_spec: string | null;
+  weight_kg: string | number | null;
+  logistics_class: string | null;
+  ship_from_address: string | null;
+  ship_to_address: string | null;
   created_at: Date | string;
 };
 
@@ -53,7 +60,9 @@ const MESSAGE_SELECT = `
 const POTENTIAL_SELECT = `
   select l.id::text, l.lead_code, l.mess_id::text, m.mess_code, l.full_name, l.company_name,
          l.phone, l.email, l.source::text, l.product_interest, l.quantity_note, l.address, l.sale_note,
-         l.potential::text, l.status::text, l.customer_kind::text, l.customer_type::text, l.brand::text, l.created_at
+         l.potential::text, l.status::text, l.customer_kind::text, l.customer_type::text, l.brand::text,
+         l.care_channel, l.classification::text, l.pack_spec, l.weight_kg, l.logistics_class,
+         l.ship_from_address, l.ship_to_address, l.created_at
   from crm.lead l
   left join crm.message m on m.id = l.mess_id
   where l.deleted_at is null and l.potential is not null
@@ -62,6 +71,12 @@ const POTENTIAL_SELECT = `
 function blank(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length ? trimmed : null;
+}
+
+function weight(value: string | number | null): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function stamp(value: Date | string): string {
@@ -107,6 +122,13 @@ function toPotential(row: PotentialRow): PotentialRecord {
     customerKind: row.customer_kind,
     customerType: row.customer_type,
     brand: row.brand,
+    careChannel: row.care_channel,
+    classification: row.classification,
+    packSpec: row.pack_spec,
+    weightKg: weight(row.weight_kg),
+    logisticsClass: row.logistics_class,
+    shipFromAddress: row.ship_from_address,
+    shipToAddress: row.ship_to_address,
     createdAt: stamp(row.created_at),
   };
 }
@@ -259,7 +281,14 @@ export class PostgresCrmRepository implements CrmRepository {
          potential = $10::crm.potential_status,
          customer_kind = $11::text::crm.customer_kind,
          customer_type = $12::text::crm.customer_type,
-         brand = $13::text::crm.lead_brand
+         brand = $13::text::crm.lead_brand,
+         care_channel = $14,
+         classification = $15::text::crm.lead_classification,
+         pack_spec = $16,
+         weight_kg = $17,
+         logistics_class = $18,
+         ship_from_address = $19,
+         ship_to_address = $20
        where id = $1::bigint and deleted_at is null and potential is not null
        returning id::text`,
       [
@@ -276,6 +305,13 @@ export class PostgresCrmRepository implements CrmRepository {
         input.customerKind ?? null,
         input.customerType ?? null,
         input.brand ?? null,
+        blank(input.careChannel),
+        input.classification ?? null,
+        blank(input.packSpec),
+        input.weightKg ?? null,
+        blank(input.logisticsClass),
+        blank(input.shipFromAddress),
+        blank(input.shipToAddress),
       ],
     );
     if (!updated.rows[0]) return null;

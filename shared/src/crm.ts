@@ -15,6 +15,7 @@ export const messageDemandSchema = z.enum(["SHIPPING", "SOURCING"]);
 export const customerTypeSchema = z.enum(["INDIVIDUAL", "PRINCIPAL", "ENTERPRISE"]);
 export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS", "SOURCING_LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
+export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -55,6 +56,13 @@ export const updatePotentialSchema = z
     customerKind: customerKindSchema.optional(),
     customerType: customerTypeSchema.optional(),
     brand: leadBrandSchema.optional(),
+    careChannel: text(80).optional(),
+    classification: leadClassificationSchema.optional(),
+    packSpec: text(300).optional(),
+    weightKg: z.number().positive("Trọng lượng phải lớn hơn 0").max(999999999).optional(),
+    logisticsClass: text(80).optional(),
+    shipFromAddress: text(300).optional(),
+    shipToAddress: text(300).optional(),
   })
   .superRefine(contact);
 

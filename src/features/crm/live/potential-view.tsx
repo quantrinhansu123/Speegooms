@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
-import { brandOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
+import { brandOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
@@ -35,6 +35,13 @@ type Draft = {
   customerKind: "" | NonNullable<UpdatePotentialInput["customerKind"]>;
   customerType: "" | NonNullable<UpdatePotentialInput["customerType"]>;
   brand: "" | NonNullable<UpdatePotentialInput["brand"]>;
+  careChannel: string;
+  classification: "" | NonNullable<UpdatePotentialInput["classification"]>;
+  packSpec: string;
+  weightKg: string;
+  logisticsClass: string;
+  shipFromAddress: string;
+  shipToAddress: string;
 };
 
 function draftFrom(row: PotentialRecord): Draft {
@@ -51,6 +58,13 @@ function draftFrom(row: PotentialRecord): Draft {
     customerKind: row.customerKind === "SOURCING" || row.customerKind === "LOGISTICS" || row.customerKind === "SOURCING_LOGISTICS" ? row.customerKind : "",
     customerType: row.customerType === "INDIVIDUAL" || row.customerType === "PRINCIPAL" || row.customerType === "ENTERPRISE" ? row.customerType : "",
     brand: brandOptions.some((item) => item[0] === row.brand) ? row.brand as Draft["brand"] : "",
+    careChannel: row.careChannel ?? "",
+    classification: row.classification === "LCL" || row.classification === "FCL" ? row.classification : "",
+    packSpec: row.packSpec ?? "",
+    weightKg: row.weightKg == null ? "" : String(row.weightKg),
+    logisticsClass: row.logisticsClass ?? "",
+    shipFromAddress: row.shipFromAddress ?? "",
+    shipToAddress: row.shipToAddress ?? "",
   };
 }
 
@@ -86,6 +100,13 @@ export function PotentialView() {
       customerKind: draft.customerKind || undefined,
       customerType: draft.customerType || undefined,
       brand: draft.brand || undefined,
+      careChannel: draft.careChannel || undefined,
+      classification: draft.classification || undefined,
+      packSpec: draft.packSpec || undefined,
+      weightKg: draft.weightKg === "" ? undefined : Number(draft.weightKg),
+      logisticsClass: draft.logisticsClass || undefined,
+      shipFromAddress: draft.shipFromAddress || undefined,
+      shipToAddress: draft.shipToAddress || undefined,
     });
     if (!parsed.success) {
       setFormError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
@@ -116,29 +137,58 @@ export function PotentialView() {
       <PageHeader title="Khách hàng tiềm năng" description="Lead được chuyển từ mess, giai đoạn bắt đầu là Tiềm năng." />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[1680px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">Mã</th>
               <th className="px-3 py-2 font-medium">Khách</th>
+              <th className="px-3 py-2 font-medium">Công ty</th>
+              <th className="px-3 py-2 font-medium">Số điện thoại</th>
+              <th className="px-3 py-2 font-medium">Email</th>
               <th className="px-3 py-2 font-medium">Mess</th>
               <th className="px-3 py-2 font-medium">Nguồn</th>
-              <th className="px-3 py-2 font-medium">Tiềm năng</th>
+              <th className="px-3 py-2 font-medium">Giai đoạn</th>
+              <th className="px-3 py-2 font-medium">Loại khách</th>
+              <th className="px-3 py-2 font-medium">Đối tượng</th>
+              <th className="px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="px-3 py-2 font-medium">Số lượng</th>
+              <th className="px-3 py-2 font-medium">Địa chỉ</th>
+              <th className="px-3 py-2 font-medium">Ghi chú sale</th>
+              <th className="px-3 py-2 font-medium">Kênh chăm sóc</th>
+              <th className="px-3 py-2 font-medium">Phân loại</th>
+              <th className="px-3 py-2 font-medium">Quy cách</th>
+              <th className="px-3 py-2 font-medium">Trọng lượng</th>
+              <th className="px-3 py-2 font-medium">Phân loại logistics</th>
+              <th className="px-3 py-2 font-medium">Địa chỉ gửi</th>
+              <th className="px-3 py-2 font-medium">Địa chỉ nhận</th>
               <th className="px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Chưa có khách hàng tiềm năng.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">Chưa có khách hàng tiềm năng.</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.leadCode}</td>
-                <td className="px-3 py-3">
-                  <p>{row.fullName}</p>
-                  <p className="text-xs text-muted-foreground">{row.phone || row.email}</p>
-                </td>
+                <td className="px-3 py-3">{row.fullName}</td>
+                <td className="px-3 py-3">{row.companyName || "—"}</td>
+                <td className="px-3 py-3">{row.phone || "—"}</td>
+                <td className="px-3 py-3">{row.email || "—"}</td>
                 <td className="px-3 py-3">{row.messCode ?? "—"}</td>
                 <td className="px-3 py-3"><BrandTag brand={row.brand} /></td>
                 <td className="px-3 py-3">{labelOf(potentialOptions, row.potential)}</td>
+                <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
+                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
+                <td className="px-3 py-3">{row.productInterest || "—"}</td>
+                <td className="px-3 py-3">{row.quantityNote || "—"}</td>
+                <td className="px-3 py-3">{row.address || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.saleNote ?? undefined}>{row.saleNote || "—"}</td>
+                <td className="px-3 py-3">{row.careChannel || "—"}</td>
+                <td className="px-3 py-3">{row.classification || "—"}</td>
+                <td className="px-3 py-3">{row.packSpec || "—"}</td>
+                <td className="px-3 py-3">{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
+                <td className="px-3 py-3">{row.logisticsClass || "—"}</td>
+                <td className="px-3 py-3">{row.shipFromAddress || "—"}</td>
+                <td className="px-3 py-3">{row.shipToAddress || "—"}</td>
                 <td className="px-3 py-3">
                   {canWrite && (
                     <div className="flex gap-1">
@@ -198,6 +248,18 @@ export function PotentialView() {
               <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
               <Field label="Địa chỉ" htmlFor="pot-address"><Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></Field>
               <Field label="Ghi chú sale" htmlFor="pot-note"><Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} /></Field>
+              <Field label="Kênh chăm sóc" htmlFor="pot-care"><Input id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value })} /></Field>
+              <Field label="Phân loại" htmlFor="pot-class">
+                <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
+                  <option value="">Chưa chọn</option>
+                  {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </NativeSelect>
+              </Field>
+              <Field label="Quy cách đóng gói" htmlFor="pot-pack"><Input id="pot-pack" value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} /></Field>
+              <Field label="Trọng lượng (kg)" htmlFor="pot-weight"><Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} /></Field>
+              <Field label="Phân loại logistics" htmlFor="pot-logistics"><Input id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value })} /></Field>
+              <Field label="Địa chỉ gửi" htmlFor="pot-from"><Input id="pot-from" value={draft.shipFromAddress} onChange={(event) => setDraft({ ...draft, shipFromAddress: event.target.value })} /></Field>
+              <Field label="Địa chỉ nhận" htmlFor="pot-to"><Input id="pot-to" value={draft.shipToAddress} onChange={(event) => setDraft({ ...draft, shipToAddress: event.target.value })} /></Field>
             </div>
           )}
           <DialogFooter>

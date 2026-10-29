@@ -34,6 +34,13 @@ export interface PotentialRecord {
   customerKind: string | null;
   customerType: string | null;
   brand: string | null;
+  careChannel: string | null;
+  classification: string | null;
+  packSpec: string | null;
+  weightKg: number | null;
+  logisticsClass: string | null;
+  shipFromAddress: string | null;
+  shipToAddress: string | null;
   createdAt: string;
 }
 
@@ -63,6 +70,11 @@ export const customerKindOptions = [
   ["SOURCING", "Thuần sourcing"],
   ["LOGISTICS", "Thuần logistics"],
   ["SOURCING_LOGISTICS", "Sourcing + Logistics"],
+] as const;
+
+export const classificationOptions = [
+  ["LCL", "LCL"],
+  ["FCL", "FCL"],
 ] as const;
 
 export const potentialOptions = [

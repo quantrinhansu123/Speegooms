@@ -5,6 +5,7 @@ export {
   customerKindSchema,
   customerTypeSchema,
   leadBrandSchema,
+  leadClassificationSchema,
   leadSourceSchema,
   messageDemandSchema,
   potentialStatusSchema,

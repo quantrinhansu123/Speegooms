@@ -36,6 +36,13 @@ export interface PotentialRecord {
   customerKind: string | null;
   customerType: string | null;
   brand: string | null;
+  careChannel: string | null;
+  classification: string | null;
+  packSpec: string | null;
+  weightKg: number | null;
+  logisticsClass: string | null;
+  shipFromAddress: string | null;
+  shipToAddress: string | null;
   createdAt: string;
 }
 
