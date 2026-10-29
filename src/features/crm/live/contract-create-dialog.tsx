@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createContractSchema, type CrmLane, type QuoteOrder } from "@speego/shared";
-import { Field, InlineAlert } from "@/components/shared/form-fields";
+import { contractShipToOptions, createContractSchema, type CrmLane, type QuoteOrder } from "@speego/shared";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ export function ContractCreateDialog({
   const productValue = goodsTotal(quote.orders);
   const [customerName, setCustomerName] = useState(quote.customerName ?? "");
   const [saleName, setSaleName] = useState(user.name);
-  const [shipTo, setShipTo] = useState(quote.address ?? "");
+  const [shipTo, setShipTo] = useState("");
   const [product, setProduct] = useState(quote.goods ?? "");
   const [quantity, setQuantity] = useState("");
   const [productValueText, setProductValueText] = useState(productValue ? String(productValue) : "");
@@ -103,7 +103,12 @@ export function ContractCreateDialog({
             <Input id="contract-sale" value={saleName} onChange={(event) => setSaleName(event.target.value)} />
           </Field>
           <Field label="Vận chuyển đến" htmlFor="contract-ship" className="sm:col-span-2">
-            <Input id="contract-ship" value={shipTo} onChange={(event) => setShipTo(event.target.value)} />
+            <NativeSelect id="contract-ship" value={shipTo} onChange={(event) => setShipTo(event.target.value)}>
+              <option value="">Chọn tuyến vận chuyển</option>
+              {contractShipToOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </NativeSelect>
           </Field>
           <Field label="Sản phẩm" htmlFor="contract-product" className="sm:col-span-2">
             <Input id="contract-product" value={product} onChange={(event) => setProduct(event.target.value)} />

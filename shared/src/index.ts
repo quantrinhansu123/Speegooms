@@ -3,6 +3,7 @@ export { loginSchema, type LoginInput } from "./auth";
 export {
   contractQuoteStatusSchema,
   accountingContractSchema,
+  contractShipToOptions,
   createContractSchema,
   createMessageSchema,
   crmLaneSchema,

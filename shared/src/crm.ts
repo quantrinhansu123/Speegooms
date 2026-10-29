@@ -172,10 +172,23 @@ export const accountingStatusSchema = z.enum([
   "CHUA_HOAN_THANH_THANH_TOAN",
 ]);
 
+export const contractShipToOptions = [
+  "Trung - CA",
+  "Trung - US",
+  "Trung - Úc",
+  "VN - US",
+  "VN - CA",
+  "VN - ÚC",
+  "Trung-TBN",
+  "Business",
+] as const;
+
+export const contractShipToSchema = z.enum(contractShipToOptions);
+
 export const createContractSchema = z.object({
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
   saleName: text(160),
-  shipTo: text(300),
+  shipTo: z.union([z.literal(""), contractShipToSchema]),
   product: text(300),
   quantity: z.number().min(0).max(1_000_000_000).nullable(),
   productValue: money,

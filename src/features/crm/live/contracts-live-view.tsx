@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, createContractSchema, opsContractSchema, opsStatusOptions, type CrmLane } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, contractShipToOptions, createContractSchema, opsContractSchema, opsStatusOptions, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -367,7 +367,9 @@ function ContractDialog({
 }) {
   const [customerName, setCustomerName] = useState(contract.customerName);
   const [saleName, setSaleName] = useState(contract.saleName ?? "");
-  const [shipTo, setShipTo] = useState(contract.shipTo ?? "");
+  const [shipTo, setShipTo] = useState(
+    (contractShipToOptions as readonly string[]).includes(contract.shipTo ?? "") ? (contract.shipTo ?? "") : "",
+  );
   const [product, setProduct] = useState(contract.product ?? "");
   const [quantity, setQuantity] = useState(contract.quantity == null ? "" : String(contract.quantity));
   const [productValueText, setProductValueText] = useState(String(contract.productValue));
@@ -516,7 +518,16 @@ function ContractDialog({
                   <Input id="contract-sale" value={saleName} onChange={(event) => setSaleName(event.target.value)} />
                 </Field>
                 <Field label="Vận chuyển đến" htmlFor="contract-ship" className="sm:col-span-2">
-                  <Input id="contract-ship" value={shipTo} onChange={(event) => setShipTo(event.target.value)} />
+                  <NativeSelect
+                    id="contract-ship"
+                    value={(contractShipToOptions as readonly string[]).includes(shipTo) ? shipTo : ""}
+                    onChange={(event) => setShipTo(event.target.value)}
+                  >
+                    <option value="">Chọn tuyến vận chuyển</option>
+                    {contractShipToOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </NativeSelect>
                 </Field>
                 <Field label="Sản phẩm" htmlFor="contract-product" className="sm:col-span-2">
                   <Input id="contract-product" value={product} onChange={(event) => setProduct(event.target.value)} />

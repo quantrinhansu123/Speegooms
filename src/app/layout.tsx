@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="vi" suppressHydrationWarning className={`${inter.variable} ${geistMono.variable} h-full`}>
-      <body className="min-h-full">
+      <body className="min-h-full" suppressHydrationWarning>
         <TooltipProvider delay={200}>{children}</TooltipProvider>
       </body>
     </html>
