@@ -139,7 +139,7 @@ function desksForKind(kind: string | null): QuoteDesk[] {
 }
 
 function quoteSelect(quote: string, potential: string, logistics: string | null, sheet: boolean): string {
-  const logisticsColumn = logistics ? "lq.ma_bao_gia::text" : "null";
+  const logisticsColumn = logistics ? "lq.id::text" : "null";
   const logisticsJoin = logistics
     ? `left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang`
     : "";
@@ -147,10 +147,10 @@ function quoteSelect(quote: string, potential: string, logistics: string | null,
     ? "q.bao_gia_logistics as logistics_sheet, lm.ten as logistics_template_name"
     : "null::jsonb as logistics_sheet, null::text as logistics_template_name";
   const sheetJoin = sheet
-    ? "left join crm.mau_bao_gia lm on lm.ma_mau = nullif(q.bao_gia_logistics->>'templateId', '')::uuid"
+    ? "left join crm.mau_bao_gia lm on lm.id = nullif(q.bao_gia_logistics->>'templateId', '')::uuid"
     : "";
   return `
-  select q.ma_bao_gia::text as id, q.ma_hien_thi as code,
+  select q.id::text as id, q.ma_hien_thi as code,
          q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
          l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind,
@@ -161,8 +161,8 @@ function quoteSelect(quote: string, potential: string, logistics: string | null,
          q.tai_khoan_ngan_hang as bank_account, q.ban_da_gui as sent_copy,
          ${logisticsColumn} as logistics_quote_id, ${sheetColumns}, q.tao_luc as created_at
   from ${quote} q
-  join ${potential} l on l.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang
-  left join crm.mau_bao_gia m on m.ma_mau = q.ma_mau
+  join ${potential} l on l.id = q.ma_khach_hang_tiem_nang
+  left join crm.mau_bao_gia m on m.id = q.ma_mau
   ${sheetJoin}
   ${logisticsJoin}
   where l.xoa_luc is null
@@ -363,21 +363,21 @@ function toTemplate(row: TemplateRow): QuoteTemplateRecord {
 
 function messageSelect(message: string, potential: string): string {
   return `
-  select m.ma_tin_nhan::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
+  select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
          m.ten_khach_hang_tho as customer_name_raw, m.so_dien_thoai as phone, m.thu_dien_tu as email,
          m.trang_thai::text as status, m.hang_hoa as goods, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.nhan_luc as received_at,
-         l.ma_khach_hang_tiem_nang::text as lead_id, l.ma_tiem_nang as lead_code
+         l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
-  left join ${potential} l on l.ma_tin_nhan = m.ma_tin_nhan and l.xoa_luc is null
+  left join ${potential} l on l.ma_tin_nhan = m.id and l.xoa_luc is null
 `;
 }
 
 function potentialSelect(message: string, potential: string): string {
   return `
-  select l.ma_khach_hang_tiem_nang::text as id, l.ma_tiem_nang as lead_code,
+  select l.id::text as id, l.ma_tiem_nang as lead_code,
          l.ma_tin_nhan::text as mess_id, m.ma_hien_thi as mess_code,
          l.ho_ten as full_name, l.ten_cong_ty as company_name,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nguon::text as source,
@@ -391,7 +391,7 @@ function potentialSelect(message: string, potential: string): string {
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          l.tao_luc as created_at
   from ${potential} l
-  left join ${message} m on m.ma_tin_nhan = l.ma_tin_nhan
+  left join ${message} m on m.id = l.ma_tin_nhan
   where l.xoa_luc is null and l.tiem_nang is not null
 `;
 }
@@ -502,7 +502,7 @@ export class PostgresCrmRepository implements CrmRepository {
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
          coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12
        )
-       returning ma_tin_nhan::text as id`,
+       returning id::text as id`,
       [
         input.customerName,
         blank(input.phone),
@@ -541,8 +541,8 @@ export class PostgresCrmRepository implements CrmRepository {
          phan_loai = $11::text::crm.message_classification,
          nhan_vien_ban = $12,
          ghi_chu_van_de = $13
-       where ma_tin_nhan = $1::uuid
-       returning ma_tin_nhan::text as id`,
+       where id = $1::uuid
+       returning id::text as id`,
       [
         id,
         input.customerName,
@@ -575,11 +575,11 @@ export class PostgresCrmRepository implements CrmRepository {
   async deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked"> {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
-      const found = await client.query(`select ma_tin_nhan from ${messageTable} where ma_tin_nhan = $1::uuid`, [id]);
+      const found = await client.query(`select id from ${messageTable} where id = $1::uuid`, [id]);
       if (!found.rowCount) return "missing";
       const linked = await client.query(`select 1 from ${potentialTable} where ma_tin_nhan = $1::uuid`, [id]);
       if (linked.rowCount) return "linked";
-      await client.query(`delete from ${messageTable} where ma_tin_nhan = $1::uuid`, [id]);
+      await client.query(`delete from ${messageTable} where id = $1::uuid`, [id]);
       return "ok";
     });
   }
@@ -591,7 +591,7 @@ export class PostgresCrmRepository implements CrmRepository {
         `select trang_thai::text as status, nguon::text as source, ten_khach_hang_tho as customer_name_raw,
                 so_dien_thoai as phone, thu_dien_tu as email, hang_hoa as goods, nhu_cau::text as demand,
                 loai_khach_hang::text as customer_type, ghi_chu as note
-         from ${messageTable} where ma_tin_nhan = $1::uuid for update`,
+         from ${messageTable} where id = $1::uuid for update`,
         [id],
       );
       const message = locked.rows[0];
@@ -614,21 +614,21 @@ export class PostgresCrmRepository implements CrmRepository {
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
              $7::text::crm.customer_kind, $8::text::crm.customer_type, $9
            )
-           returning ma_khach_hang_tiem_nang::text as id`,
+           returning id::text as id`,
           [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
-        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.ma_khach_hang_tiem_nang = $1::uuid`, [leadId]);
+        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [leadId]);
         potential = loaded.rows[0];
         if (!potential) throw new InfrastructureError("lead missing after insert");
       }
 
       if (message.status !== "CONVERTED") {
-        await client.query(`update ${messageTable} set trang_thai = 'CONVERTED' where ma_tin_nhan = $1::uuid`, [id]);
+        await client.query(`update ${messageTable} set trang_thai = 'CONVERTED' where id = $1::uuid`, [id]);
       }
 
-      const refreshed = await client.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.ma_tin_nhan = $1::uuid`, [id]);
+      const refreshed = await client.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.id = $1::uuid`, [id]);
       const row = refreshed.rows[0];
       if (!row) throw new InfrastructureError("message missing after convert");
       return { message: toMessage(row), potential: toPotential(potential) };
@@ -664,8 +664,8 @@ export class PostgresCrmRepository implements CrmRepository {
          phan_loai_logistics = $18,
          dia_chi_gui = $19,
          dia_chi_nhan = $20
-       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null and tiem_nang is not null
-       returning ma_khach_hang_tiem_nang::text as id`,
+       where id = $1::uuid and xoa_luc is null and tiem_nang is not null
+       returning id::text as id`,
       [
         id,
         input.fullName,
@@ -690,7 +690,7 @@ export class PostgresCrmRepository implements CrmRepository {
       ],
     );
     if (!updated.rows[0]) return null;
-    const result = await this.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.ma_khach_hang_tiem_nang = $1::uuid`, [id]);
+    const result = await this.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toPotential(row) : null;
   }
@@ -700,14 +700,14 @@ export class PostgresCrmRepository implements CrmRepository {
     return this.transaction(async (client) => {
       const removed = await client.query<{ mess_id: string | null }>(
         `with old as (
-           select ma_khach_hang_tiem_nang, ma_tin_nhan
+           select id, ma_tin_nhan
            from ${potentialTable}
-           where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null and tiem_nang is not null
+           where id = $1::uuid and xoa_luc is null and tiem_nang is not null
          )
          update ${potentialTable} l
          set xoa_luc = now(), ma_tin_nhan = null
          from old
-         where l.ma_khach_hang_tiem_nang = old.ma_khach_hang_tiem_nang
+         where l.id = old.id
          returning old.ma_tin_nhan::text as mess_id`,
         [id],
       );
@@ -716,7 +716,7 @@ export class PostgresCrmRepository implements CrmRepository {
       if (messId) {
         await client.query(
           `update ${messageTable} set trang_thai = 'QUALIFIED'
-           where ma_tin_nhan = $1::uuid
+           where id = $1::uuid
              and trang_thai = 'CONVERTED'
              and not exists (
                select 1 from ${potentialTable} where ma_tin_nhan = $1::uuid and xoa_luc is null
@@ -770,7 +770,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const found = await this.query<{ customer_kind: string | null }>(
       `select nhom_khach::text as customer_kind
        from ${tables.potential}
-       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null`,
+       where id = $1::uuid and xoa_luc is null`,
       [potentialId],
     );
     if (!found.rowCount) return "missing";
@@ -779,14 +779,14 @@ export class PostgresCrmRepository implements CrmRepository {
     if (!allowed.includes(desk)) return "desk";
     const taken = await this.query(
       `select 1 from ${tables[desk]}
-       where ma_khach_hang_tiem_nang = $1::uuid and ma_bao_gia <> $2::uuid`,
+       where ma_khach_hang_tiem_nang = $1::uuid and id <> $2::uuid`,
       [potentialId, id],
     );
     if (taken.rowCount) return "taken";
     const updated = await this.query(
       `update ${tables[desk]}
        set ma_khach_hang_tiem_nang = $2::uuid
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [id, potentialId],
     );
     if (!updated.rowCount) return "missing";
@@ -796,7 +796,7 @@ export class PostgresCrmRepository implements CrmRepository {
   async deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean> {
     const tables = quoteTables[lane];
     for (const desk of ["sourcing", "logistics"] as const) {
-      const removed = await this.query(`delete from ${tables[desk]} where ma_bao_gia = $1::uuid`, [id]);
+      const removed = await this.query(`delete from ${tables[desk]} where id = $1::uuid`, [id]);
       if (removed.rowCount) return true;
     }
     return false;
@@ -807,7 +807,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const found = await this.query<{ customer_kind: string | null }>(
       `select nhom_khach::text as customer_kind
        from ${tables.potential}
-       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null`,
+       where id = $1::uuid and xoa_luc is null`,
       [potentialId],
     );
     if (!found.rowCount) return "missing" as const;
@@ -840,7 +840,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
        set bao_gia_logistics = $2::jsonb
-       where ma_bao_gia = $1::uuid and bao_gia_logistics is null`,
+       where id = $1::uuid and bao_gia_logistics is null`,
       [sourcingQuoteId, JSON.stringify(emptyLogisticsSheet())],
     );
     const quote = await this.findQuote(lane, "sourcing", sourcingQuoteId);
@@ -852,7 +852,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.updateSharedLogistics(lane, id, input);
     if (input.templateId) {
       const template = await this.query(
-        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+        `select 1 from crm.mau_bao_gia where id = $1::uuid and ban = $2::crm.ban_bao_gia`,
         [input.templateId, banOf(desk)],
       );
       if (!template.rowCount) return "template" as const;
@@ -866,7 +866,7 @@ export class PostgresCrmRepository implements CrmRepository {
            chi_tiet_don_hang = $6::jsonb,
            ghi_chu = $7::jsonb,
            tai_khoan_ngan_hang = $8::jsonb
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [
         id,
         input.templateId,
@@ -891,7 +891,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (!selected) return "selection" as const;
     if (input.templateId) {
       const template = await this.query(
-        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+        `select 1 from crm.mau_bao_gia where id = $1::uuid and ban = $2::crm.ban_bao_gia`,
         [input.templateId, banOf(desk)],
       );
       if (!template.rowCount) return "template" as const;
@@ -915,7 +915,7 @@ export class PostgresCrmRepository implements CrmRepository {
            ghi_chu = $7::jsonb,
            tai_khoan_ngan_hang = $8::jsonb,
            ban_da_gui = $9::jsonb
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [
         id,
         input.templateId,
@@ -940,7 +940,7 @@ export class PostgresCrmRepository implements CrmRepository {
     await this.query(
       `update ${quoteTables[lane][desk]}
        set trang_thai_bao_gia = 'CHUA_CO_BAO_GIA_LAI'::crm.trang_thai_bao_gia
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [id],
     );
     return (await this.findQuote(lane, desk, id)) ?? "missing";
@@ -948,7 +948,7 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]> {
     const result = await this.query<TemplateRow>(
-      `select ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at
+      `select id::text as id, ten as name, noi_dung as content, tao_luc as created_at
        from crm.mau_bao_gia
        where ban = $1::crm.ban_bao_gia
        order by ten`,
@@ -967,7 +967,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const result = await this.query<TemplateRow>(
       `insert into crm.mau_bao_gia (ten, noi_dung, ban)
        values ($1, $2, $3::crm.ban_bao_gia)
-       returning ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
+       returning id::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
       [name, blank(input.content), banOf(desk)],
     );
     const row = result.rows[0];
@@ -979,15 +979,15 @@ export class PostgresCrmRepository implements CrmRepository {
     const name = input.name.trim();
     const duplicate = await this.query(
       `select 1 from crm.mau_bao_gia
-       where ban = $1::crm.ban_bao_gia and ten = $2 and ma_mau <> $3::uuid`,
+       where ban = $1::crm.ban_bao_gia and ten = $2 and id <> $3::uuid`,
       [banOf(desk), name, id],
     );
     if (duplicate.rowCount) return "duplicate" as const;
     const result = await this.query<TemplateRow>(
       `update crm.mau_bao_gia
        set ten = $2, noi_dung = $3
-       where ma_mau = $1::uuid and ban = $4::crm.ban_bao_gia
-       returning ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
+       where id = $1::uuid and ban = $4::crm.ban_bao_gia
+       returning id::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
       [id, name, blank(input.content), banOf(desk)],
     );
     const row = result.rows[0];
@@ -1008,7 +1008,7 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     if (used.rows[0]?.used) return "used" as const;
     const removed = await this.query(
-      `delete from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+      `delete from crm.mau_bao_gia where id = $1::uuid and ban = $2::crm.ban_bao_gia`,
       [id, banOf(desk)],
     );
     return removed.rowCount ? "ok" as const : "missing" as const;
@@ -1018,18 +1018,18 @@ export class PostgresCrmRepository implements CrmRepository {
     const tables = quoteTables[lane];
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.ma_bao_gia = $1::uuid`,
+        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.id = $1::uuid`,
         [id],
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_bao_gia = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.id = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
         [id],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
     }
     const result = await this.query<QuoteRow>(
-      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.ma_bao_gia = $1::uuid`,
+      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.id = $1::uuid`,
       [id],
     );
     return result.rows[0] ? toQuote(result.rows[0]) : null;
@@ -1058,12 +1058,12 @@ export class PostgresCrmRepository implements CrmRepository {
 
   private async sharedLogistics(lane: CrmLane, id: string): Promise<boolean> {
     const tables = quoteTables[lane];
-    const own = await this.query(`select 1 from ${tables.logistics} where ma_bao_gia = $1::uuid`, [id]);
+    const own = await this.query(`select 1 from ${tables.logistics} where id = $1::uuid`, [id]);
     if (own.rowCount) return false;
     const shared = await this.query(
       `select 1 from ${tables.sourcing} q
-       join ${tables.potential} l on l.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang
-       where q.ma_bao_gia = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS' and l.xoa_luc is null`,
+       join ${tables.potential} l on l.id = q.ma_khach_hang_tiem_nang
+       where q.id = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS' and l.xoa_luc is null`,
       [id],
     );
     return Boolean(shared.rowCount);
@@ -1073,7 +1073,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
        set bao_gia_logistics = $2::jsonb
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [id, JSON.stringify(sheet)],
     );
     if (!updated.rowCount) return "missing" as const;
@@ -1083,7 +1083,7 @@ export class PostgresCrmRepository implements CrmRepository {
   private async updateSharedLogistics(lane: CrmLane, id: string, input: UpdateQuoteInput) {
     if (input.templateId) {
       const template = await this.query(
-        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
+        `select 1 from crm.mau_bao_gia where id = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
         [input.templateId],
       );
       if (!template.rowCount) return "template" as const;
@@ -1101,7 +1101,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (!selected) return "selection" as const;
     if (input.templateId) {
       const template = await this.query(
-        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
+        `select 1 from crm.mau_bao_gia where id = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
         [input.templateId],
       );
       if (!template.rowCount) return "template" as const;
@@ -1125,7 +1125,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
        set bao_gia_logistics = jsonb_set(bao_gia_logistics, '{quoteStatus}', '"CHUA_CO_BAO_GIA_LAI"')
-       where ma_bao_gia = $1::uuid`,
+       where id = $1::uuid`,
       [id],
     );
     if (!updated.rowCount) return "missing" as const;
@@ -1134,7 +1134,7 @@ export class PostgresCrmRepository implements CrmRepository {
 
   private async findMessage(lane: CrmLane, id: string): Promise<MessageRecord | null> {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
-    const result = await this.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.ma_tin_nhan = $1::uuid`, [id]);
+    const result = await this.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.id = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toMessage(row) : null;
   }
