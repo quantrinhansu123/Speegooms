@@ -104,11 +104,11 @@ export function quoteSheetHtml(input: {
       <td class="wrap">${escapeHtml(input.notes.weightNote)}</td>
     </tr>
     <tr><td colspan="7"></td><td class="wrap">${escapeHtml(input.notes.validityNote)}</td></tr>
-    <tr class="deposit">
-      <td colspan="4">${escapeHtml(input.notes.deposit)}</td>
-      <td class="num">${totals.priced ? formatAmount(totals.goods) : ""}</td>
+    ${(input.notes.deposit.length ? input.notes.deposit : [""]).map((line, index) => `<tr class="deposit">
+      <td colspan="4">${escapeHtml(line)}</td>
+      <td class="num">${index === 0 && totals.priced ? formatAmount(totals.goods) : ""}</td>
       <td colspan="3"></td>
-    </tr>
+    </tr>`).join("")}
     <tr><td colspan="8" class="gap"></td></tr>
     <tr><td class="bank-title" colspan="8">${escapeHtml(input.bank.title)}</td></tr>
     <tr><td colspan="8">- Account Name: ${escapeHtml(input.bank.accountName)}</td></tr>

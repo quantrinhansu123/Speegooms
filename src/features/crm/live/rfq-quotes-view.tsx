@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -11,12 +11,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
+import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
-import { customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
+import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const contractRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
 const deskLabels = {
   sourcing: "Sourcing",
@@ -82,6 +85,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
+  const canCreateContract = contractRoles.includes(user.role);
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -90,18 +94,32 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<RfqQuoteRecord | null>(null);
   const [viewing, setViewing] = useState<RfqQuoteRecord | null>(null);
+  const [contractQuote, setContractQuote] = useState<RfqQuoteRecord | null>(null);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const requestId = useRef(0);
+  const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", deskFilter: "" });
 
   const load = useCallback(() => {
+    const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
+    if (rangeError) {
+      setError(rangeError);
+      return;
+    }
     const id = ++requestId.current;
-    api<{ quotes: RfqQuoteRecord[] }>(crmPath("/api/crm/rfq-quotes", lane))
+    setError(undefined);
+    const query = searchParams(filters.applied, {
+      quoteStatus: filters.applied.quoteStatus,
+      contractStatus: filters.applied.contractStatus,
+      customerKind: filters.applied.customerKind,
+      deskFilter: filters.applied.deskFilter,
+    });
+    api<{ quotes: RfqQuoteRecord[] }>(`${crmPath("/api/crm/rfq-quotes", lane)}${query}`)
       .then((body) => { if (requestId.current === id) setRows(body.quotes); })
       .catch((err: unknown) => { if (requestId.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
     api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
       .then((body) => { if (requestId.current === id) setPotentials(body.potentials); })
       .catch((err: unknown) => { if (requestId.current === id) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); });
-  }, [lane]);
+  }, [filters.applied, lane]);
 
   useEffect(() => {
     setRows([]);
@@ -215,8 +233,24 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      <ListSearchBar
+        q={filters.draft.q}
+        from={filters.draft.from}
+        to={filters.draft.to}
+        onQ={(value) => filters.set("q", value)}
+        onFrom={(value) => filters.set("from", value)}
+        onTo={(value) => filters.set("to", value)}
+        onSearch={filters.search}
+        onReset={filters.reset}
+        dateLabel="Từ ngày"
+      >
+        <FilterSelect id="rfq-desk" label="Bàn" value={filters.draft.deskFilter} onChange={(value) => filters.set("deskFilter", value)} options={Object.entries(deskLabels)} />
+        <FilterSelect id="rfq-status" label="Trạng thái" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
+        <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
+        <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
+      </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[960px] text-sm">
+        <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">Mã</th>
@@ -225,13 +259,14 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="px-3 py-2 font-medium">Hàng hóa</th>
               <th className="px-3 py-2 font-medium">Bàn</th>
               <th className="px-3 py-2 font-medium">Trạng thái</th>
+              <th className="px-3 py-2 font-medium">Hợp đồng</th>
               <th className="px-3 py-2 font-medium">Ngày</th>
               <th className="px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">Chưa có báo giá trên tuyến {laneName(lane)}.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {rows.map((row) => {
               const logistics = row.customerKind === "SOURCING_LOGISTICS" ? logisticsQuote(row) : null;
@@ -255,6 +290,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   ) : labelOf(quoteStatusOptions, row.quoteStatus)}
                 </td>
+                <td className="px-3 py-3">{labelOf(contractStatusOptions, row.contractStatus)}</td>
                 <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
                 <td className="px-3 py-3">
                   <RowMenu
@@ -262,6 +298,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     items={[
                       ...(canViewQuote
                         ? [{ key: "view", label: "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } }]
+                        : []),
+                      ...(canCreateContract && row.contractStatus !== "DA_TAO"
+                        ? [{ key: "contract", label: "Tạo hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
                         : []),
                       ...(row.customerKind === "SOURCING_LOGISTICS"
                         ? [
@@ -387,6 +426,19 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           onClose={() => setViewing(null)}
           onSave={async () => false}
           onReturn={() => returnQuote(viewing)}
+        />
+      )}
+
+      {contractQuote && (
+        <ContractCreateDialog
+          lane={lane}
+          quote={contractQuote}
+          onClose={() => setContractQuote(null)}
+          onCreated={() => {
+            setViewing((current) => current && current.id === contractQuote.id ? { ...current, contractStatus: "DA_TAO" } : current);
+            setContractQuote(null);
+            load();
+          }}
         />
       )}
 

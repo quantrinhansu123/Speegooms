@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { OrdersView } from "@/features/operations/components/orders-view";
+import { ContractsLiveView } from "@/features/crm/live/contracts-live-view";
 
 export const metadata: Metadata = { title: "Hợp đồng" };
 
 export const instant = false;
 
 export default function OrdersPage() {
-  return <OrdersView />;
+  return <ContractsLiveView mode="ops" />;
 }

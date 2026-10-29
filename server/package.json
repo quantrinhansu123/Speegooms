@@ -10,7 +10,7 @@
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts",
+    "test": "tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts src/search/search-builder.test.ts",
     "seed": "tsx src/scripts/seed-users.ts",
     "migrate": "tsx src/scripts/migrate.ts"
   },

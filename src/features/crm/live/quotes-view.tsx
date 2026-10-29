@@ -15,6 +15,7 @@ import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import {
   contractStatusOptions,
@@ -53,12 +54,24 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [removingTemplate, setRemovingTemplate] = useState<QuoteTemplateRecord | null>(null);
   const [editing, setEditing] = useState<QuoteRecord | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
+  const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
 
   const loadQuotes = useCallback(() => {
-    api<{ quotes: QuoteRecord[] }>(crmPath(`/api/crm/quotes?desk=${desk}`, lane))
+    const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
+    if (rangeError) {
+      setError(rangeError);
+      return;
+    }
+    setError(undefined);
+    const query = searchParams(filters.applied, {
+      quoteStatus: filters.applied.quoteStatus,
+      contractStatus: filters.applied.contractStatus,
+      customerKind: filters.applied.customerKind,
+    });
+    api<{ quotes: QuoteRecord[] }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, lane)}${query}`)
       .then((body) => setRows(body.quotes))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được báo giá"));
-  }, [desk, lane]);
+  }, [desk, filters.applied, lane]);
 
   const loadTemplates = useCallback(() => {
     if (!canOps) return;
@@ -158,6 +171,21 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         </InlineAlert>
       )}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      <ListSearchBar
+        q={filters.draft.q}
+        from={filters.draft.from}
+        to={filters.draft.to}
+        onQ={(value) => filters.set("q", value)}
+        onFrom={(value) => filters.set("from", value)}
+        onTo={(value) => filters.set("to", value)}
+        onSearch={filters.search}
+        onReset={filters.reset}
+        dateLabel="Từ ngày"
+      >
+        <FilterSelect id={`${desk}-quote-status`} label="Trạng thái báo giá" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
+        <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
+        <FilterSelect id={`${desk}-quote-kind`} label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
+      </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[1100px] text-sm">
           <thead>
@@ -177,7 +205,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">Chưa có báo giá.</td></tr>
+              <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có báo giá."}</td></tr>
             )}
             {rows.map((row) => {
               const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [

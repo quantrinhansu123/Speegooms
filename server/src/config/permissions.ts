@@ -13,6 +13,12 @@ export const permissions = {
   "quote.logistics": ["admin", "van-hanh"],
   "quote.ops": ["admin", "van-hanh"],
   "quote.return": ["admin", "sale-vn", "sale-global"],
+  "contract.read": ["admin", "ban-gd", "sale-vn", "sale-global", "van-hanh", "ke-toan"],
+  "contract.create": ["admin", "sale-vn", "sale-global"],
+  "contract.ops": ["admin", "van-hanh"],
+  "contract.accounting": ["admin", "ke-toan"],
+  "contract.delete": ["ke-toan"],
+  "contract.resend": ["admin", "sale-vn", "sale-global", "van-hanh", "ke-toan"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof permissions;

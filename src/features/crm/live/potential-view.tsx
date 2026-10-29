@@ -14,10 +14,19 @@ import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const sourceOptions = [
+  ["ADS", "ADS"],
+  ["GG", "GG"],
+  ["OG", "OG"],
+  ["AF", "AF"],
+  ["REFERRAL", "Referral"],
+  ["OUTBOUND", "Outbound"],
+] as const;
 
 function BrandTag({ brand }: { brand: string | null }) {
   const item = brandOptions.find((option) => option[0] === brand);
@@ -83,12 +92,25 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
   const [notice, setNotice] = useState<string>();
+  const filters = useAppliedSearch({ q: "", from: "", to: "", source: "", potential: "", customerKind: "", customerType: "" });
 
   const load = useCallback(() => {
-    api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
+    const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
+    if (rangeError) {
+      setError(rangeError);
+      return;
+    }
+    setError(undefined);
+    const query = searchParams(filters.applied, {
+      source: filters.applied.source,
+      potential: filters.applied.potential,
+      customerKind: filters.applied.customerKind,
+      customerType: filters.applied.customerType,
+    });
+    api<{ potentials: PotentialRecord[] }>(`${crmPath("/api/crm/potentials", lane)}${query}`)
       .then((body) => setRows(body.potentials))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"));
-  }, [lane]);
+  }, [filters.applied, lane]);
 
   useEffect(() => {
     load();
@@ -163,6 +185,22 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      <ListSearchBar
+        q={filters.draft.q}
+        from={filters.draft.from}
+        to={filters.draft.to}
+        onQ={(value) => filters.set("q", value)}
+        onFrom={(value) => filters.set("from", value)}
+        onTo={(value) => filters.set("to", value)}
+        onSearch={filters.search}
+        onReset={filters.reset}
+        dateLabel="Từ ngày tạo"
+      >
+        <FilterSelect id="lead-source" label="Nguồn" value={filters.draft.source} onChange={(value) => filters.set("source", value)} options={sourceOptions} />
+        <FilterSelect id="lead-potential" label="Giai đoạn" value={filters.draft.potential} onChange={(value) => filters.set("potential", value)} options={potentialOptions} />
+        <FilterSelect id="lead-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
+        <FilterSelect id="lead-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
+      </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[1680px] text-sm">
           <thead>
@@ -192,7 +230,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">Chưa có khách hàng tiềm năng.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.leadCode}</td>

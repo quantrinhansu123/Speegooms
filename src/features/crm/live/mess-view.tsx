@@ -15,6 +15,7 @@ import { ApiError, api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
@@ -96,12 +97,25 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
+  const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "" });
 
   const load = useCallback(() => {
-    api<{ messages: MessageRecord[] }>(crmPath("/api/crm/messages", lane))
+    const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
+    if (rangeError) {
+      setError(rangeError);
+      return;
+    }
+    setError(undefined);
+    const query = searchParams(filters.applied, {
+      status: filters.applied.status,
+      classification: filters.applied.classification,
+      demand: filters.applied.demand,
+      customerType: filters.applied.customerType,
+    });
+    api<{ messages: MessageRecord[] }>(`${crmPath("/api/crm/messages", lane)}${query}`)
       .then((body) => setRows(body.messages))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được mess"));
-  }, [lane]);
+  }, [filters.applied, lane]);
 
   useEffect(() => {
     load();
@@ -164,6 +178,22 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      <ListSearchBar
+        q={filters.draft.q}
+        from={filters.draft.from}
+        to={filters.draft.to}
+        onQ={(value) => filters.set("q", value)}
+        onFrom={(value) => filters.set("from", value)}
+        onTo={(value) => filters.set("to", value)}
+        onSearch={filters.search}
+        onReset={filters.reset}
+        dateLabel="Từ ngày"
+      >
+        <FilterSelect id="mess-classification" label="Phân loại" value={filters.draft.classification} onChange={(value) => filters.set("classification", value)} options={messageClassificationOptions} />
+        <FilterSelect id="mess-demand" label="Nhu cầu" value={filters.draft.demand} onChange={(value) => filters.set("demand", value)} options={demandOptions} />
+        <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
+        <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
+      </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[1680px] text-sm">
           <thead>
@@ -184,7 +214,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">Chưa có mess.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>

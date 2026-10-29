@@ -112,11 +112,16 @@ export const quoteLineSchema = z.object({
   note: text(4000),
 });
 
+const depositLine = text(300);
+
 export const quoteNotesSchema = z.object({
   totalLabel: text(300),
   weightNote: text(500),
   validityNote: text(500),
-  deposit: text(300),
+  deposit: z.union([
+    depositLine,
+    z.array(depositLine).max(20, "Tối đa 20 dòng đặt cọc"),
+  ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
 });
 
 export const quoteBankSchema = z.object({
@@ -156,6 +161,67 @@ export const quoteTemplateSchema = z.object({
   content: text(8000),
 });
 
+const money = z.number().min(0, "Số không được âm").max(1_000_000_000);
+const day = z.string().trim().regex(/^$|^\d{4}-\d{2}-\d{2}$/, "Ngày không đúng định dạng");
+
+export const accountingStatusSchema = z.enum([
+  "DA_HOAN_THANH_COC",
+  "DA_HOAN_THANH_THANH_TOAN",
+  "CHUA_HOAN_THANH_COC",
+  "CHUA_HOAN_THANH_THANH_TOAN",
+]);
+
+export const createContractSchema = z.object({
+  customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
+  saleName: text(160),
+  shipTo: text(300),
+  product: text(300),
+  quantity: z.number().min(0).max(1_000_000_000).nullable(),
+  productValue: money,
+  shippingCost: money,
+  totalValue: money,
+  paidAmount: money,
+  signedOn: day,
+}).superRefine((value, ctx) => {
+  if (value.paidAmount > value.totalValue) {
+    ctx.addIssue({ code: "custom", message: "Số tiền thanh toán không được lớn hơn tổng giá trị", path: ["paidAmount"] });
+  }
+});
+
+export const opsStatusOptions = [
+  "Hợp đồng",
+  "Đặt cọc",
+  "Đang sản xuất",
+  "Đang vận chuyển",
+  "Hoàn thành",
+  "Hàng mẫu",
+  "Đợi check cọc",
+  "Hủy đơn",
+] as const;
+
+export const opsStatusSchema = z.enum(opsStatusOptions);
+
+export const opsContractSchema = z.object({
+  opsStatus: z.union([z.literal(""), opsStatusSchema]),
+  tracking: text(200),
+  note1: text(2000),
+  note2: text(2000),
+  chinaWarehouseOn: day,
+  containerOn: day,
+  arrivalOn: day,
+  deliveryOn: day,
+  send: z.boolean().optional(),
+});
+
+export const accountingContractSchema = z.object({
+  confirmedAmount: money,
+  accountingStatus: accountingStatusSchema,
+  images: z.array(z.string().max(100_000).refine(
+    (value) => value.startsWith("data:image/"),
+    "Ảnh không hợp lệ",
+  )).max(10, "Tối đa 10 ảnh"),
+});
+
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
 export type UpdatePotentialInput = z.infer<typeof updatePotentialSchema>;
@@ -164,6 +230,13 @@ export type QuoteLine = z.infer<typeof quoteLineSchema>;
 export type QuoteOrder = z.infer<typeof quoteOrderSchema>;
 export type QuoteNotes = z.infer<typeof quoteNotesSchema>;
 export type QuoteBank = z.infer<typeof quoteBankSchema>;
+
+export const defaultQuoteBank: QuoteBank = {
+  title: "Tài khoản ngân hàng ACH",
+  accountName: "SPEEGO LOGISTICS LLC",
+  accountNumber: "0370750653",
+  routingNumber: "111900785",
+};
 
 export type SentQuote = {
   sentAt: string;
@@ -174,3 +247,6 @@ export type SentQuote = {
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
+export type CreateContractInput = z.infer<typeof createContractSchema>;
+export type OpsContractInput = z.infer<typeof opsContractSchema>;
+export type AccountingContractInput = z.infer<typeof accountingContractSchema>;

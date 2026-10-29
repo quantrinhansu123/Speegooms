@@ -1,6 +1,8 @@
 import type { CrmLane, QuoteDesk } from "@speego/shared";
 import type { Request, Response } from "express";
 import { AppError } from "../lib/errors";
+import type { ContractView } from "../repositories/crm.repository";
+import { readContractSearch, readMessageSearch, readPotentialSearch, readQuoteDeskFilter, readQuoteSearch } from "../search/parse-list-search";
 import type { CrmService } from "../services/crm.service";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,7 +38,7 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   listMessages = async (req: Request, res: Response) => {
-    res.status(200).json({ messages: await this.crm.listMessages(laneOf(req)) });
+    res.status(200).json({ messages: await this.crm.listMessages(laneOf(req), readMessageSearch(req)) });
   };
 
   createMessage = async (req: Request, res: Response) => {
@@ -57,7 +59,7 @@ export class CrmController {
   };
 
   listPotentials = async (req: Request, res: Response) => {
-    res.status(200).json({ potentials: await this.crm.listPotentials(laneOf(req)) });
+    res.status(200).json({ potentials: await this.crm.listPotentials(laneOf(req), readPotentialSearch(req)) });
   };
 
   updatePotential = async (req: Request, res: Response) => {
@@ -70,11 +72,11 @@ export class CrmController {
   };
 
   listQuotes = async (req: Request, res: Response) => {
-    res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req)) });
+    res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req), readQuoteSearch(req)) });
   };
 
   listRfqQuotes = async (req: Request, res: Response) => {
-    res.status(200).json({ quotes: await this.crm.listRfqQuotes(laneOf(req)) });
+    res.status(200).json({ quotes: await this.crm.listRfqQuotes(laneOf(req), readQuoteSearch(req), readQuoteDeskFilter(req)) });
   };
 
   reassignRfqQuote = async (req: Request, res: Response) => {
@@ -122,4 +124,64 @@ export class CrmController {
     await this.crm.deleteQuoteTemplate(deskOf(req), one(req.params.id));
     res.status(204).end();
   };
+
+  listContracts = async (req: Request, res: Response) => {
+    const view = contractView(req);
+    const sentOnly = req.query.sent === "1" || view === "accounting";
+    res.status(200).json({ contracts: await this.crm.listContracts(laneOf(req), sentOnly, view, readContractSearch(req)) });
+  };
+
+  createContract = async (req: Request, res: Response) => {
+    res.status(201).json({ contract: await this.crm.createContract(laneOf(req), one(req.params.id), req.body) });
+  };
+
+  updateOpsContract = async (req: Request, res: Response) => {
+    res.status(200).json({ contract: await this.crm.updateOpsContract(laneOf(req), one(req.params.id), req.body) });
+  };
+
+  updateAccountingContract = async (req: Request, res: Response) => {
+    res.status(200).json({ contract: await this.crm.updateAccountingContract(laneOf(req), one(req.params.id), req.body) });
+  };
+
+  deleteContract = async (req: Request, res: Response) => {
+    await this.crm.deleteContract(laneOf(req), one(req.params.id));
+    res.status(204).end();
+  };
+
+  updateCommercialContract = async (req: Request, res: Response) => {
+    res.status(200).json({ contract: await this.crm.updateCommercialContract(laneOf(req), one(req.params.id), req.body) });
+  };
+
+  resendContract = async (req: Request, res: Response) => {
+    res.status(200).json({ contract: await this.crm.resendContract(laneOf(req), one(req.params.id), resendTarget(req)) });
+  };
+}
+
+function contractView(req: Request): ContractView {
+  const raw = req.query.view;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const role = req.user?.role;
+  const allowed = (candidate: ContractView) => {
+    if (candidate === "sale") return role === "admin" || role === "sale-vn" || role === "sale-global";
+    if (candidate === "ops") return role === "admin" || role === "van-hanh";
+    return role === "admin" || role === "ke-toan";
+  };
+  if (value === "sale" || value === "ops" || value === "accounting") {
+    if (!allowed(value)) throw new AppError(403, "FORBIDDEN", "Không xem hợp đồng ở bên này");
+    return value;
+  }
+  if (role === "ke-toan") return "accounting";
+  if (role === "van-hanh") return "ops";
+  if (role === "sale-vn" || role === "sale-global" || role === "admin") return "sale";
+  throw new AppError(403, "FORBIDDEN", "Không xem hợp đồng ở bên này");
+}
+
+function resendTarget(req: Request): "ops" | "accounting" | "parties" {
+  const raw = req.query.to;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const role = req.user?.role;
+  if (value === "ops" && (role === "admin" || role === "sale-vn" || role === "sale-global")) return "ops";
+  if (value === "accounting" && (role === "admin" || role === "van-hanh")) return "accounting";
+  if (value === "parties" && role === "ke-toan") return "parties";
+  throw new AppError(403, "FORBIDDEN", "Không gửi lại hợp đồng cho bên này");
 }

@@ -5,12 +5,14 @@ import { Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-reac
 import {
   quoteOrderSchema,
   updateQuoteSchema,
+  type CrmLane,
   type QuoteBank,
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
   type UpdateQuoteInput,
 } from "@speego/shared";
+import { ContractCreateDialog } from "./contract-create-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -207,6 +209,9 @@ export function QuoteEditor({
   onReturn,
   embedded = false,
   heading,
+  allowContract = false,
+  lane,
+  onContractCreated,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
@@ -219,6 +224,9 @@ export function QuoteEditor({
   onReturn?: () => Promise<string | null>;
   embedded?: boolean;
   heading?: string;
+  allowContract?: boolean;
+  lane?: CrmLane;
+  onContractCreated?: () => void;
 }) {
   const [templateId, setTemplateId] = useState(quote.templateId ?? "");
   const [opsNote, setOpsNote] = useState(quote.opsNote ?? "");
@@ -237,6 +245,7 @@ export function QuoteEditor({
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
   const sent = quoteStatus === "DA_CO_BAO_GIA" || quoteStatus === "DA_CO_BAO_GIA_LAI";
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
@@ -343,6 +352,9 @@ export function QuoteEditor({
       <Button type="button" variant="outline" onClick={printSelected}><Printer />In</Button>
       {canEdit && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {!canEdit && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
+      {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
+        <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Tạo hợp đồng</Button>
+      )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
       {canEdit && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
     </>
@@ -423,9 +435,33 @@ export function QuoteEditor({
               <Field className="sm:col-span-2" label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
                 <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} />
               </Field>
-              <Field className="sm:col-span-2" label="Thông tin đặt cọc" htmlFor={fieldId("note-deposit")}>
-                <Input id={fieldId("note-deposit")} value={notes.deposit} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, deposit: event.target.value })} />
-              </Field>
+              <div className="grid gap-2 sm:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium">Thông tin đặt cọc</span>
+                  {canEdit && (
+                    <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
+                      <Plus />Thêm dòng
+                    </Button>
+                  )}
+                </div>
+                {notes.deposit.length === 0 && <p className="text-sm text-muted-foreground">Chưa có dòng đặt cọc.</p>}
+                {notes.deposit.map((line, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      id={index === 0 ? fieldId("note-deposit") : undefined}
+                      aria-label={`Thông tin đặt cọc ${index + 1}`}
+                      value={line}
+                      disabled={!canEdit}
+                      onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
+                    />
+                    {canEdit && (
+                      <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
               <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
                 <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEdit} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
               </Field>
@@ -479,6 +515,19 @@ export function QuoteEditor({
             {sheet}
           </DialogContent>
         </Dialog>
+      )}
+
+      {contractOpen && lane && (
+        <ContractCreateDialog
+          lane={lane}
+          quote={quote}
+          onClose={() => setContractOpen(false)}
+          onCreated={() => {
+            setContractStatus("DA_TAO");
+            setContractOpen(false);
+            onContractCreated?.();
+          }}
+        />
       )}
 
       {draft && (

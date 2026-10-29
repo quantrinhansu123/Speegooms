@@ -1,6 +1,15 @@
 import type {
+  ContractListSearch,
+  MessageListSearch,
+  PotentialListSearch,
+  QuoteListSearch,
+} from "../search/crm-list-search";
+import type {
+  AccountingContractInput,
+  CreateContractInput,
   CreateMessageInput,
   CrmLane,
+  OpsContractInput,
   QuoteBank,
   QuoteDesk,
   QuoteNotes,
@@ -13,6 +22,8 @@ import type {
 } from "@speego/shared";
 
 export type { CrmLane, QuoteDesk };
+
+export type ContractView = "sale" | "ops" | "accounting";
 
 export interface MessageRecord {
   id: string;
@@ -125,17 +136,51 @@ export type LogisticsQuoteRequestResult =
   | "missing"
   | "kind";
 
+export interface ContractRecord {
+  id: string;
+  code: string;
+  lane: CrmLane;
+  quoteId: string;
+  quoteCode: string;
+  customerName: string;
+  saleName: string | null;
+  shipTo: string | null;
+  product: string | null;
+  quantity: number | null;
+  productValue: number;
+  shippingCost: number;
+  totalValue: number;
+  paidAmount: number;
+  balance: number;
+  signedOn: string | null;
+  opsStatus: string;
+  tracking: string;
+  note1: string;
+  note2: string;
+  chinaWarehouseOn: string | null;
+  containerOn: string | null;
+  arrivalOn: string | null;
+  deliveryOn: string | null;
+  sentToAccountingAt: string | null;
+  sentToOpsAt: string | null;
+  confirmedBackAt: string | null;
+  confirmedAmount: number | null;
+  accountingStatus: string | null;
+  images: string[];
+  createdAt: string;
+}
+
 export interface CrmRepository {
-  listMessages(lane: CrmLane): Promise<MessageRecord[]>;
+  listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]>;
   createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord>;
   updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null>;
   deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked">;
   convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost">;
-  listPotentials(lane: CrmLane): Promise<PotentialRecord[]>;
+  listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]>;
   updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null>;
   deletePotential(lane: CrmLane, id: string): Promise<boolean>;
-  listQuotes(lane: CrmLane, desk: QuoteDesk): Promise<QuoteRecord[]>;
-  listRfqQuotes(lane: CrmLane): Promise<RfqQuoteRecord[]>;
+  listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch): Promise<QuoteRecord[]>;
+  listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]>;
   reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult>;
   deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean>;
   requestQuote(lane: CrmLane, potentialId: string): Promise<QuoteRequestResult>;
@@ -147,4 +192,11 @@ export interface CrmRepository {
   createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "duplicate">;
   updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "missing" | "duplicate">;
   deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<"ok" | "missing" | "used">;
+  listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]>;
+  createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
+  updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;
+  updateAccountingContract(lane: CrmLane, id: string, input: AccountingContractInput): Promise<ContractRecord | "missing" | "pending">;
+  updateCommercialContract(lane: CrmLane, id: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
+  resendContract(lane: CrmLane, id: string, target: "ops" | "accounting" | "parties"): Promise<ContractRecord | "missing" | "pending">;
+  deleteContract(lane: CrmLane, id: string): Promise<"ok" | "missing">;
 }
