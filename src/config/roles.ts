@@ -72,6 +72,7 @@ export function navigationForRole(role: Role): NavGroup[] {
     .map((g) => ({
       ...g,
       items: g.items
+        .filter((i) => i.href !== "/crm" && i.href !== "/fulfillment")
         .map((i) => ({ ...i, children: i.children?.filter((c) => canAccess(role, c.href)) }))
         .filter((i) => (i.children ? i.children.length > 0 : canAccess(role, i.href))),
     }))
