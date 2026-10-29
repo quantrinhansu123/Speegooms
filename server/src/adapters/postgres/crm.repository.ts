@@ -5,8 +5,10 @@ import {
   type CrmLane,
   type OpsContractInput,
   defaultQuoteBank,
+  quoteCurrencies,
   type QuoteBank,
   type QuoteDesk,
+  type QuoteCurrency,
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
@@ -202,6 +204,10 @@ function optionalAmount(value: unknown): number | null {
   return value;
 }
 
+function asCurrency(value: unknown): QuoteCurrency {
+  return quoteCurrencies.find((code) => code === value) ?? "VND";
+}
+
 function textField(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -221,13 +227,15 @@ function asOrders(value: unknown): QuoteOrder[] {
         id,
         name: textField(row.name) || "Mẫu đơn hàng",
         selected: row.selected === true,
+        currency: asCurrency(row.currency),
+        rate: typeof row.rate === "number" && row.rate > 0 ? row.rate : null,
         lines: asLines(row.lines),
       }];
     });
   }
   const lines = asLines(value);
   if (lines.length === 0) return [];
-  return [{ id: legacyOrderId, name: "Mẫu 1", selected: true, lines }];
+  return [{ id: legacyOrderId, name: "Mẫu 1", selected: true, currency: "VND", rate: null, lines }];
 }
 
 function asLines(value: unknown): QuoteLine[] {
@@ -244,7 +252,42 @@ function asLines(value: unknown): QuoteLine[] {
       weightKg: optionalAmount(row.weightKg),
       spec: textField(row.spec),
       note: textField(row.note),
+      unit: textField(row.unit) || "set",
+      basis: asBasis(row.basis),
+      cbm: optionalAmount(row.cbm),
+      packages: asPackages(row.packages),
+      attrs: asAttrs(row.attrs),
     }];
+  });
+}
+
+function asBasis(value: unknown): QuoteLine["basis"] {
+  return value === "kg" || value === "cbm" || value === "lump" ? value : "unit";
+}
+
+function asPackages(value: unknown): QuoteLine["packages"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const count = optionalAmount(row.count);
+    if (count == null || count < 1) return [];
+    return [{
+      count: Math.floor(count),
+      lengthCm: optionalAmount(row.lengthCm) ?? 0,
+      widthCm: optionalAmount(row.widthCm) ?? 0,
+      heightCm: optionalAmount(row.heightCm) ?? 0,
+      actualKg: optionalAmount(row.actualKg) ?? 0,
+    }];
+  });
+}
+
+function asAttrs(value: unknown): QuoteLine["attrs"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    return [{ key: textField(row.key), value: textField(row.value) }];
   });
 }
 
@@ -459,6 +502,7 @@ type ContractRow = {
   ship_to: string | null;
   product: string | null;
   quantity: string | number | null;
+  currency: string;
   product_value: string | number;
   shipping_cost: string | number;
   total_value: string | number;
@@ -491,6 +535,7 @@ const commercialSnapshotSql = `jsonb_build_object(
   'shipTo', van_chuyen_den,
   'product', san_pham,
   'quantity', so_luong,
+  'currency', loai_tien,
   'productValue', gia_tri_san_pham,
   'shippingCost', chi_phi_van_chuyen,
   'totalValue', tong_gia_tri,
@@ -535,7 +580,7 @@ function contractSelect(): string {
          h.ma_bao_gia::text as quote_id, h.ma_bao_gia_hien_thi as quote_code,
          h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name,
          h.van_chuyen_den as ship_to, h.san_pham as product, h.so_luong as quantity,
-         h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
+         h.loai_tien as currency, h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
          h.tong_gia_tri as total_value, h.so_tien_thanh_toan as paid_amount, h.so_tien_con_lai as balance,
          h.ngay_ky::text as signed_on, h.trang_thai_van_hanh as ops_status, h.tracking,
          h.ghi_chu_1 as note_1, h.ghi_chu_2 as note_2,
@@ -581,6 +626,7 @@ function toContract(row: ContractRow): ContractRecord {
     shipTo: row.ship_to,
     product: row.product,
     quantity: row.quantity == null ? null : moneyValue(row.quantity),
+    currency: asCurrency(row.currency),
     productValue: moneyValue(row.product_value),
     shippingCost: moneyValue(row.shipping_cost),
     totalValue: moneyValue(row.total_value),
@@ -659,6 +705,7 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     shipTo: snapNullableText(source, "shipTo"),
     product: snapNullableText(source, "product"),
     quantity: quantity == null || quantity === "" ? null : snapMoney(source, "quantity"),
+    currency: asCurrency(source.currency),
     productValue: snapMoney(source, "productValue"),
     shippingCost: snapMoney(source, "shippingCost"),
     totalValue: snapMoney(source, "totalValue"),
@@ -1349,9 +1396,9 @@ export class PostgresCrmRepository implements CrmRepository {
     await this.query(
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,
-         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky
+         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien
        ) values (
-         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date
+         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14
        ) on conflict (tuyen, ma_bao_gia) do nothing`,
       [
         lane,
@@ -1367,6 +1414,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.totalValue,
         input.paidAmount,
         input.signedOn || null,
+        input.currency,
       ],
     );
     await this.query(
@@ -1455,7 +1503,8 @@ export class PostgresCrmRepository implements CrmRepository {
          chi_phi_van_chuyen = $9,
          tong_gia_tri = $10,
          so_tien_thanh_toan = $11,
-         ngay_ky = $12::date
+         ngay_ky = $12::date,
+         loai_tien = $13
        where id = $1::uuid and tuyen = $2`,
       [
         id,
@@ -1470,6 +1519,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.totalValue,
         input.paidAmount,
         input.signedOn || null,
+        input.currency,
       ],
     );
     if (!updated.rowCount) return "missing" as const;

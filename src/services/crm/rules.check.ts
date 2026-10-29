@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { canHandOver, canMoveToHot, canRequestDeposit, findDuplicateGroups, makeMessId, nextId, quoteTotals, routeFromOrigin } from "./rules.ts";
+import { lineAmount, packageMetrics } from "./quote-lines.ts";
 import { snapshotFromDto } from "./adapters.ts";
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`../../mocks/crm/${f}.json`, import.meta.url), "utf8"));
@@ -55,4 +56,12 @@ assert.equal(canMoveToHot(cold).ok, false);
 
 // Phát hiện trùng: seed có 2 cặp trùng cố ý
 assert.ok(findDuplicateGroups(snap.customers).length >= 2);
+// Dòng hàng báo giá: mẫu Hong Nguyen (105*81*141 cm → 200kg), Mỹ Hoa (110*95*100 → 175kg)
+const hong = packageMetrics([{ count: 1, lengthCm: 105, widthCm: 81, heightCm: 141, actualKg: 45 }]);
+assert.equal(Math.round(hong.chargeableKg), 200);
+const my = packageMetrics([{ count: 5, lengthCm: 110, widthCm: 95, heightCm: 100, actualKg: 30 }]);
+assert.equal(my.cbm, 5.225);
+assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 2380); // Võ Hải Triều
+assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
+assert.equal(lineAmount({ basis: "unit", quantity: null, price: 1, weightKg: null, cbm: null }), null);
 console.log("crm rules ok");

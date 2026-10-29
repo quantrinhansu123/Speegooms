@@ -1,4 +1,5 @@
-import type { QuoteBank, QuoteLine, QuoteNotes, QuoteOrder } from "@speego/shared";
+import { packagesText } from "@/services/crm/quote-lines";
+import type { QuoteBank, QuoteCurrency, QuoteLine, QuoteNotes, QuoteOrder } from "@speego/shared";
 
 export const companyLines = [
   "CÔNG TY TNHH SPEEGO LOGISTICS",
@@ -20,7 +21,10 @@ export interface QuoteCustomer {
 export function quoteTotals(lines: QuoteLine[]) {
   const priced = lines.some((line) => line.lineTotal != null);
   const weighed = lines.some((line) => line.weightKg != null);
+  const packaged = lines.flatMap((line) => line.packages);
   return {
+    packageCount: packaged.reduce((sum, p) => sum + p.count, 0),
+    cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0), 0) * 1000) / 1000,
     goods: lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0),
     weight: lines.reduce((sum, line) => sum + (line.weightKg ?? 0), 0),
     priced,
@@ -36,9 +40,20 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function formatAmount(value: number | null): string {
+function formatAmount(value: number | null, digits = 2): string {
   if (value == null) return "";
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(value);
+}
+
+/** Giá ngoại tệ quy ra VND theo tỷ giá nhập trong mẫu; null nếu là VND hoặc chưa có tỷ giá. */
+export function vndEquivalent(amount: number, currency: QuoteCurrency, rate: number | null): number | null {
+  return currency === "VND" || !rate ? null : Math.round(amount * rate);
+}
+
+/** Cột Note: ghi chú tay + quy cách đóng gói + thuộc tính, theo cách các mẫu sheet đang trình bày. */
+function lineNote(line: QuoteLine): string {
+  const attrs = line.attrs.filter((a) => a.key.trim() || a.value.trim()).map((a) => (a.key.trim() ? `${a.key.trim()}: ${a.value.trim()}` : a.value.trim()));
+  return [packagesText(line.packages), ...attrs, line.note.trim()].filter(Boolean).join("\n");
 }
 
 function imageSrc(value: string): string {
@@ -51,13 +66,22 @@ function cell(value: string, className = ""): string {
   return `<td class="${className}">${value ? escapeHtml(value).replaceAll("\n", "<br>") : ""}</td>`;
 }
 
+function totalsConverted(lines: QuoteLine[], currency: QuoteCurrency, rate: number | null): number | null {
+  const totals = quoteTotals(lines);
+  return totals.priced ? vndEquivalent(totals.goods, currency, rate) : null;
+}
+
 export function quoteSheetHtml(input: {
   customer: QuoteCustomer;
   lines: QuoteLine[];
+  currency?: QuoteCurrency;
+  rate?: number | null;
   notes: QuoteNotes;
   bank: QuoteBank;
   logoUrl: string;
 }): string {
+  const currency = input.currency ?? "VND";
+  const converted = totalsConverted(input.lines, currency, input.rate ?? null);
   const totals = quoteTotals(input.lines);
   const rows = input.lines.map((line) => {
     const src = imageSrc(line.image);
@@ -65,12 +89,12 @@ export function quoteSheetHtml(input: {
     return `<tr class="detail">
       ${cell(line.stt, "stt")}
       <td class="image">${image}</td>
-      ${cell(line.quantity == null ? "" : formatAmount(line.quantity), "num")}
-      ${cell(formatAmount(line.pricePerSet), "num")}
+      ${cell(line.quantity == null ? "" : `${formatAmount(line.quantity)}${line.unit && line.unit !== "set" ? ` ${line.unit}` : ""}`, "num")}
+      ${cell(line.pricePerSet == null ? "" : `${formatAmount(line.pricePerSet)}${line.basis === "unit" ? "" : ` /${{ kg: "kg", cbm: "cbm", lump: "trọn gói" }[line.basis]}`}`, "num")}
       ${cell(formatAmount(line.lineTotal), "num")}
       ${cell(formatAmount(line.weightKg), "num")}
       ${cell(line.spec, "wrap")}
-      ${cell(line.note, "wrap")}
+      ${cell(lineNote(line), "wrap")}
     </tr>`;
   }).join("");
   const hasText = (value: string | null | undefined) => Boolean(value?.trim());
@@ -109,11 +133,13 @@ export function quoteSheetHtml(input: {
     ${info}
     <tr class="spacer-row"><td colspan="8" class="spacer"></td></tr>
     <tr class="head">
-      <th>STT</th><th>Hình ảnh</th><th>Số lượng (set)</th><th>Giá/set (AUS)</th>
+      <th>STT</th><th>Hình ảnh</th><th>Số lượng</th><th>Đơn giá (${currency})</th>
       <th>Tổng tiền hàng</th><th>Cân nặng (KG)</th><th>Thông số</th><th>Note</th>
     </tr>
     ${rows}
     ${showTotalRow ? `<tr class="notes-row"><td class="notes-label" colspan="4">${escapeHtml(totalLabel)}</td><td class="num notes-value">${totalLabel && totals.priced ? formatAmount(totals.goods) : ""}</td><td class="num notes-value">${totalLabel && totals.weighed ? formatAmount(totals.weight) : ""}</td><td></td><td class="wrap">${escapeHtml(weightNote)}</td></tr>` : ""}
+    ${totals.packageCount > 0 ? `<tr class="notes-row"><td class="notes-label" colspan="8">Tổng đóng gói: ${totals.packageCount} kiện = ${formatAmount(totals.cbm, 3)} cbm, cân tính cước ${formatAmount(totals.weight)} kg</td></tr>` : ""}
+    ${converted != null ? `<tr class="notes-row"><td class="notes-label" colspan="4">Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)</td><td class="num notes-value">${formatAmount(converted)} VND</td><td colspan="3"></td></tr>` : ""}
     ${validityNote ? `<tr class="notes-row"><td colspan="7"></td><td class="wrap">${escapeHtml(validityNote)}</td></tr>` : ""}
     ${depositLines.map((line, index) => `<tr class="notes-row deposit">
       <td colspan="4">${escapeHtml(line)}</td>
@@ -159,6 +185,7 @@ export const quotePrintCss = `
   .image { width: 92px; text-align: center; }
   .image img { max-width: 84px; max-height: 84px; object-fit: contain; }
   .wrap { white-space: pre-wrap; text-align: left; }
+  tr.detail td.wrap { padding-bottom: 8px; }
   .notes-row td { font-weight: 700; padding-top: 8px; }
   .bank-title { font-weight: 700; padding-top: 4px; }
   .gap { height: 18px; }
@@ -214,6 +241,8 @@ export async function downloadQuoteRecordPdf(quote: QuotePdfSource): Promise<voi
     quoteSheetHtml({
       customer: quote,
       lines: order.lines,
+      currency: order.currency,
+      rate: order.rate,
       notes: quote.notes,
       bank: quote.bank,
       logoUrl: `${window.location.origin}/logo.png`,
