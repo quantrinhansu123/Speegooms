@@ -7,6 +7,12 @@ export const permissions = {
   "message.convert": ["admin", "sale-vn", "sale-global"],
   "potential.read": ["admin", "ban-gd", "sale-vn", "sale-global"],
   "potential.write": ["admin", "sale-vn", "sale-global"],
+  "quote.read": ["admin", "ban-gd", "van-hanh"],
+  "quote.rfq": ["admin", "ban-gd", "sale-vn", "sale-global"],
+  "quote.request": ["admin", "sale-vn", "sale-global"],
+  "quote.logistics": ["admin", "van-hanh"],
+  "quote.ops": ["admin", "van-hanh"],
+  "quote.return": ["admin", "sale-vn", "sale-global"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof permissions;

@@ -6,5 +6,5 @@ export const metadata: Metadata = { title: "Khách tiềm năng" };
 export const instant = false;
 
 export default function Page() {
-  return <PotentialView />;
+  return <PotentialView lane="global" />;
 }

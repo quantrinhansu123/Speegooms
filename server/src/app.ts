@@ -23,8 +23,8 @@ export function createApp(env: Env, container: AppContainer): Express {
   app.use(createCors(env));
   app.use(globalRateLimit);
   app.use(cookieParser());
-  app.use(express.json({ limit: "100kb", strict: true }));
-  app.use(express.urlencoded({ extended: false, limit: "100kb" }));
+  app.use(express.json({ limit: "2mb", strict: true }));
+  app.use(express.urlencoded({ extended: false, limit: "2mb" }));
   app.use(hpp());
   app.use(xssClean);
   app.use(requireJson);

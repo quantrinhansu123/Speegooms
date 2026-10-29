@@ -1,50 +1,147 @@
-import type { CreateMessageInput, UpdateMessageInput, UpdatePotentialInput } from "@speego/shared";
+import type {
+  CreateMessageInput,
+  CrmLane,
+  QuoteDesk,
+  QuoteTemplateInput,
+  UpdateMessageInput,
+  UpdatePotentialInput,
+  UpdateQuoteInput,
+} from "@speego/shared";
 import { AppError } from "../lib/errors";
-import type { CrmRepository, MessageRecord, PotentialRecord } from "../repositories/crm.repository";
+import type {
+  CrmRepository,
+  MessageRecord,
+  PotentialRecord,
+  QuoteRecord,
+  QuoteTemplateRecord,
+  RfqQuoteRecord,
+} from "../repositories/crm.repository";
 
 export class CrmService {
   constructor(private readonly crm: CrmRepository | null) {}
 
-  listMessages(): Promise<MessageRecord[]> {
-    return this.ready().listMessages();
+  listMessages(lane: CrmLane): Promise<MessageRecord[]> {
+    return this.ready().listMessages(lane);
   }
 
-  createMessage(input: CreateMessageInput): Promise<MessageRecord> {
-    return this.ready().createMessage(input);
+  createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord> {
+    return this.ready().createMessage(lane, input);
   }
 
-  async updateMessage(id: string, input: UpdateMessageInput): Promise<MessageRecord> {
-    const row = await this.ready().updateMessage(id, input);
+  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord> {
+    const row = await this.ready().updateMessage(lane, id, input);
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     return row;
   }
 
-  async deleteMessage(id: string): Promise<void> {
-    const result = await this.ready().deleteMessage(id);
+  async deleteMessage(lane: CrmLane, id: string): Promise<void> {
+    const result = await this.ready().deleteMessage(lane, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "linked") throw new AppError(409, "CONFLICT", "Hãy xóa khách hàng tiềm năng của mess này trước");
   }
 
-  async convertMessage(id: string): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
-    const result = await this.ready().convertMessage(id);
+  async convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
+    const result = await this.ready().convertMessage(lane, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "lost") throw new AppError(409, "CONFLICT", "Mess đã mất, không chuyển được");
     return result;
   }
 
-  listPotentials(): Promise<PotentialRecord[]> {
-    return this.ready().listPotentials();
+  listPotentials(lane: CrmLane): Promise<PotentialRecord[]> {
+    return this.ready().listPotentials(lane);
   }
 
-  async updatePotential(id: string, input: UpdatePotentialInput): Promise<PotentialRecord> {
-    const row = await this.ready().updatePotential(id, input);
+  async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord> {
+    const row = await this.ready().updatePotential(lane, id, input);
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     return row;
   }
 
-  async deletePotential(id: string): Promise<void> {
-    const ok = await this.ready().deletePotential(id);
+  async deletePotential(lane: CrmLane, id: string): Promise<void> {
+    const ok = await this.ready().deletePotential(lane, id);
     if (!ok) throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
+  }
+
+  listQuotes(lane: CrmLane, desk: QuoteDesk): Promise<QuoteRecord[]> {
+    return this.ready().listQuotes(lane, desk);
+  }
+
+  listRfqQuotes(lane: CrmLane): Promise<RfqQuoteRecord[]> {
+    return this.ready().listRfqQuotes(lane);
+  }
+
+  async reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<QuoteRecord> {
+    const result = await this.ready().reassignRfqQuote(lane, id, potentialId);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá hoặc khách hàng tiềm năng trên tuyến này");
+    if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
+    if (result === "desk") throw new AppError(409, "CONFLICT", "Khách này không cùng bàn báo giá trên tuyến đang chọn");
+    if (result === "taken") throw new AppError(409, "CONFLICT", "Khách này đã có báo giá");
+    return result;
+  }
+
+  async deleteRfqQuote(lane: CrmLane, id: string): Promise<void> {
+    const ok = await this.ready().deleteRfqQuote(lane, id);
+    if (!ok) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá trên tuyến này");
+  }
+
+  async requestQuote(lane: CrmLane, potentialId: string): Promise<{ quote: QuoteRecord; created: boolean; desk: QuoteDesk }> {
+    const result = await this.ready().requestQuote(lane, potentialId);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
+    if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
+    return result;
+  }
+
+  async requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<{ quote: QuoteRecord; created: boolean }> {
+    const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
+    if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing + Logistics mới tạo báo giá Logistics");
+    return result;
+  }
+
+  async updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord> {
+    const result = await this.ready().updateQuote(lane, desk, id, input);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
+    return result;
+  }
+
+  async sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord> {
+    const result = await this.ready().sendQuote(lane, desk, id, input);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");
+    if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
+    if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
+    return result;
+  }
+
+  async returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord> {
+    const result = await this.ready().returnQuote(lane, desk, id);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (result === "state") throw new AppError(409, "CONFLICT", "Báo giá chưa được vận hành gửi");
+    return result;
+  }
+
+  listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]> {
+    return this.ready().listQuoteTemplates(desk);
+  }
+
+  async createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput): Promise<QuoteTemplateRecord> {
+    const result = await this.ready().createQuoteTemplate(desk, input);
+    if (result === "duplicate") throw new AppError(409, "CONFLICT", "Đã có mẫu này");
+    return result;
+  }
+
+  async updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord> {
+    const result = await this.ready().updateQuoteTemplate(desk, id, input);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mẫu báo giá");
+    if (result === "duplicate") throw new AppError(409, "CONFLICT", "Đã có mẫu này");
+    return result;
+  }
+
+  async deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<void> {
+    const result = await this.ready().deleteQuoteTemplate(desk, id);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mẫu báo giá");
+    if (result === "used") throw new AppError(409, "CONFLICT", "Mẫu đang được dùng trong báo giá");
   }
 
   private ready(): CrmRepository {

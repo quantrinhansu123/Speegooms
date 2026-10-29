@@ -20,14 +20,74 @@ const client = new pg.Client({
   application_name: "speego-migrate",
 });
 
-const files = ["001_users.sql", "002_authz.sql", "003_crm_message.sql", "004_crm_lead.sql", "005_lead_mess_unique.sql"];
+const files = [
+  "001_users.sql",
+  "002_authz.sql",
+  "003_crm_message.sql",
+  "004_crm_lead.sql",
+  "005_lead_mess_unique.sql",
+  "006_crm_uuid_ids.sql",
+  "007_viet_hoa_ten_bang_cot.sql",
+  "008_chuan_hoa_ten_rang_buoc.sql",
+  "009_bo_sung_sale_mess.sql",
+  "010_tach_tuyen_mess.sql",
+  "011_xoa_bang_cu.sql",
+  "012_bao_gia.sql",
+  "013_bao_gia_chi_tiet.sql",
+  "014_ban_bao_gia_da_gui.sql",
+  "015_mot_don_hai_bao_gia.sql",
+];
 
 await client.connect();
 try {
   await client.query("create extension if not exists pgcrypto");
+  await client.query("create schema if not exists app");
+  // Bảng theo dõi cũ tên tiếng Anh: đổi sang tiếng Việt nếu còn.
+  await client.query(`do $$
+  begin
+    if to_regclass('app.schema_migrations') is not null
+       and to_regclass('app.lich_su_cap_nhat_cau_truc') is null then
+      alter table app.schema_migrations rename to lich_su_cap_nhat_cau_truc;
+      alter table app.lich_su_cap_nhat_cau_truc rename column ten_file to ten_tep;
+    end if;
+  end $$`);
+  await client.query(`create table if not exists app.lich_su_cap_nhat_cau_truc (
+    ten_tep text primary key,
+    ap_dung_luc timestamptz not null default now()
+  )`);
+
+  const applied = new Set(
+    (
+      await client.query<{ ten_tep: string }>("select ten_tep from app.lich_su_cap_nhat_cau_truc")
+    ).rows.map((row) => row.ten_tep),
+  );
+
+  // DB cũ đã chạy 001-005 nhưng chưa có bảng theo dõi: ghi nhận baseline,
+  // không chạy lại DDL cũ (sẽ tạo bảng tiếng Anh rỗng sau khi đã đổi tên).
+  if (applied.size === 0) {
+    const state = await client.query<{ co_users: boolean; co_nguoi_dung: boolean }>(
+      `select to_regclass('public.users') is not null as co_users,
+              to_regclass('public.nguoi_dung') is not null as co_nguoi_dung`,
+    );
+    const row = state.rows[0];
+    // Chỉ baseline 001-005. 006 (đổi id sang uuid) idempotent nên chạy lại an toàn,
+    // còn 007 chỉ chạy khi schema chưa được Việt hoá.
+    const baseline = row?.co_users ? files.slice(0, 5) : row?.co_nguoi_dung ? files : [];
+    for (const file of baseline) {
+      await client.query("insert into app.lich_su_cap_nhat_cau_truc (ten_tep) values ($1) on conflict do nothing", [file]);
+      applied.add(file);
+    }
+    if (baseline.length > 0) logger.info("migration baseline", { count: baseline.length });
+  }
+
   for (const file of files) {
+    if (applied.has(file)) {
+      logger.info("migration skipped", { file });
+      continue;
+    }
     const sql = await readFile(new URL(`../../db/migrations/${file}`, import.meta.url), "utf8");
     await client.query(sql);
+    await client.query("insert into app.lich_su_cap_nhat_cau_truc (ten_tep) values ($1) on conflict do nothing", [file]);
     logger.info("migration applied", { file });
   }
 } catch (err) {

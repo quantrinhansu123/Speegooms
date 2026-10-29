@@ -1,7 +1,29 @@
-import type { CreateMessageInput, UpdateMessageInput, UpdatePotentialInput } from "@speego/shared";
+import {
+  type CreateMessageInput,
+  type CrmLane,
+  type QuoteBank,
+  type QuoteDesk,
+  type QuoteLine,
+  type QuoteNotes,
+  type QuoteOrder,
+  type SentQuote,
+  type QuoteTemplateInput,
+  type UpdateMessageInput,
+  type UpdatePotentialInput,
+  type UpdateQuoteInput,
+} from "@speego/shared";
 import type pg from "pg";
 import { AppError, InfrastructureError } from "../../lib/errors";
-import type { CrmRepository, MessageRecord, PotentialRecord } from "../../repositories/crm.repository";
+import type {
+  CrmRepository,
+  MessageRecord,
+  PotentialRecord,
+  QuoteRecord,
+  QuoteSheet,
+  QuoteTemplateRecord,
+  ReassignQuoteResult,
+  RfqQuoteRecord,
+} from "../../repositories/crm.repository";
 
 type MessageRow = {
   id: string;
@@ -15,6 +37,10 @@ type MessageRow = {
   demand: string | null;
   customer_type: string | null;
   note: string | null;
+  market: string | null;
+  classification: string | null;
+  sale_name: string | null;
+  pain_point: string | null;
   received_at: Date | string;
   lead_id: string | null;
   lead_code: string | null;
@@ -49,28 +75,334 @@ type PotentialRow = {
   created_at: Date | string;
 };
 
-const MESSAGE_SELECT = `
-  select m.id::text, m.mess_code, m.source::text, m.customer_name_raw, m.phone, m.email,
-         m.status::text, m.goods, m.demand::text, m.customer_type::text, m.note, m.received_at,
-         l.id::text as lead_id, l.lead_code
-  from crm.message m
-  left join crm.lead l on l.mess_id = m.id and l.deleted_at is null
-`;
+const laneTables = {
+  vn: { message: "crm.tin_nhan_viet_nam", potential: "crm.khach_hang_tiem_nang_viet_nam" },
+  global: { message: "crm.tin_nhan_global", potential: "crm.khach_hang_tiem_nang_global" },
+} as const;
 
-const POTENTIAL_SELECT = `
-  select l.id::text, l.lead_code, l.mess_id::text, m.mess_code, l.full_name, l.company_name,
-         l.phone, l.email, l.source::text, l.product_interest, l.quantity_note, l.address, l.sale_note,
-         l.potential::text, l.status::text, l.customer_kind::text, l.customer_type::text, l.brand::text,
-         l.care_channel, l.classification::text, l.pack_spec, l.weight_kg, l.logistics_class,
-         l.ship_from_address, l.ship_to_address, l.created_at
-  from crm.lead l
-  left join crm.message m on m.id = l.mess_id
-  where l.deleted_at is null and l.potential is not null
+const quoteTables = {
+  vn: {
+    potential: "crm.khach_hang_tiem_nang_viet_nam",
+    sourcing: "crm.bao_gia_sourcing_viet_nam",
+    logistics: "crm.bao_gia_logistics_viet_nam",
+  },
+  global: {
+    potential: "crm.khach_hang_tiem_nang_global",
+    sourcing: "crm.bao_gia_sourcing_global",
+    logistics: "crm.bao_gia_logistics_global",
+  },
+} as const;
+
+type QuoteRow = {
+  id: string;
+  code: string;
+  potential_id: string;
+  lead_code: string;
+  customer_name: string | null;
+  company_name: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  customer_kind: string | null;
+  goods: string | null;
+  template_id: string | null;
+  template_name: string | null;
+  ops_note: string | null;
+  quote_status: string;
+  contract_status: string;
+  order_lines: unknown;
+  common_notes: unknown;
+  bank_account: unknown;
+  sent_copy: unknown;
+  logistics_quote_id: string | null;
+  logistics_sheet: unknown;
+  logistics_template_name: string | null;
+  created_at: Date | string;
+};
+
+type TemplateRow = {
+  id: string;
+  name: string;
+  content: string | null;
+  created_at: Date | string;
+};
+
+function banOf(desk: QuoteDesk): "SOURCING" | "LOGISTICS" {
+  return desk === "sourcing" ? "SOURCING" : "LOGISTICS";
+}
+
+function desksForKind(kind: string | null): QuoteDesk[] {
+  if (kind === "SOURCING") return ["sourcing"];
+  if (kind === "LOGISTICS") return ["logistics"];
+  if (kind === "SOURCING_LOGISTICS") return ["sourcing", "logistics"];
+  return [];
+}
+
+function quoteSelect(quote: string, potential: string, logistics: string | null, sheet: boolean): string {
+  const logisticsColumn = logistics ? "lq.ma_bao_gia::text" : "null";
+  const logisticsJoin = logistics
+    ? `left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang`
+    : "";
+  const sheetColumns = sheet
+    ? "q.bao_gia_logistics as logistics_sheet, lm.ten as logistics_template_name"
+    : "null::jsonb as logistics_sheet, null::text as logistics_template_name";
+  const sheetJoin = sheet
+    ? "left join crm.mau_bao_gia lm on lm.ma_mau = nullif(q.bao_gia_logistics->>'templateId', '')::uuid"
+    : "";
+  return `
+  select q.ma_bao_gia::text as id, q.ma_hien_thi as code,
+         q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
+         l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
+         l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind,
+         l.san_pham_quan_tam as goods, q.ma_mau::text as template_id, m.ten as template_name,
+         q.ghi_chu_vh as ops_note, q.trang_thai_bao_gia::text as quote_status,
+         q.trang_thai_hop_dong::text as contract_status,
+         q.chi_tiet_don_hang as order_lines, q.ghi_chu as common_notes,
+         q.tai_khoan_ngan_hang as bank_account, q.ban_da_gui as sent_copy,
+         ${logisticsColumn} as logistics_quote_id, ${sheetColumns}, q.tao_luc as created_at
+  from ${quote} q
+  join ${potential} l on l.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang
+  left join crm.mau_bao_gia m on m.ma_mau = q.ma_mau
+  ${sheetJoin}
+  ${logisticsJoin}
+  where l.xoa_luc is null
 `;
+}
+
+function emptyLogisticsSheet() {
+  return {
+    templateId: null,
+    opsNote: "",
+    quoteStatus: "CHUA_CO_BAO_GIA",
+    contractStatus: "CHUA_TAO",
+    orders: [],
+    notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: "" },
+    bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" },
+    sentQuote: null,
+  };
+}
+
+function optionalAmount(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value;
+}
+
+function textField(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+const legacyOrderId = "00000000-0000-4000-8000-000000000001";
+
+function asOrders(value: unknown): QuoteOrder[] {
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const first = value.find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  if (first && Array.isArray(first.lines)) {
+    return value.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const row = item as Record<string, unknown>;
+      const id = textField(row.id);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return [];
+      return [{
+        id,
+        name: textField(row.name) || "Mẫu đơn hàng",
+        selected: row.selected === true,
+        lines: asLines(row.lines),
+      }];
+    });
+  }
+  const lines = asLines(value);
+  if (lines.length === 0) return [];
+  return [{ id: legacyOrderId, name: "Mẫu 1", selected: true, lines }];
+}
+
+function asLines(value: unknown): QuoteLine[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    return [{
+      stt: textField(row.stt),
+      image: textField(row.image),
+      quantity: optionalAmount(row.quantity),
+      pricePerSet: optionalAmount(row.pricePerSet),
+      lineTotal: optionalAmount(row.lineTotal),
+      weightKg: optionalAmount(row.weightKg),
+      spec: textField(row.spec),
+      note: textField(row.note),
+    }];
+  });
+}
+
+function asNotes(value: unknown): QuoteNotes {
+  const row = value && typeof value === "object" ? value as Partial<QuoteNotes> : {};
+  return {
+    totalLabel: textField(row.totalLabel),
+    weightNote: textField(row.weightNote),
+    validityNote: textField(row.validityNote),
+    deposit: textField(row.deposit),
+  };
+}
+
+function asBank(value: unknown): QuoteBank {
+  const row = value && typeof value === "object" ? value as Partial<QuoteBank> : {};
+  return {
+    title: textField(row.title),
+    accountName: textField(row.accountName),
+    accountNumber: textField(row.accountNumber),
+    routingNumber: textField(row.routingNumber),
+  };
+}
+
+function asSheet(value: unknown, templateName: string | null): QuoteSheet | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const templateId = textField(row.templateId);
+  return {
+    templateId: templateId || null,
+    templateName,
+    opsNote: textField(row.opsNote) || null,
+    quoteStatus: textField(row.quoteStatus) || "CHUA_CO_BAO_GIA",
+    contractStatus: textField(row.contractStatus) || "CHUA_TAO",
+    orders: asOrders(row.orders),
+    notes: asNotes(row.notes),
+    bank: asBank(row.bank),
+    sentQuote: asSent(row.sentQuote),
+  };
+}
+
+function asSent(value: unknown): SentQuote | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const order = asOrders([row.order])[0];
+  if (!order || typeof row.sentAt !== "string") return null;
+  return {
+    sentAt: row.sentAt,
+    order,
+    notes: asNotes(row.notes),
+    bank: asBank(row.bank),
+  };
+}
+
+function toQuote(row: QuoteRow): QuoteRecord {
+  return {
+    id: row.id,
+    code: row.code,
+    potentialId: row.potential_id,
+    leadCode: row.lead_code,
+    customerName: row.customer_name,
+    companyName: row.company_name,
+    address: row.address,
+    phone: row.phone,
+    email: row.email,
+    customerKind: row.customer_kind,
+    goods: row.goods,
+    templateId: row.template_id,
+    templateName: row.template_name,
+    opsNote: row.ops_note,
+    quoteStatus: row.quote_status,
+    contractStatus: row.contract_status,
+    orders: asOrders(row.order_lines),
+    notes: asNotes(row.common_notes),
+    bank: asBank(row.bank_account),
+    sentQuote: asSent(row.sent_copy),
+    logisticsQuoteId: row.logistics_quote_id,
+    logisticsSheet: asSheet(row.logistics_sheet, row.logistics_template_name),
+    createdAt: stamp(row.created_at),
+  };
+}
+
+function toLogisticsQuote(row: QuoteRow): QuoteRecord {
+  const base = toQuote(row);
+  const sheet = base.logisticsSheet ?? {
+    templateId: null,
+    templateName: null,
+    opsNote: null,
+    quoteStatus: "CHUA_CO_BAO_GIA",
+    contractStatus: "CHUA_TAO",
+    orders: [],
+    notes: asNotes(null),
+    bank: asBank(null),
+    sentQuote: null,
+  };
+  return {
+    ...base,
+    templateId: sheet.templateId,
+    templateName: sheet.templateName,
+    opsNote: sheet.opsNote,
+    quoteStatus: sheet.quoteStatus,
+    contractStatus: sheet.contractStatus,
+    orders: sheet.orders,
+    notes: sheet.notes,
+    bank: sheet.bank,
+    sentQuote: sheet.sentQuote,
+    logisticsSheet: null,
+  };
+}
+
+function logisticsPayload(input: UpdateQuoteInput, status: string, sent: SentQuote | null) {
+  return {
+    templateId: input.templateId,
+    opsNote: input.opsNote.trim(),
+    quoteStatus: status,
+    contractStatus: input.contractStatus,
+    orders: input.orders,
+    notes: input.notes,
+    bank: input.bank,
+    sentQuote: sent,
+  };
+}
+
+function toTemplate(row: TemplateRow): QuoteTemplateRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    content: row.content,
+    createdAt: stamp(row.created_at),
+  };
+}
+
+function messageSelect(message: string, potential: string): string {
+  return `
+  select m.ma_tin_nhan::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
+         m.ten_khach_hang_tho as customer_name_raw, m.so_dien_thoai as phone, m.thu_dien_tu as email,
+         m.trang_thai::text as status, m.hang_hoa as goods, m.nhu_cau::text as demand,
+         m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
+         m.thi_truong as market, m.phan_loai::text as classification,
+         m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.nhan_luc as received_at,
+         l.ma_khach_hang_tiem_nang::text as lead_id, l.ma_tiem_nang as lead_code
+  from ${message} m
+  left join ${potential} l on l.ma_tin_nhan = m.ma_tin_nhan and l.xoa_luc is null
+`;
+}
+
+function potentialSelect(message: string, potential: string): string {
+  return `
+  select l.ma_khach_hang_tiem_nang::text as id, l.ma_tiem_nang as lead_code,
+         l.ma_tin_nhan::text as mess_id, m.ma_hien_thi as mess_code,
+         l.ho_ten as full_name, l.ten_cong_ty as company_name,
+         l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nguon::text as source,
+         l.san_pham_quan_tam as product_interest, l.ghi_chu_so_luong as quantity_note,
+         l.dia_chi as address, l.ghi_chu_ban_hang as sale_note,
+         l.tiem_nang::text as potential, l.trang_thai::text as status,
+         l.nhom_khach::text as customer_kind, l.loai_khach_hang::text as customer_type,
+         l.thuong_hieu::text as brand, l.kenh_cham_soc as care_channel,
+         l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
+         l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
+         l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
+         l.tao_luc as created_at
+  from ${potential} l
+  left join ${message} m on m.ma_tin_nhan = l.ma_tin_nhan
+  where l.xoa_luc is null and l.tiem_nang is not null
+`;
+}
 
 function blank(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length ? trimmed : null;
+}
+
+function receivedAt(value: string | undefined): string | null {
+  return value ? `${value}T00:00:00+07:00` : null;
 }
 
 function weight(value: string | number | null): number | null {
@@ -96,6 +428,10 @@ function toMessage(row: MessageRow): MessageRecord {
     demand: row.demand,
     customerType: row.customer_type,
     note: row.note,
+    market: row.market,
+    classification: row.classification,
+    saleName: row.sale_name,
+    painPoint: row.pain_point,
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,
     leadCode: row.lead_code,
@@ -149,16 +485,24 @@ function raise(cause: unknown): never {
 export class PostgresCrmRepository implements CrmRepository {
   constructor(private readonly pool: pg.Pool) {}
 
-  async listMessages(): Promise<MessageRecord[]> {
-    const result = await this.query<MessageRow>(`${MESSAGE_SELECT} order by m.received_at desc limit 200`);
+  async listMessages(lane: CrmLane): Promise<MessageRecord[]> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const result = await this.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} order by m.nhan_luc desc limit 200`);
     return result.rows.map(toMessage);
   }
 
-  async createMessage(input: CreateMessageInput): Promise<MessageRecord> {
+  async createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord> {
+    const { message: messageTable } = laneTables[lane];
     const inserted = await this.query<{ id: string }>(
-      `insert into crm.message (customer_name_raw, phone, email, goods, demand, customer_type, note)
-       values ($1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7)
-       returning id::text`,
+      `insert into ${messageTable} (
+         ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de
+       )
+       values (
+         $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12
+       )
+       returning ma_tin_nhan::text as id`,
       [
         input.customerName,
         blank(input.phone),
@@ -167,58 +511,87 @@ export class PostgresCrmRepository implements CrmRepository {
         input.demand ?? null,
         input.customerType ?? null,
         blank(input.note),
+        receivedAt(input.receivedOn),
+        blank(input.market),
+        input.classification ?? null,
+        blank(input.saleName),
+        blank(input.painPoint),
       ],
     );
     const id = inserted.rows[0]?.id;
     if (!id) throw new InfrastructureError("insert message returned no row");
-    const row = await this.findMessage(id);
+    const row = await this.findMessage(lane, id);
     if (!row) throw new InfrastructureError("message missing after insert");
     return row;
   }
 
-  async updateMessage(id: string, input: UpdateMessageInput): Promise<MessageRecord | null> {
+  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const updated = await this.query<{ id: string }>(
-      `update crm.message set
-         customer_name_raw = $2,
-         phone = $3,
-         email = $4,
-         goods = $5,
-         demand = $6::text::crm.message_demand,
-         customer_type = $7::text::crm.customer_type,
-         note = $8
-       where id = $1::bigint
-       returning id::text`,
-      [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods), input.demand ?? null, input.customerType ?? null, blank(input.note)],
+      `update ${messageTable} set
+         ten_khach_hang_tho = $2,
+         so_dien_thoai = $3,
+         thu_dien_tu = $4,
+         hang_hoa = $5,
+         nhu_cau = $6::text::crm.message_demand,
+         loai_khach_hang = $7::text::crm.customer_type,
+         ghi_chu = $8,
+         nhan_luc = coalesce($9::timestamptz, nhan_luc),
+         thi_truong = $10,
+         phan_loai = $11::text::crm.message_classification,
+         nhan_vien_ban = $12,
+         ghi_chu_van_de = $13
+       where ma_tin_nhan = $1::uuid
+       returning ma_tin_nhan::text as id`,
+      [
+        id,
+        input.customerName,
+        blank(input.phone),
+        blank(input.email),
+        blank(input.goods),
+        input.demand ?? null,
+        input.customerType ?? null,
+        blank(input.note),
+        receivedAt(input.receivedOn),
+        blank(input.market),
+        input.classification ?? null,
+        blank(input.saleName),
+        blank(input.painPoint),
+      ],
     );
     if (!updated.rows[0]) return null;
     await this.query(
-      `update crm.lead set
-         full_name = $2,
-         phone = $3,
-         email = $4,
-         product_interest = $5
-       where mess_id = $1::bigint and deleted_at is null`,
+      `update ${potentialTable} set
+         ho_ten = $2,
+         so_dien_thoai = $3,
+         thu_dien_tu = $4,
+         san_pham_quan_tam = $5
+       where ma_tin_nhan = $1::uuid and xoa_luc is null`,
       [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods)],
     );
-    return this.findMessage(id);
+    return this.findMessage(lane, id);
   }
 
-  async deleteMessage(id: string): Promise<"ok" | "missing" | "linked"> {
+  async deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked"> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
-      const found = await client.query(`select id from crm.message where id = $1::bigint`, [id]);
+      const found = await client.query(`select ma_tin_nhan from ${messageTable} where ma_tin_nhan = $1::uuid`, [id]);
       if (!found.rowCount) return "missing";
-      const linked = await client.query(`select 1 from crm.lead where mess_id = $1::bigint`, [id]);
+      const linked = await client.query(`select 1 from ${potentialTable} where ma_tin_nhan = $1::uuid`, [id]);
       if (linked.rowCount) return "linked";
-      await client.query(`delete from crm.message where id = $1::bigint`, [id]);
+      await client.query(`delete from ${messageTable} where ma_tin_nhan = $1::uuid`, [id]);
       return "ok";
     });
   }
 
-  async convertMessage(id: string): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
+  async convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
       const locked = await client.query<{ status: string; source: string; customer_name_raw: string | null; phone: string | null; email: string | null; goods: string | null; demand: string | null; customer_type: string | null; note: string | null }>(
-        `select status::text, source::text, customer_name_raw, phone, email, goods, demand::text, customer_type::text, note
-         from crm.message where id = $1::bigint for update`,
+        `select trang_thai::text as status, nguon::text as source, ten_khach_hang_tho as customer_name_raw,
+                so_dien_thoai as phone, thu_dien_tu as email, hang_hoa as goods, nhu_cau::text as demand,
+                loai_khach_hang::text as customer_type, ghi_chu as note
+         from ${messageTable} where ma_tin_nhan = $1::uuid for update`,
         [id],
       );
       const message = locked.rows[0];
@@ -226,71 +599,73 @@ export class PostgresCrmRepository implements CrmRepository {
       if (message.status === "LOST") return "lost";
 
       const existing = await client.query<PotentialRow>(
-        `${POTENTIAL_SELECT} and l.mess_id = $1::bigint`,
+        `${potentialSelect(messageTable, potentialTable)} and l.ma_tin_nhan = $1::uuid`,
         [id],
       );
       let potential = existing.rows[0];
       if (!potential) {
         const kind = message.demand === "SHIPPING" ? "LOGISTICS" : message.demand === "SOURCING" ? "SOURCING" : null;
         const inserted = await client.query<{ id: string }>(
-          `insert into crm.lead (
-             source, full_name, phone, email, product_interest, potential, status, mess_id,
-             customer_kind, customer_type, sale_note
+          `insert into ${potentialTable} (
+             nguon, ho_ten, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, tiem_nang, trang_thai, ma_tin_nhan,
+             nhom_khach, loai_khach_hang, ghi_chu_ban_hang
            )
            values (
-             $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::bigint,
+             $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
              $7::text::crm.customer_kind, $8::text::crm.customer_type, $9
            )
-           returning id::text`,
+           returning ma_khach_hang_tiem_nang::text as id`,
           [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
-        const loaded = await client.query<PotentialRow>(`${POTENTIAL_SELECT} and l.id = $1::bigint`, [leadId]);
+        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.ma_khach_hang_tiem_nang = $1::uuid`, [leadId]);
         potential = loaded.rows[0];
         if (!potential) throw new InfrastructureError("lead missing after insert");
       }
 
       if (message.status !== "CONVERTED") {
-        await client.query(`update crm.message set status = 'CONVERTED' where id = $1::bigint`, [id]);
+        await client.query(`update ${messageTable} set trang_thai = 'CONVERTED' where ma_tin_nhan = $1::uuid`, [id]);
       }
 
-      const refreshed = await client.query<MessageRow>(`${MESSAGE_SELECT} where m.id = $1::bigint`, [id]);
+      const refreshed = await client.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.ma_tin_nhan = $1::uuid`, [id]);
       const row = refreshed.rows[0];
       if (!row) throw new InfrastructureError("message missing after convert");
       return { message: toMessage(row), potential: toPotential(potential) };
     });
   }
 
-  async listPotentials(): Promise<PotentialRecord[]> {
-    const result = await this.query<PotentialRow>(`${POTENTIAL_SELECT} order by l.created_at desc limit 200`);
+  async listPotentials(lane: CrmLane): Promise<PotentialRecord[]> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const result = await this.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} order by l.tao_luc desc limit 200`);
     return result.rows.map(toPotential);
   }
 
-  async updatePotential(id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null> {
+  async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const updated = await this.query<{ id: string }>(
-      `update crm.lead set
-         full_name = $2,
-         company_name = $3,
-         phone = $4,
-         email = $5,
-         product_interest = $6,
-         quantity_note = $7,
-         address = $8,
-         sale_note = $9,
-         potential = $10::crm.potential_status,
-         customer_kind = $11::text::crm.customer_kind,
-         customer_type = $12::text::crm.customer_type,
-         brand = $13::text::crm.lead_brand,
-         care_channel = $14,
-         classification = $15::text::crm.lead_classification,
-         pack_spec = $16,
-         weight_kg = $17,
-         logistics_class = $18,
-         ship_from_address = $19,
-         ship_to_address = $20
-       where id = $1::bigint and deleted_at is null and potential is not null
-       returning id::text`,
+      `update ${potentialTable} set
+         ho_ten = $2,
+         ten_cong_ty = $3,
+         so_dien_thoai = $4,
+         thu_dien_tu = $5,
+         san_pham_quan_tam = $6,
+         ghi_chu_so_luong = $7,
+         dia_chi = $8,
+         ghi_chu_ban_hang = $9,
+         tiem_nang = $10::crm.potential_status,
+         nhom_khach = $11::text::crm.customer_kind,
+         loai_khach_hang = $12::text::crm.customer_type,
+         thuong_hieu = $13::text::crm.lead_brand,
+         kenh_cham_soc = $14,
+         phan_loai = $15::text::crm.lead_classification,
+         quy_cach_dong_goi = $16,
+         trong_luong_kg = $17,
+         phan_loai_logistics = $18,
+         dia_chi_gui = $19,
+         dia_chi_nhan = $20
+       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null and tiem_nang is not null
+       returning ma_khach_hang_tiem_nang::text as id`,
       [
         id,
         input.fullName,
@@ -315,33 +690,36 @@ export class PostgresCrmRepository implements CrmRepository {
       ],
     );
     if (!updated.rows[0]) return null;
-    const result = await this.query<PotentialRow>(`${POTENTIAL_SELECT} and l.id = $1::bigint`, [id]);
+    const result = await this.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.ma_khach_hang_tiem_nang = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toPotential(row) : null;
   }
 
-  async deletePotential(id: string): Promise<boolean> {
+  async deletePotential(lane: CrmLane, id: string): Promise<boolean> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
       const removed = await client.query<{ mess_id: string | null }>(
         `with old as (
-           select id, mess_id from crm.lead where id = $1::bigint and deleted_at is null and potential is not null
+           select ma_khach_hang_tiem_nang, ma_tin_nhan
+           from ${potentialTable}
+           where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null and tiem_nang is not null
          )
-         update crm.lead l
-         set deleted_at = now(), mess_id = null
+         update ${potentialTable} l
+         set xoa_luc = now(), ma_tin_nhan = null
          from old
-         where l.id = old.id
-         returning old.mess_id::text`,
+         where l.ma_khach_hang_tiem_nang = old.ma_khach_hang_tiem_nang
+         returning old.ma_tin_nhan::text as mess_id`,
         [id],
       );
       const messId = removed.rows[0]?.mess_id;
       if (!removed.rowCount) return false;
       if (messId) {
         await client.query(
-          `update crm.message set status = 'QUALIFIED'
-           where id = $1::bigint
-             and status = 'CONVERTED'
+          `update ${messageTable} set trang_thai = 'QUALIFIED'
+           where ma_tin_nhan = $1::uuid
+             and trang_thai = 'CONVERTED'
              and not exists (
-               select 1 from crm.lead where mess_id = $1::bigint and deleted_at is null
+               select 1 from ${potentialTable} where ma_tin_nhan = $1::uuid and xoa_luc is null
              )`,
           [messId],
         );
@@ -350,8 +728,413 @@ export class PostgresCrmRepository implements CrmRepository {
     });
   }
 
-  private async findMessage(id: string): Promise<MessageRecord | null> {
-    const result = await this.query<MessageRow>(`${MESSAGE_SELECT} where m.id = $1::bigint`, [id]);
+  async listQuotes(lane: CrmLane, desk: QuoteDesk): Promise<QuoteRecord[]> {
+    const tables = quoteTables[lane];
+    if (desk === "sourcing") {
+      const result = await this.query<QuoteRow>(
+        `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} order by q.tao_luc desc limit 200`,
+      );
+      return result.rows.map(toQuote);
+    }
+    const [own, shared] = await Promise.all([
+      this.query<QuoteRow>(
+        `${quoteSelect(tables.logistics, tables.potential, null, false)} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
+      ),
+      this.query<QuoteRow>(
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and l.nhom_khach::text = 'SOURCING_LOGISTICS' order by q.tao_luc desc limit 200`,
+      ),
+    ]);
+    return [...own.rows.map(toQuote), ...shared.rows.map(toLogisticsQuote)]
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async listRfqQuotes(lane: CrmLane): Promise<RfqQuoteRecord[]> {
+    const [sourcing, logistics] = await Promise.all([
+      this.listQuotes(lane, "sourcing"),
+      this.listQuotes(lane, "logistics"),
+    ]);
+    return [
+      ...sourcing.map((quote) => ({ ...quote, desk: "sourcing" as const })),
+      ...logistics
+        .filter((quote) => quote.customerKind !== "SOURCING_LOGISTICS")
+        .map((quote) => ({ ...quote, desk: "logistics" as const })),
+    ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult> {
+    const tables = quoteTables[lane];
+    const sourcing = await this.findQuote(lane, "sourcing", id);
+    const current = sourcing ?? await this.findQuote(lane, "logistics", id);
+    if (!current) return "missing";
+    const desk: QuoteDesk = sourcing ? "sourcing" : "logistics";
+    const found = await this.query<{ customer_kind: string | null }>(
+      `select nhom_khach::text as customer_kind
+       from ${tables.potential}
+       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null`,
+      [potentialId],
+    );
+    if (!found.rowCount) return "missing";
+    const allowed = desksForKind(found.rows[0]?.customer_kind ?? null);
+    if (allowed.length === 0) return "kind";
+    if (!allowed.includes(desk)) return "desk";
+    const taken = await this.query(
+      `select 1 from ${tables[desk]}
+       where ma_khach_hang_tiem_nang = $1::uuid and ma_bao_gia <> $2::uuid`,
+      [potentialId, id],
+    );
+    if (taken.rowCount) return "taken";
+    const updated = await this.query(
+      `update ${tables[desk]}
+       set ma_khach_hang_tiem_nang = $2::uuid
+       where ma_bao_gia = $1::uuid`,
+      [id, potentialId],
+    );
+    if (!updated.rowCount) return "missing";
+    return (await this.findQuote(lane, desk, id)) ?? "missing";
+  }
+
+  async deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean> {
+    const tables = quoteTables[lane];
+    for (const desk of ["sourcing", "logistics"] as const) {
+      const removed = await this.query(`delete from ${tables[desk]} where ma_bao_gia = $1::uuid`, [id]);
+      if (removed.rowCount) return true;
+    }
+    return false;
+  }
+
+  async requestQuote(lane: CrmLane, potentialId: string) {
+    const tables = quoteTables[lane];
+    const found = await this.query<{ customer_kind: string | null }>(
+      `select nhom_khach::text as customer_kind
+       from ${tables.potential}
+       where ma_khach_hang_tiem_nang = $1::uuid and xoa_luc is null`,
+      [potentialId],
+    );
+    if (!found.rowCount) return "missing" as const;
+    const kind = found.rows[0]?.customer_kind;
+    if (kind !== "SOURCING" && kind !== "LOGISTICS" && kind !== "SOURCING_LOGISTICS") return "kind" as const;
+    const desk: QuoteDesk = kind === "LOGISTICS" ? "logistics" : "sourcing";
+    const inserted = await this.query(
+      `insert into ${tables[desk]} (ma_khach_hang_tiem_nang)
+       values ($1::uuid)
+       on conflict (ma_khach_hang_tiem_nang) do nothing`,
+      [potentialId],
+    );
+    if (kind === "SOURCING_LOGISTICS") {
+      await this.query(
+        `update ${tables.sourcing}
+         set bao_gia_logistics = $2::jsonb
+         where ma_khach_hang_tiem_nang = $1::uuid and bao_gia_logistics is null`,
+        [potentialId, JSON.stringify(emptyLogisticsSheet())],
+      );
+    }
+    const quote = await this.findQuoteByPotential(lane, desk, potentialId);
+    if (!quote) return "missing" as const;
+    return { quote, created: (inserted.rowCount ?? 0) > 0, desk };
+  }
+
+  async requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string) {
+    const sourcing = await this.findQuote(lane, "sourcing", sourcingQuoteId);
+    if (!sourcing) return "missing" as const;
+    if (sourcing.customerKind !== "SOURCING_LOGISTICS") return "kind" as const;
+    const updated = await this.query(
+      `update ${quoteTables[lane].sourcing}
+       set bao_gia_logistics = $2::jsonb
+       where ma_bao_gia = $1::uuid and bao_gia_logistics is null`,
+      [sourcingQuoteId, JSON.stringify(emptyLogisticsSheet())],
+    );
+    const quote = await this.findQuote(lane, "sourcing", sourcingQuoteId);
+    if (!quote) return "missing" as const;
+    return { quote, created: (updated.rowCount ?? 0) > 0 };
+  }
+
+  async updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput) {
+    if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.updateSharedLogistics(lane, id, input);
+    if (input.templateId) {
+      const template = await this.query(
+        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+        [input.templateId, banOf(desk)],
+      );
+      if (!template.rowCount) return "template" as const;
+    }
+    const updated = await this.query(
+      `update ${quoteTables[lane][desk]}
+       set ma_mau = $2::uuid,
+           ghi_chu_vh = $3,
+           trang_thai_bao_gia = $4::crm.trang_thai_bao_gia,
+           trang_thai_hop_dong = $5::crm.trang_thai_hop_dong_bao_gia,
+           chi_tiet_don_hang = $6::jsonb,
+           ghi_chu = $7::jsonb,
+           tai_khoan_ngan_hang = $8::jsonb
+       where ma_bao_gia = $1::uuid`,
+      [
+        id,
+        input.templateId,
+        blank(input.opsNote),
+        input.quoteStatus,
+        input.contractStatus,
+        JSON.stringify(input.orders),
+        JSON.stringify(input.notes),
+        JSON.stringify(input.bank),
+      ],
+    );
+    if (!updated.rowCount) return "missing" as const;
+    return (await this.findQuote(lane, desk, id)) ?? "missing";
+  }
+
+  async sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput) {
+    if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.sendSharedLogistics(lane, id, input);
+    const quote = await this.findQuote(lane, desk, id);
+    if (!quote) return "missing" as const;
+    if (input.orders.length === 0) return "empty" as const;
+    const selected = input.orders.find((order) => order.selected);
+    if (!selected) return "selection" as const;
+    if (input.templateId) {
+      const template = await this.query(
+        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+        [input.templateId, banOf(desk)],
+      );
+      if (!template.rowCount) return "template" as const;
+    }
+    const next = quote.quoteStatus === "CHUA_CO_BAO_GIA_LAI" || quote.quoteStatus === "DA_CO_BAO_GIA_LAI"
+      ? "DA_CO_BAO_GIA_LAI"
+      : "DA_CO_BAO_GIA";
+    const sent: SentQuote = {
+      sentAt: new Date().toISOString(),
+      order: selected,
+      notes: input.notes,
+      bank: input.bank,
+    };
+    const updated = await this.query(
+      `update ${quoteTables[lane][desk]}
+       set ma_mau = $2::uuid,
+           ghi_chu_vh = $3,
+           trang_thai_bao_gia = $4::crm.trang_thai_bao_gia,
+           trang_thai_hop_dong = $5::crm.trang_thai_hop_dong_bao_gia,
+           chi_tiet_don_hang = $6::jsonb,
+           ghi_chu = $7::jsonb,
+           tai_khoan_ngan_hang = $8::jsonb,
+           ban_da_gui = $9::jsonb
+       where ma_bao_gia = $1::uuid`,
+      [
+        id,
+        input.templateId,
+        blank(input.opsNote),
+        next,
+        input.contractStatus,
+        JSON.stringify(input.orders),
+        JSON.stringify(input.notes),
+        JSON.stringify(input.bank),
+        JSON.stringify(sent),
+      ],
+    );
+    if (!updated.rowCount) return "missing" as const;
+    return (await this.findQuote(lane, desk, id)) ?? "missing";
+  }
+
+  async returnQuote(lane: CrmLane, desk: QuoteDesk, id: string) {
+    if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.returnSharedLogistics(lane, id);
+    const quote = await this.findQuote(lane, desk, id);
+    if (!quote) return "missing" as const;
+    if (quote.quoteStatus !== "DA_CO_BAO_GIA" && quote.quoteStatus !== "DA_CO_BAO_GIA_LAI") return "state" as const;
+    await this.query(
+      `update ${quoteTables[lane][desk]}
+       set trang_thai_bao_gia = 'CHUA_CO_BAO_GIA_LAI'::crm.trang_thai_bao_gia
+       where ma_bao_gia = $1::uuid`,
+      [id],
+    );
+    return (await this.findQuote(lane, desk, id)) ?? "missing";
+  }
+
+  async listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]> {
+    const result = await this.query<TemplateRow>(
+      `select ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at
+       from crm.mau_bao_gia
+       where ban = $1::crm.ban_bao_gia
+       order by ten`,
+      [banOf(desk)],
+    );
+    return result.rows.map(toTemplate);
+  }
+
+  async createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput) {
+    const name = input.name.trim();
+    const duplicate = await this.query(
+      `select 1 from crm.mau_bao_gia where ban = $1::crm.ban_bao_gia and ten = $2`,
+      [banOf(desk), name],
+    );
+    if (duplicate.rowCount) return "duplicate" as const;
+    const result = await this.query<TemplateRow>(
+      `insert into crm.mau_bao_gia (ten, noi_dung, ban)
+       values ($1, $2, $3::crm.ban_bao_gia)
+       returning ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
+      [name, blank(input.content), banOf(desk)],
+    );
+    const row = result.rows[0];
+    if (!row) return "duplicate" as const;
+    return toTemplate(row);
+  }
+
+  async updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput) {
+    const name = input.name.trim();
+    const duplicate = await this.query(
+      `select 1 from crm.mau_bao_gia
+       where ban = $1::crm.ban_bao_gia and ten = $2 and ma_mau <> $3::uuid`,
+      [banOf(desk), name, id],
+    );
+    if (duplicate.rowCount) return "duplicate" as const;
+    const result = await this.query<TemplateRow>(
+      `update crm.mau_bao_gia
+       set ten = $2, noi_dung = $3
+       where ma_mau = $1::uuid and ban = $4::crm.ban_bao_gia
+       returning ma_mau::text as id, ten as name, noi_dung as content, tao_luc as created_at`,
+      [id, name, blank(input.content), banOf(desk)],
+    );
+    const row = result.rows[0];
+    return row ? toTemplate(row) : "missing" as const;
+  }
+
+  async deleteQuoteTemplate(desk: QuoteDesk, id: string) {
+    const used = await this.query<{ used: boolean }>(
+      `select (
+         exists(select 1 from crm.bao_gia_sourcing_viet_nam where ma_mau = $1::uuid)
+         or exists(select 1 from crm.bao_gia_sourcing_global where ma_mau = $1::uuid)
+         or exists(select 1 from crm.bao_gia_logistics_viet_nam where ma_mau = $1::uuid)
+         or exists(select 1 from crm.bao_gia_logistics_global where ma_mau = $1::uuid)
+         or exists(select 1 from crm.bao_gia_sourcing_viet_nam where bao_gia_logistics->>'templateId' = $1::text)
+         or exists(select 1 from crm.bao_gia_sourcing_global where bao_gia_logistics->>'templateId' = $1::text)
+       ) as used`,
+      [id],
+    );
+    if (used.rows[0]?.used) return "used" as const;
+    const removed = await this.query(
+      `delete from crm.mau_bao_gia where ma_mau = $1::uuid and ban = $2::crm.ban_bao_gia`,
+      [id, banOf(desk)],
+    );
+    return removed.rowCount ? "ok" as const : "missing" as const;
+  }
+
+  private async findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {
+    const tables = quoteTables[lane];
+    if (desk === "logistics") {
+      const own = await this.query<QuoteRow>(
+        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.ma_bao_gia = $1::uuid`,
+        [id],
+      );
+      if (own.rows[0]) return toQuote(own.rows[0]);
+      const shared = await this.query<QuoteRow>(
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_bao_gia = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
+        [id],
+      );
+      return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
+    }
+    const result = await this.query<QuoteRow>(
+      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.ma_bao_gia = $1::uuid`,
+      [id],
+    );
+    return result.rows[0] ? toQuote(result.rows[0]) : null;
+  }
+
+  private async findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null> {
+    const tables = quoteTables[lane];
+    if (desk === "logistics") {
+      const own = await this.query<QuoteRow>(
+        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
+        [potentialId],
+      );
+      if (own.rows[0]) return toQuote(own.rows[0]);
+      const shared = await this.query<QuoteRow>(
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
+        [potentialId],
+      );
+      return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
+    }
+    const result = await this.query<QuoteRow>(
+      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
+      [potentialId],
+    );
+    return result.rows[0] ? toQuote(result.rows[0]) : null;
+  }
+
+  private async sharedLogistics(lane: CrmLane, id: string): Promise<boolean> {
+    const tables = quoteTables[lane];
+    const own = await this.query(`select 1 from ${tables.logistics} where ma_bao_gia = $1::uuid`, [id]);
+    if (own.rowCount) return false;
+    const shared = await this.query(
+      `select 1 from ${tables.sourcing} q
+       join ${tables.potential} l on l.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang
+       where q.ma_bao_gia = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS' and l.xoa_luc is null`,
+      [id],
+    );
+    return Boolean(shared.rowCount);
+  }
+
+  private async saveSharedLogistics(lane: CrmLane, id: string, sheet: ReturnType<typeof logisticsPayload>) {
+    const updated = await this.query(
+      `update ${quoteTables[lane].sourcing}
+       set bao_gia_logistics = $2::jsonb
+       where ma_bao_gia = $1::uuid`,
+      [id, JSON.stringify(sheet)],
+    );
+    if (!updated.rowCount) return "missing" as const;
+    return (await this.findQuote(lane, "logistics", id)) ?? "missing";
+  }
+
+  private async updateSharedLogistics(lane: CrmLane, id: string, input: UpdateQuoteInput) {
+    if (input.templateId) {
+      const template = await this.query(
+        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
+        [input.templateId],
+      );
+      if (!template.rowCount) return "template" as const;
+    }
+    const current = await this.findQuote(lane, "logistics", id);
+    if (!current) return "missing" as const;
+    return this.saveSharedLogistics(lane, id, logisticsPayload(input, input.quoteStatus, current.sentQuote));
+  }
+
+  private async sendSharedLogistics(lane: CrmLane, id: string, input: UpdateQuoteInput) {
+    const quote = await this.findQuote(lane, "logistics", id);
+    if (!quote) return "missing" as const;
+    if (input.orders.length === 0) return "empty" as const;
+    const selected = input.orders.find((order) => order.selected);
+    if (!selected) return "selection" as const;
+    if (input.templateId) {
+      const template = await this.query(
+        `select 1 from crm.mau_bao_gia where ma_mau = $1::uuid and ban = 'LOGISTICS'::crm.ban_bao_gia`,
+        [input.templateId],
+      );
+      if (!template.rowCount) return "template" as const;
+    }
+    const next = quote.quoteStatus === "CHUA_CO_BAO_GIA_LAI" || quote.quoteStatus === "DA_CO_BAO_GIA_LAI"
+      ? "DA_CO_BAO_GIA_LAI"
+      : "DA_CO_BAO_GIA";
+    const sent: SentQuote = {
+      sentAt: new Date().toISOString(),
+      order: selected,
+      notes: input.notes,
+      bank: input.bank,
+    };
+    return this.saveSharedLogistics(lane, id, logisticsPayload(input, next, sent));
+  }
+
+  private async returnSharedLogistics(lane: CrmLane, id: string) {
+    const quote = await this.findQuote(lane, "logistics", id);
+    if (!quote) return "missing" as const;
+    if (quote.quoteStatus !== "DA_CO_BAO_GIA" && quote.quoteStatus !== "DA_CO_BAO_GIA_LAI") return "state" as const;
+    const updated = await this.query(
+      `update ${quoteTables[lane].sourcing}
+       set bao_gia_logistics = jsonb_set(bao_gia_logistics, '{quoteStatus}', '"CHUA_CO_BAO_GIA_LAI"')
+       where ma_bao_gia = $1::uuid`,
+      [id],
+    );
+    if (!updated.rowCount) return "missing" as const;
+    return (await this.findQuote(lane, "logistics", id)) ?? "missing";
+  }
+
+  private async findMessage(lane: CrmLane, id: string): Promise<MessageRecord | null> {
+    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const result = await this.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.ma_tin_nhan = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toMessage(row) : null;
   }

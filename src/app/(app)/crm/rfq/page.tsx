@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { RfqsView } from "@/features/crm/components/rfqs-view";
+import { RfqQuotesView } from "@/features/crm/live/rfq-quotes-view";
 
 export const metadata: Metadata = { title: "RFQ" };
 
 export const instant = false;
 
 export default function RfqPage() {
-  return <RfqsView />;
+  return <RfqQuotesView />;
 }

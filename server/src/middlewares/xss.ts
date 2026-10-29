@@ -5,7 +5,7 @@ import { AppError } from "../lib/errors";
 const MAX_DEPTH = 8;
 const MAX_KEYS = 40;
 const MAX_ARRAY = 100;
-const MAX_STRING = 20_000;
+const MAX_STRING = 100_000;
 const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 const xssOptions = {

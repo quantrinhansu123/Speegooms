@@ -6,5 +6,5 @@ export const metadata: Metadata = { title: "Mess" };
 export const instant = false;
 
 export default function Page() {
-  return <MessView />;
+  return <MessView lane="global" />;
 }

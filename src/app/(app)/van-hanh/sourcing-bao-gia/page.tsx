@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { SourcingRequestsView } from "@/features/operations/components/sourcing-requests-view";
+import { QuoteDeskView } from "@/features/crm/live/quotes-view";
 
-export const metadata: Metadata = { title: "Sourcing" };
+export const metadata: Metadata = { title: "Sourcing – Báo giá" };
 
 export const instant = false;
 
 export default function SourcingPage() {
-  return <SourcingRequestsView />;
+  return <QuoteDeskView desk="sourcing" />;
 }

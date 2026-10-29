@@ -1,7 +1,9 @@
 export { updateRoleSchema, type UpdateRoleInput } from "./admin";
 export { loginSchema, type LoginInput } from "./auth";
 export {
+  contractQuoteStatusSchema,
   createMessageSchema,
+  crmLaneSchema,
   customerKindSchema,
   customerTypeSchema,
   leadBrandSchema,
@@ -9,10 +11,26 @@ export {
   leadSourceSchema,
   messageDemandSchema,
   potentialStatusSchema,
+  quoteDeskSchema,
+  quoteOrderSchema,
+  quoteStatusSchema,
+  quoteTemplateSchema,
+  reassignQuoteSchema,
   updateMessageSchema,
   updatePotentialSchema,
+  updateQuoteSchema,
   type CreateMessageInput,
+  type CrmLane,
+  type QuoteBank,
+  type QuoteDesk,
+  type QuoteLine,
+  type QuoteNotes,
+  type QuoteOrder,
+  type SentQuote,
+  type QuoteTemplateInput,
   type UpdateMessageInput,
   type UpdatePotentialInput,
+  type ReassignQuoteInput,
+  type UpdateQuoteInput,
 } from "./crm";
 export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user";

@@ -7,7 +7,7 @@ export function isSessionId(value: string): boolean {
   return SESSION_ID.test(value);
 }
 
-/** Lưu hash trong DB. Lộ bảng sessions vẫn không dùng được làm cookie. */
+/** Lưu hash trong DB. Lộ bảng phien_dang_nhap vẫn không dùng được làm cookie. */
 export function hashSessionId(sessionId: string): string {
   return createHash("sha256").update(sessionId).digest("hex");
 }

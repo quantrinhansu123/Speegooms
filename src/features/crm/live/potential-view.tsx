@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
-import { updatePotentialSchema, type UpdatePotentialInput } from "@speego/shared";
+import { useCallback, useEffect, useState } from "react";
+import { FileText, Pencil, Trash2 } from "lucide-react";
+import { updatePotentialSchema, type CrmLane, type UpdatePotentialInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
-import { brandOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
+import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { RowMenu } from "./row-menu";
+import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
@@ -35,11 +38,11 @@ type Draft = {
   customerKind: "" | NonNullable<UpdatePotentialInput["customerKind"]>;
   customerType: "" | NonNullable<UpdatePotentialInput["customerType"]>;
   brand: "" | NonNullable<UpdatePotentialInput["brand"]>;
-  careChannel: string;
+  careChannel: "" | NonNullable<UpdatePotentialInput["careChannel"]>;
   classification: "" | NonNullable<UpdatePotentialInput["classification"]>;
   packSpec: string;
   weightKg: string;
-  logisticsClass: string;
+  logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
   shipFromAddress: string;
   shipToAddress: string;
 };
@@ -58,18 +61,19 @@ function draftFrom(row: PotentialRecord): Draft {
     customerKind: row.customerKind === "SOURCING" || row.customerKind === "LOGISTICS" || row.customerKind === "SOURCING_LOGISTICS" ? row.customerKind : "",
     customerType: row.customerType === "INDIVIDUAL" || row.customerType === "PRINCIPAL" || row.customerType === "ENTERPRISE" ? row.customerType : "",
     brand: brandOptions.some((item) => item[0] === row.brand) ? row.brand as Draft["brand"] : "",
-    careChannel: row.careChannel ?? "",
+    careChannel: careChannelOptions.some((item) => item[0] === row.careChannel) ? row.careChannel as Draft["careChannel"] : "",
     classification: row.classification === "LCL" || row.classification === "FCL" ? row.classification : "",
     packSpec: row.packSpec ?? "",
     weightKg: row.weightKg == null ? "" : String(row.weightKg),
-    logisticsClass: row.logisticsClass ?? "",
+    logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
     shipFromAddress: row.shipFromAddress ?? "",
     shipToAddress: row.shipToAddress ?? "",
   };
 }
 
-export function PotentialView() {
+export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();
+  const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
   const [rows, setRows] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -78,14 +82,17 @@ export function PotentialView() {
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
+  const [notice, setNotice] = useState<string>();
 
-  const load = () => {
-    api<{ potentials: PotentialRecord[] }>("/api/crm/potentials")
+  const load = useCallback(() => {
+    api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
       .then((body) => setRows(body.potentials))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"));
-  };
+  }, [lane]);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const open = (row: PotentialRecord) => {
     setEditing(row);
@@ -103,7 +110,7 @@ export function PotentialView() {
       careChannel: draft.careChannel || undefined,
       classification: draft.classification || undefined,
       packSpec: draft.packSpec || undefined,
-      weightKg: draft.weightKg === "" ? undefined : Number(draft.weightKg),
+      weightKg: draft.weightKg.trim() === "" ? undefined : Number(draft.weightKg),
       logisticsClass: draft.logisticsClass || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
       shipToAddress: draft.shipToAddress || undefined,
@@ -113,7 +120,7 @@ export function PotentialView() {
       return;
     }
     setPending(true);
-    void api(`/api/crm/potentials/${editing.id}`, { method: "PATCH", body: JSON.stringify(parsed.data) })
+    void api(crmPath(`/api/crm/potentials/${editing.id}`, lane), { method: "PATCH", body: JSON.stringify(parsed.data) })
       .then(() => {
         setEditing(null);
         setDraft(null);
@@ -123,18 +130,38 @@ export function PotentialView() {
       .finally(() => setPending(false));
   };
 
+  const requestQuote = (row: PotentialRecord) => {
+    setError(undefined);
+    setNotice(undefined);
+    if (!row.customerKind) {
+      setError("Chọn loại khách trước khi báo giá");
+      return;
+    }
+    void api<{ created: boolean; desk: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+      .then((body) => {
+        const desk = body.desk === "logistics" ? "Logistics – Báo giá" : "Sourcing – Báo giá";
+        setNotice(body.created ? `Đã tạo bản ghi cho ${desk}` : `Khách này đã có bản ghi ở ${desk}`);
+      })
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tạo được báo giá"));
+  };
+
   const remove = () => {
     if (!removing) return;
     const id = removing.id;
     setRemoving(null);
-    void api(`/api/crm/potentials/${id}`, { method: "DELETE" })
+    void api(crmPath(`/api/crm/potentials/${id}`, lane), { method: "DELETE" })
       .then(load)
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không xóa được"));
   };
 
   return (
     <>
-      <PageHeader title="Khách hàng tiềm năng" description="Lead được chuyển từ mess, giai đoạn bắt đầu là Tiềm năng." />
+      <PageHeader
+        title="Khách hàng tiềm năng"
+        description={lane === "vn" ? "Khách tiềm năng tuyến Việt Nam, chuyển từ mess cùng tuyến." : "Khách tiềm năng tuyến Global, chuyển từ mess cùng tuyến."}
+        actions={canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : undefined}
+      />
+      {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[1680px] text-sm">
@@ -184,18 +211,20 @@ export function PotentialView() {
                 <td className="max-w-48 truncate px-3 py-3" title={row.saleNote ?? undefined}>{row.saleNote || "—"}</td>
                 <td className="px-3 py-3">{row.careChannel || "—"}</td>
                 <td className="px-3 py-3">{row.classification || "—"}</td>
-                <td className="px-3 py-3">{row.packSpec || "—"}</td>
-                <td className="px-3 py-3">{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
-                <td className="px-3 py-3">{row.logisticsClass || "—"}</td>
-                <td className="px-3 py-3">{row.shipFromAddress || "—"}</td>
-                <td className="px-3 py-3">{row.shipToAddress || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.weightKg == null ? undefined : String(row.weightKg)}>{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.logisticsClass ?? undefined}>{row.logisticsClass || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.shipFromAddress ?? undefined}>{row.shipFromAddress || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.shipToAddress ?? undefined}>{row.shipToAddress || "—"}</td>
                 <td className="px-3 py-3">
-                  {canWrite && (
-                    <div className="flex gap-1">
-                      <Button size="icon-sm" variant="ghost" aria-label={`Sửa ${row.leadCode}`} onClick={() => open(row)}><Pencil /></Button>
-                      <Button size="icon-sm" variant="ghost" aria-label={`Xóa ${row.leadCode}`} onClick={() => setRemoving(row)}><Trash2 /></Button>
-                    </div>
-                  )}
+                  <RowMenu
+                    label={`Thao tác ${row.leadCode}`}
+                    items={canWrite ? [
+                      { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => requestQuote(row) },
+                      { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
+                      { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+                    ] : []}
+                  />
                 </td>
               </tr>
             ))}
@@ -248,18 +277,36 @@ export function PotentialView() {
               <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
               <Field label="Địa chỉ" htmlFor="pot-address"><Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></Field>
               <Field label="Ghi chú sale" htmlFor="pot-note"><Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} /></Field>
-              <Field label="Kênh chăm sóc" htmlFor="pot-care"><Input id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value })} /></Field>
+              <Field label="Kênh chăm sóc" htmlFor="pot-care">
+                <NativeSelect id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value as Draft["careChannel"] })}>
+                  <option value="">Chưa chọn</option>
+                  {careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </NativeSelect>
+              </Field>
               <Field label="Phân loại" htmlFor="pot-class">
                 <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Quy cách đóng gói" htmlFor="pot-pack"><Input id="pot-pack" value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} /></Field>
-              <Field label="Trọng lượng (kg)" htmlFor="pot-weight"><Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} /></Field>
-              <Field label="Phân loại logistics" htmlFor="pot-logistics"><Input id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value })} /></Field>
-              <Field label="Địa chỉ gửi" htmlFor="pot-from"><Input id="pot-from" value={draft.shipFromAddress} onChange={(event) => setDraft({ ...draft, shipFromAddress: event.target.value })} /></Field>
-              <Field label="Địa chỉ nhận" htmlFor="pot-to"><Input id="pot-to" value={draft.shipToAddress} onChange={(event) => setDraft({ ...draft, shipToAddress: event.target.value })} /></Field>
+              <Field label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack">
+                <Textarea id="pot-pack" rows={3} value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} />
+              </Field>
+              <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">
+                <Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />
+              </Field>
+              <Field label="Phân loại (KH logistics)" htmlFor="pot-logistics">
+                <NativeSelect id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value as Draft["logisticsClass"] })}>
+                  <option value="">Chưa chọn</option>
+                  {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </NativeSelect>
+              </Field>
+              <Field label="Địa chỉ gửi hàng (KH logistics)" htmlFor="pot-from">
+                <Textarea id="pot-from" rows={3} value={draft.shipFromAddress} onChange={(event) => setDraft({ ...draft, shipFromAddress: event.target.value })} />
+              </Field>
+              <Field label="Địa chỉ nhận hàng (KH logistics)" htmlFor="pot-to">
+                <Textarea id="pot-to" rows={3} value={draft.shipToAddress} onChange={(event) => setDraft({ ...draft, shipToAddress: event.target.value })} />
+              </Field>
             </div>
           )}
           <DialogFooter>
