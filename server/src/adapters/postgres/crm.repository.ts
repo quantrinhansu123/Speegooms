@@ -831,7 +831,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const compiled = messageSearch(search).build();
     const result = await this.query<MessageRow>(
-      `${messageSelect(messageTable, potentialTable)} where true ${compiled.sql} order by m.nhan_luc desc limit 200`,
+      `${messageSelect(messageTable, potentialTable)} where true ${compiled.sql} order by m.tao_luc desc limit 200`,
       compiled.values,
     );
     return result.rows.map(toMessage);
@@ -1309,7 +1309,7 @@ export class PostgresCrmRepository implements CrmRepository {
       `select id::text as id, ten as name, noi_dung as content, tao_luc as created_at
        from crm.mau_bao_gia
        where ban = $1::crm.ban_bao_gia
-       order by ten`,
+       order by tao_luc desc`,
       [banOf(desk)],
     );
     return result.rows.map(toTemplate);
