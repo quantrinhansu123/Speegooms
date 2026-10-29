@@ -89,7 +89,7 @@ export class CrmController {
   };
 
   requestQuote = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.requestQuote(laneOf(req), one(req.params.id)));
+    res.status(200).json(await this.crm.requestQuote(laneOf(req), one(req.params.id), req.user));
   };
 
   requestLogisticsQuote = async (req: Request, res: Response) => {
@@ -101,11 +101,11 @@ export class CrmController {
   };
 
   sendQuote = async (req: Request, res: Response) => {
-    res.status(200).json({ quote: await this.crm.sendQuote(laneOf(req), deskOf(req), one(req.params.id), req.body) });
+    res.status(200).json({ quote: await this.crm.sendQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, req.user) });
   };
 
   returnQuote = async (req: Request, res: Response) => {
-    res.status(200).json({ quote: await this.crm.returnQuote(laneOf(req), deskOf(req), one(req.params.id)) });
+    res.status(200).json({ quote: await this.crm.returnQuote(laneOf(req), deskOf(req), one(req.params.id), req.user) });
   };
 
   listQuoteTemplates = async (req: Request, res: Response) => {
@@ -132,7 +132,7 @@ export class CrmController {
   };
 
   createContract = async (req: Request, res: Response) => {
-    res.status(201).json({ contract: await this.crm.createContract(laneOf(req), one(req.params.id), req.body) });
+    res.status(201).json({ contract: await this.crm.createContract(laneOf(req), one(req.params.id), req.body, req.user) });
   };
 
   updateOpsContract = async (req: Request, res: Response) => {
@@ -153,7 +153,7 @@ export class CrmController {
   };
 
   resendContract = async (req: Request, res: Response) => {
-    res.status(200).json({ contract: await this.crm.resendContract(laneOf(req), one(req.params.id), resendTarget(req)) });
+    res.status(200).json({ contract: await this.crm.resendContract(laneOf(req), one(req.params.id), resendTarget(req), req.user) });
   };
 }
 
