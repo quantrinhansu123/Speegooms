@@ -44,7 +44,7 @@ export function AccountingDashboard() {
       <ThresholdNotice compact />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Cọc cần đối soát" value={String(deposits.length)} icon={FileSignature} caption={`${formatVndCompact(depositTotal)} chờ Kế toán xác nhận`} href="/ke-toan/doi-soat" />
+        <StatCard label="Cọc cần đối soát" value={String(deposits.length)} icon={FileSignature} caption={`${formatVndCompact(depositTotal)} chờ Kế toán xác nhận`} href="/ke-toan/hop-dong" />
         <StatCard label="Đề nghị chi chờ duyệt" value={String(awaiting.length)} icon={Clock} caption={formatVndCompact(sum(awaiting))} href="/ke-toan/duyet-thanh-toan" />
         <StatCard label="Đã duyệt, chờ ghi nhận chi" value={String(toPay.length)} icon={HandCoins} caption={formatVndCompact(sum(toPay))} href="/ke-toan/de-nghi-thanh-toan" />
         <StatCard label="Công nợ phải thu" value={formatVndCompact(receivable)} icon={Landmark} caption="Giá trị hợp đồng chưa thu đủ" href="/ke-toan/cong-no" />
@@ -77,7 +77,7 @@ export function AccountingDashboard() {
               {deposits.slice(0, 5).map((c) => (
                 <li key={c.orderId} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <div className="min-w-0">
-                    <Link href={`/ke-toan/doi-soat/${c.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{c.orderId}</Link>
+                    <Link href={`/ke-toan/hop-dong/${c.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{c.orderId}</Link>
                     <p className="truncate text-muted-foreground">{customerOf.get(c.customerId)} · {formatVndCompact(c.deposit.amount)}</p>
                   </div>
                   <StatusBadge tone={c.deposit.status === "khong-khop" ? "danger" : "warning"}>{c.deposit.status === "khong-khop" ? "Không khớp" : "Chờ đối soát"}</StatusBadge>

@@ -18,11 +18,11 @@ import type { Contract, DepositStatus, RouteCode } from "@/types/crm";
 import { useCrm, usePagination } from "../hooks";
 import { ContractBadge, DepositBadge } from "./meta-badges";
 
-export function ContractsView({ routeScope }: { routeScope?: RouteCode } = {}) {
+export function ContractsView({ routeScope, accounting = false }: { routeScope?: RouteCode; accounting?: boolean } = {}) {
   const { data, all, user } = useCrm(routeScope);
   const [query, setQuery] = useState("");
   // Kế toán vào thẳng hàng đợi cần xác nhận cọc
-  const [deposit, setDeposit] = useState<DepositStatus | "">(user.role === "ke-toan" ? "cho-ke-toan" : "");
+  const [deposit, setDeposit] = useState<DepositStatus | "">(!accounting && user.role === "ke-toan" ? "cho-ke-toan" : "");
   const customerName = new Map(all.customers.map((c) => [c.customerId, c.name]));
 
   const filtered = data.contracts.filter(
@@ -37,7 +37,7 @@ export function ContractsView({ routeScope }: { routeScope?: RouteCode } = {}) {
     { key: "customer", header: "Khách hàng", cell: (c) => <span className="font-medium">{customerName.get(c.customerId) ?? c.customerId}</span> },
     { key: "value", header: "Giá trị", align: "right", cell: (c) => formatMoney(c.value, c.currency) },
     { key: "status", header: "Hợp đồng", cell: (c) => <ContractBadge value={c.status} /> },
-    { key: "deposit", header: "Cọc", cell: (c) => <DepositBadge value={c.deposit.status} /> },
+    { key: "deposit", header: "Cọc", cell: (c) => accounting ? <Link href={`/ke-toan/hop-dong/${c.orderId}`} className="inline-flex flex-wrap items-center gap-2 text-primary hover:underline"><DepositBadge value={c.deposit.status} /><span className="text-xs">Đối soát cọc</span></Link> : <DepositBadge value={c.deposit.status} /> },
     {
       key: "handover",
       header: "Bàn giao",
@@ -50,7 +50,7 @@ export function ContractsView({ routeScope }: { routeScope?: RouteCode } = {}) {
 
   return (
     <>
-      <PageHeader title="Hợp đồng và cọc" description="Mỗi hợp đồng ứng với một đơn (order_id). Chỉ Kế toán xác nhận Đã cọc; chưa cọc thì chưa bàn giao đặt xưởng." />
+      <PageHeader title={accounting ? "Hợp đồng" : "Hợp đồng và cọc"} description="Mỗi hợp đồng ứng với một đơn (order_id). Chỉ Kế toán xác nhận Đã cọc; chưa cọc thì chưa bàn giao đặt xưởng." />
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

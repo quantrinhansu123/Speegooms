@@ -35,8 +35,8 @@ export function DepositDetail({ orderId }: { orderId: string }) {
 
   return (
     <>
-      <Link href="/ke-toan/doi-soat" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft aria-hidden className="size-4" /> Cọc cần đối soát
+      <Link href="/ke-toan/hop-dong" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft aria-hidden className="size-4" /> Hợp đồng
       </Link>
       <div className="mb-6 rounded-xl border bg-card p-5 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-4">

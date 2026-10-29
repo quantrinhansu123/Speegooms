@@ -1,10 +1,7 @@
-import type { Metadata } from "next";
-import { DepositsView } from "@/features/accounting/components/deposits-view";
-
-export const metadata: Metadata = { title: "Cọc cần đối soát" };
+import { redirect } from "next/navigation";
 
 export const instant = false;
 
 export default function DepositsPage() {
-  return <DepositsView />;
+  redirect("/ke-toan/hop-dong");
 }

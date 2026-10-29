@@ -42,6 +42,7 @@ export const implementedRoutes: readonly string[] = [
   "/fulfillment/giao-hang",
   "/fulfillment/hoi-tinh-trang",
   "/ke-toan",
+  "/ke-toan/hop-dong",
   "/ke-toan/doi-soat",
   "/ke-toan/de-nghi-thanh-toan",
   "/ke-toan/duyet-thanh-toan",

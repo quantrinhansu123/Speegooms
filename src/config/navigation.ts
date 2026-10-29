@@ -114,8 +114,8 @@ export const navigation: NavGroup[] = [
         href: "/ke-toan",
         icon: Wallet,
         children: [
+          { title: "Hợp đồng", href: "/ke-toan/hop-dong" },
           { title: "Tài chính vận hành", href: "/ke-toan" },
-          { title: "Cọc cần đối soát", href: "/ke-toan/doi-soat" },
           { title: "Đề nghị thanh toán", href: "/ke-toan/de-nghi-thanh-toan" },
           { title: "Duyệt thanh toán", href: "/ke-toan/duyet-thanh-toan" },
           { title: "Công nợ", href: "/ke-toan/cong-no" },
