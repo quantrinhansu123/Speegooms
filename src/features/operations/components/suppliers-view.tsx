@@ -117,7 +117,7 @@ export function SuppliersView() {
   return (
     <>
       <PageHeader
-        title="Nhà cung cấp / xưởng"
+        title="Nguồn hàng-xưởng"
         description="Hồ sơ xưởng Việt Nam và Trung Quốc, loại hàng và đánh giá. Điểm đánh giá và tỷ lệ đúng hạn là dữ liệu demo."
         actions={can() && <Button size="lg" onClick={() => setAdding(true)}><Plus /> Thêm nhà cung cấp</Button>}
       />

@@ -51,7 +51,7 @@ export function OrdersView() {
   const alertCount = orders.filter((o) => o.alerts.length > 0).length;
 
   const columns: Column<OrderView>[] = [
-    { key: "id", header: "Đơn hàng", cell: (o) => <Link href={`/van-hanh/don-hang/${o.contract.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{o.contract.orderId}</Link> },
+    { key: "id", header: "Hợp đồng", cell: (o) => <Link href={`/van-hanh/don-hang/${o.contract.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{o.contract.contractNo}</Link> },
     {
       key: "customer",
       header: "Khách hàng",
@@ -103,7 +103,7 @@ export function OrdersView() {
 
   return (
     <>
-      <PageHeader title="Đơn hàng" description={`Mỗi đơn là một hợp đồng đã ký của Sale (order_id). ${alertCount} đơn đang có cảnh báo.`} />
+      <PageHeader title="Hợp đồng" description={`Theo dõi vận hành các hợp đồng đã ký của Sale. ${alertCount} hợp đồng đang có cảnh báo.`} />
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

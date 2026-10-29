@@ -66,7 +66,7 @@ export function PosView() {
 
   return (
     <>
-      <PageHeader title="Purchase Order" description="PO đặt xưởng và tiến độ. Chỉ đặt xưởng được khi Kế toán đã xác nhận Đã cọc; PO tạo từ chi tiết đơn hàng." />
+      <PageHeader title="Đơn mua xưởng" description="PO đặt xưởng và tiến độ. Chỉ đặt xưởng được khi Kế toán đã xác nhận Đã cọc; PO tạo từ chi tiết hợp đồng." />
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

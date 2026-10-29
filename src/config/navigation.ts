@@ -88,9 +88,10 @@ export const navigation: NavGroup[] = [
         icon: Truck,
         children: [
           { title: "Sourcing – Báo giá", href: "/van-hanh/sourcing-bao-gia" },
-          { title: "Nhà cung cấp", href: "/van-hanh/nha-cung-cap" },
-          { title: "Purchase Order", href: "/van-hanh/po" },
-          { title: "Đơn hàng", href: "/van-hanh/don-hang" },
+          { title: "Logistics – Báo giá", href: "/van-hanh/logistics-bao-gia" },
+          { title: "Hợp đồng", href: "/van-hanh/don-hang" },
+          { title: "Nguồn hàng-xưởng", href: "/van-hanh/nha-cung-cap" },
+          { title: "Đơn mua xưởng", href: "/van-hanh/po" },
           { title: "Logistics – Lô hàng", href: "/van-hanh/logistics" },
           { title: "Chứng từ", href: "/van-hanh/chung-tu" },
         ],
