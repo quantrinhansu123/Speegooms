@@ -85,7 +85,7 @@ export function DocumentsView() {
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm chứng từ" placeholder="Tìm lô hàng, đơn hàng, loại chứng từ, file…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 pl-8" />
+          <Input aria-label="Tìm chứng từ" placeholder="Tìm lô hàng, đơn hàng, loại chứng từ, file…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>
         <NativeSelect aria-label="Lọc trạng thái chứng từ" className="w-48" value={status} onChange={(e) => setStatus(e.target.value as DocStatus | "")}>
           <option value="">Mọi trạng thái</option>

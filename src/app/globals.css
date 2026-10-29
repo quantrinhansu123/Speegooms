@@ -172,6 +172,16 @@
   scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent) transparent;
 }
 
+[data-slot="dialog-content"],
+[data-slot="dialog-content"] .overflow-y-auto {
+  scrollbar-width: none;
+}
+
+[data-slot="dialog-content"]::-webkit-scrollbar,
+[data-slot="dialog-content"] .overflow-y-auto::-webkit-scrollbar {
+  display: none;
+}
+
 .sidebar-scroll {
   scrollbar-width: thin;
   scrollbar-gutter: stable;

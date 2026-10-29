@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertTriangle, Unlink, UserCheck, X } from "lucide-react";
+import { AlertTriangle, Unlink, UserCheck, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -182,7 +182,7 @@ export function LeadFormDialog({ open, onOpenChange, onCreated }: { open: boolea
             <Button type="button" variant="outline" onClick={() => close(false)}>
               <X /> Hủy
             </Button>
-            <Button type="submit">Tạo mới</Button>
+            <Button type="submit"><Save aria-hidden /> Tạo mới</Button>
           </DialogFooter>
         </form>
       </DialogContent>

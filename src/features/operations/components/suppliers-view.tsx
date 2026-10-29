@@ -3,7 +3,7 @@
 import { useListTools } from "@/components/shared/list-tools";
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X, Save } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -68,7 +68,7 @@ function AddSupplierDialog({ onClose, onCreated }: { onClose: () => void; onCrea
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}><X /> Hủy</Button>
-          <Button onClick={submit}>Tạo mới</Button>
+          <Button onClick={submit}><Save aria-hidden /> Tạo mới</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -124,7 +124,7 @@ export function SuppliersView() {
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm nhà cung cấp" placeholder="Tìm tên, thành phố, mã, người liên hệ…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 pl-8" />
+          <Input aria-label="Tìm nhà cung cấp" placeholder="Tìm tên, thành phố, mã, người liên hệ…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>
         <NativeSelect aria-label="Lọc quốc gia" className="w-40" value={country} onChange={(e) => setCountry(e.target.value as SupplierCountry | "")}>
           <option value="">Mọi quốc gia</option>

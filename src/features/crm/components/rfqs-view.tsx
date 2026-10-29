@@ -75,7 +75,7 @@ export function RfqsView({ routeScope }: { routeScope?: RouteCode } = {}) {
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
         <div className="relative min-w-60 flex-1">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm RFQ" placeholder="Tìm rfq_id, mess_id, hàng hóa, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 pl-8" />
+          <Input aria-label="Tìm RFQ" placeholder="Tìm rfq_id, mess_id, hàng hóa, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>
         <NativeSelect aria-label="Lọc trạng thái RFQ" className="w-48" value={status} onChange={(e) => setStatus(e.target.value as RfqStatus | "")}>
           <option value="">Mọi trạng thái</option>

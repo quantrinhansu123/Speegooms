@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type Column } from "@/components/shared/data-table";
@@ -96,7 +96,7 @@ export function CustomerDetail({ customerId }: { customerId: string }) {
                     }
                   }}
                 >
-                  <Save /> Lưu
+                  <RefreshCw aria-hidden /> Lưu
                 </Button>
               </div>
             )}

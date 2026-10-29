@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, RefreshCw, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -89,7 +89,7 @@ export function RfqForm({
               <X /> Hủy
             </Button>
           )}
-          <Button type="submit">{submitLabel}</Button>
+          <Button type="submit">{submitLabel === "Cập nhật" ? <RefreshCw aria-hidden /> : <Save aria-hidden />}{submitLabel}</Button>
         </div>
       )}
     </form>

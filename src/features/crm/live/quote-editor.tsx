@@ -462,6 +462,7 @@ export function QuoteEditor({
                   </div>
                 ))}
               </div>
+              <h3 className="mt-3 border-b pb-3 font-semibold sm:col-span-2">Thông tin thanh toán</h3>
               <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
                 <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEdit} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
               </Field>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -109,45 +109,58 @@ export function ListView<T>({
     });
   })();
   const paging = usePagination(filtered, pageSize);
+  const activeCount = filters.filter((f) => values[f.id]).length + toggles.filter((t) => on[t.id]).length + Number(!!query.trim()) + Number(!!from || !!to);
 
   return (
     <>
       {title && <PageHeader title={title} description={description} actions={actions} headingLevel={headingLevel} />}
       {banner}
       {summary}
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-0 basis-60 flex-1">
-          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label={searchLabel} placeholder={searchPlaceholder} value={query} onChange={(e) => { setQuery(e.target.value); paging.setPage(1); }} className="h-9 pl-8" />
+      <div className="mb-4 overflow-hidden rounded-xl border bg-card shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-medium"><SlidersHorizontal aria-hidden className="size-4 text-primary" /> Bộ lọc danh sách {activeCount > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{activeCount}</span>}</div>
+          <Button type="button" variant="ghost" size="sm" disabled={!activeCount && !sortKey} onClick={() => { setQuery(""); setValues({}); setOn({}); setFrom(""); setTo(""); setSortKey(""); setExportMessage(undefined); paging.setPage(1); }}><RotateCcw aria-hidden /> Đặt lại</Button>
         </div>
+        <div className="grid items-end gap-4 p-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Field label={searchLabel} htmlFor={`${dateId}-search`} className="sm:col-span-2">
+        <div className="relative min-w-0">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input id={`${dateId}-search`} placeholder={searchPlaceholder} value={query} onChange={(e) => { setQuery(e.target.value); paging.setPage(1); }} className="h-10 pl-8" />
+        </div>
+        </Field>
         {filters.map((f) => (
-          <NativeSelect key={f.id} aria-label={f.label} className={f.className ?? "w-full sm:w-48"} value={values[f.id]} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); paging.setPage(1); }}>
-            <option value="">{f.label}</option>
+          <Field key={f.id} label={f.label} htmlFor={`${dateId}-${f.id}`} className={f.className}>
+          <NativeSelect id={`${dateId}-${f.id}`} className="h-10 w-full" value={values[f.id] ?? ""} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); paging.setPage(1); }}>
+            <option value="">Tất cả</option>
             {f.options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </NativeSelect>
+          </Field>
         ))}
-        {dateValue && <><Field label={`${dateLabel} từ`} htmlFor={`${dateId}-from`}><Input id={`${dateId}-from`} type="date" value={from} onChange={(e) => { setFrom(e.target.value); paging.setPage(1); }} /></Field><Field label="Đến ngày" htmlFor={`${dateId}-to`}><Input id={`${dateId}-to`} type="date" value={to} onChange={(e) => { setTo(e.target.value); paging.setPage(1); }} /></Field></>}
-        <NativeSelect aria-label="Sắp xếp dữ liệu" className="w-full sm:w-52" value={sortKey} onChange={(e) => { setSortKey(e.target.value); paging.setPage(1); }}>
+        {dateValue && <><Field label={`${dateLabel} từ`} htmlFor={`${dateId}-from`}><Input id={`${dateId}-from`} className="h-10" type="date" value={from} onChange={(e) => { setFrom(e.target.value); paging.setPage(1); }} /></Field><Field label="Đến ngày" htmlFor={`${dateId}-to`}><Input id={`${dateId}-to`} className="h-10" type="date" value={to} onChange={(e) => { setTo(e.target.value); paging.setPage(1); }} /></Field></>}
+        <Field label="Sắp xếp dữ liệu" htmlFor={`${dateId}-sort`}>
+        <NativeSelect id={`${dateId}-sort`} className="h-10 w-full" value={sortKey} onChange={(e) => { setSortKey(e.target.value); paging.setPage(1); }}>
           <option value="">Thứ tự mặc định</option>
           {dateValue && <><option value="__date:desc">{dateLabel} mới nhất</option><option value="__date:asc">{dateLabel} cũ nhất</option></>}
           {(sortableColumns.length ? sortableColumns.map((c) => ({ key: c.key, header: c.header })) : [{ key: "search", header: "Mã / tên" }]).flatMap((c) => [<option key={`${c.key}:asc`} value={`${c.key}:asc`}>{c.header} ↑</option>, <option key={`${c.key}:desc`} value={`${c.key}:desc`}>{c.header} ↓</option>])}
         </NativeSelect>
-        {exportFilename && exportColumns.length > 0 && <Button variant="outline" disabled={!filtered.length} onClick={() => {
+        </Field>
+        {exportFilename && exportColumns.length > 0 && <Button className="h-10" variant="outline" disabled={!filtered.length} onClick={() => {
           try {
             downloadCsv(exportFilename, exportColumns.map((c) => c.header), filtered.map((r) => exportColumns.map((c) => c.exportValue!(r))));
             setExportMessage({ tone: "success", text: `Đã tạo CSV với ${filtered.length} bản ghi theo bộ lọc và thứ tự hiện tại (toàn bộ trang).` });
           } catch { setExportMessage({ tone: "danger", text: "Không tạo được CSV. Vui lòng thử lại." }); }
         }}><Download aria-hidden /> Xuất CSV</Button>}
         {toggles.map((t) => (
-          <label key={t.id} className="flex h-9 cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={on[t.id]} onChange={(e) => { setOn({ ...on, [t.id]: e.target.checked }); paging.setPage(1); }} />
+          <label key={t.id} className="flex h-10 cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[var(--brand-navy)]" checked={!!on[t.id]} onChange={(e) => { setOn({ ...on, [t.id]: e.target.checked }); paging.setPage(1); }} />
             {t.label}
           </label>
         ))}
+        </div>
       </div>
       {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
       {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}
