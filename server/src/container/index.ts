@@ -3,9 +3,11 @@ import type { RequestHandler } from "express";
 import type { Env } from "../config/env";
 import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
+import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
 import { AuthController } from "../controllers/auth.controller";
 import { CrmController } from "../controllers/crm.controller";
 import { HealthController } from "../controllers/health.controller";
+import { NotificationController } from "../controllers/notification.controller";
 import { SecurityController } from "../controllers/security.controller";
 import { UserAdminController } from "../controllers/user-admin.controller";
 import { createSessionCookies } from "../lib/cookies";
@@ -15,6 +17,7 @@ import { createRepositories } from "../repositories/create-repositories";
 import { AuthService } from "../services/auth.service";
 import { CrmService } from "../services/crm.service";
 import { HealthService } from "../services/health.service";
+import { NotificationService } from "../services/notification.service";
 import { ScryptPasswordHasher } from "../services/password.service";
 import { UserAdminService } from "../services/user-admin.service";
 
@@ -29,6 +32,7 @@ export interface AppContainer {
   securityController: SecurityController;
   userAdminController: UserAdminController;
   crmController: CrmController;
+  notificationController: NotificationController;
   authenticate: RequestHandler;
   csrf: CsrfGuard;
   close(): Promise<void>;
@@ -41,7 +45,10 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   const auth = new AuthService(repositories.users, repositories.sessions, passwords, dummyHash);
   const cookies = createSessionCookies(env);
   const csrf = createCsrfGuard(env);
-  const crm = env.DB_PROVIDER === "postgres" ? new PostgresCrmRepository(getPostgresPool(env)) : null;
+  const pool = env.DB_PROVIDER === "postgres" ? getPostgresPool(env) : null;
+  const crm = pool ? new PostgresCrmRepository(pool) : null;
+  const notifications = pool ? new PostgresNotificationRepository(pool) : null;
+  const notificationService = new NotificationService(notifications);
 
   return {
     env,
@@ -49,7 +56,8 @@ export async function createContainer(env: Env): Promise<AppContainer> {
     healthController: new HealthController(new HealthService(repositories.users)),
     securityController: new SecurityController(csrf.issue),
     userAdminController: new UserAdminController(new UserAdminService(repositories.users)),
-    crmController: new CrmController(new CrmService(crm)),
+    crmController: new CrmController(new CrmService(crm, notificationService)),
+    notificationController: new NotificationController(notificationService),
     authenticate: createAuthenticate(env, repositories.users, repositories.sessions),
     csrf,
     close: () => repositories.close(),

@@ -3,6 +3,7 @@
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-provider";
+import { NotificationMenu } from "@/features/notifications/notification-menu";
 import { Breadcrumbs } from "./breadcrumbs";
 import { UserMenu } from "./user-menu";
 
@@ -16,6 +17,7 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
       <div className="min-w-0 flex-1">
         <Breadcrumbs />
       </div>
+      <NotificationMenu />
       <UserMenu user={user} />
     </header>
   );

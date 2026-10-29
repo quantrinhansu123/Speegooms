@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Fragment, useState } from "react";
+import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
+  quoteCurrencies,
   quoteOrderSchema,
   updateQuoteSchema,
   type CrmLane,
   type QuoteBank,
+  type QuoteCurrency,
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
@@ -20,10 +22,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
+import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, image: "", quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "" };
+  return { stt, image: "", quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
 }
 
 function amountValue(value: string): number | null {
@@ -38,7 +41,12 @@ function amountText(value: number | null): string {
 }
 
 function filledLine(line: QuoteLine): boolean {
-  return Boolean(line.stt || line.image || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note);
+  return Boolean(line.stt || line.image || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
+}
+
+function packagesSummary(packages: QuoteLine["packages"]): string {
+  const m = packageMetrics(packages);
+  return `${m.count} kiện · ${m.cbm} cbm · tính cước ${m.chargeableKg} kg`;
 }
 
 function money(value: number): string {
@@ -83,17 +91,33 @@ async function compressImage(file: File): Promise<string> {
 
 function OrderLines({
   lines,
+  currency,
   canEdit,
   onChange,
   onError,
 }: {
   lines: QuoteLine[];
+  currency: QuoteCurrency;
   canEdit: boolean;
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
 }) {
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
-    onChange(lines.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+    onChange(lines.map((line, lineIndex) => {
+      if (lineIndex !== index) return line;
+      let next = { ...line, ...patch };
+      // Có kiện thì CBM và cân tính cước suy ra từ kiện
+      if ("packages" in patch && next.packages.length > 0) {
+        const m = packageMetrics(next.packages);
+        next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
+      }
+      // Đổi số lượng, giá, cách tính hoặc kiện thì tự tính lại thành tiền; vẫn sửa tay được sau đó
+      if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm"].some((k) => k in patch)) {
+        const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
+        if (total != null) next = { ...next, lineTotal: total };
+      }
+      return next;
+    }));
   };
 
   const addLine = () => {
@@ -110,8 +134,8 @@ function OrderLines({
             <tr className="border-b bg-muted/50 text-left">
               <th className="px-2 py-2 font-medium">STT</th>
               <th className="px-2 py-2 font-medium">Hình ảnh</th>
-              <th className="px-2 py-2 font-medium">Số lượng (set)</th>
-              <th className="px-2 py-2 font-medium">Giá/set (AUS)</th>
+              <th className="px-2 py-2 font-medium">Số lượng / đơn vị</th>
+              <th className="px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
               <th className="px-2 py-2 font-medium">Tổng tiền hàng</th>
               <th className="px-2 py-2 font-medium">Cân nặng (KG)</th>
               <th className="px-2 py-2 font-medium">Thông số</th>
@@ -121,7 +145,8 @@ function OrderLines({
           </thead>
           <tbody>
             {lines.map((line, index) => (
-              <tr key={index} className="border-b align-top last:border-0">
+              <Fragment key={index}>
+              <tr className={`align-top ${line.packages.length || line.attrs.length || canEdit ? "" : "border-b last:border-0"}`}>
                 <td className="px-2 py-2"><Input className="h-8 w-14" value={line.stt} disabled={!canEdit} onChange={(event) => updateLine(index, { stt: event.target.value })} /></td>
                 <td className="px-2 py-2">
                   <div
@@ -155,27 +180,43 @@ function OrderLines({
                     {safeImage(line.image) && <img src={safeImage(line.image)} alt="" className="h-16 w-16 rounded object-contain" />}
                     {canEdit && (
                       <>
-                        <Input
-                          className="h-8"
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          aria-label={`Tải ảnh dòng ${index + 1}`}
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            event.target.value = "";
-                            if (!file) return;
-                            void compressImage(file)
-                              .then((image) => updateLine(index, { image }))
-                              .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
-                          }}
-                        />
-                        <p className="text-[10px] text-muted-foreground">Ctrl+C / Ctrl+V</p>
+                        <label className="inline-flex h-7 w-fit cursor-pointer items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
+                          <ImagePlus aria-hidden className="size-3.5" />
+                          {line.image ? "Đổi ảnh" : "Thêm ảnh"}
+                          <input
+                            className="sr-only"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            aria-label={`Tải ảnh dòng ${index + 1}`}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (!file) return;
+                              void compressImage(file)
+                                .then((image) => updateLine(index, { image }))
+                                .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
+                            }}
+                          />
+                        </label>
+                        <p className="text-[10px] text-muted-foreground">hoặc Ctrl+V</p>
                       </>
                     )}
                   </div>
                 </td>
-                <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.quantity)} disabled={!canEdit} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} /></td>
-                <td className="px-2 py-2"><Input className="h-8 w-24" inputMode="decimal" value={amountText(line.pricePerSet)} disabled={!canEdit} onChange={(event) => updateLine(index, { pricePerSet: amountValue(event.target.value) })} /></td>
+                <td className="px-2 py-2">
+                  <div className="grid w-24 gap-1">
+                    <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} value={amountText(line.quantity)} disabled={!canEdit} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} />
+                    <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEdit} onChange={(event) => updateLine(index, { unit: event.target.value })} />
+                  </div>
+                </td>
+                <td className="px-2 py-2">
+                  <div className="grid w-36 gap-1">
+                    <Input className="h-8" inputMode="decimal" aria-label={`Đơn giá dòng ${index + 1}`} value={amountText(line.pricePerSet)} disabled={!canEdit} onChange={(event) => updateLine(index, { pricePerSet: amountValue(event.target.value) })} />
+                    <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEdit} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
+                      {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                    </NativeSelect>
+                  </div>
+                </td>
                 <td className="px-2 py-2"><Input className="h-8 w-24" inputMode="decimal" value={amountText(line.lineTotal)} disabled={!canEdit} onChange={(event) => updateLine(index, { lineTotal: amountValue(event.target.value) })} /></td>
                 <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEdit} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} /></td>
                 <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.spec} disabled={!canEdit} onChange={(event) => updateLine(index, { spec: event.target.value })} /></td>
@@ -188,6 +229,46 @@ function OrderLines({
                   )}
                 </td>
               </tr>
+              <tr className="border-b bg-muted/20 last:border-0">
+                <td />
+                <td colSpan={8} className="px-2 py-2">
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <p className="font-medium">Quy cách đóng gói{line.packages.length > 0 && ` · ${packagesSummary(line.packages)}`}</p>
+                      {line.packages.map((pkg, pi) => (
+                        <div key={pi} className="flex flex-wrap items-center gap-1">
+                          {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => (
+                            <Input
+                              key={key}
+                              className="h-7 w-16"
+                              inputMode="decimal"
+                              placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
+                              aria-label={`Kiện ${pi + 1} dòng ${index + 1}: ${key}`}
+                              value={pkg[key] ? String(pkg[key]) : ""}
+                              disabled={!canEdit}
+                              onChange={(event) => updateLine(index, { packages: line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)) })}
+                            />
+                          ))}
+                          {canEdit && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
+                        </div>
+                      ))}
+                      {canEdit && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
+                    </div>
+                    <div className="grid gap-1.5">
+                      <p className="font-medium">Thuộc tính (chất liệu, bảo hành, thời gian sản xuất…)</p>
+                      {line.attrs.map((attr, ai) => (
+                        <div key={ai} className="flex items-center gap-1">
+                          <Input className="h-7 w-32" placeholder="Tên" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: tên`} value={attr.key} disabled={!canEdit} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, key: event.target.value } : x)) })} />
+                          <Input className="h-7" placeholder="Giá trị" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: giá trị`} value={attr.value} disabled={!canEdit} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, value: event.target.value } : x)) })} />
+                          {canEdit && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa thuộc tính ${ai + 1}`} onClick={() => updateLine(index, { attrs: line.attrs.filter((_, xi) => xi !== ai) })}><Trash2 /></Button>}
+                        </div>
+                      ))}
+                      {canEdit && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -284,6 +365,8 @@ export function QuoteEditor({
   const sheetHtmlFor = (order: QuoteOrder) => quoteSheetHtml({
     customer: quote,
     lines: order.lines,
+    currency: order.currency,
+    rate: order.rate,
     notes,
     bank,
     logoUrl: `${window.location.origin}/logo.png`,
@@ -341,6 +424,8 @@ export function QuoteEditor({
         id: crypto.randomUUID(),
         name: "",
         selected: orders.every((order) => !order.selected),
+        currency: "VND",
+        rate: null,
         lines: [emptyLine("1")],
       },
     });
@@ -421,13 +506,14 @@ export function QuoteEditor({
                       <th className="px-3 py-2 font-medium">Chọn</th>
                       <th className="px-3 py-2 font-medium">Tên mẫu</th>
                       <th className="px-3 py-2 font-medium">Số dòng</th>
+                      <th className="px-3 py-2 font-medium">Tiền tệ</th>
                       <th className="px-3 py-2 font-medium">Tổng tiền hàng</th>
                       <th className="px-3 py-2 font-medium">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders.length === 0 && (
-                      <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                     )}
                     {orders.map((order) => {
                       const totals = quoteTotals(order.lines);
@@ -445,6 +531,7 @@ export function QuoteEditor({
                           </td>
                           <td className="px-3 py-2 font-medium">{order.name}</td>
                           <td className="px-3 py-2">{order.lines.length}</td>
+                          <td className="px-3 py-2">{order.currency}</td>
                           <td className="px-3 py-2">{totals.priced ? money(totals.goods) : "—"}</td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-1">
@@ -585,8 +672,35 @@ export function QuoteEditor({
                   onChange={(event) => setDraft({ ...draft, order: { ...draft.order, name: event.target.value } })}
                 />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Loại tiền" htmlFor={fieldId("order-currency")} hint="VND là nội tệ, còn lại là ngoại tệ báo giá cho khách quốc tế">
+                  <NativeSelect
+                    id={fieldId("order-currency")}
+                    value={draft.order.currency}
+                    disabled={draft.mode === "view"}
+                    onChange={(event) => {
+                      const currency = event.target.value as QuoteCurrency;
+                      setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
+                    }}
+                  >
+                    {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
+                  </NativeSelect>
+                </Field>
+                {draft.order.currency !== "VND" && (
+                  <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc. Có tỷ giá thì báo giá in thêm dòng quy đổi VND">
+                    <Input
+                      id={fieldId("order-rate")}
+                      inputMode="decimal"
+                      value={amountText(draft.order.rate)}
+                      disabled={draft.mode === "view"}
+                      onChange={(event) => setDraft({ ...draft, order: { ...draft.order, rate: amountValue(event.target.value) } })}
+                    />
+                  </Field>
+                )}
+              </div>
               <OrderLines
                 lines={draft.order.lines}
+                currency={draft.order.currency}
                 canEdit={draft.mode !== "view"}
                 onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
                 onError={setOrderError}

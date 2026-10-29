@@ -4,6 +4,7 @@ import type {
   CreateMessageInput,
   CrmLane,
   OpsContractInput,
+  PublicUser,
   QuoteDesk,
   QuoteTemplateInput,
   UpdateMessageInput,
@@ -27,9 +28,13 @@ import type {
   QuoteTemplateRecord,
   RfqQuoteRecord,
 } from "../repositories/crm.repository";
+import type { NotificationService } from "./notification.service";
 
 export class CrmService {
-  constructor(private readonly crm: CrmRepository | null) {}
+  constructor(
+    private readonly crm: CrmRepository | null,
+    private readonly notifications: NotificationService | null = null,
+  ) {}
 
   listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
     return this.ready().listMessages(lane, search);
@@ -95,10 +100,17 @@ export class CrmService {
     if (!ok) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá trên tuyến này");
   }
 
-  async requestQuote(lane: CrmLane, potentialId: string): Promise<{ quote: QuoteRecord; created: boolean; desk: QuoteDesk }> {
+  async requestQuote(
+    lane: CrmLane,
+    potentialId: string,
+    actor?: PublicUser,
+  ): Promise<{ quote: QuoteRecord; created: boolean; desk: QuoteDesk }> {
     const result = await this.ready().requestQuote(lane, potentialId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
+    if (actor && result.created) {
+      await this.notifications?.notifyQuoteRequested(actor, lane, result.desk, result.quote.code, result.quote.id);
+    }
     return result;
   }
 
@@ -116,19 +128,27 @@ export class CrmService {
     return result;
   }
 
-  async sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord> {
+  async sendQuote(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    input: UpdateQuoteInput,
+    actor?: PublicUser,
+  ): Promise<QuoteRecord> {
     const result = await this.ready().sendQuote(lane, desk, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
+    if (actor) await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
     return result;
   }
 
-  async returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord> {
+  async returnQuote(lane: CrmLane, desk: QuoteDesk, id: string, actor?: PublicUser): Promise<QuoteRecord> {
     const result = await this.ready().returnQuote(lane, desk, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "state") throw new AppError(409, "CONFLICT", "Báo giá chưa được vận hành gửi");
+    if (actor) await this.notifications?.notifyQuoteReturned(actor, lane, desk, result.code, result.id);
     return result;
   }
 
@@ -159,9 +179,15 @@ export class CrmService {
     return this.ready().listContracts(lane, sentOnly, view, search);
   }
 
-  async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord> {
+  async createContract(
+    lane: CrmLane,
+    quoteId: string,
+    input: CreateContractInput,
+    actor?: PublicUser,
+  ): Promise<ContractRecord> {
     const result = await this.ready().createContract(lane, quoteId, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (actor) await this.notifications?.notifyContractCreated(actor, lane, result.code, result.id);
     return result;
   }
 
@@ -184,10 +210,16 @@ export class CrmService {
     return result;
   }
 
-  async resendContract(lane: CrmLane, id: string, target: "ops" | "accounting" | "parties"): Promise<ContractRecord> {
+  async resendContract(
+    lane: CrmLane,
+    id: string,
+    target: "ops" | "accounting" | "parties",
+    actor?: PublicUser,
+  ): Promise<ContractRecord> {
     const result = await this.ready().resendContract(lane, id, target);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
     if (result === "pending") throw new AppError(409, "CONFLICT", "Vận hành chưa gửi hợp đồng sang kế toán");
+    if (actor) await this.notifications?.notifyContractResent(actor, lane, target, result.code, result.id);
     return result;
   }
 

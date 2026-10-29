@@ -3,7 +3,15 @@ const num = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
 
 export const formatVnd = (value: number) => vnd.format(value);
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-export const formatMoney = (value: number, currency: "VND" | "USD") => (currency === "USD" ? usd.format(value) : vnd.format(value));
+const foreign = new Map<string, Intl.NumberFormat>();
+/** VND hiển thị kiểu Việt; mọi ngoại tệ khác (USD, AUD, EUR...) hiển thị kiểu en-US theo mã tiền. */
+export const formatMoney = (value: number, currency: string) => {
+  if (currency === "VND") return vnd.format(value);
+  if (currency === "USD") return usd.format(value);
+  let f = foreign.get(currency);
+  if (!f) foreign.set(currency, (f = new Intl.NumberFormat("en-US", { style: "currency", currency })));
+  return f.format(value);
+};
 export const formatNumber =(value: number) => num.format(value);
 
 /** 1.250.000.000 → "1,25 tỷ", 85.000.000 → "85 tr" */

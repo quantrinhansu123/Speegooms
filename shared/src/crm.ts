@@ -99,6 +99,18 @@ const uuidText = z.string().regex(
 
 const amount = z.number().min(0, "Số không được âm").max(1_000_000_000).nullable();
 
+const dim = z.number().min(0, "Số không được âm").max(100_000);
+
+export const quotePackageSchema = z.object({
+  count: z.number().int().min(1).max(10_000),
+  lengthCm: dim,
+  widthCm: dim,
+  heightCm: dim,
+  actualKg: dim,
+});
+
+export const quoteAttrSchema = z.object({ key: text(80), value: text(300) });
+
 export const quoteLineSchema = z.object({
   stt: text(20),
   image: z.string().max(100_000).refine(
@@ -111,6 +123,15 @@ export const quoteLineSchema = z.object({
   weightKg: amount,
   spec: text(4000),
   note: text(4000),
+  /** Đơn vị tính: set, ghế, kg, cbm, lô... */
+  unit: text(20).default("set"),
+  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo CBM hoặc trọn gói */
+  basis: z.enum(["unit", "kg", "cbm", "lump"]).default("unit"),
+  cbm: amount.default(null),
+  /** Quy cách đóng gói. Có kiện thì CBM và cân tính cước được suy ra từ đây */
+  packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
+  /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
+  attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
 });
 
 const depositLine = text(300);
@@ -132,10 +153,18 @@ export const quoteBankSchema = z.object({
   routingNumber: text(80),
 });
 
+/** Nội tệ VND đứng đầu; còn lại là ngoại tệ báo giá cho khách quốc tế. */
+export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
+export const quoteCurrencySchema = z.enum(quoteCurrencies);
+export type QuoteCurrency = z.infer<typeof quoteCurrencySchema>;
+
 export const quoteOrderSchema = z.object({
   id: uuidText,
   name: z.string().trim().min(1, "Nhập tên thông tin đơn hàng").max(160),
   selected: z.boolean(),
+  currency: quoteCurrencySchema.default("VND"),
+  /** Tỷ giá: số VND cho 1 đơn vị ngoại tệ, chỉ dùng khi currency khác VND (để hiện quy đổi) */
+  rate: z.number().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
   lines: z.array(quoteLineSchema).max(40, "Tối đa 40 dòng hàng"),
 });
 
@@ -172,10 +201,25 @@ export const accountingStatusSchema = z.enum([
   "CHUA_HOAN_THANH_THANH_TOAN",
 ]);
 
+export const contractShipToOptions = [
+  "Trung - CA",
+  "Trung - US",
+  "Trung - Úc",
+  "VN - US",
+  "VN - CA",
+  "VN - ÚC",
+  "Trung-TBN",
+  "Business",
+] as const;
+
+export const contractShipToSchema = z.enum(contractShipToOptions);
+
 export const createContractSchema = z.object({
+  /** Loại tiền chung cho mọi số tiền của hợp đồng. Hợp đồng cũ mặc định USD */
+  currency: quoteCurrencySchema.default("USD"),
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
   saleName: text(160),
-  shipTo: text(300),
+  shipTo: z.union([z.literal(""), contractShipToSchema]),
   product: text(300),
   quantity: z.number().min(0).max(1_000_000_000).nullable(),
   productValue: money,
