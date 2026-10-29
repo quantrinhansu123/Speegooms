@@ -8,7 +8,7 @@ import { canAccess } from "@/config/roles";
 import { useFulfillment } from "./hooks";
 
 export function FulfillmentShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { error, ready, user } = useFulfillment();
 
   if (!canAccess(user.role, pathname)) return <Forbidden />;

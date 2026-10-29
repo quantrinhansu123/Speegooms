@@ -44,6 +44,8 @@ export const navigation: NavGroup[] = [
         href: "/crm",
         icon: Handshake,
         children: [
+          { title: "Mess", href: "/crm/mess" },
+          { title: "Khách hàng tiềm năng", href: "/crm/tiem-nang" },
           { title: "Lead", href: "/crm/leads" },
           { title: "Khách hàng", href: "/crm/khach-hang" },
           { title: "RFQ", href: "/crm/rfq" },

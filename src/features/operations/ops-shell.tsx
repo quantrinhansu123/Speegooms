@@ -8,7 +8,7 @@ import { canAccess } from "@/config/roles";
 import { useOps } from "./hooks";
 
 export function OpsShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { error, ready, user } = useOps();
 
   if (!canAccess(user.role, pathname)) return <Forbidden />;

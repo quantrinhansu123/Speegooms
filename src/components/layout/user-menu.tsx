@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logoutAction } from "@/features/auth/actions";
+import { logout } from "@/lib/api";
 import { roleConfig } from "@/config/roles";
 import type { CurrentUser } from "@/types/user";
 
@@ -56,7 +56,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
           <Settings /> Cài đặt
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => logoutAction()}>
+        <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
           <LogOut /> Đăng xuất
         </DropdownMenuItem>
       </DropdownMenuContent>

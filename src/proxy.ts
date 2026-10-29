@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// DEMO ONLY: chỉ kiểm tra có cookie mock hay không (xem lib/session.ts).
-const SESSION_COOKIE = "speego_demo_session";
+const SESSION_COOKIES = ["speego_session", "__Host-speego_session"];
 
 export function proxy(request: NextRequest) {
-  const hasSession = request.cookies.has(SESSION_COOKIE);
+  const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name));
   const { pathname } = request.nextUrl;
 
   if (pathname === "/login") {
@@ -15,5 +14,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo.png|api(?:/|$)).*)"],
 };

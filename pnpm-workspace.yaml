@@ -1,3 +1,8 @@
+packages:
+  - "."
+  - "server"
+  - "shared"
+
 allowBuilds:
-  sharp: false
-  unrs-resolver: false
+  esbuild: true
+  unrs-resolver: true

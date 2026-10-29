@@ -9,7 +9,7 @@ import { useBackoffice } from "./hooks";
 
 export function ModuleShell({ children }: { children: React.ReactNode }) {
   const { error, ready, user } = useBackoffice();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   if (!canAccess(user.role, pathname)) return <Forbidden />;
   if (error) return <ErrorState message={error} />;
   return <>

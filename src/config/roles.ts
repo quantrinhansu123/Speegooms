@@ -39,7 +39,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/khieu-nai",
     ],
   },
-  marketing: { label: "Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing"] },
+  marketing: { label: "Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/crm/mess"] },
   "sale-vn": {
     label: "Sale Việt Nam",
     dashboard: "department",

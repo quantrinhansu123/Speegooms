@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { LogOut, RotateCcw } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { InlineAlert } from "@/components/shared/form-fields";
+import { InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { Button } from "@/components/ui/button";
 import { roleConfig, navigationForRole } from "@/config/roles";
-import { logoutAction } from "@/features/auth/actions";
+import { ApiError, api, logout } from "@/lib/api";
+import { roleSchema, type PublicUser, type Role } from "@speego/shared";
 import { useSession } from "@/features/auth/session-provider";
 import { resetAccounting } from "@/features/accounting/store";
 import { resetBackoffice } from "@/features/backoffice/store";
@@ -60,9 +61,7 @@ export function SettingsView() {
           <Row label="Phòng ban">{user.department}</Row>
           <Row label="Chức danh">{user.title}</Row>
         </dl>
-        <form action={logoutAction} className="mt-4">
-          <Button type="submit" variant="outline"><LogOut /> Đăng xuất</Button>
-        </form>
+        <Button type="button" variant="outline" className="mt-4" onClick={() => void logout()}><LogOut /> Đăng xuất</Button>
       </SectionCard>
 
       <SectionCard title="Phạm vi truy cập" description="Phân quyền ở giao diện demo, không thay thế phân quyền phía máy chủ.">
@@ -76,6 +75,8 @@ export function SettingsView() {
         </ul>
       </SectionCard>
     </div>
+
+    {user.role === "admin" && <RoleAssignment />}
 
     <SectionCard className="mt-6" title="Dữ liệu demo" description="Mọi thay đổi trong bản demo được lưu trên trình duyệt này. Đặt lại sẽ nạp lại dữ liệu gốc.">
       {message && <InlineAlert tone={message.tone} className="mb-4">{message.text}</InlineAlert>}
@@ -91,4 +92,77 @@ export function SettingsView() {
       />
     </SectionCard>
   </>;
+}
+
+function RoleAssignment() {
+  const me = useSession();
+  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [error, setError] = useState<string>();
+  const [saved, setSaved] = useState<string>();
+  const [pendingId, setPendingId] = useState<string>();
+
+  useEffect(() => {
+    let active = true;
+    api<{ users: PublicUser[] }>("/api/users")
+      .then((body) => { if (active) setUsers(body.users); })
+      .catch((err: unknown) => { if (active) setError(err instanceof ApiError ? err.message : "Không tải được danh sách tài khoản"); });
+    return () => { active = false; };
+  }, []);
+
+  const save = (id: string, role: string) => {
+    const parsed = roleSchema.safeParse(role);
+    if (!parsed.success) return;
+    setError(undefined);
+    setSaved(undefined);
+    setPendingId(id);
+    void api<{ user: PublicUser }>(`/api/users/${id}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role: parsed.data }),
+    })
+      .then((body) => {
+        setUsers((rows) => rows.map((row) => (row.id === id ? body.user : row)));
+        setSaved(`Đã gán ${roleConfig[body.user.role].label} cho ${body.user.name}`);
+      })
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không gán được vai trò"))
+      .finally(() => setPendingId(undefined));
+  };
+
+  return (
+    <SectionCard className="mt-6" title="Phân quyền" description="Chỉ admin gán vai trò. Tài khoản của bạn không tự đổi vai trò tại đây.">
+      {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {saved && <InlineAlert tone="success" className="mb-4">{saved}</InlineAlert>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="py-2 pr-3 font-medium">Tài khoản</th>
+              <th className="py-2 pr-3 font-medium">Vai trò</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((account) => (
+              <tr key={account.id} className="border-b last:border-0">
+                <td className="py-3 pr-3">
+                  <p className="font-medium">{account.name}</p>
+                  <p className="text-xs text-muted-foreground">{account.email}</p>
+                </td>
+                <td className="py-3 pr-3">
+                  <NativeSelect
+                    aria-label={`Vai trò của ${account.name}`}
+                    value={account.role}
+                    disabled={account.id === me.id || pendingId === account.id}
+                    onChange={(event) => save(account.id, event.target.value)}
+                  >
+                    {(Object.keys(roleConfig) as Role[]).map((role) => (
+                      <option key={role} value={role}>{roleConfig[role].label}</option>
+                    ))}
+                  </NativeSelect>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
 }

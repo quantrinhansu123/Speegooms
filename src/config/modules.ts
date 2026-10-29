@@ -14,6 +14,8 @@ export const implementedRoutes: readonly string[] = [
   "/reports",
   "/demo-guide",
   "/crm",
+  "/crm/mess",
+  "/crm/tiem-nang",
   "/crm/leads",
   "/crm/khach-hang",
   "/crm/rfq",

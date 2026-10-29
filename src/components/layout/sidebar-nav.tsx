@@ -14,7 +14,7 @@ const isActive = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
 function NavEntry({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const active = isActive(pathname, item.href);
   const [expansion, setExpansion] = useState<{ pathname: string; open: boolean }>();
   const open = expansion?.pathname === pathname ? expansion.open : active;

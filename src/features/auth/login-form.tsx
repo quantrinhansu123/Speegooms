@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { roleConfig } from "@/config/roles";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
-import { loginAction } from "./actions";
+import { ApiError, api } from "@/lib/api";
 import { DEMO_PASSWORD, loginSchema, type LoginInput } from "./schema";
 
 export interface DemoAccount {
@@ -43,9 +43,11 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
   const onSubmit = (values: LoginInput) => {
     setServerError(undefined);
     startTransition(async () => {
-      const result = await loginAction(values);
-      if (result?.error) {
-        setServerError(result.error);
+      try {
+        await api("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
+        window.location.assign("/dashboard");
+      } catch (err) {
+        setServerError(err instanceof ApiError ? err.message : "Không kết nối được máy chủ");
         setFocus("password");
       }
     });
@@ -61,7 +63,7 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
 
   return (
     <div>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      <form method="post" onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         {serverError && (
           <div role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft px-3 py-2.5 text-sm text-danger">
             <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -157,7 +159,7 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
         </summary>
         <div className="border-t px-4 pt-3 pb-4">
           <p className="text-xs text-muted-foreground">
-            Chọn một vai trò để điền sẵn thông tin, sau đó bấm Đăng nhập. Chỉ để xem giao diện, không phải xác thực thật.
+            Chọn một vai trò để điền sẵn email. Mật khẩu demo là speego@demo. Đăng nhập kiểm tra trên máy chủ.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {accounts.map((acc) => (

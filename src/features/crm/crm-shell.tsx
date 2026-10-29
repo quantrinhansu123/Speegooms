@@ -8,7 +8,7 @@ import { canAccess } from "@/config/roles";
 import { useCrm } from "./hooks";
 
 export function CrmShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { error, ready, user } = useCrm();
 
   if (!canAccess(user.role, pathname)) return <Forbidden />;

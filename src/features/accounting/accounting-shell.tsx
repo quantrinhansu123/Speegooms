@@ -8,7 +8,7 @@ import { canAccess } from "@/config/roles";
 import { useAccounting } from "./hooks";
 
 export function AccountingShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { error, ready, user } = useAccounting();
 
   if (!canAccess(user.role, pathname)) return <Forbidden />;

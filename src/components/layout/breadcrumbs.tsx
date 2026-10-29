@@ -14,7 +14,7 @@ import {
 import { getBreadcrumbs } from "@/config/navigation";
 
 export function Breadcrumbs() {
-  const crumbs = getBreadcrumbs(usePathname());
+  const crumbs = getBreadcrumbs(usePathname() ?? "");
   return (
     <Breadcrumb>
       <BreadcrumbList>
