@@ -55,6 +55,7 @@ type MessageRow = {
   classification: string | null;
   sale_name: string | null;
   pain_point: string | null;
+  link_mess: string | null;
   received_at: Date | string;
   lead_id: string | null;
   lead_code: string | null;
@@ -388,7 +389,8 @@ function messageSelect(message: string, potential: string): string {
          m.trang_thai::text as status, m.hang_hoa as goods, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
-         m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.nhan_luc as received_at,
+         m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
+         m.nhan_luc as received_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
   left join ${potential} l on l.ma_tin_nhan = m.id and l.xoa_luc is null
@@ -724,6 +726,7 @@ function toMessage(row: MessageRow): MessageRecord {
     classification: row.classification,
     saleName: row.sale_name,
     painPoint: row.pain_point,
+    linkMess: row.link_mess,
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,
     leadCode: row.lead_code,
@@ -792,11 +795,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13
        )
        returning id::text as id`,
       [
@@ -812,6 +815,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.classification ?? null,
         blank(input.saleName),
         blank(input.painPoint),
+        blank(input.linkMess),
       ],
     );
     const id = inserted.rows[0]?.id;
@@ -836,7 +840,8 @@ export class PostgresCrmRepository implements CrmRepository {
          thi_truong = $10,
          phan_loai = $11::text::crm.message_classification,
          nhan_vien_ban = $12,
-         ghi_chu_van_de = $13
+         ghi_chu_van_de = $13,
+         link_mess = $14
        where id = $1::uuid
        returning id::text as id`,
       [
@@ -853,6 +858,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.classification ?? null,
         blank(input.saleName),
         blank(input.painPoint),
+        blank(input.linkMess),
       ],
     );
     if (!updated.rows[0]) return null;

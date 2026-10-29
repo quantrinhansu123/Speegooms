@@ -13,6 +13,7 @@ export {
   leadSourceSchema,
   messageClassificationSchema,
   messageDemandSchema,
+  contractPaymentFlags,
   opsContractSchema,
   opsStatusOptions,
   opsStatusSchema,

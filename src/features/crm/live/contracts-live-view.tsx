@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, createContractSchema, opsContractSchema, opsStatusOptions, type CrmLane } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, createContractSchema, opsContractSchema, opsStatusOptions, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,11 @@ function shownDate(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return value.length <= 10 ? value.split("-").reverse().join("/") : date.toLocaleDateString("vi-VN");
+}
+
+function FlagCell({ active, tone, label }: { active: boolean; tone: "success" | "danger"; label: string }) {
+  if (!active) return <span className="text-muted-foreground">—</span>;
+  return <StatusBadge tone={tone}>{label}</StatusBadge>;
 }
 
 async function compressImage(file: File): Promise<string> {
@@ -216,7 +222,7 @@ export function ContractsLiveView({
         <FilterSelect id="contract-accounting-status" label="Trạng thái kế toán" value={filters.draft.accountingStatus} onChange={(value) => filters.set("accountingStatus", value)} options={accountingStatusOptions} />
       </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1120px] text-sm">
+        <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium">Mã</th>
@@ -225,6 +231,9 @@ export function ContractsLiveView({
               <th className="px-3 py-2 font-medium">Sản phẩm</th>
               <th className="px-3 py-2 font-medium">Tổng giá trị</th>
               <th className="px-3 py-2 font-medium">Còn lại</th>
+              <th className="px-3 py-2 font-medium">Dục thanh toán để giao hàng</th>
+              <th className="px-3 py-2 font-medium">Đủ điều kiện đi hàng</th>
+              <th className="px-3 py-2 font-medium">Đủ điều kiện giao hàng</th>
               <th className="px-3 py-2 font-medium">Vận hành</th>
               <th className="px-3 py-2 font-medium">Kế toán</th>
               <th className="px-3 py-2 font-medium">Gửi lại</th>
@@ -233,9 +242,15 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const flags = contractPaymentFlags({
+                totalValue: row.totalValue,
+                confirmedAmount: row.confirmedAmount,
+                deliveryOn: row.deliveryOn,
+              });
+              return (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.code}</td>
                 <td className="px-3 py-3">{row.quoteCode || "—"}</td>
@@ -243,6 +258,15 @@ export function ContractsLiveView({
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="px-3 py-3">{money(row.totalValue)}</td>
                 <td className="px-3 py-3">{money(row.balance)}</td>
+                <td className="max-w-56 px-3 py-3">
+                  <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
+                </td>
+                <td className="px-3 py-3">
+                  <FlagCell active={flags.eligibleToShip} tone="success" label={flags.eligibleToShipLabel} />
+                </td>
+                <td className="px-3 py-3">
+                  <FlagCell active={flags.eligibleToDeliver} tone="success" label={flags.eligibleToDeliverLabel} />
+                </td>
                 <td className="px-3 py-3">{row.opsStatus || "—"}</td>
                 <td className="px-3 py-3">
                   {mode !== "accounting" && !row.sentToAccountingAt
@@ -281,7 +305,8 @@ export function ContractsLiveView({
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -363,6 +388,11 @@ function ContractDialog({
   const [images, setImages] = useState(contract.images);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const paymentFlags = contractPaymentFlags({
+    totalValue: numberValue(totalValue) ?? contract.totalValue,
+    confirmedAmount: confirmedAmount.trim() ? numberValue(confirmedAmount) : null,
+    deliveryOn: deliveryOn || null,
+  });
 
   const saveCommercial = async (resendAfter: boolean) => {
     const parsed = createContractSchema.safeParse({
@@ -528,6 +558,21 @@ function ContractDialog({
                 <p><span className="text-muted-foreground">Còn lại: </span>{money(contract.balance)}</p>
               </>
             )}
+          </section>
+
+          <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-3">
+            <div>
+              <p className="mb-1 text-sm font-medium">Dục thanh toán để giao hàng</p>
+              <FlagCell active={paymentFlags.urgePayment} tone="danger" label={paymentFlags.urgePaymentLabel} />
+            </div>
+            <div>
+              <p className="mb-1 text-sm font-medium">Đủ điều kiện đi hàng</p>
+              <FlagCell active={paymentFlags.eligibleToShip} tone="success" label={paymentFlags.eligibleToShipLabel} />
+            </div>
+            <div>
+              <p className="mb-1 text-sm font-medium">Đủ điều kiện giao hàng</p>
+              <FlagCell active={paymentFlags.eligibleToDeliver} tone="success" label={paymentFlags.eligibleToDeliverLabel} />
+            </div>
           </section>
 
           <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">

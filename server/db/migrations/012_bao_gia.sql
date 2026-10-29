@@ -22,7 +22,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS crm.mau_bao_gia (
-  ma_mau       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ten          text NOT NULL,
   noi_dung     text,
   ban          crm.ban_bao_gia NOT NULL,
@@ -35,7 +35,7 @@ COMMENT ON TABLE crm.mau_bao_gia IS
   'Mẫu báo giá do vận hành quản lý. Mỗi bàn Sourcing hoặc Logistics có danh mục riêng.';
 
 CREATE TABLE IF NOT EXISTS crm.bao_gia_sourcing_viet_nam (
-  ma_bao_gia              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ma_hien_thi             text NOT NULL UNIQUE DEFAULT app.next_code('BGS'),
   ma_khach_hang_tiem_nang uuid NOT NULL,
   ma_mau                  uuid,
@@ -48,11 +48,11 @@ CREATE TABLE IF NOT EXISTS crm.bao_gia_sourcing_viet_nam (
   CONSTRAINT bao_gia_sourcing_viet_nam_khach_fkey
     FOREIGN KEY (ma_khach_hang_tiem_nang) REFERENCES crm.khach_hang_tiem_nang_viet_nam (ma_khach_hang_tiem_nang),
   CONSTRAINT bao_gia_sourcing_viet_nam_mau_fkey
-    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (ma_mau)
+    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (id)
 );
 
 CREATE TABLE IF NOT EXISTS crm.bao_gia_sourcing_global (
-  ma_bao_gia              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ma_hien_thi             text NOT NULL UNIQUE DEFAULT app.next_code('BGS'),
   ma_khach_hang_tiem_nang uuid NOT NULL,
   ma_mau                  uuid,
@@ -65,11 +65,11 @@ CREATE TABLE IF NOT EXISTS crm.bao_gia_sourcing_global (
   CONSTRAINT bao_gia_sourcing_global_khach_fkey
     FOREIGN KEY (ma_khach_hang_tiem_nang) REFERENCES crm.khach_hang_tiem_nang_global (ma_khach_hang_tiem_nang),
   CONSTRAINT bao_gia_sourcing_global_mau_fkey
-    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (ma_mau)
+    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (id)
 );
 
 CREATE TABLE IF NOT EXISTS crm.bao_gia_logistics_viet_nam (
-  ma_bao_gia              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ma_hien_thi             text NOT NULL UNIQUE DEFAULT app.next_code('BGL'),
   ma_khach_hang_tiem_nang uuid NOT NULL,
   ma_mau                  uuid,
@@ -82,11 +82,11 @@ CREATE TABLE IF NOT EXISTS crm.bao_gia_logistics_viet_nam (
   CONSTRAINT bao_gia_logistics_viet_nam_khach_fkey
     FOREIGN KEY (ma_khach_hang_tiem_nang) REFERENCES crm.khach_hang_tiem_nang_viet_nam (ma_khach_hang_tiem_nang),
   CONSTRAINT bao_gia_logistics_viet_nam_mau_fkey
-    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (ma_mau)
+    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (id)
 );
 
 CREATE TABLE IF NOT EXISTS crm.bao_gia_logistics_global (
-  ma_bao_gia              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ma_hien_thi             text NOT NULL UNIQUE DEFAULT app.next_code('BGL'),
   ma_khach_hang_tiem_nang uuid NOT NULL,
   ma_mau                  uuid,
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS crm.bao_gia_logistics_global (
   CONSTRAINT bao_gia_logistics_global_khach_fkey
     FOREIGN KEY (ma_khach_hang_tiem_nang) REFERENCES crm.khach_hang_tiem_nang_global (ma_khach_hang_tiem_nang),
   CONSTRAINT bao_gia_logistics_global_mau_fkey
-    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (ma_mau)
+    FOREIGN KEY (ma_mau) REFERENCES crm.mau_bao_gia (id)
 );
 
 COMMENT ON TABLE crm.bao_gia_sourcing_viet_nam IS 'Báo giá Sourcing của Sale Việt Nam.';

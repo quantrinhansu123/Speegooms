@@ -41,6 +41,7 @@ const files = [
   "018_khoa_chinh_ten_id.sql",
   "019_hop_dong_gui_lai.sql",
   "020_hop_dong_ban_da_gui.sql",
+  "021_mess_link_mess.sql",
 ];
 
 await client.connect();

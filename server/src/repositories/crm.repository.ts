@@ -41,6 +41,7 @@ export interface MessageRecord {
   classification: string | null;
   saleName: string | null;
   painPoint: string | null;
+  linkMess: string | null;
   receivedAt: string;
   leadId: string | null;
   leadCode: string | null;

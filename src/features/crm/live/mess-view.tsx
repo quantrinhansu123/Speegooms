@@ -36,6 +36,7 @@ type MessDraft = {
   goods: string;
   saleName: string;
   painPoint: string;
+  linkMess: string;
   note: string;
 };
 
@@ -51,6 +52,7 @@ const emptyDraft: MessDraft = {
   goods: "",
   saleName: "",
   painPoint: "",
+  linkMess: "",
   note: "",
 };
 
@@ -81,6 +83,7 @@ function draftFrom(row: MessageRecord): MessDraft {
     goods: row.goods ?? "",
     saleName: row.saleName ?? "",
     painPoint: row.painPoint ?? "",
+    linkMess: row.linkMess ?? "",
     note: row.note ?? "",
   };
 }
@@ -208,13 +211,14 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="px-3 py-2 font-medium">Hàng hóa</th>
               <th className="px-3 py-2 font-medium">Sales - hot & warm</th>
               <th className="px-3 py-2 font-medium">Pain-Point của KH</th>
+              <th className="px-3 py-2 font-medium">Link mess</th>
               <th className="px-3 py-2 font-medium">Ghi chú Sale</th>
               <th className="px-3 py-2 font-medium">Trạng thái</th>
               <th className="px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
@@ -227,6 +231,15 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3">{row.goods || "—"}</td>
                 <td className="px-3 py-3">{row.saleName || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.painPoint ?? undefined}>{row.painPoint || "—"}</td>
+                <td className="max-w-56 truncate px-3 py-3" title={row.linkMess ?? undefined}>
+                  {row.linkMess ? (
+                    /^https?:\/\//i.test(row.linkMess) ? (
+                      <a href={row.linkMess} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        {row.linkMess}
+                      </a>
+                    ) : row.linkMess
+                  ) : "—"}
+                </td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.note ?? undefined}>{row.note || "—"}</td>
                 <td className="px-3 py-3">{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</td>
                 <td className="px-3 py-3">
@@ -294,6 +307,9 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               </Field>
               <Field label="Pain-Point của KH" htmlFor="mess-pain" className="sm:col-span-2">
                 <Textarea id="mess-pain" value={draft.painPoint} onChange={(event) => setDraft({ ...draft, painPoint: event.target.value })} />
+              </Field>
+              <Field label="Link mess" htmlFor="mess-link" className="sm:col-span-2">
+                <Input id="mess-link" value={draft.linkMess} placeholder="https://…" onChange={(event) => setDraft({ ...draft, linkMess: event.target.value })} />
               </Field>
               <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2">
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />

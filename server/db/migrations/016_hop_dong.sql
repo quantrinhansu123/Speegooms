@@ -3,7 +3,7 @@
 -- Chạy sau 015. Tên bảng và cột tiếng Việt không dấu.
 
 CREATE TABLE IF NOT EXISTS crm.hop_dong (
-  ma_hop_dong         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ma_hien_thi         text NOT NULL UNIQUE DEFAULT app.next_code('HD'),
   ngay_ky             date,
   ten_khach_hang      text NOT NULL,
@@ -43,8 +43,8 @@ COMMENT ON COLUMN crm.hop_dong.so_tien_thanh_toan IS 'Số tiền đã thanh to�
 COMMENT ON COLUMN crm.hop_dong.so_tien_con_lai IS 'Số tiền còn lại, bằng tổng giá trị trừ số tiền đã thanh toán.';
 
 CREATE TABLE IF NOT EXISTS crm.hop_dong_anh_bill (
-  ma_anh       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  ma_hop_dong  uuid NOT NULL REFERENCES crm.hop_dong (ma_hop_dong) ON DELETE CASCADE,
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ma_hop_dong  uuid NOT NULL REFERENCES crm.hop_dong (id) ON DELETE CASCADE,
   duong_dan    text NOT NULL,
   thu_tu       smallint NOT NULL DEFAULT 1,
   tao_luc      timestamptz NOT NULL DEFAULT now(),

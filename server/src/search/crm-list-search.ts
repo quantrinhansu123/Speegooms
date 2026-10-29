@@ -49,6 +49,7 @@ export function messageSearch(input: MessageListSearch): SearchBuilder {
       sql("m.nhan_vien_ban"),
       sql("m.ghi_chu"),
       sql("m.ghi_chu_van_de"),
+      sql("m.link_mess"),
     ]))
     .add(new DateRangeCriterion(sql("m.nhan_luc"), input.from, input.to, "timestamp"))
     .add(new ExactMatchCriterion(sql("m.trang_thai::text"), input.status))

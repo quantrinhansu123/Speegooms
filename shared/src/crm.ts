@@ -52,6 +52,7 @@ const messageFields = {
   classification: messageClassificationSchema.optional(),
   saleName: text(160),
   painPoint: text(2000),
+  linkMess: text(500),
 };
 
 export const createMessageSchema = z.object(messageFields).superRefine(contact);
@@ -198,6 +199,41 @@ export const opsStatusOptions = [
   "Đợi check cọc",
   "Hủy đơn",
 ] as const;
+
+/** Cột J = tổng HĐ, cột O = kế toán xác nhận số tiền (sheet Hợp đồng). */
+export function contractPaymentFlags(input: {
+  totalValue: number;
+  confirmedAmount: number | null | undefined;
+  deliveryOn: string | null | undefined;
+  today?: string;
+}) {
+  const total = Number.isFinite(input.totalValue) ? input.totalValue : 0;
+  const confirmed = input.confirmedAmount == null || !Number.isFinite(input.confirmedAmount)
+    ? 0
+    : input.confirmedAmount;
+  const eligibleToShip = total > 0 && confirmed >= total * 0.5;
+  // Sheet ghi nhầm "M >= 100% J"; công thức thật dùng O >= 100% J.
+  const eligibleToDeliver = total > 0 && confirmed >= total;
+  const deliveryOn = input.deliveryOn?.trim() || "";
+  const today = (input.today ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
+  let urgePayment = false;
+  if (deliveryOn && !eligibleToDeliver) {
+    const delivery = Date.parse(`${deliveryOn}T00:00:00Z`);
+    const now = Date.parse(`${today}T00:00:00Z`);
+    if (Number.isFinite(delivery) && Number.isFinite(now)) {
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      urgePayment = now >= delivery - sevenDaysMs;
+    }
+  }
+  return {
+    eligibleToShip,
+    eligibleToDeliver,
+    urgePayment,
+    urgePaymentLabel: urgePayment ? "Yêu cầu khách thanh toán đủ để nhận hàng" : "",
+    eligibleToShipLabel: eligibleToShip ? "Đủ điều kiện đi hàng" : "",
+    eligibleToDeliverLabel: eligibleToDeliver ? "Đủ điều kiện giao hàng" : "",
+  };
+}
 
 export const opsStatusSchema = z.enum(opsStatusOptions);
 
