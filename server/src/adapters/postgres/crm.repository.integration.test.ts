@@ -26,7 +26,7 @@ test("CRM queries match the deployed id primary keys without writing data", { sk
   const messageSearch = { ...emptyList, status: "", classification: "", demand: "", customerType: "" };
   const potentialSearch = { ...emptyList, source: "", potential: "", customerKind: "", customerType: "" };
   const quoteSearch = { ...emptyList, quoteStatus: "", contractStatus: "", customerKind: "" };
-  const message = createMessageSchema.parse({ customerName: "Schema check", phone: "0900000000", email: "", goods: "", note: "", market: "", saleName: "", painPoint: "" });
+  const message = createMessageSchema.parse({ customerName: "Schema check", phone: "0900000000", email: "", goods: "", note: "", market: "", saleName: "", painPoint: "", linkMess: "" });
   const potential = updatePotentialSchema.parse({ fullName: "Schema check", companyName: "", phone: "0900000000", email: "", productInterest: "", quantityNote: "", address: "", saleNote: "", potential: "POTENTIAL" });
   const quote = updateQuoteSchema.parse({ templateId: id, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO", orders: [], notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: "" }, bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" } });
   try {

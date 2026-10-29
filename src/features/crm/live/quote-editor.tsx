@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteOrderSchema,
   updateQuoteSchema,
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
-import { printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
+import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 
 function emptyLine(stt: string): QuoteLine {
   return { stt, image: "", quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "" };
@@ -246,6 +246,7 @@ export function QuoteEditor({
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [pdfPending, setPdfPending] = useState(false);
   const sent = quoteStatus === "DA_CO_BAO_GIA" || quoteStatus === "DA_CO_BAO_GIA_LAI";
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
@@ -280,14 +281,40 @@ export function QuoteEditor({
     void persist(orders, true);
   };
 
+  const sheetHtmlFor = (order: QuoteOrder) => quoteSheetHtml({
+    customer: quote,
+    lines: order.lines,
+    notes,
+    bank,
+    logoUrl: `${window.location.origin}/logo.png`,
+  });
+
+  const pdfNameFor = (order: QuoteOrder) => `${quote.code || "bao-gia"}${order.name ? `-${order.name}` : ""}`;
+
   const printOrder = (order: QuoteOrder) => {
-    printQuoteSheet(quoteSheetHtml({
-      customer: quote,
-      lines: order.lines,
-      notes,
-      bank,
-      logoUrl: `${window.location.origin}/logo.png`,
-    }));
+    printQuoteSheet(sheetHtmlFor(order));
+  };
+
+  const downloadOrderPdf = async (order: QuoteOrder) => {
+    setPdfPending(true);
+    setFormError(undefined);
+    try {
+      await downloadQuotePdf(sheetHtmlFor(order), pdfNameFor(order));
+    } catch {
+      setFormError("Không tải được PDF báo giá");
+    } finally {
+      setPdfPending(false);
+    }
+  };
+
+  const selectedOrder = () => {
+    const selected = orders.find((order) => order.selected);
+    if (!selected) {
+      setFormError("Chọn một mẫu báo giá để tải PDF");
+      return null;
+    }
+    setFormError(undefined);
+    return selected;
   };
 
   const printSelected = () => {
@@ -298,6 +325,12 @@ export function QuoteEditor({
     }
     setFormError(undefined);
     printOrder(selected);
+  };
+
+  const downloadSelectedPdf = () => {
+    const selected = selectedOrder();
+    if (!selected) return;
+    void downloadOrderPdf(selected);
   };
 
   const openCreate = () => {
@@ -350,6 +383,9 @@ export function QuoteEditor({
   const actions = (
     <>
       <Button type="button" variant="outline" onClick={printSelected}><Printer />In</Button>
+      <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
+        <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
+      </Button>
       {canEdit && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {!canEdit && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
@@ -557,7 +593,14 @@ export function QuoteEditor({
               />
             </div>
             <DialogFooter>
-              {draft.mode === "view" && <Button type="button" variant="outline" onClick={() => printOrder(draft.order)}><Printer />In</Button>}
+              {draft.mode === "view" && (
+                <>
+                  <Button type="button" variant="outline" onClick={() => printOrder(draft.order)}><Printer />In</Button>
+                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => void downloadOrderPdf(draft.order)}>
+                    <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
+                  </Button>
+                </>
+              )}
               <Button type="button" variant="outline" onClick={() => setDraft(null)}>Đóng</Button>
               {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
             </DialogFooter>

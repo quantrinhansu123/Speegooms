@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Download, Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -15,6 +15,7 @@ import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { downloadQuoteRecordPdf, orderForQuotePdf } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
@@ -272,6 +273,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               const logistics = row.customerKind === "SOURCING_LOGISTICS" ? logisticsQuote(row) : null;
               const visible = (item: { sentQuote: RfqQuoteRecord["sentQuote"]; quoteStatus: string } | null) => Boolean(item?.sentQuote && (sentToSale(item.quoteStatus) || item.quoteStatus === "CHUA_CO_BAO_GIA_LAI"));
               const canViewQuote = visible(row) || visible(logistics);
+              const pdfSource = orderForQuotePdf(row.orders) ? row : logistics && orderForQuotePdf(logistics.orders) ? logistics : null;
+              const canDownloadPdf = Boolean(canViewQuote && pdfSource);
               return (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.code}</td>
@@ -298,6 +301,18 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     items={[
                       ...(canViewQuote
                         ? [{ key: "view", label: "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } }]
+                        : []),
+                      ...(canDownloadPdf && pdfSource
+                        ? [{
+                            key: "pdf",
+                            label: "Tải PDF",
+                            icon: <Download />,
+                            onClick: () => {
+                              void downloadQuoteRecordPdf(pdfSource).catch((cause: unknown) => {
+                                setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
+                              });
+                            },
+                          }]
                         : []),
                       ...(canCreateContract && row.contractStatus !== "DA_TAO"
                         ? [{ key: "contract", label: "Tạo hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]

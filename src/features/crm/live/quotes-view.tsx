@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -16,6 +16,7 @@ import type { Role } from "@/types/role";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { downloadQuoteRecordPdf } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import {
   contractStatusOptions,
@@ -210,6 +211,16 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             {rows.map((row) => {
               const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [
                 { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } },
+                {
+                  key: "pdf",
+                  label: "Tải PDF",
+                  icon: <Download />,
+                  onClick: () => {
+                    void downloadQuoteRecordPdf(row).catch((cause: unknown) => {
+                      setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
+                    });
+                  },
+                },
               ];
               return (
                 <tr key={row.id} className={row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" ? "border-b bg-amber-50 last:border-0" : "border-b last:border-0"}>
