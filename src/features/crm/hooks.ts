@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { crmPermissions, roleRouteScope, type CrmAction } from "@/config/crm";
 import { useSession } from "@/features/auth/session-provider";
 import { routeFromOrigin } from "@/services/crm/rules";
+import type { RouteCode } from "@/types/crm";
 import { actions, getServerSnapshot, getSnapshot, startCrm, subscribe, type Actor } from "./store";
 
 type Bind<T> = {
@@ -14,7 +15,7 @@ type Bind<T> = {
  * Điểm vào duy nhất cho màn hình CRM: dữ liệu (đã lọc theo tuyến của vai trò),
  * các thao tác đã gắn người thực hiện, và kiểm tra quyền.
  */
-export function useCrm() {
+export function useCrm(route?: RouteCode) {
   const user = useSession();
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => startCrm(), []);
@@ -28,7 +29,7 @@ export function useCrm() {
     [actor],
   );
 
-  const scope = roleRouteScope[user.role] ?? null;
+  const scope = roleRouteScope[user.role] ?? route ?? null;
   const { data } = state;
   const scoped = useMemo(() => {
     if (!scope) return data;

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { CRM_TODAY } from "@/config/crm";
 import { addDays } from "@/features/dashboard/metrics";
-import type { Lead } from "@/types/crm";
+import type { Lead, RouteCode } from "@/types/crm";
 import { useCrm } from "../hooks";
 import type { NewRfqInput } from "../store";
 import { RfqForm } from "./rfq-form";
@@ -16,13 +16,15 @@ export function RfqCreateDialog({
   onOpenChange,
   presetMessId,
   onCreated,
+  routeScope,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   presetMessId?: string;
   onCreated: (rfqId: string) => void;
+  routeScope?: RouteCode;
 }) {
-  const { data, actions } = useCrm();
+  const { data, actions } = useCrm(routeScope);
   const [messId, setMessId] = useState(presetMessId ?? "");
   const [error, setError] = useState<string>();
 

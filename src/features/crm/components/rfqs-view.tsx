@@ -15,13 +15,13 @@ import { Input } from "@/components/ui/input";
 import { rfqStatusMeta, routeLabels, transportLabels } from "@/config/crm";
 import { formatDate } from "@/lib/format";
 import { matchesQuery } from "@/lib/text";
-import type { Rfq, RfqStatus } from "@/types/crm";
+import type { Rfq, RfqStatus, RouteCode } from "@/types/crm";
 import { useCrm, usePagination } from "../hooks";
 import { RfqBadge } from "./meta-badges";
 import { RfqCreateDialog } from "./rfq-create-dialog";
 
-export function RfqsView() {
-  const { data, all, can, scope } = useCrm();
+export function RfqsView({ routeScope }: { routeScope?: RouteCode } = {}) {
+  const { data, all, can, scope } = useCrm(routeScope);
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<RfqStatus | "">("");
@@ -98,7 +98,7 @@ export function RfqsView() {
         <DataTable columns={columns} rows={paging.slice} getRowId={(r) => r.rfqId} empty={<EmptyState title="Không có RFQ phù hợp" />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />
       </div>
-      {creating && <RfqCreateDialog open onOpenChange={(o) => !o && setCreating(false)} onCreated={(id) => router.push(`/crm/rfq/${id}`)} />}
+      {creating && <RfqCreateDialog routeScope={routeScope} open onOpenChange={(o) => !o && setCreating(false)} onCreated={(id) => router.push(`/crm/rfq/${id}`)} />}
     </>
   );
 }

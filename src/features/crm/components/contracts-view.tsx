@@ -14,12 +14,12 @@ import { Input } from "@/components/ui/input";
 import { depositMeta } from "@/config/crm";
 import { formatDate, formatMoney } from "@/lib/format";
 import { matchesQuery } from "@/lib/text";
-import type { Contract, DepositStatus } from "@/types/crm";
+import type { Contract, DepositStatus, RouteCode } from "@/types/crm";
 import { useCrm, usePagination } from "../hooks";
 import { ContractBadge, DepositBadge } from "./meta-badges";
 
-export function ContractsView() {
-  const { data, all, user } = useCrm();
+export function ContractsView({ routeScope }: { routeScope?: RouteCode } = {}) {
+  const { data, all, user } = useCrm(routeScope);
   const [query, setQuery] = useState("");
   // Kế toán vào thẳng hàng đợi cần xác nhận cọc
   const [deposit, setDeposit] = useState<DepositStatus | "">(user.role === "ke-toan" ? "cho-ke-toan" : "");

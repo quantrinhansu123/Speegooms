@@ -63,6 +63,10 @@ export const navigation: NavGroup[] = [
         href: "/sale-viet-nam",
         icon: Briefcase,
         children: [
+          { title: "Mess", href: "/sale-viet-nam/mess" },
+          { title: "Khách tiềm năng", href: "/sale-viet-nam/tiem-nang" },
+          { title: "Báo giá (RFQ)", href: "/sale-viet-nam/rfq" },
+          { title: "Hợp đồng", href: "/sale-viet-nam/hop-dong" },
           { title: "Sales MKT Intern", href: "/sale-viet-nam/sales-mkt-intern" },
         ],
       },
@@ -71,6 +75,10 @@ export const navigation: NavGroup[] = [
         href: "/sale-global",
         icon: Globe2,
         children: [
+          { title: "Mess", href: "/sale-global/mess" },
+          { title: "Khách tiềm năng", href: "/sale-global/tiem-nang" },
+          { title: "Báo giá (RFQ)", href: "/sale-global/rfq" },
+          { title: "Hợp đồng", href: "/sale-global/hop-dong" },
           { title: "Sale Mỹ", href: "/sale-global/sale-my" },
         ],
       },
