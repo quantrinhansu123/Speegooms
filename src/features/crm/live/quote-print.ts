@@ -113,7 +113,26 @@ export function quoteSheetHtml(input: {
   const weightNote = input.notes.weightNote?.trim() ?? "";
   const validityNote = input.notes.validityNote?.trim() ?? "";
   const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
-  const showTotalRow = Boolean(totalLabel || weightNote);
+  const noteRow = (title: string, value: string) =>
+    `<tr class="notes-row"><td class="notes-label" colspan="8"><span class="notes-title">${escapeHtml(title)}:</span> ${value}</td></tr>`;
+  const summaryRows = [
+    totalLabel ? noteRow("Tổng giá trị hàng hóa", escapeHtml(totalLabel)) : "",
+    totals.priced ? noteRow("Tổng tiền hàng", formatAmount(totals.goods)) : "",
+    totals.weighed ? noteRow("Cân nặng (KG)", formatAmount(totals.weight)) : "",
+    weightNote ? noteRow("Ghi chú cân nặng", escapeHtml(weightNote)) : "",
+    totals.packageCount > 0
+      ? noteRow("Tổng đóng gói", `${totals.packageCount} kiện = ${formatAmount(totals.cbm, 3)} cbm, cân tính cước ${formatAmount(totals.weight)} kg`)
+      : "",
+    converted != null
+      ? noteRow(`Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)`, `${formatAmount(converted)} VND`)
+      : "",
+    validityNote ? noteRow("Hiệu lực báo giá", escapeHtml(validityNote)) : "",
+    ...depositLines.map((line, index) => {
+      const title = depositLines.length > 1 ? `Thông tin đặt cọc (${index + 1})` : "Thông tin đặt cọc";
+      const amount = index === 0 && totals.priced ? ` — ${formatAmount(totals.goods)}` : "";
+      return noteRow(title, `${escapeHtml(line)}${amount}`);
+    }),
+  ].filter(Boolean).join("");
   const bankLines = [
     input.bank.title?.trim() ? `<tr class="bank-row"><td class="bank-title" colspan="8">${escapeHtml(input.bank.title)}</td></tr>` : "",
     hasText(input.bank.accountName) ? `<tr class="bank-row"><td colspan="8">- Account Name: ${escapeHtml(input.bank.accountName)}</td></tr>` : "",
@@ -137,15 +156,7 @@ export function quoteSheetHtml(input: {
       <th>Tổng tiền hàng</th><th>Cân nặng (KG)</th><th>Thông số</th><th>Note</th>
     </tr>
     ${rows}
-    ${showTotalRow ? `<tr class="notes-row"><td class="notes-label" colspan="4">${escapeHtml(totalLabel)}</td><td class="num notes-value">${totalLabel && totals.priced ? formatAmount(totals.goods) : ""}</td><td class="num notes-value">${totalLabel && totals.weighed ? formatAmount(totals.weight) : ""}</td><td></td><td class="wrap">${escapeHtml(weightNote)}</td></tr>` : ""}
-    ${totals.packageCount > 0 ? `<tr class="notes-row"><td class="notes-label" colspan="8">Tổng đóng gói: ${totals.packageCount} kiện = ${formatAmount(totals.cbm, 3)} cbm, cân tính cước ${formatAmount(totals.weight)} kg</td></tr>` : ""}
-    ${converted != null ? `<tr class="notes-row"><td class="notes-label" colspan="4">Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)</td><td class="num notes-value">${formatAmount(converted)} VND</td><td colspan="3"></td></tr>` : ""}
-    ${validityNote ? `<tr class="notes-row"><td colspan="7"></td><td class="wrap">${escapeHtml(validityNote)}</td></tr>` : ""}
-    ${depositLines.map((line, index) => `<tr class="notes-row deposit">
-      <td colspan="4">${escapeHtml(line)}</td>
-      <td class="num">${index === 0 && totals.priced ? formatAmount(totals.goods) : ""}</td>
-      <td colspan="3"></td>
-    </tr>`).join("")}
+    ${summaryRows}
     <tr class="gap-row"><td colspan="8" class="gap"></td></tr>
     ${bankLines}
     <tr class="sign">
@@ -187,6 +198,7 @@ export const quotePrintCss = `
   .wrap { white-space: pre-wrap; text-align: left; }
   tr.detail td.wrap { padding-bottom: 8px; }
   .notes-row td { font-weight: 700; padding-top: 8px; }
+  .notes-title { font-weight: 700; }
   .bank-title { font-weight: 700; padding-top: 4px; }
   .gap { height: 18px; }
   .sign td { height: 110px; text-align: center; vertical-align: top; font-weight: 700; padding-top: 16px; }
