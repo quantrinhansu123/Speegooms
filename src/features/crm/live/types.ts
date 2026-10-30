@@ -80,7 +80,7 @@ export const messageClassificationOptions = [
 
 export const customerTypeOptions = [
   ["INDIVIDUAL", "Cá nhân"],
-  ["PRINCIPAL", "Chủ nhiệm"],
+  ["PRINCIPAL", "Chủ tiệm"],
   ["ENTERPRISE", "Doanh nghiệp"],
 ] as const;
 
