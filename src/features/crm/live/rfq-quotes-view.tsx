@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { QUOTE_UPDATE_EVENT } from "@/features/notifications/quote-update-event";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -152,6 +153,15 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     setRemoving(null);
     setError(undefined);
     load();
+  }, [load]);
+
+  useEffect(() => {
+    const onQuoteUpdate = () => {
+      // Reload danh sách báo giá khi có sự kiện cập nhật từ chuông
+      void load();
+    };
+    window.addEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
+    return () => window.removeEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
   }, [load]);
 
   const choices = potentials.filter((row) => {

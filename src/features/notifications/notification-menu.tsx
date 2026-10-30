@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead, markNotificationRead } from "./api";
+import { dispatchQuoteUpdate } from "./quote-update-event";
 import { OPEN_CONTRACT_EVENT, type OpenContractDetail } from "./open-contract";
 import type { AppNotification } from "./types";
 
@@ -52,11 +53,16 @@ export function NotificationMenu() {
   const refreshCount = useCallback(async () => {
     try {
       const body = await fetchUnreadCount();
+      const prevCount = count;
       setCount(body.count);
+      // Phát sự kiện nếu có thông báo mới để RFQ/báo giá refresh
+      if (body.count > prevCount) {
+        dispatchQuoteUpdate({ type: "quote.send" });
+      }
     } catch {
       /* giữ count cũ nếu poll lỗi */
     }
-  }, []);
+  }, [count]);
 
   const refreshList = useCallback(async () => {
     setLoading(true);

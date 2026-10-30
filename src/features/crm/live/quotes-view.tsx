@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QUOTE_UPDATE_EVENT } from "@/features/notifications/quote-update-event";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -99,6 +100,15 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     loadQuotes();
     loadTemplates();
   }, [loadQuotes, loadTemplates]);
+
+  useEffect(() => {
+    const onQuoteUpdate = () => {
+      // Reload danh sách báo giá khi có sự kiện cập nhật từ chuông
+      void loadQuotes();
+    };
+    window.addEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
+    return () => window.removeEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
+  }, [loadQuotes]);
 
   const saveQuote = (input: UpdateQuoteInput, options?: { close?: boolean }) => {
     if (!editing) return Promise.resolve(false);
