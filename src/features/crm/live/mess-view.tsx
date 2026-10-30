@@ -22,7 +22,21 @@ import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptio
 const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
+const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
+
 type Classification = "" | "HOT" | "WARM" | "COLD" | "DEAD";
+
+function uniqueSuggestions(values: Array<string | null | undefined>, presets: string[] = []): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of [...presets, ...values]) {
+    const trimmed = value?.trim() ?? "";
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
 
 type MessDraft = {
   receivedOn: string;
@@ -124,10 +138,20 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     load();
   }, [load]);
 
+  const marketOptions = uniqueSuggestions(rows.map((row) => row.market), marketPresets);
+  const goodsOptions = uniqueSuggestions(rows.map((row) => row.goods));
+
+  const openCreate = () => {
+    setEditingId(null);
+    setFormError(undefined);
+    setDraft({ ...emptyDraft, receivedOn: todayInput(), saleName: user.name });
+  };
+
   const save = () => {
     if (!draft) return;
     const payload = {
       ...draft,
+      saleName: editingId ? draft.saleName : user.name,
       receivedOn: draft.receivedOn || undefined,
       demand: draft.demand || undefined,
       customerType: draft.customerType || undefined,
@@ -176,7 +200,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         actions={
           <>
             {canPick && <LaneSwitch lane={lane} onChange={setLane} />}
-            {canWrite && <Button onClick={() => { setEditingId(null); setFormError(undefined); setDraft({ ...emptyDraft, receivedOn: todayInput() }); }}><Plus /> Tạo mess</Button>}
+            {canWrite && <Button onClick={openCreate}><Plus /> Tạo mess</Button>}
           </>
         }
       />
@@ -261,7 +285,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                       items={[
                         ...(canWrite
                           ? [
-                              { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setEditingId(row.id); setFormError(undefined); setDraft(draftFrom(row)); } },
+                              { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => {
+                                setEditingId(row.id);
+                                setFormError(undefined);
+                                const next = draftFrom(row);
+                                setDraft({ ...next, saleName: next.saleName.trim() || user.name });
+                              } },
                               { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
                             ]
                           : []),
@@ -289,8 +318,11 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Tên khách" htmlFor="mess-name" required>
                 <Input id="mess-name" value={draft.customerName} onChange={(event) => setDraft({ ...draft, customerName: event.target.value })} />
               </Field>
-              <Field label="Thị trường" htmlFor="mess-market">
-                <Input id="mess-market" value={draft.market} placeholder="Ví dụ: Mỹ, Úc, Canada" onChange={(event) => setDraft({ ...draft, market: event.target.value })} />
+              <Field label="Thị trường" htmlFor="mess-market" hint="Chọn gợi ý hoặc gõ mới">
+                <Input id="mess-market" list="mess-market-options" value={draft.market} placeholder="Ví dụ: Mỹ, Úc, Canada" onChange={(event) => setDraft({ ...draft, market: event.target.value })} />
+                <datalist id="mess-market-options">
+                  {marketOptions.map((item) => <option key={item} value={item} />)}
+                </datalist>
               </Field>
               <Field label="Phân loại" htmlFor="mess-class">
                 <NativeSelect id="mess-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as MessDraft["classification"] })}>
@@ -310,14 +342,17 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {demandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2">
-                <Input id="mess-goods" value={draft.goods} onChange={(event) => setDraft({ ...draft, goods: event.target.value })} />
+              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2" hint="Chọn gợi ý hoặc gõ mới">
+                <Input id="mess-goods" list="mess-goods-options" value={draft.goods} onChange={(event) => setDraft({ ...draft, goods: event.target.value })} />
+                <datalist id="mess-goods-options">
+                  {goodsOptions.map((item) => <option key={item} value={item} />)}
+                </datalist>
               </Field>
-              <Field label="Sales - hot & warm" htmlFor="mess-sale" className="sm:col-span-2">
-                <Input id="mess-sale" value={draft.saleName} placeholder="Tên sale phụ trách" onChange={(event) => setDraft({ ...draft, saleName: event.target.value })} />
+              <Field label="Sales - hot & warm" htmlFor="mess-sale" className="sm:col-span-2" hint="Tự động theo tài khoản đăng nhập">
+                <Input id="mess-sale" value={draft.saleName} readOnly />
               </Field>
-              <Field label="Pain-Point của KH" htmlFor="mess-pain" className="sm:col-span-2">
-                <Textarea id="mess-pain" value={draft.painPoint} onChange={(event) => setDraft({ ...draft, painPoint: event.target.value })} />
+              <Field label="Pain-Point của KH" htmlFor="mess-pain" className="sm:col-span-2" required hint="Ghi chi tiết mô tả pain-point của khách">
+                <Textarea id="mess-pain" rows={4} value={draft.painPoint} placeholder="Mô tả chi tiết vấn đề / nhu cầu của khách…" onChange={(event) => setDraft({ ...draft, painPoint: event.target.value })} />
               </Field>
               <Field label="Link mess" htmlFor="mess-link" className="sm:col-span-2">
                 <Input id="mess-link" value={draft.linkMess} placeholder="https://…" onChange={(event) => setDraft({ ...draft, linkMess: event.target.value })} />
