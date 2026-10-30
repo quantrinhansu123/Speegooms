@@ -69,6 +69,9 @@ type Draft = {
   logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
   shipFromAddress: string;
   shipToAddress: string;
+  requirements: string;
+  requirementImages: string[];
+  convertReason: string;
 };
 
 function draftFrom(row: PotentialRecord): Draft {
@@ -92,6 +95,9 @@ function draftFrom(row: PotentialRecord): Draft {
     logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
     shipFromAddress: row.shipFromAddress ?? "",
     shipToAddress: row.shipToAddress ?? "",
+    requirements: row.requirements ?? "",
+    requirementImages: row.requirementImages ?? [],
+    convertReason: row.convertReason ?? "",
   };
 }
 
@@ -151,6 +157,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       logisticsClass: draft.logisticsClass || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
       shipToAddress: draft.shipToAddress || undefined,
+      requirements: draft.requirements || undefined,
+      requirementImages: draft.requirementImages,
+      convertReason: draft.convertReason || undefined,
     });
     if (!parsed.success) {
       setFormError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
@@ -393,6 +402,22 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Địa chỉ nhận hàng (KH logistics)" htmlFor="pot-to">
                 <Textarea id="pot-to" rows={3} value={draft.shipToAddress} onChange={(event) => setDraft({ ...draft, shipToAddress: event.target.value })} />
               </Field>
+              <Field label="Yêu cầu của khách" htmlFor="pot-requirements" className="sm:col-span-2">
+                <Textarea id="pot-requirements" rows={4} value={draft.requirements} onChange={(event) => setDraft({ ...draft, requirements: event.target.value })} />
+              </Field>
+              <Field label="Lý do chuyển" htmlFor="pot-convert-reason" className="sm:col-span-2">
+                <Textarea id="pot-convert-reason" rows={2} value={draft.convertReason} onChange={(event) => setDraft({ ...draft, convertReason: event.target.value })} />
+              </Field>
+              {draft.requirementImages.length > 0 && (
+                <div className="sm:col-span-2">
+                  <p className="mb-2 text-sm font-medium">Ảnh yêu cầu</p>
+                  <div className="flex flex-wrap gap-2">
+                    {draft.requirementImages.map((image, index) => (
+                      <img key={`${index}-${image.slice(0, 24)}`} src={image} alt={`Ảnh yêu cầu ${index + 1}`} className="h-20 w-20 rounded border object-cover bg-white" />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>

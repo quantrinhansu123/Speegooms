@@ -22,6 +22,8 @@ export function sanitizeUnknown(value: unknown, depth = 0): unknown {
   if (depth > MAX_DEPTH) throw new AppError(400, "PAYLOAD_REJECTED", "Dữ liệu quá sâu");
   if (typeof value === "string") {
     if (value.length > MAX_STRING) throw new AppError(400, "PAYLOAD_REJECTED", "Chuỗi quá dài");
+    // Data URL ảnh: không chạy XSS để giữ nguyên base64 trước khi upload Cloudinary / lưu CRM.
+    if (value.startsWith("data:image/")) return value;
     return cleanText(value);
   }
   if (typeof value === "number") {

@@ -1,6 +1,7 @@
 import {
   type AccountingContractInput,
   type CreateContractInput,
+  type ConvertMessageInput,
   type CreateMessageInput,
   type CrmLane,
   type OpsContractInput,
@@ -91,6 +92,9 @@ type PotentialRow = {
   ship_from_address: string | null;
   ship_to_address: string | null;
   link_mess: string | null;
+  requirements: string | null;
+  requirement_images: unknown;
+  convert_reason: string | null;
   created_at: Date | string;
 };
 
@@ -473,6 +477,9 @@ function potentialSelect(message: string, potential: string): string {
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          m.link_mess as link_mess,
+         l.yeu_cau_khach as requirements,
+         l.anh_yeu_cau as requirement_images,
+         l.ly_do_chuyen as convert_reason,
          l.tao_luc as created_at
   from ${potential} l
   left join ${message} m on m.id = l.ma_tin_nhan
@@ -968,6 +975,9 @@ function toPotential(row: PotentialRow): PotentialRecord {
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
     linkMess: row.link_mess,
+    requirements: row.requirements,
+    requirementImages: imageList(row.requirement_images),
+    convertReason: row.convert_reason,
     createdAt: stamp(row.created_at),
   };
 }
@@ -1094,7 +1104,7 @@ export class PostgresCrmRepository implements CrmRepository {
     });
   }
 
-  async convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
+  async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
       const locked = await client.query<{ status: string; source: string; customer_name_raw: string | null; phone: string | null; email: string | null; goods: string | null; demand: string | null; customer_type: string | null; note: string | null }>(
@@ -1113,25 +1123,37 @@ export class PostgresCrmRepository implements CrmRepository {
         [id],
       );
       let potential = existing.rows[0];
+      const requirements = blank(input.requirements);
+      const reason = blank(input.reason);
+      const imagesJson = JSON.stringify(input.images ?? []);
       if (!potential) {
         const kind = message.demand === "SHIPPING" ? "LOGISTICS" : message.demand === "SOURCING" ? "SOURCING" : null;
         const inserted = await client.query<{ id: string }>(
           `insert into ${potentialTable} (
              nguon, ho_ten, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, tiem_nang, trang_thai, ma_tin_nhan,
-             nhom_khach, loai_khach_hang, ghi_chu_ban_hang
+             nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen
            )
            values (
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
-             $7::text::crm.customer_kind, $8::text::crm.customer_type, $9
+             $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note],
+          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
         const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [leadId]);
         potential = loaded.rows[0];
         if (!potential) throw new InfrastructureError("lead missing after insert");
+      } else {
+        await client.query(
+          `update ${potentialTable}
+           set yeu_cau_khach = $2, anh_yeu_cau = $3::jsonb, ly_do_chuyen = $4
+           where id = $1::uuid`,
+          [potential.id, requirements, imagesJson, reason],
+        );
+        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [potential.id]);
+        potential = loaded.rows[0] ?? potential;
       }
 
       if (message.status !== "CONVERTED") {
@@ -1177,7 +1199,10 @@ export class PostgresCrmRepository implements CrmRepository {
          trong_luong_kg = $17,
          phan_loai_logistics = $18,
          dia_chi_gui = $19,
-         dia_chi_nhan = $20
+         dia_chi_nhan = $20,
+         yeu_cau_khach = coalesce($21, yeu_cau_khach),
+         anh_yeu_cau = coalesce($22::jsonb, anh_yeu_cau),
+         ly_do_chuyen = coalesce($23, ly_do_chuyen)
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
        returning id::text as id`,
       [
@@ -1201,6 +1226,9 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.logisticsClass),
         blank(input.shipFromAddress),
         blank(input.shipToAddress),
+        input.requirements === undefined ? null : blank(input.requirements),
+        input.requirementImages === undefined ? null : JSON.stringify(input.requirementImages),
+        input.convertReason === undefined ? null : blank(input.convertReason),
       ],
     );
     if (!updated.rows[0]) return null;

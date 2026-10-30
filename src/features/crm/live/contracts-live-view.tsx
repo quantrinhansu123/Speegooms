@@ -21,6 +21,8 @@ import {
 } from "@/features/notifications/open-contract";
 import { FOCUS_ROW_CLASS } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { clipboardImageFiles } from "@/lib/clipboard-image";
+import { uploadImageFiles } from "@/lib/upload-image";
 import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
@@ -254,21 +256,7 @@ function accountingStatusTone(status: string | null | undefined, pendingSend: bo
   }
 }
 
-async function compressImage(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const max = 280;
-  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Không đọc được ảnh");
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const url = canvas.toDataURL("image/jpeg", 0.72);
-  if (url.length > 90_000) throw new Error("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
-  return url;
-}
+const contractImageOptions = { maxEdge: 280, quality: 0.72, maxChars: 90_000 } as const;
 
 export function ContractsLiveView({
   lane: fixedLane,
@@ -787,82 +775,54 @@ function ContractDialog({
     }
   };
 
-  const addConfirmationImages = async (confirmationIndex: number, files: FileList | null) => {
-    if (!files?.length) return;
+  const addConfirmationImages = async (confirmationIndex: number, files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return;
     setError(undefined);
     try {
       const current = confirmations[confirmationIndex];
       if (!current) return;
-      const next = [...current.images];
-      for (const file of files) {
-        if (next.length >= 10) throw new Error("Tối đa 10 ảnh mỗi lần xác nhận");
-        next.push(await compressImage(file));
-      }
-      updateConfirmation(confirmationIndex, { images: next });
+      const room = 10 - current.images.length;
+      if (room <= 0) throw new Error("Tối đa 10 ảnh mỗi lần xác nhận");
+      const list = Array.from(files);
+      const accepted = list.slice(0, room);
+      if (accepted.length < list.length) throw new Error("Tối đa 10 ảnh mỗi lần xác nhận");
+      const uploaded = await uploadImageFiles(accepted, contractImageOptions);
+      updateConfirmation(confirmationIndex, { images: [...current.images, ...uploaded] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không đọc được ảnh");
+      setError(cause instanceof Error ? cause.message : "Không tải được ảnh");
     }
   };
 
   const pasteConfirmationImage = async (confirmationIndex: number, event: React.ClipboardEvent) => {
-    const items = event.clipboardData?.items;
-    if (!items) return;
-    const files: File[] = [];
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      }
-    }
+    const files = clipboardImageFiles(event);
     if (files.length === 0) return;
     event.preventDefault();
-    const list = {
-      length: files.length,
-      item: (index: number) => files[index] ?? null,
-      *[Symbol.iterator]() { yield* files; },
-    } as FileList;
-    await addConfirmationImages(confirmationIndex, list);
+    await addConfirmationImages(confirmationIndex, files);
   };
 
-  const addPaymentImages = async (paymentIndex: number, files: FileList | null) => {
-    if (!files?.length) return;
+  const addPaymentImages = async (paymentIndex: number, files: FileList | File[] | null) => {
+    if (!files || files.length === 0) return;
     setError(undefined);
     try {
       const current = payments[paymentIndex]?.images ?? [];
-      const next = [...current];
-      for (const file of files) {
-        if (next.length >= 10) throw new Error("Tối đa 10 ảnh mỗi lần thanh toán");
-        next.push(await compressImage(file));
-      }
-      updatePayment(paymentIndex, { images: next });
+      const room = 10 - current.length;
+      if (room <= 0) throw new Error("Tối đa 10 ảnh mỗi lần thanh toán");
+      const list = Array.from(files);
+      const accepted = list.slice(0, room);
+      if (accepted.length < list.length) throw new Error("Tối đa 10 ảnh mỗi lần thanh toán");
+      const uploaded = await uploadImageFiles(accepted, contractImageOptions);
+      updatePayment(paymentIndex, { images: [...current, ...uploaded] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không đọc được ảnh");
+      setError(cause instanceof Error ? cause.message : "Không tải được ảnh");
     }
-  };
-
-  const filesFromClipboard = (event: React.ClipboardEvent): FileList | null => {
-    const items = event.clipboardData?.items;
-    if (!items) return null;
-    const files: File[] = [];
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      }
-    }
-    if (!files.length) return null;
-    event.preventDefault();
-    return {
-      length: files.length,
-      item: (index: number) => files[index] ?? null,
-      *[Symbol.iterator]() { yield* files; },
-    } as FileList;
   };
 
   const pastePaymentImage = async (paymentIndex: number, event: React.ClipboardEvent) => {
     if (!canSale) return;
-    const list = filesFromClipboard(event);
-    if (list) await addPaymentImages(paymentIndex, list);
+    const files = clipboardImageFiles(event);
+    if (files.length === 0) return;
+    event.preventDefault();
+    await addPaymentImages(paymentIndex, files);
   };
 
   const defaultTab = canAccounting && !canSale && !canOps

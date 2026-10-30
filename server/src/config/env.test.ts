@@ -73,3 +73,31 @@ test("cors rejects a wildcard", () => {
     /CORS/,
   );
 });
+
+test("cloudinary requires all three credential keys together", () => {
+  assert.throws(
+    () => loadEnv({ NODE_ENV: "development", CLOUDINARY_CLOUD_NAME: "demo" }),
+    /CLOUDINARY_CLOUD_NAME/,
+  );
+  const env = loadEnv({
+    NODE_ENV: "development",
+    CLOUDINARY_CLOUD_NAME: "demo",
+    CLOUDINARY_API_KEY: "123456789012345",
+    CLOUDINARY_API_SECRET: "secret-value-here",
+    CLOUDINARY_UPLOAD_FOLDER: "speego",
+  });
+  assert.equal(env.CLOUDINARY_CLOUD_NAME, "demo");
+  assert.equal(env.CLOUDINARY_API_KEY, "123456789012345");
+  assert.equal(env.CLOUDINARY_API_SECRET, "secret-value-here");
+  assert.equal(env.CLOUDINARY_UPLOAD_FOLDER, "speego");
+});
+
+test("cloudinary upload folder defaults to speego", () => {
+  const env = loadEnv({
+    NODE_ENV: "development",
+    CLOUDINARY_CLOUD_NAME: "demo",
+    CLOUDINARY_API_KEY: "123456789012345",
+    CLOUDINARY_API_SECRET: "secret-value-here",
+  });
+  assert.equal(env.CLOUDINARY_UPLOAD_FOLDER, "speego");
+});

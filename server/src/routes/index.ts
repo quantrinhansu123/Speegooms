@@ -5,6 +5,7 @@ import { crmRoutes } from "./crm.routes";
 import { healthRoutes } from "./health.routes";
 import { notificationRoutes } from "./notification.routes";
 import { securityRoutes } from "./security.routes";
+import { uploadRoutes } from "./uploads.routes";
 import { userRoutes } from "./users.routes";
 
 /** Thêm module mới: controller -> service -> repository, rồi mount ở đây. */
@@ -17,5 +18,6 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use("/users", userRoutes(container));
   api.use("/crm", crmRoutes(container));
   api.use("/notifications", notificationRoutes(container));
+  api.use("/uploads", uploadRoutes(container));
   app.use("/api", api);
 }

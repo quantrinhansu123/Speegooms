@@ -56,7 +56,7 @@ export class CrmController {
   };
 
   convertMessage = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.convertMessage(laneOf(req), one(req.params.id)));
+    res.status(200).json(await this.crm.convertMessage(laneOf(req), one(req.params.id), req.body));
   };
 
   listPotentials = async (req: Request, res: Response) => {

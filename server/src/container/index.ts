@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { RequestHandler } from "express";
 import type { Env } from "../config/env";
+import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudinary/upload";
 import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
@@ -9,6 +10,7 @@ import { CrmController } from "../controllers/crm.controller";
 import { HealthController } from "../controllers/health.controller";
 import { NotificationController } from "../controllers/notification.controller";
 import { SecurityController } from "../controllers/security.controller";
+import { UploadController } from "../controllers/upload.controller";
 import { UserAdminController } from "../controllers/user-admin.controller";
 import { createSessionCookies } from "../lib/cookies";
 import { createAuthenticate } from "../middlewares/authenticate";
@@ -33,6 +35,7 @@ export interface AppContainer {
   userAdminController: UserAdminController;
   crmController: CrmController;
   notificationController: NotificationController;
+  uploadController: UploadController;
   authenticate: RequestHandler;
   csrf: CsrfGuard;
   close(): Promise<void>;
@@ -49,6 +52,13 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   const crm = pool ? new PostgresCrmRepository(pool) : null;
   const notifications = pool ? new PostgresNotificationRepository(pool) : null;
   const notificationService = new NotificationService(notifications);
+  const cloudinary = cloudinaryConfigFromParts({
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    apiSecret: env.CLOUDINARY_API_SECRET,
+    uploadFolder: env.CLOUDINARY_UPLOAD_FOLDER,
+  });
+  if (cloudinary) ensureCloudinary(cloudinary);
 
   return {
     env,
@@ -58,6 +68,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
     userAdminController: new UserAdminController(new UserAdminService(repositories.users)),
     crmController: new CrmController(new CrmService(crm, notificationService)),
     notificationController: new NotificationController(notificationService),
+    uploadController: new UploadController(cloudinary),
     authenticate: createAuthenticate(env, repositories.users, repositories.sessions),
     csrf,
     close: () => repositories.close(),
