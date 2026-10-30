@@ -105,16 +105,19 @@ async function compressMany(files: File[]): Promise<string[]> {
 function OrderLines({
   lines,
   currency,
-  canEdit,
+  canEditContent,
+  canEditPricing,
   onChange,
   onError,
 }: {
   lines: QuoteLine[];
   currency: QuoteCurrency;
-  canEdit: boolean;
+  canEditContent: boolean;
+  canEditPricing: boolean;
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
 }) {
+  const canEdit = canEditContent || canEditPricing;
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange(lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
@@ -160,10 +163,10 @@ function OrderLines({
             {lines.map((line, index) => (
               <Fragment key={index}>
               <tr className={`align-top ${line.packages.length || line.attrs.length || canEdit ? "" : "border-b last:border-0"}`}>
-                <td className="px-2 py-2"><Input className="h-8 w-14" value={line.stt} disabled={!canEdit} onChange={(event) => updateLine(index, { stt: event.target.value })} /></td>
+                <td className="px-2 py-2"><Input className="h-8 w-14" value={line.stt} disabled={!canEditContent} onChange={(event) => updateLine(index, { stt: event.target.value })} /></td>
                 <td className="px-2 py-2">
                   <div
-                    tabIndex={canEdit ? 0 : undefined}
+                    tabIndex={canEditContent ? 0 : undefined}
                     className="flex min-w-[168px] max-w-[220px] flex-col gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Ảnh dòng ${index + 1}`}
                     onCopy={(event) => {
@@ -173,7 +176,7 @@ function OrderLines({
                       event.clipboardData.setData("text/plain", image);
                     }}
                     onPaste={(event) => {
-                      if (!canEdit) return;
+                      if (!canEditContent) return;
                       const pasted = clipboardImage(event);
                       if (!pasted) return;
                       event.preventDefault();
@@ -202,7 +205,7 @@ function OrderLines({
                         return (
                           <div key={`${imageIndex}-${src.slice(0, 24)}`} className="relative">
                             <img src={src} alt="" className="h-28 w-28 rounded border object-contain bg-white" />
-                            {canEdit && (
+                            {canEditContent && (
                               <Button
                                 type="button"
                                 size="icon-xs"
@@ -218,7 +221,7 @@ function OrderLines({
                         );
                       })}
                     </div>
-                    {canEdit && (
+                    {canEditContent && (
                       <>
                         <label className="inline-flex h-8 w-fit cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
                           <ImagePlus aria-hidden className="size-3.5" />
@@ -252,65 +255,84 @@ function OrderLines({
                 </td>
                 <td className="px-2 py-2">
                   <div className="grid w-24 gap-1">
-                    <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} value={amountText(line.quantity)} disabled={!canEdit} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} />
-                    <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEdit} onChange={(event) => updateLine(index, { unit: event.target.value })} />
+                    <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} value={amountText(line.quantity)} disabled={!canEditContent} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} />
+                    <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEditContent} onChange={(event) => updateLine(index, { unit: event.target.value })} />
                   </div>
                 </td>
                 <td className="px-2 py-2">
                   <div className="grid w-36 gap-1">
-                    <Input className="h-8" inputMode="decimal" aria-label={`Đơn giá dòng ${index + 1}`} value={amountText(line.pricePerSet)} disabled={!canEdit} onChange={(event) => updateLine(index, { pricePerSet: amountValue(event.target.value) })} />
-                    <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEdit} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
+                    <Input className="h-8" inputMode="decimal" aria-label={`Đơn giá dòng ${index + 1}`} value={amountText(line.pricePerSet)} disabled={!canEditPricing} onChange={(event) => updateLine(index, { pricePerSet: amountValue(event.target.value) })} />
+                    <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
                       {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                     </NativeSelect>
                   </div>
                 </td>
-                <td className="px-2 py-2"><Input className="h-8 w-24" inputMode="decimal" value={amountText(line.lineTotal)} disabled={!canEdit} onChange={(event) => updateLine(index, { lineTotal: amountValue(event.target.value) })} /></td>
-                <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEdit} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} /></td>
-                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.spec} disabled={!canEdit} onChange={(event) => updateLine(index, { spec: event.target.value })} /></td>
-                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.note} disabled={!canEdit} onChange={(event) => updateLine(index, { note: event.target.value })} /></td>
+                <td className="px-2 py-2"><Input className="h-8 w-24" inputMode="decimal" value={amountText(line.lineTotal)} disabled={!canEditPricing} onChange={(event) => updateLine(index, { lineTotal: amountValue(event.target.value) })} /></td>
+                <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEditContent} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} /></td>
+                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.spec} disabled={!canEditContent} onChange={(event) => updateLine(index, { spec: event.target.value })} /></td>
+                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.note} disabled={!canEditContent} onChange={(event) => updateLine(index, { note: event.target.value })} /></td>
                 <td className="px-2 py-2">
-                  {canEdit && (
+                  {canEditContent && (
                     <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa dòng ${index + 1}`} onClick={() => onChange(lines.filter((_, lineIndex) => lineIndex !== index))}>
                       <Trash2 />
                     </Button>
                   )}
                 </td>
               </tr>
-              <tr className="border-b bg-muted/20 last:border-0">
+              <tr className="border-b last:border-0">
                 <td />
-                <td colSpan={8} className="px-2 py-2">
+                <td colSpan={8} className="px-2 py-3">
                   <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="grid gap-1.5">
-                      <p className="font-medium">Quy cách đóng gói{line.packages.length > 0 && ` · ${packagesSummary(line.packages)}`}</p>
+                    <div
+                      className={`grid gap-2 rounded-md border-2 p-3 ${
+                        line.packages.length === 0
+                          ? "border-amber-600 bg-amber-50"
+                          : "border-amber-500/50 bg-amber-50/60"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-amber-950">
+                          Quy cách đóng gói <span className="text-amber-700" aria-hidden>*</span>
+                        </p>
+                        {line.packages.length === 0 ? (
+                          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                            Bắt buộc — đừng bỏ sót
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm) · kg/kiện — dùng để báo giá và tính cước.</p>
                       {line.packages.map((pkg, pi) => (
                         <div key={pi} className="flex flex-wrap items-center gap-1">
                           {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => (
                             <Input
                               key={key}
-                              className="h-7 w-16"
+                              className="h-8 w-[4.5rem] border-amber-700/30 bg-white"
                               inputMode="decimal"
                               placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
                               aria-label={`Kiện ${pi + 1} dòng ${index + 1}: ${key}`}
                               value={pkg[key] ? String(pkg[key]) : ""}
-                              disabled={!canEdit}
+                              disabled={!canEditContent}
                               onChange={(event) => updateLine(index, { packages: line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)) })}
                             />
                           ))}
-                          {canEdit && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
+                          {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
                         </div>
                       ))}
-                      {canEdit && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
+                      {canEditContent && <Button type="button" size="sm" variant="outline" className="w-fit border-amber-700/40 bg-white" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
                     </div>
-                    <div className="grid gap-1.5">
-                      <p className="font-medium">Thuộc tính (chất liệu, bảo hành, thời gian sản xuất…)</p>
+                    <div className="grid gap-1.5 rounded-md border bg-muted/20 p-3">
+                      <p className="font-medium">Thuộc tính chi tiết (mua hàng liên hệ xưởng)</p>
+                      <p className="text-[11px] text-muted-foreground">Chất liệu, bảo hành, lead time, MOQ… điền sau khi xác nhận với xưởng.</p>
                       {line.attrs.map((attr, ai) => (
                         <div key={ai} className="flex items-center gap-1">
-                          <Input className="h-7 w-32" placeholder="Tên" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: tên`} value={attr.key} disabled={!canEdit} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, key: event.target.value } : x)) })} />
-                          <Input className="h-7" placeholder="Giá trị" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: giá trị`} value={attr.value} disabled={!canEdit} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, value: event.target.value } : x)) })} />
-                          {canEdit && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa thuộc tính ${ai + 1}`} onClick={() => updateLine(index, { attrs: line.attrs.filter((_, xi) => xi !== ai) })}><Trash2 /></Button>}
+                          <Input className="h-7 w-32" placeholder="Tên" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: tên`} value={attr.key} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, key: event.target.value } : x)) })} />
+                          <Input className="h-7" placeholder="Giá trị" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: giá trị`} value={attr.value} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, value: event.target.value } : x)) })} />
+                          {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa thuộc tính ${ai + 1}`} onClick={() => updateLine(index, { attrs: line.attrs.filter((_, xi) => xi !== ai) })}><Trash2 /></Button>}
                         </div>
                       ))}
-                      {canEdit && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
+                      {canEditContent && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
                     </div>
                   </div>
                 </td>
@@ -320,15 +342,18 @@ function OrderLines({
           </tbody>
         </table>
       </div>
-      {canEdit && <Button type="button" variant="outline" onClick={addLine}><Plus />Thêm dòng</Button>}
+      {canEditContent && <Button type="button" variant="outline" onClick={addLine}><Plus />Thêm dòng</Button>}
     </div>
   );
 }
 
+export type QuoteEditMode = "none" | "content" | "full";
+
 export function QuoteEditor({
   quote,
   templates,
-  canEdit,
+  canEdit = false,
+  editMode,
   pending,
   error,
   onClose,
@@ -340,10 +365,14 @@ export function QuoteEditor({
   allowContract = false,
   lane,
   onContractCreated,
+  desk,
+  onContinueLogistics,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
-  canEdit: boolean;
+  /** @deprecated Dùng editMode. true = full, false = none. */
+  canEdit?: boolean;
+  editMode?: QuoteEditMode;
   pending: boolean;
   error?: string;
   onClose: () => void;
@@ -355,7 +384,13 @@ export function QuoteEditor({
   allowContract?: boolean;
   lane?: CrmLane;
   onContractCreated?: () => void;
+  desk?: "sourcing" | "logistics";
+  /** Sau khi gửi báo giá sourcing xong (KH sourcing+logistics), chuyển sang bàn logistics. */
+  onContinueLogistics?: () => void;
 }) {
+  const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
+  const canEditContent = mode === "content" || mode === "full";
+  const canEditPricing = mode === "full";
   const [templateId, setTemplateId] = useState(quote.templateId ?? "");
   const [opsNote, setOpsNote] = useState(quote.opsNote ?? "");
   const [quoteStatus, setQuoteStatus] = useState<(typeof quoteStatusOptions)[number][0]>(
@@ -373,6 +408,7 @@ export function QuoteEditor({
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
+  const [logisticsHandoff, setLogisticsHandoff] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
   const sent = quoteStatus === "DA_CO_BAO_GIA" || quoteStatus === "DA_CO_BAO_GIA_LAI";
@@ -491,6 +527,10 @@ export function QuoteEditor({
       setOrderError("Nhập ít nhất một dòng hàng");
       return;
     }
+    if (parsed.data.lines.some((line) => line.packages.length === 0)) {
+      setOrderError("Mỗi dòng hàng cần quy cách đóng gói (số kiện, kích thước, kg/kiện)");
+      return;
+    }
     const next = draft.mode === "create"
       ? [...orders, parsed.data]
       : orders.map((order) => (order.id === parsed.data.id ? parsed.data : order));
@@ -499,6 +539,7 @@ export function QuoteEditor({
   };
 
   const toggle = (id: string, checked: boolean) => {
+    if (!canEditPricing) return;
     const next = orders.map((order) => ({
       ...order,
       selected: checked ? order.id === id : order.id === id ? false : order.selected,
@@ -517,13 +558,13 @@ export function QuoteEditor({
       <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
       </Button>
-      {canEdit && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
-      {!canEdit && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
+      {canEditPricing && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
+      {!canEditPricing && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
         <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Chuyển Hợp đồng</Button>
       )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
-      {canEdit && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+      {canEditContent && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
     </>
   );
 
@@ -531,7 +572,12 @@ export function QuoteEditor({
     <>
       <div className={embedded ? "grid gap-4" : "grid max-h-[68vh] gap-4 overflow-y-auto pr-1"}>
             {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
-            {needsNewQuote && canEdit && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
+            {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
+            {mode === "content" && (
+              <InlineAlert>
+                Sale điền ảnh, số lượng, quy cách đóng gói. Mua hàng liên hệ xưởng bổ sung thuộc tính chi tiết. Vận hành nhìn thông tin này để báo giá (đơn giá).
+              </InlineAlert>
+            )}
             <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
               <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
               <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
@@ -543,7 +589,7 @@ export function QuoteEditor({
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="font-medium">Thông tin đơn hàng</h3>
-                {canEdit && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
+                {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
@@ -570,7 +616,7 @@ export function QuoteEditor({
                               type="checkbox"
                               className="size-4 accent-primary"
                               checked={order.selected}
-                              disabled={!canEdit || pending}
+                              disabled={!canEditPricing || pending}
                               aria-label={`Chọn ${order.name}`}
                               onChange={(event) => toggle(order.id, event.target.checked)}
                             />
@@ -582,8 +628,8 @@ export function QuoteEditor({
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-1">
                               <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
-                              {canEdit && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setOrderError(undefined); setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } }); }}><Pencil />Sửa</Button>}
-                              {canEdit && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
+                              {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setOrderError(undefined); setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } }); }}><Pencil />Sửa</Button>}
+                              {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
                             </div>
                           </td>
                         </tr>
@@ -596,21 +642,21 @@ export function QuoteEditor({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
-                <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
+                <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
               </Field>
               <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
-                <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
+                <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
               </Field>
               <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
-                <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
+                <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
               </Field>
               <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-                <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
+                <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
               </Field>
               <div className="grid gap-2 sm:col-span-2">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium">Thông tin đặt cọc</span>
-                  {canEdit && (
+                  {canEditPricing && (
                     <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
                       <Plus />Thêm dòng
                     </Button>
@@ -623,10 +669,10 @@ export function QuoteEditor({
                       id={index === 0 ? fieldId("note-deposit") : undefined}
                       aria-label={`Thông tin đặt cọc ${index + 1}`}
                       value={line}
-                      disabled={!canEdit}
+                      disabled={!canEditPricing}
                       onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
                     />
-                    {canEdit && (
+                    {canEditPricing && (
                       <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
                         <Trash2 />
                       </Button>
@@ -636,33 +682,33 @@ export function QuoteEditor({
               </div>
               <h3 className="mt-3 border-b pb-3 font-semibold sm:col-span-2">Thông tin thanh toán</h3>
               <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
-                <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEdit} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
+                <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
               </Field>
               <Field label="Account Name" htmlFor={fieldId("bank-name")}>
-                <Input id={fieldId("bank-name")} value={bank.accountName} disabled={!canEdit} onChange={(event) => setBank({ ...bank, accountName: event.target.value })} />
+                <Input id={fieldId("bank-name")} value={bank.accountName} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountName: event.target.value })} />
               </Field>
               <Field label="Account Number" htmlFor={fieldId("bank-number")}>
-                <Input id={fieldId("bank-number")} value={bank.accountNumber} disabled={!canEdit} onChange={(event) => setBank({ ...bank, accountNumber: event.target.value })} />
+                <Input id={fieldId("bank-number")} value={bank.accountNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountNumber: event.target.value })} />
               </Field>
               <Field label="Routing Number" htmlFor={fieldId("bank-routing")}>
-                <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEdit} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
+                <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
               </Field>
               <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
-                <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEdit} onChange={(event) => setTemplateId(event.target.value)}>
+                <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
                   <option value="">Chưa chọn</option>
                   {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </NativeSelect>
               </Field>
               <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
-                <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEdit} onChange={(event) => setOpsNote(event.target.value)} />
+                <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
               </Field>
               <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
-                <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEdit} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
+                <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
                   {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
               <Field label="Trạng thái hợp đồng" htmlFor={fieldId("quote-contract")}>
-                <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEdit} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
+                <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEditPricing} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
                   {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
@@ -713,6 +759,11 @@ export function QuoteEditor({
             </DialogHeader>
             <div className="grid max-h-[68vh] gap-4 overflow-y-auto pr-1">
               {orderError && <InlineAlert>{orderError}</InlineAlert>}
+              {draft.mode !== "view" && (
+                <InlineAlert>
+                  Ưu tiên điền <strong>quy cách đóng gói</strong> (ô vàng) trước khi lưu. Sale điền ảnh/số lượng/quy cách; mua hàng bổ sung chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
+                </InlineAlert>
+              )}
               <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")}>
                 <Input
                   id={fieldId("order-name")}
@@ -726,7 +777,7 @@ export function QuoteEditor({
                   <NativeSelect
                     id={fieldId("order-currency")}
                     value={draft.order.currency}
-                    disabled={draft.mode === "view"}
+                    disabled={draft.mode === "view" || !canEditPricing}
                     onChange={(event) => {
                       const currency = event.target.value as QuoteCurrency;
                       setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
@@ -741,7 +792,7 @@ export function QuoteEditor({
                       id={fieldId("order-rate")}
                       inputMode="decimal"
                       value={amountText(draft.order.rate)}
-                      disabled={draft.mode === "view"}
+                      disabled={draft.mode === "view" || !canEditPricing}
                       onChange={(event) => setDraft({ ...draft, order: { ...draft.order, rate: amountValue(event.target.value) } })}
                     />
                   </Field>
@@ -753,7 +804,8 @@ export function QuoteEditor({
                 <OrderLines
                   lines={draft.order.lines}
                   currency={draft.order.currency}
-                  canEdit
+                  canEditContent={canEditContent}
+                  canEditPricing={canEditPricing}
                   onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
                   onError={setOrderError}
                 />
@@ -798,7 +850,26 @@ export function QuoteEditor({
             if (status && quoteStatusOptions.some((item) => item[0] === status)) {
               setQuoteStatus(status as (typeof quoteStatusOptions)[number][0]);
             }
+            if (
+              status
+              && desk === "sourcing"
+              && quote.customerKind === "SOURCING_LOGISTICS"
+              && onContinueLogistics
+            ) {
+              setLogisticsHandoff(true);
+            }
           });
+        }}
+      />
+      <ConfirmDialog
+        open={logisticsHandoff}
+        onOpenChange={setLogisticsHandoff}
+        title="Chuyển báo giá vận chuyển"
+        description="Đã gửi báo giá thông tin đơn hàng. Tiếp tục báo giá thông tin vận chuyển cho khách Sourcing + Logistics?"
+        confirmLabel="Sang Logistics"
+        onConfirm={() => {
+          setLogisticsHandoff(false);
+          onContinueLogistics?.();
         }}
       />
       <ConfirmDialog

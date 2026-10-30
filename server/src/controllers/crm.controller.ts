@@ -1,5 +1,6 @@
 import type { CrmLane, QuoteDesk } from "@speego/shared";
 import type { Request, Response } from "express";
+import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
 import type { ContractView } from "../repositories/crm.repository";
 import { readContractSearch, readMessageSearch, readPotentialSearch, readQuoteDeskFilter, readQuoteSearch } from "../search/parse-list-search";
@@ -97,7 +98,11 @@ export class CrmController {
   };
 
   updateQuote = async (req: Request, res: Response) => {
-    res.status(200).json({ quote: await this.crm.updateQuote(laneOf(req), deskOf(req), one(req.params.id), req.body) });
+    const role = req.user?.role;
+    const contentOnly = Boolean(role && can(role, "quote.content") && !can(role, "quote.ops"));
+    res.status(200).json({
+      quote: await this.crm.updateQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, { contentOnly }),
+    });
   };
 
   sendQuote = async (req: Request, res: Response) => {

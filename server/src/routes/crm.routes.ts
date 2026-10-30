@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { accountingContractSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
-import { requirePermission } from "../middlewares/authorize";
+import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
 import type { AppContainer } from "../container";
 
@@ -23,7 +23,7 @@ export function crmRoutes(container: AppContainer) {
   router.patch("/rfq-quotes/:id", requirePermission("quote.request"), validate({ body: reassignQuoteSchema }), asyncHandler(crm.reassignRfqQuote));
   router.delete("/rfq-quotes/:id", requirePermission("quote.request"), asyncHandler(crm.deleteRfqQuote));
   router.post("/quotes/:id/logistics", requirePermission("quote.logistics"), asyncHandler(crm.requestLogisticsQuote));
-  router.patch("/quotes/:id", requirePermission("quote.ops"), validate({ body: updateQuoteSchema }), asyncHandler(crm.updateQuote));
+  router.patch("/quotes/:id", requireAnyPermission(["quote.ops", "quote.content"]), validate({ body: updateQuoteSchema }), asyncHandler(crm.updateQuote));
   router.post("/quotes/:id/send", requirePermission("quote.ops"), validate({ body: updateQuoteSchema }), asyncHandler(crm.sendQuote));
   router.post("/quotes/:id/return", requirePermission("quote.return"), asyncHandler(crm.returnQuote));
   router.get("/quote-templates", requirePermission("quote.read"), asyncHandler(crm.listQuoteTemplates));

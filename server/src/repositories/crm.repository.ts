@@ -75,6 +75,7 @@ export interface PotentialRecord {
   logisticsClass: string | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;
+  linkMess: string | null;
   createdAt: string;
 }
 
@@ -139,6 +140,12 @@ export type LogisticsQuoteRequestResult =
   | "missing"
   | "kind";
 
+export interface ContractPaymentLine {
+  amount: number;
+  paidOn: string | null;
+  note: string;
+}
+
 export interface ContractRecord {
   id: string;
   code: string;
@@ -155,6 +162,7 @@ export interface ContractRecord {
   shippingCost: number;
   totalValue: number;
   paidAmount: number;
+  payments: ContractPaymentLine[];
   balance: number;
   signedOn: string | null;
   opsStatus: string;
@@ -172,6 +180,7 @@ export interface ContractRecord {
   accountingStatus: string | null;
   images: string[];
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CrmRepository {
@@ -189,6 +198,7 @@ export interface CrmRepository {
   deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean>;
   requestQuote(lane: CrmLane, potentialId: string): Promise<QuoteRequestResult>;
   requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<LogisticsQuoteRequestResult>;
+  findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
   updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "template">;
   sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "empty" | "selection" | "template">;
   returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | "missing" | "state">;

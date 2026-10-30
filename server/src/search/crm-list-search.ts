@@ -2,7 +2,7 @@ import type { ListSearch } from "@speego/shared";
 import { DateRangeCriterion } from "./date-range-criterion";
 import { ExactMatchCriterion } from "./exact-match-criterion";
 import { SearchBuilder } from "./search-builder";
-import { sql, type SqlExpression } from "./sql-expression";
+import { sql, trustedSql, type SqlExpression } from "./sql-expression";
 import { TextSearchCriterion } from "./text-search-criterion";
 
 export interface MessageListSearch extends ListSearch {
@@ -87,12 +87,58 @@ export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression,
     .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind));
 }
 
+const accountingStatusLabelSql = trustedSql(`case coalesce(h.trang_thai_ke_toan::text, ban_gui_xac_nhan->>'accountingStatus', '')
+  when 'DA_HOAN_THANH_COC' then 'Đã hoàn thành cọc'
+  when 'DA_HOAN_THANH_THANH_TOAN' then 'Đã hoàn thành thanh toán'
+  when 'CHUA_HOAN_THANH_COC' then 'Chưa hoàn thành cọc'
+  when 'CHUA_HOAN_THANH_THANH_TOAN' then 'Chưa hoàn thành thanh toán'
+  else coalesce(h.trang_thai_ke_toan::text, ban_gui_xac_nhan->>'accountingStatus', '')
+end`);
+
+/** Tìm trên mọi trạng thái và hầu hết trường hiển thị của hợp đồng. */
+const contractTextColumns = [
+  sql("h.ma_hien_thi"),
+  sql("h.ma_bao_gia_hien_thi"),
+  sql("h.ten_khach_hang"),
+  sql("h.nhan_vien_ban"),
+  sql("h.van_chuyen_den"),
+  sql("h.san_pham"),
+  sql("h.so_luong::text"),
+  sql("h.loai_tien"),
+  sql("h.gia_tri_san_pham::text"),
+  sql("h.chi_phi_van_chuyen::text"),
+  sql("h.tong_gia_tri::text"),
+  sql("h.so_tien_thanh_toan::text"),
+  sql("h.so_tien_con_lai::text"),
+  sql("h.so_tien_xac_nhan::text"),
+  sql("h.ngay_ky::text"),
+  sql("h.trang_thai_van_hanh"),
+  sql("h.tracking"),
+  sql("h.ghi_chu_1"),
+  sql("h.ghi_chu_2"),
+  sql("h.ngay_nhap_kho_tq::text"),
+  sql("h.ngay_xuat_container::text"),
+  sql("h.ngay_cap_cang::text"),
+  sql("h.ngay_giao_du_kien::text"),
+  sql("h.trang_thai_ke_toan::text"),
+  accountingStatusLabelSql,
+  sql("ban_gui_van_hanh->>'customerName'"),
+  sql("ban_gui_van_hanh->>'saleName'"),
+  sql("ban_gui_van_hanh->>'shipTo'"),
+  sql("ban_gui_van_hanh->>'product'"),
+  sql("ban_gui_van_hanh->>'opsStatus'"),
+  sql("ban_gui_ke_toan->>'customerName'"),
+  sql("ban_gui_ke_toan->>'saleName'"),
+  sql("ban_gui_ke_toan->>'shipTo'"),
+  sql("ban_gui_ke_toan->>'product'"),
+  sql("ban_gui_ke_toan->>'tracking'"),
+  sql("ban_gui_ke_toan->>'note1'"),
+  sql("ban_gui_ke_toan->>'note2'"),
+  sql("ban_gui_ke_toan->>'opsStatus'"),
+  sql("ban_gui_xac_nhan->>'accountingStatus'"),
+] as const;
+
 export function contractSearch(view: "sale" | "ops" | "accounting", input: ContractListSearch): SearchBuilder {
-  const textColumns = view === "sale"
-    ? [sql("h.ma_hien_thi"), sql("h.ma_bao_gia_hien_thi"), sql("h.ten_khach_hang"), sql("h.san_pham"), sql("h.trang_thai_van_hanh")]
-    : view === "ops"
-      ? [sql("h.ma_hien_thi"), sql("h.ma_bao_gia_hien_thi"), sql("ban_gui_van_hanh->>'customerName'"), sql("ban_gui_van_hanh->>'product'"), sql("h.tracking"), sql("h.trang_thai_van_hanh")]
-      : [sql("h.ma_hien_thi"), sql("h.ma_bao_gia_hien_thi"), sql("ban_gui_ke_toan->>'customerName'"), sql("ban_gui_ke_toan->>'product'"), sql("ban_gui_ke_toan->>'tracking'"), sql("h.trang_thai_van_hanh")];
   const signedOn = view === "sale"
     ? sql("h.ngay_ky")
     : view === "ops"
@@ -102,7 +148,7 @@ export function contractSearch(view: "sale" | "ops" | "accounting", input: Contr
     ? sql("h.trang_thai_ke_toan::text")
     : sql("ban_gui_xac_nhan->>'accountingStatus'");
   return new SearchBuilder()
-    .add(new TextSearchCriterion(input.q, textColumns))
+    .add(new TextSearchCriterion(input.q, contractTextColumns))
     .add(new DateRangeCriterion(signedOn, input.from, input.to, "date"))
     .add(new ExactMatchCriterion(sql("h.trang_thai_van_hanh"), input.opsStatus))
     .add(new ExactMatchCriterion(accountingStatus, input.accountingStatus));
