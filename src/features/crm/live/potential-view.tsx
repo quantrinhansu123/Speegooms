@@ -16,6 +16,7 @@ import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, potentialOptions, type PotentialRecord } from "./types";
@@ -410,12 +411,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               </Field>
               {draft.requirementImages.length > 0 && (
                 <div className="sm:col-span-2">
-                  <p className="mb-2 text-sm font-medium">Ảnh yêu cầu</p>
-                  <div className="flex flex-wrap gap-2">
-                    {draft.requirementImages.map((image, index) => (
-                      <img key={`${index}-${image.slice(0, 24)}`} src={image} alt={`Ảnh yêu cầu ${index + 1}`} className="h-20 w-20 rounded border object-cover bg-white" />
-                    ))}
-                  </div>
+                  <RequirementImageSlider key={editing?.id} images={draft.requirementImages} />
                 </div>
               )}
             </div>
