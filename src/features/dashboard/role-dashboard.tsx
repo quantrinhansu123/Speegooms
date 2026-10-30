@@ -90,6 +90,13 @@ export function RoleDashboard() {
     activeOrders.forEach((o) => task(o.contract.orderId, `${o.contract.orderId} · ${o.customer?.name ?? ""}`, o.state.dueOn, o.daysOverdue ? "Quá hạn giao" : "Đang xử lý", `/van-hanh/don-hang/${o.contract.orderId}`));
     hr.complaints.filter((c) => c.status !== "hoan-tat").forEach((c) => task(c.id, c.title, c.dueOn, "Khiếu nại mở", `/khieu-nai/${c.id}`));
   }
+  if (role === "sourcing") {
+    card("Sourcing – Báo giá", "→", "/van-hanh/sourcing-bao-gia", "Khách thuần sourcing và sourcing + logistics");
+  }
+  if (role === "logistics") {
+    card("Logistics – Báo giá", "→", "/van-hanh/logistics-bao-gia", "Khách thuần logistics và phần logistics");
+    card("Sourcing (xem)", "→", "/van-hanh/sourcing-bao-gia", "Chỉ khách thuần sourcing, chỉ đọc");
+  }
   if (role === "ke-toan" || executive) {
     if (role === "ke-toan") {
       card("Cọc chờ đối soát", pendingDeposits.length, "/ke-toan/doi-soat", "Hợp đồng đã ký, trạng thái hiện tại");

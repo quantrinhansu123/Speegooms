@@ -205,7 +205,12 @@ export interface CrmRepository {
   listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]>;
   updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null>;
   deletePotential(lane: CrmLane, id: string): Promise<boolean>;
-  listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch): Promise<QuoteRecord[]>;
+  listQuotes(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    search: QuoteListSearch,
+    allowedKinds?: readonly string[] | null,
+  ): Promise<QuoteRecord[]>;
   listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]>;
   reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult>;
   deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean>;

@@ -8,6 +8,8 @@ export const roleSchema = z.enum([
   "sale-vn",
   "sale-global",
   "van-hanh",
+  "sourcing",
+  "logistics",
   "ke-toan",
   "hcns",
   "phap-che",

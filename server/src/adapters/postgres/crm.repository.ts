@@ -161,6 +161,17 @@ function desksForKind(kind: string | null): QuoteDesk[] {
   return [];
 }
 
+function kindClause(
+  allowedKinds: readonly string[] | null,
+  startAt: number,
+): { sql: string; values: unknown[] } {
+  if (!allowedKinds) return { sql: "", values: [] };
+  return {
+    sql: ` and l.nhom_khach::text = any($${startAt}::text[])`,
+    values: [allowedKinds],
+  };
+}
+
 function quoteSelect(quote: string, potential: string, logistics: string | null, sheet: boolean): string {
   const logisticsColumn = logistics ? "lq.id::text" : "null";
   const logisticsJoin = logistics
@@ -1270,26 +1281,39 @@ export class PostgresCrmRepository implements CrmRepository {
     });
   }
 
-  async listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch): Promise<QuoteRecord[]> {
+  async listQuotes(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    search: QuoteListSearch,
+    allowedKinds: readonly string[] | null = null,
+  ): Promise<QuoteRecord[]> {
+    if (allowedKinds && allowedKinds.length === 0) return [];
     const tables = quoteTables[lane];
     const own = quoteSearch(search, sql("q.trang_thai_bao_gia::text"), sql("q.trang_thai_hop_dong::text")).build();
     if (desk === "sourcing") {
+      const kindFilter = kindClause(allowedKinds, own.values.length + 1);
       const result = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} ${own.sql} order by q.tao_luc desc limit 200`,
-        own.values,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc limit 200`,
+        [...own.values, ...kindFilter.values],
       );
       return result.rows.map(toQuote);
     }
+    const allowOwn = !allowedKinds || allowedKinds.includes("LOGISTICS");
+    const allowShared = !allowedKinds || allowedKinds.includes("SOURCING_LOGISTICS");
     const shared = quoteSearch(search, sql("q.bao_gia_logistics->>'quoteStatus'"), sql("q.bao_gia_logistics->>'contractStatus'")).build();
     const [ownRows, sharedRows] = await Promise.all([
-      this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
-        own.values,
-      ),
-      this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and l.nhom_khach::text = 'SOURCING_LOGISTICS' order by q.tao_luc desc limit 200`,
-        shared.values,
-      ),
+      allowOwn
+        ? this.query<QuoteRow>(
+            `${quoteSelect(tables.logistics, tables.potential, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
+            own.values,
+          )
+        : Promise.resolve({ rows: [] as QuoteRow[] }),
+      allowShared
+        ? this.query<QuoteRow>(
+            `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and l.nhom_khach::text = 'SOURCING_LOGISTICS' order by q.tao_luc desc limit 200`,
+            shared.values,
+          )
+        : Promise.resolve({ rows: [] as QuoteRow[] }),
     ]);
     return [...ownRows.rows.map(toQuote), ...sharedRows.rows.map(toLogisticsQuote)]
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));

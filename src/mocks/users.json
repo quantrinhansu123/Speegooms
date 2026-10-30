@@ -45,7 +45,23 @@
   "email": "vanhanh@speego.vn",
   "role": "van-hanh",
   "department": "Vận hành",
-  "title": "Trưởng nhóm Logistics"
+  "title": "Trưởng nhóm Vận hành"
+ },
+ {
+  "id": "u-src",
+  "name": "Nguyễn Thu Sourcing",
+  "email": "sourcing@speego.vn",
+  "role": "sourcing",
+  "department": "Vận hành",
+  "title": "Chuyên viên Sourcing"
+ },
+ {
+  "id": "u-log",
+  "name": "Lê Hoàng Logistics",
+  "email": "logistics@speego.vn",
+  "role": "logistics",
+  "department": "Vận hành",
+  "title": "Chuyên viên Logistics"
  },
  {
   "id": "u-kt",

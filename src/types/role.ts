@@ -5,6 +5,8 @@ export type Role =
   | "sale-vn"
   | "sale-global"
   | "van-hanh"
+  | "sourcing"
+  | "logistics"
   | "ke-toan"
   | "hcns"
   | "phap-che";

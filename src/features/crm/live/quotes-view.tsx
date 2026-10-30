@@ -30,13 +30,19 @@ import {
   type QuoteTemplateRecord,
 } from "./types";
 
-const opsRoles: Role[] = ["admin", "van-hanh"];
-const contentRoles: Role[] = ["admin", "van-hanh", "sale-vn", "sale-global"];
+const deskOpsRoles: Record<QuoteDesk, Role[]> = {
+  sourcing: ["admin", "van-hanh", "sourcing"],
+  logistics: ["admin", "van-hanh", "logistics"],
+};
 
 const titles: Record<QuoteDesk, string> = {
   sourcing: "Sourcing – Báo giá",
   logistics: "Logistics – Báo giá",
 };
+
+function canOpsOnDesk(role: Role, desk: QuoteDesk): boolean {
+  return deskOpsRoles[desk].includes(role);
+}
 
 function shownDate(value: string): string {
   const date = new Date(value);
@@ -48,9 +54,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const user = useSession();
   const router = useRouter();
   const { lane, canPick, setLane } = useCrmLane();
-  const canOps = opsRoles.includes(user.role);
-  const canContent = contentRoles.includes(user.role);
-  const editMode = canOps ? "full" as const : canContent ? "content" as const : "none" as const;
+  const canOps = canOpsOnDesk(user.role, desk);
+  /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
+  const editMode = canOps ? ("full" as const) : ("none" as const);
   const [rows, setRows] = useState<QuoteRecord[]>([]);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
   const [error, setError] = useState<string>();

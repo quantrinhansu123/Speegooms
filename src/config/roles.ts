@@ -53,6 +53,18 @@ export const roleConfig: Record<Role, RoleConfig> = {
     modules: ["/dashboard", "/crm", "/sale-global", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai"],
   },
   "van-hanh": { label: "Vận hành", dashboard: "department", department: "van-hanh", modules: ["/dashboard", "/van-hanh", "/fulfillment", "/khieu-nai", "/ke-toan/de-nghi-thanh-toan", "/ke-toan/duyet-thanh-toan"] },
+  sourcing: {
+    label: "Sourcing",
+    dashboard: "department",
+    department: "van-hanh",
+    modules: ["/dashboard", "/van-hanh/sourcing-bao-gia", "/khieu-nai"],
+  },
+  logistics: {
+    label: "Logistics",
+    dashboard: "department",
+    department: "van-hanh",
+    modules: ["/dashboard", "/van-hanh/sourcing-bao-gia", "/van-hanh/logistics-bao-gia", "/khieu-nai"],
+  },
   "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong"] },
   hcns: { label: "HCNS", dashboard: "department", department: "hcns", modules: ["/dashboard", "/hcns"] },
   "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che"] },

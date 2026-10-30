@@ -8,11 +8,13 @@ import type {
   PublicUser,
   QuoteDesk,
   QuoteTemplateInput,
+  Role,
   SaleContractPaymentInput,
   UpdateMessageInput,
   UpdatePotentialInput,
   UpdateQuoteInput,
 } from "@speego/shared";
+import { canAccessQuoteDesk, canEditQuoteDesk, canViewQuote, visibleKindsForDesk } from "../config/quote-access";
 import { AppError } from "../lib/errors";
 import type {
   ContractListSearch,
@@ -80,12 +82,33 @@ export class CrmService {
     if (!ok) throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
   }
 
-  listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch): Promise<QuoteRecord[]> {
-    return this.ready().listQuotes(lane, desk, search);
+  listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, role: Role): Promise<QuoteRecord[]> {
+    if (!canAccessQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền xem bàn báo giá này");
+    }
+    return this.ready().listQuotes(lane, desk, search, visibleKindsForDesk(role, desk));
   }
 
   listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]> {
     return this.ready().listRfqQuotes(lane, search, desk);
+  }
+
+  private async assertQuoteAccess(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    role: Role,
+    mode: "view" | "edit",
+  ): Promise<QuoteRecord> {
+    if (mode === "edit" ? !canEditQuoteDesk(role, desk) : !canAccessQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền thao tác bàn báo giá này");
+    }
+    const quote = await this.ready().findQuote(lane, desk, id);
+    if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (!canViewQuote(role, desk, quote.customerKind)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
+    }
+    return quote;
   }
 
   async reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<QuoteRecord> {
@@ -111,15 +134,39 @@ export class CrmService {
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
     if (actor && result.created) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, result.desk, result.quote.code, result.quote.id);
+      await this.notifications?.notifyQuoteRequested(
+        actor,
+        lane,
+        result.desk,
+        result.quote.code,
+        result.quote.id,
+        result.quote.customerKind,
+      );
     }
     return result;
   }
 
-  async requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<{ quote: QuoteRecord; created: boolean }> {
+  async requestLogisticsQuote(
+    lane: CrmLane,
+    sourcingQuoteId: string,
+    actor?: PublicUser,
+  ): Promise<{ quote: QuoteRecord; created: boolean }> {
+    if (actor && !canEditQuoteDesk(actor.role, "sourcing")) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền tạo báo giá Logistics từ Sourcing");
+    }
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing + Logistics mới tạo báo giá Logistics");
+    if (actor && result.created) {
+      await this.notifications?.notifyQuoteRequested(
+        actor,
+        lane,
+        "logistics",
+        result.quote.code,
+        result.quote.id,
+        result.quote.customerKind,
+      );
+    }
     return result;
   }
 
@@ -128,8 +175,11 @@ export class CrmService {
     desk: QuoteDesk,
     id: string,
     input: UpdateQuoteInput,
-    options?: { contentOnly?: boolean },
+    options?: { contentOnly?: boolean; role?: Role },
   ): Promise<QuoteRecord> {
+    if (options?.role && !options.contentOnly) {
+      await this.assertQuoteAccess(lane, desk, id, options.role, "edit");
+    }
     const patch = options?.contentOnly ? await this.contentOnlyPatch(lane, desk, id, input) : input;
     const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
@@ -181,6 +231,7 @@ export class CrmService {
     input: UpdateQuoteInput,
     actor?: PublicUser,
   ): Promise<QuoteRecord> {
+    if (actor) await this.assertQuoteAccess(lane, desk, id, actor.role, "edit");
     const result = await this.ready().sendQuote(lane, desk, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");
@@ -194,28 +245,54 @@ export class CrmService {
     const result = await this.ready().returnQuote(lane, desk, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "state") throw new AppError(409, "CONFLICT", "Báo giá chưa được vận hành gửi");
-    if (actor) await this.notifications?.notifyQuoteReturned(actor, lane, desk, result.code, result.id);
+    if (actor) {
+      await this.notifications?.notifyQuoteReturned(
+        actor,
+        lane,
+        desk,
+        result.code,
+        result.id,
+        result.customerKind,
+      );
+    }
     return result;
   }
 
-  listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]> {
+  listQuoteTemplates(desk: QuoteDesk, role?: Role): Promise<QuoteTemplateRecord[]> {
+    if (role && !canAccessQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền xem mẫu bàn này");
+    }
     return this.ready().listQuoteTemplates(desk);
   }
 
-  async createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput): Promise<QuoteTemplateRecord> {
+  async createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput, role?: Role): Promise<QuoteTemplateRecord> {
+    if (role && !canEditQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền quản lý mẫu bàn này");
+    }
     const result = await this.ready().createQuoteTemplate(desk, input);
     if (result === "duplicate") throw new AppError(409, "CONFLICT", "Đã có mẫu này");
     return result;
   }
 
-  async updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord> {
+  async updateQuoteTemplate(
+    desk: QuoteDesk,
+    id: string,
+    input: QuoteTemplateInput,
+    role?: Role,
+  ): Promise<QuoteTemplateRecord> {
+    if (role && !canEditQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền quản lý mẫu bàn này");
+    }
     const result = await this.ready().updateQuoteTemplate(desk, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mẫu báo giá");
     if (result === "duplicate") throw new AppError(409, "CONFLICT", "Đã có mẫu này");
     return result;
   }
 
-  async deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<void> {
+  async deleteQuoteTemplate(desk: QuoteDesk, id: string, role?: Role): Promise<void> {
+    if (role && !canEditQuoteDesk(role, desk)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền quản lý mẫu bàn này");
+    }
     const result = await this.ready().deleteQuoteTemplate(desk, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mẫu báo giá");
     if (result === "used") throw new AppError(409, "CONFLICT", "Mẫu đang được dùng trong báo giá");

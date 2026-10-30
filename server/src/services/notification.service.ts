@@ -1,4 +1,5 @@
 import type { CrmLane, PublicUser, QuoteDesk, Role } from "@speego/shared";
+import { quoteNotifyRoles } from "../config/quote-access";
 import { AppError } from "../lib/errors";
 import type { NotificationDraft, NotificationRecord, NotificationRepository } from "../repositories/notification.repository";
 
@@ -56,9 +57,16 @@ export class NotificationService {
     await this.notifications.createMany(recipients, input.draft);
   }
 
-  async notifyQuoteRequested(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quoteCode: string, quoteId: string): Promise<void> {
+  async notifyQuoteRequested(
+    actor: PublicUser,
+    lane: CrmLane,
+    desk: QuoteDesk,
+    quoteCode: string,
+    quoteId: string,
+    customerKind?: string | null,
+  ): Promise<void> {
     await this.notifyRoles({
-      roles: ["van-hanh", "admin"],
+      roles: quoteNotifyRoles(desk, customerKind),
       excludeUserId: actor.id,
       draft: {
         type: "quote.request",
@@ -91,9 +99,16 @@ export class NotificationService {
     });
   }
 
-  async notifyQuoteReturned(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quoteCode: string, quoteId: string): Promise<void> {
+  async notifyQuoteReturned(
+    actor: PublicUser,
+    lane: CrmLane,
+    desk: QuoteDesk,
+    quoteCode: string,
+    quoteId: string,
+    customerKind?: string | null,
+  ): Promise<void> {
     await this.notifyRoles({
-      roles: ["van-hanh", "admin"],
+      roles: quoteNotifyRoles(desk, customerKind),
       excludeUserId: actor.id,
       draft: {
         type: "quote.return",
