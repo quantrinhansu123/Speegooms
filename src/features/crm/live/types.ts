@@ -49,6 +49,9 @@ export interface PotentialRecord {
   shipFromAddress: string | null;
   shipToAddress: string | null;
   linkMess: string | null;
+  requirements: string | null;
+  requirementImages: string[];
+  convertReason: string | null;
   createdAt: string;
 }
 

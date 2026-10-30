@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { createMessageSchema, updateMessageSchema, type CrmLane } from "@speego/shared";
+import { ImagePlus, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { convertMessageSchema, createMessageSchema, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { clipboardImage } from "@/lib/clipboard-image";
+import { uploadImageSources } from "@/lib/upload-image";
 import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -24,6 +26,18 @@ const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
 const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
+
+type ConvertImage = {
+  key: string;
+  /** Preview local (blob: / data: / https) — chưa upload Cloudinary */
+  preview: string;
+  /** Nguồn upload khi bấm lưu: File hoặc data:/https: string */
+  source: File | string;
+};
+
+function newImageKey(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 type Classification = "" | "HOT" | "WARM" | "COLD" | "DEAD";
 
@@ -115,7 +129,40 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [formError, setFormError] = useState<string>();
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
+  const [converting, setConverting] = useState<MessageRecord | null>(null);
+  const [convertDraft, setConvertDraft] = useState({ requirements: "", reason: "", images: [] as ConvertImage[] });
+  const [convertError, setConvertError] = useState<string>();
+  const [convertPending, setConvertPending] = useState(false);
+  const [confirmCloseConvert, setConfirmCloseConvert] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "" });
+
+  const convertDirty = Boolean(
+    convertDraft.requirements.trim() || convertDraft.reason.trim() || convertDraft.images.length > 0,
+  );
+
+  const requestCloseConvert = () => {
+    if (convertPending) return;
+    if (convertDirty) setConfirmCloseConvert(true);
+    else {
+      setConverting(null);
+      setConvertError(undefined);
+      setPreviewImage(null);
+    }
+  };
+
+  const forceCloseConvert = () => {
+    setConfirmCloseConvert(false);
+    setConverting(null);
+    setConvertError(undefined);
+    setPreviewImage(null);
+    setConvertDraft((current) => {
+      for (const image of current.images) {
+        if (image.preview.startsWith("blob:")) URL.revokeObjectURL(image.preview);
+      }
+      return { requirements: "", reason: "", images: [] };
+    });
+  };
 
   const load = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
@@ -177,11 +224,102 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       .finally(() => setPending(false));
   };
 
-  const convert = (row: MessageRecord) => {
+  const openConvert = (row: MessageRecord) => {
     setError(undefined);
-    void api(crmPath(`/api/crm/messages/${row.id}/convert`, lane), { method: "POST" })
-      .then(() => load())
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không chuyển được mess"));
+    setConvertError(undefined);
+    setPreviewImage(null);
+    setConvertDraft({
+      requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"),
+      reason: "",
+      images: [],
+    });
+    setConverting(row);
+  };
+
+  const submitConvert = () => {
+    if (!converting) return;
+    const formParsed = convertMessageSchema.safeParse({
+      requirements: convertDraft.requirements,
+      reason: convertDraft.reason,
+      images: [],
+    });
+    if (!formParsed.success) {
+      setConvertError(formParsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+      return;
+    }
+    const messageId = converting.id;
+    const images = convertDraft.images;
+    setConvertPending(true);
+    setConvertError(undefined);
+    void (async () => {
+      try {
+        const uploaded = await uploadImageSources(images.map((image) => image.source));
+        const parsed = convertMessageSchema.safeParse({
+          requirements: formParsed.data.requirements,
+          reason: formParsed.data.reason,
+          images: uploaded,
+        });
+        if (!parsed.success) {
+          setConvertError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+          return;
+        }
+        await api(crmPath(`/api/crm/messages/${messageId}/convert`, lane), {
+          method: "POST",
+          body: JSON.stringify(parsed.data),
+        });
+        forceCloseConvert();
+        load();
+      } catch (err: unknown) {
+        setConvertError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Không chuyển được mess",
+        );
+      } finally {
+        setConvertPending(false);
+      }
+    })();
+  };
+
+  const addConvertImages = (files: File[]) => {
+    if (files.length === 0) return;
+    setConvertError(undefined);
+    setConvertDraft((current) => {
+      const room = 20 - current.images.length;
+      if (room <= 0) {
+        queueMicrotask(() => setConvertError("Tối đa 20 ảnh"));
+        return current;
+      }
+      const pending: ConvertImage[] = files.slice(0, room).map((file) => ({
+        key: newImageKey(),
+        preview: URL.createObjectURL(file),
+        source: file,
+      }));
+      return { ...current, images: [...current.images, ...pending] };
+    });
+  };
+
+  const pasteConvertImage = (event: React.ClipboardEvent) => {
+    const pasted = clipboardImage(event);
+    if (!pasted) return;
+    event.preventDefault();
+    setConvertError(undefined);
+    if (typeof pasted === "string") {
+      setConvertDraft((current) => {
+        if (current.images.length >= 20) {
+          queueMicrotask(() => setConvertError("Tối đa 20 ảnh"));
+          return current;
+        }
+        return {
+          ...current,
+          images: [...current.images, { key: newImageKey(), preview: pasted, source: pasted }],
+        };
+      });
+      return;
+    }
+    addConvertImages([pasted]);
   };
 
   const remove = () => {
@@ -274,7 +412,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                         size="sm"
                         title="Chuyển sang Khách tiềm năng"
                         aria-label={`Chuyển sang Khách tiềm năng · ${row.messCode}`}
-                        onClick={() => convert(row)}
+                        onClick={() => openConvert(row)}
                       >
                         <UserPlus />
                         Chuyển
@@ -380,6 +518,147 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={converting !== null}
+        onOpenChange={(open) => {
+          if (!open) requestCloseConvert();
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Chuyển sang khách tiềm năng{converting ? ` · ${converting.messCode}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="grid max-h-[min(68vh,720px)] gap-3 overflow-y-auto pr-1">
+            {convertError && <InlineAlert>{convertError}</InlineAlert>}
+            <Field label="Yêu cầu của khách" htmlFor="convert-requirements" required hint="Mô tả toàn bộ yêu cầu để vận hành / sourcing xử lý">
+              <Textarea
+                id="convert-requirements"
+                rows={6}
+                value={convertDraft.requirements}
+                placeholder="Chi tiết hàng hóa, số lượng, quy cách, hạn giao, lưu ý…"
+                onChange={(event) => setConvertDraft({ ...convertDraft, requirements: event.target.value })}
+              />
+            </Field>
+            <Field label="Lý do chuyển" htmlFor="convert-reason" required>
+              <Textarea
+                id="convert-reason"
+                rows={3}
+                value={convertDraft.reason}
+                placeholder="Vì sao chuyển mess này sang khách tiềm năng…"
+                onChange={(event) => setConvertDraft({ ...convertDraft, reason: event.target.value })}
+              />
+            </Field>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Ảnh yêu cầu</p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Đã thêm {convertDraft.images.length}/20
+                </p>
+              </div>
+              <div
+                tabIndex={0}
+                className="flex min-h-28 flex-col gap-2 rounded-lg border border-dashed p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Vùng ảnh yêu cầu — Ctrl+C / Ctrl+V"
+                onCopy={(event) => {
+                  const image = convertDraft.images[0]?.preview;
+                  if (!image || !event.clipboardData) return;
+                  event.preventDefault();
+                  event.clipboardData.setData("text/plain", image);
+                }}
+                onPaste={pasteConvertImage}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {convertDraft.images.map((image, index) => (
+                    <div key={image.key} className="relative">
+                      <button
+                        type="button"
+                        className="block overflow-hidden rounded-md border bg-white"
+                        title="Xem ảnh lớn"
+                        onClick={() => setPreviewImage(image.preview)}
+                      >
+                        <img
+                          src={image.preview}
+                          alt={`Ảnh yêu cầu ${index + 1}`}
+                          className="h-28 w-28 object-cover"
+                        />
+                      </button>
+                      <span className="absolute left-1 top-1 rounded bg-card/95 px-1.5 text-[10px] font-medium shadow">
+                        {index + 1}
+                      </span>
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 rounded bg-card px-1 text-xs shadow"
+                        onClick={() => {
+                          if (image.preview.startsWith("blob:")) URL.revokeObjectURL(image.preview);
+                          setConvertDraft({
+                            ...convertDraft,
+                            images: convertDraft.images.filter((item) => item.key !== image.key),
+                          });
+                        }}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  ))}
+                  {convertDraft.images.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Chưa có ảnh. Chọn file hoặc Ctrl+V để dán — ảnh hiện preview ngay.</p>
+                  )}
+                </div>
+                <label className="inline-flex h-9 w-fit cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted">
+                  <ImagePlus aria-hidden className="size-4" />
+                  Thêm ảnh
+                  <input
+                    className="sr-only"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,image/*"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      event.target.value = "";
+                      addConvertImages(files);
+                    }}
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">Chọn / Ctrl+V · preview ngay · upload khi chuyển · tối đa 20</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={convertPending} onClick={requestCloseConvert}>Hủy</Button>
+            <Button type="button" disabled={convertPending} onClick={submitConvert}>
+              {convertPending ? "Đang chuyển…" : "Chuyển tiềm năng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewImage !== null} onOpenChange={(open) => { if (!open) setPreviewImage(null); }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Xem ảnh yêu cầu</DialogTitle>
+          </DialogHeader>
+          {previewImage && (
+            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-lg bg-muted/40 p-2">
+              <img src={previewImage} alt="Preview ảnh yêu cầu" className="max-h-[70vh] w-auto max-w-full object-contain" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPreviewImage(null)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmCloseConvert}
+        onOpenChange={setConfirmCloseConvert}
+        title="Đóng form chuyển tiềm năng?"
+        description="Nội dung đã nhập sẽ bị mất nếu bạn đóng."
+        confirmLabel="Đóng"
+        cancelLabel="Tiếp tục nhập"
+        destructive
+        onConfirm={forceCloseConvert}
+      />
 
       <ConfirmDialog
         open={removing !== null}

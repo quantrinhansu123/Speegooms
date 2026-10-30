@@ -7,8 +7,18 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+function Dialog({
+  disablePointerDismissal = true,
+  ...props
+}: DialogPrimitive.Root.Props) {
+  // Mặc định không đóng khi click ra ngoài; chỉ đóng bằng nút X / Hủy / Lưu trong form.
+  return (
+    <DialogPrimitive.Root
+      data-slot="dialog"
+      disablePointerDismissal={disablePointerDismissal}
+      {...props}
+    />
+  )
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {

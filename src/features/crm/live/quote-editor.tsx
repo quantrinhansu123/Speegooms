@@ -26,6 +26,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
 import { formatMoneyGrouped } from "@/lib/format";
+import { clipboardImage } from "@/lib/clipboard-image";
+import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
 import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
@@ -66,43 +68,6 @@ function money(value: number): string {
 function safeImage(value: string): string {
   if (value.startsWith("data:image/") || value.startsWith("https://")) return value;
   return "";
-}
-
-function clipboardImage(event: React.ClipboardEvent): File | string | null {
-  const items = event.clipboardData?.items;
-  if (items) {
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) return file;
-      }
-    }
-  }
-  const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
-  if (text.startsWith("data:image/") || /^https:\/\/\S+$/.test(text)) return text;
-  return null;
-}
-
-async function compressImage(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const max = 420;
-  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Không đọc được ảnh");
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const url = canvas.toDataURL("image/jpeg", 0.78);
-  if (url.length > 100_000) throw new Error("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
-  return url;
-}
-
-async function compressMany(files: File[]): Promise<string[]> {
-  const out: string[] = [];
-  for (const file of files) out.push(await compressImage(file));
-  return out;
 }
 
 function OrderLines({
@@ -193,12 +158,14 @@ function OrderLines({
                           onError("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
                           return;
                         }
-                        updateLine(index, withImages([...current, pasted]));
+                        void uploadDataImage(pasted)
+                          .then((image) => updateLine(index, withImages([...current, image])))
+                          .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
                         return;
                       }
-                      void compressImage(pasted)
+                      void uploadImageFile(pasted)
                         .then((image) => updateLine(index, withImages([...current, image])))
-                        .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
+                        .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
                     }}
                   >
                     <div className="flex flex-wrap gap-1.5">
@@ -245,9 +212,9 @@ function OrderLines({
                                 onError("Tối đa 8 ảnh mỗi dòng");
                                 return;
                               }
-                              void compressMany(files.slice(0, room))
+                              void uploadImageFiles(files.slice(0, room))
                                 .then((images) => updateLine(index, withImages([...current, ...images])))
-                                .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
+                                .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
                             }}
                           />
                         </label>
@@ -408,6 +375,7 @@ export function QuoteEditor({
   const [formError, setFormError] = useState<string>();
   const [draft, setDraft] = useState<{ mode: "create" | "edit" | "view"; order: QuoteOrder } | null>(null);
   const [orderError, setOrderError] = useState<string>();
+  const [extraCurrencies, setExtraCurrencies] = useState<string[]>([]);
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
@@ -805,18 +773,44 @@ export function QuoteEditor({
                     onChange={(event) => setDraft({ ...draft, order: { ...draft.order, name: event.target.value } })}
                   />
                 </Field>
-                <Field label="Loại tiền" htmlFor={fieldId("order-currency")} hint="VND là nội tệ, còn lại là ngoại tệ báo giá cho khách quốc tế">
-                  <NativeSelect
-                    id={fieldId("order-currency")}
-                    value={draft.order.currency}
-                    disabled={draft.mode === "view" || !canEditPricing}
-                    onChange={(event) => {
-                      const currency = event.target.value as QuoteCurrency;
-                      setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
-                    }}
-                  >
-                    {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
-                  </NativeSelect>
+                <Field label="Loại tiền" htmlFor={fieldId("order-currency")} hint="Chọn từ danh sách hoặc thêm mã 3 chữ cái (ví dụ THB)">
+                  <div className="flex flex-wrap gap-2">
+                    <NativeSelect
+                      id={fieldId("order-currency")}
+                      className="min-w-[8rem] flex-1"
+                      value={draft.order.currency}
+                      disabled={draft.mode === "view" || !canEditPricing}
+                      onChange={(event) => {
+                        const currency = event.target.value.toUpperCase();
+                        setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
+                      }}
+                    >
+                      {Array.from(new Set<string>([...quoteCurrencies, draft.order.currency, ...extraCurrencies]))
+                        .filter(Boolean)
+                        .map((code) => (
+                          <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>
+                        ))}
+                    </NativeSelect>
+                    {draft.mode !== "view" && canEditPricing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const next = window.prompt("Nhập mã tiền tệ mới (3 chữ cái, ví dụ THB)")?.trim().toUpperCase() ?? "";
+                          if (!next) return;
+                          if (!/^[A-Z]{3}$/.test(next)) {
+                            setOrderError("Mã tiền tệ gồm đúng 3 chữ cái");
+                            return;
+                          }
+                          setExtraCurrencies((current) => current.includes(next) ? current : [...current, next]);
+                          setDraft({ ...draft, order: { ...draft.order, currency: next, rate: next === "VND" ? null : draft.order.rate } });
+                          setOrderError(undefined);
+                        }}
+                      >
+                        Thêm loại tiền
+                      </Button>
+                    )}
+                  </div>
                 </Field>
                 {draft.order.currency !== "VND" && (
                   <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc. Có tỷ giá thì báo giá in thêm dòng quy đổi VND">

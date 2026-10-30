@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLOUDINARY_FOLDER, normalizeCloudinaryFolder } from "../adapters/cloudinary/rules";
 
 const DEV_SESSION_SECRET = "dev-only-session-secret-do-not-use-prod";
 const DEV_CSRF_SECRET = "dev-only-csrf-secret-do-not-use-prod!!";
@@ -13,6 +14,10 @@ const rawSchema = z.object({
   DATABASE_SSL: z.enum(["true", "false"]).default("false"),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_UPLOAD_FOLDER: z.string().optional(),
   SESSION_SECRET: z.string().min(32),
   CSRF_SECRET: z.string().min(32),
   CORS_ORIGINS: z.string().min(1).default("http://localhost:3000,http://127.0.0.1:3000"),
@@ -29,6 +34,10 @@ export interface Env {
   DATABASE_SSL: boolean;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  CLOUDINARY_CLOUD_NAME?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
+  CLOUDINARY_UPLOAD_FOLDER: string;
   SESSION_SECRET: string;
   CSRF_SECRET: string;
   CORS_ORIGINS: string[];
@@ -50,6 +59,10 @@ function filled(source: NodeJS.ProcessEnv): Record<string, string | undefined> {
     DATABASE_SSL: source.DATABASE_SSL || undefined,
     SUPABASE_URL: source.SUPABASE_URL || undefined,
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY || undefined,
+    CLOUDINARY_CLOUD_NAME: source.CLOUDINARY_CLOUD_NAME || undefined,
+    CLOUDINARY_API_KEY: source.CLOUDINARY_API_KEY || undefined,
+    CLOUDINARY_API_SECRET: source.CLOUDINARY_API_SECRET || undefined,
+    CLOUDINARY_UPLOAD_FOLDER: source.CLOUDINARY_UPLOAD_FOLDER || undefined,
     SESSION_SECRET: source.SESSION_SECRET || (devLike ? DEV_SESSION_SECRET : undefined),
     CSRF_SECRET: source.CSRF_SECRET || (devLike ? DEV_CSRF_SECRET : undefined),
     CORS_ORIGINS: source.CORS_ORIGINS || undefined,
@@ -107,6 +120,28 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       throw new Error("Cấu hình môi trường không hợp lệ: SUPABASE_URL production phải là https");
     }
   }
+  const cloudName = raw.CLOUDINARY_CLOUD_NAME?.trim() || undefined;
+  const apiKey = raw.CLOUDINARY_API_KEY?.trim() || undefined;
+  const apiSecret = raw.CLOUDINARY_API_SECRET?.trim() || undefined;
+  const uploadFolder = normalizeCloudinaryFolder(raw.CLOUDINARY_UPLOAD_FOLDER);
+  const cloudinaryParts = [cloudName, apiKey, apiSecret].filter(Boolean).length;
+  if (cloudinaryParts > 0 && cloudinaryParts < 3) {
+    throw new Error(
+      "Cấu hình môi trường không hợp lệ: cần đủ CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY và CLOUDINARY_API_SECRET",
+    );
+  }
+  if (cloudName && !/^[a-z0-9_-]+$/i.test(cloudName)) {
+    throw new Error("Cấu hình môi trường không hợp lệ: CLOUDINARY_CLOUD_NAME không hợp lệ");
+  }
+  if (apiKey && !/^\d+$/.test(apiKey)) {
+    throw new Error("Cấu hình môi trường không hợp lệ: CLOUDINARY_API_KEY không hợp lệ");
+  }
+  if (apiSecret && apiSecret.length < 10) {
+    throw new Error("Cấu hình môi trường không hợp lệ: CLOUDINARY_API_SECRET quá ngắn");
+  }
+  if (!CLOUDINARY_FOLDER.test(uploadFolder)) {
+    throw new Error("Cấu hình môi trường không hợp lệ: CLOUDINARY_UPLOAD_FOLDER không hợp lệ");
+  }
 
   const corsOrigins = appendVercelOrigin(parseOrigins(raw.CORS_ORIGINS), source.VERCEL_URL);
   return {
@@ -118,6 +153,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     DATABASE_SSL: raw.DATABASE_SSL === "true",
     SUPABASE_URL: raw.SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: raw.SUPABASE_SERVICE_ROLE_KEY,
+    CLOUDINARY_CLOUD_NAME: cloudName,
+    CLOUDINARY_API_KEY: apiKey,
+    CLOUDINARY_API_SECRET: apiSecret,
+    CLOUDINARY_UPLOAD_FOLDER: uploadFolder,
     SESSION_SECRET: raw.SESSION_SECRET,
     CSRF_SECRET: raw.CSRF_SECRET,
     CORS_ORIGINS: corsOrigins,

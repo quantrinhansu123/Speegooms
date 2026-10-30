@@ -37,7 +37,7 @@ test("CRM queries match the deployed id primary keys without writing data", { sk
       await assert.rejects(planned.createMessage(lane, message), /insert message returned no row/);
       assert.equal(await planned.updateMessage(lane, id, message), null);
       assert.equal(await planned.deleteMessage(lane, id), "missing");
-      assert.equal(await planned.convertMessage(lane, id), "missing");
+      assert.equal(await planned.convertMessage(lane, id, { requirements: "test", images: [], reason: "test" }), "missing");
       assert.equal(await planned.updatePotential(lane, id, potential), null);
       assert.equal(await planned.deletePotential(lane, id), false);
       assert.equal(await planned.deleteRfqQuote(lane, id), false);

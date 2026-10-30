@@ -83,8 +83,23 @@ export const updatePotentialSchema = z
     logisticsClass: leadClassificationSchema.optional(),
     shipFromAddress: text(2000).optional(),
     shipToAddress: text(2000).optional(),
+    requirements: text(8000).optional(),
+    requirementImages: z.array(z.string().max(100_000).refine(
+      (value) => value.startsWith("data:image/") || /^https:\/\//.test(value),
+      "Ảnh không hợp lệ",
+    )).max(20, "Tối đa 20 ảnh").optional(),
+    convertReason: text(2000).optional(),
   })
   .superRefine(contact);
+
+export const convertMessageSchema = z.object({
+  requirements: z.string().trim().min(1, "Nhập yêu cầu của khách").max(8000),
+  images: z.array(z.string().max(100_000).refine(
+    (value) => value.startsWith("data:image/") || /^https:\/\//.test(value),
+    "Ảnh không hợp lệ",
+  )).max(20, "Tối đa 20 ảnh").default([]),
+  reason: z.string().trim().min(1, "Nhập lý do chuyển").max(2000),
+});
 
 export const quoteDeskSchema = z.enum(["sourcing", "logistics"]);
 export const quoteStatusSchema = z.enum([
@@ -171,10 +186,15 @@ export const quoteBankSchema = z.object({
   routingNumber: text(80),
 });
 
-/** Nội tệ VND đứng đầu; còn lại là ngoại tệ báo giá cho khách quốc tế. */
+/** Danh sách tiền tệ gợi ý. Cho phép thêm mã mới (3 chữ cái) khi báo giá. */
 export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
-export const quoteCurrencySchema = z.enum(quoteCurrencies);
-export type QuoteCurrency = z.infer<typeof quoteCurrencySchema>;
+export const quoteCurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái (ví dụ USD)")
+  .default("VND");
+export type QuoteCurrency = string;
 
 export const quoteOrderSchema = z.object({
   id: uuidText,
@@ -392,6 +412,7 @@ export const accountingContractSchema = z.object({
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
+export type ConvertMessageInput = z.infer<typeof convertMessageSchema>;
 export type UpdatePotentialInput = z.infer<typeof updatePotentialSchema>;
 export type QuoteDesk = z.infer<typeof quoteDeskSchema>;
 export type QuoteLine = z.infer<typeof quoteLineSchema>;

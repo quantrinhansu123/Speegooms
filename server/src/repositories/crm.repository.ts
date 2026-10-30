@@ -7,6 +7,7 @@ import type {
 import type {
   AccountingContractInput,
   CreateContractInput,
+  ConvertMessageInput,
   CreateMessageInput,
   CrmLane,
   OpsContractInput,
@@ -76,6 +77,9 @@ export interface PotentialRecord {
   shipFromAddress: string | null;
   shipToAddress: string | null;
   linkMess: string | null;
+  requirements: string | null;
+  requirementImages: string[];
+  convertReason: string | null;
   createdAt: string;
 }
 
@@ -197,7 +201,7 @@ export interface CrmRepository {
   createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord>;
   updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null>;
   deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked">;
-  convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost">;
+  convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost">;
   listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]>;
   updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null>;
   deletePotential(lane: CrmLane, id: string): Promise<boolean>;

@@ -1,5 +1,6 @@
 import type {
   AccountingContractInput,
+  ConvertMessageInput,
   CreateContractInput,
   CreateMessageInput,
   CrmLane,
@@ -57,8 +58,8 @@ export class CrmService {
     if (result === "linked") throw new AppError(409, "CONFLICT", "Hãy xóa khách hàng tiềm năng của mess này trước");
   }
 
-  async convertMessage(lane: CrmLane, id: string): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
-    const result = await this.ready().convertMessage(lane, id);
+  async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
+    const result = await this.ready().convertMessage(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "lost") throw new AppError(409, "CONFLICT", "Mess đã mất, không chuyển được");
     return result;
