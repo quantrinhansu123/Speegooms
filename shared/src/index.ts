@@ -57,5 +57,12 @@ export {
   type ReassignQuoteInput,
   type UpdateQuoteInput,
 } from "./crm";
+export {
+  canAccessQuoteDesk,
+  canEditQuoteDesk,
+  canViewQuote,
+  quoteNotifyRoles,
+  visibleKindsForDesk,
+} from "./quote-access";
 export { listSearchSchema, type ListSearch } from "./search";
 export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user";

@@ -1,4 +1,4 @@
-import type { QuoteBank, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
+import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
 
 export interface MessageRecord {
   id: string;
@@ -181,4 +181,13 @@ export const messageStatusLabels: Record<string, string> = {
 
 export function labelOf(options: readonly (readonly [string, string])[], value: string | null): string {
   return options.find((item) => item[0] === value)?.[1] ?? value ?? "—";
+}
+
+export const deskLabels: Record<QuoteDesk, string> = {
+  sourcing: "Sourcing",
+  logistics: "Logistics",
+};
+
+export function deskLabel(desk: QuoteDesk): string {
+  return deskLabels[desk];
 }

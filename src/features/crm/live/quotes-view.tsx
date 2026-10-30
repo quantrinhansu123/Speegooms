@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QUOTE_UPDATE_EVENT } from "@/features/notifications/quote-update-event";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
-import { quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,15 +12,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
+import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Role } from "@/types/role";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf } from "./quote-print";
 import { RowMenu } from "./row-menu";
+import { QuoteTracking } from "./quote-tracking";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
 import {
   contractStatusOptions,
@@ -31,19 +31,10 @@ import {
   type QuoteTemplateRecord,
 } from "./types";
 
-const deskOpsRoles: Record<QuoteDesk, Role[]> = {
-  sourcing: ["admin", "van-hanh", "sourcing"],
-  logistics: ["admin", "van-hanh", "logistics"],
-};
-
 const titles: Record<QuoteDesk, string> = {
   sourcing: "Sourcing – Báo giá",
   logistics: "Logistics – Báo giá",
 };
-
-function canOpsOnDesk(role: Role, desk: QuoteDesk): boolean {
-  return deskOpsRoles[desk].includes(role);
-}
 
 function shownDate(value: string): string {
   const date = new Date(value);
@@ -55,7 +46,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const user = useSession();
   const router = useRouter();
   const { lane, canPick, setLane } = useCrmLane();
-  const canOps = canOpsOnDesk(user.role, desk);
+  const canOps = canEditQuoteDesk(user.role, desk);
   /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
   const editMode = canOps ? ("full" as const) : ("none" as const);
   const [rows, setRows] = useState<QuoteRecord[]>([]);
@@ -101,14 +92,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     loadTemplates();
   }, [loadQuotes, loadTemplates]);
 
-  useEffect(() => {
-    const onQuoteUpdate = () => {
-      // Reload danh sách báo giá khi có sự kiện cập nhật từ chuông
-      void loadQuotes();
-    };
-    window.addEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
-    return () => window.removeEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
-  }, [loadQuotes]);
+  useNotificationRefresh(loadQuotes);
 
   const saveQuote = (input: UpdateQuoteInput, options?: { close?: boolean }) => {
     if (!editing) return Promise.resolve(false);
@@ -261,7 +245,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                     highlightId === row.id ? FOCUS_ROW_CLASS : row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" && "bg-amber-50",
                   )}
                 >
-                  <td className="px-3 py-3 font-medium">{row.code}</td>
+                  <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.code} potentialId={row.potentialId} lane={lane} /></td>
                   <td className="px-3 py-3">
                     <p>{row.customerName || "—"}</p>
                     <p className="text-xs text-muted-foreground">{row.leadCode}</p>

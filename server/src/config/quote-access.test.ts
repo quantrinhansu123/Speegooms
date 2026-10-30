@@ -6,7 +6,10 @@ import {
   canViewQuote,
   quoteNotifyRoles,
   visibleKindsForDesk,
-} from "./quote-access";
+  type Role,
+} from "@speego/shared";
+
+const sorted = (roles: readonly Role[]) => [...roles].sort();
 
 describe("quote-access", () => {
   it("keeps van-hanh full on both desks", () => {
@@ -15,6 +18,11 @@ describe("quote-access", () => {
     assert.equal(canEditQuoteDesk("van-hanh", "sourcing"), true);
     assert.equal(canEditQuoteDesk("van-hanh", "logistics"), true);
     assert.equal(visibleKindsForDesk("van-hanh", "sourcing"), null);
+  });
+
+  it("lets ban-gd read both desks without editing", () => {
+    assert.equal(canAccessQuoteDesk("ban-gd", "logistics"), true);
+    assert.equal(canEditQuoteDesk("ban-gd", "sourcing"), false);
   });
 
   it("scopes sourcing to sourcing desk only", () => {
@@ -36,9 +44,14 @@ describe("quote-access", () => {
     assert.equal(canViewQuote("logistics", "logistics", "SOURCING_LOGISTICS"), true);
   });
 
+  it("denies roles without a desk policy", () => {
+    assert.equal(canAccessQuoteDesk("sale-vn", "sourcing"), false);
+    assert.equal(canEditQuoteDesk("ke-toan", "logistics"), false);
+  });
+
   it("targets notify roles by desk and kind", () => {
-    assert.deepEqual(quoteNotifyRoles("sourcing", "SOURCING"), ["sourcing", "logistics", "van-hanh", "admin"]);
-    assert.deepEqual(quoteNotifyRoles("sourcing", "SOURCING_LOGISTICS"), ["sourcing", "van-hanh", "admin"]);
-    assert.deepEqual(quoteNotifyRoles("logistics"), ["logistics", "van-hanh", "admin"]);
+    assert.deepEqual(sorted(quoteNotifyRoles("sourcing", "SOURCING")), sorted(["sourcing", "logistics", "van-hanh", "admin"]));
+    assert.deepEqual(sorted(quoteNotifyRoles("sourcing", "SOURCING_LOGISTICS")), sorted(["sourcing", "van-hanh", "admin"]));
+    assert.deepEqual(sorted(quoteNotifyRoles("logistics")), sorted(["logistics", "van-hanh", "admin"]));
   });
 });

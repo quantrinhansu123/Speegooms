@@ -177,6 +177,15 @@ export interface Crumb {
 /** Dựng breadcrumb từ pathname dựa trên cây navigation. */
 export function getBreadcrumbs(pathname: string): Crumb[] {
   const crumbs: Crumb[] = [{ title: "Trang chủ", href: "/dashboard" }];
+  const tracking = pathname.match(/^\/crm\/theo-doi-bao-gia\/(vn|global)\/[^/]+$/);
+  if (tracking) {
+    const base = tracking[1] === "vn" ? "/sale-viet-nam" : "/sale-global";
+    return [...crumbs,
+      { title: tracking[1] === "vn" ? "Sale Việt Nam" : "Sale Global", href: base },
+      { title: "Báo giá (RFQ)", href: `${base}/rfq` },
+      { title: "Theo dõi chi tiết", href: pathname },
+    ];
+  }
   for (const group of navigation) {
     for (const item of group.items) {
       const child = item.children?.find((c) => c.href === pathname);

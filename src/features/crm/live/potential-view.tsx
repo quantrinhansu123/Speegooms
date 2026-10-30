@@ -16,6 +16,7 @@ import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { QuoteTracking } from "./quote-tracking";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
@@ -258,7 +259,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-medium">{row.leadCode}</td>
+                <td className="px-3 py-3 font-medium"><p className="mb-2">{row.leadCode}</p><QuoteTracking potentialId={row.id} lane={lane} /></td>
                 <td className="px-3 py-3">{row.fullName}</td>
                 <td className="px-3 py-3">{row.companyName || "—"}</td>
                 <td className="px-3 py-3">{row.phone || "—"}</td>

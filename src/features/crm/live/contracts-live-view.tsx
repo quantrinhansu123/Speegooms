@@ -19,6 +19,7 @@ import {
   readOpenContractFromUrl,
   type OpenContractDetail,
 } from "@/features/notifications/open-contract";
+import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
 import { clipboardImageFiles } from "@/lib/clipboard-image";
@@ -350,6 +351,7 @@ export function ContractsLiveView({
   }, [filters.applied, lane, mode, user.id]);
 
   useEffect(() => { load(); }, [load]);
+  useNotificationRefresh(load);
 
   useEffect(() => {
     if (!focusId || listLoading) return;

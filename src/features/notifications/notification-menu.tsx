@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import {
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead, markNotificationRead } from "./api";
-import { dispatchQuoteUpdate } from "./quote-update-event";
+import { dispatchNotificationsChanged } from "./notifications-changed";
 import { OPEN_CONTRACT_EVENT, type OpenContractDetail } from "./open-contract";
 import type { AppNotification } from "./types";
 
@@ -46,23 +46,27 @@ function badgeLabel(count: number): string {
 export function NotificationMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [count, setCount] = useState(0);
+  const [count, setCountState] = useState(0);
+  /** `null` cho tới lần poll đầu: lần đầu chỉ ghi nhận, không phát sự kiện. */
+  const knownCount = useRef<number | null>(null);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const setCount = useCallback((next: number) => {
+    knownCount.current = next;
+    setCountState(next);
+  }, []);
 
   const refreshCount = useCallback(async () => {
     try {
       const body = await fetchUnreadCount();
-      const prevCount = count;
+      const previous = knownCount.current;
       setCount(body.count);
-      // Phát sự kiện nếu có thông báo mới để RFQ/báo giá refresh
-      if (body.count > prevCount) {
-        dispatchQuoteUpdate({ type: "quote.send" });
-      }
+      if (previous !== null && body.count > previous) dispatchNotificationsChanged();
     } catch {
       /* giữ count cũ nếu poll lỗi */
     }
-  }, [count]);
+  }, [setCount]);
 
   const refreshList = useCallback(async () => {
     setLoading(true);
@@ -75,7 +79,7 @@ export function NotificationMenu() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setCount]);
 
   useEffect(() => {
     void refreshCount();
@@ -102,7 +106,7 @@ export function NotificationMenu() {
       try {
         await markNotificationRead(item.id);
         setItems((current) => current.map((row) => (row.id === item.id ? { ...row, read: true } : row)));
-        setCount((current) => Math.max(0, current - 1));
+        setCount(Math.max(0, (knownCount.current ?? 1) - 1));
       } catch {
         /* vẫn điều hướng */
       }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { QUOTE_UPDATE_EVENT } from "@/features/notifications/quote-update-event";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -10,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSession } from "@/features/auth/session-provider";
+import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -20,16 +20,12 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
+import { QuoteTracking } from "./quote-tracking";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
-import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
+import { contractStatusOptions, customerKindOptions, deskLabels, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const contractRoles: Role[] = ["admin", "sale-vn", "sale-global"];
-
-const deskLabels = {
-  sourcing: "Sourcing",
-  logistics: "Logistics",
-} as const;
 
 const deskTitles = {
   sourcing: "Sourcing – Báo giá",
@@ -120,17 +116,18 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [viewing, setViewing] = useState<RfqQuoteRecord | null>(null);
   const [contractQuote, setContractQuote] = useState<RfqQuoteRecord | null>(null);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
-  const requestId = useRef(0);
+  const quoteRequest = useRef(0);
+  const potentialRequest = useRef(0);
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", deskFilter: "" });
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
-  const load = useCallback(() => {
+  const loadQuotes = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
       setError(rangeError);
       return;
     }
-    const id = ++requestId.current;
+    const id = ++quoteRequest.current;
     setError(undefined);
     const query = searchParams(filters.applied, {
       quoteStatus: filters.applied.quoteStatus,
@@ -139,30 +136,36 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       deskFilter: filters.applied.deskFilter,
     });
     api<{ quotes: RfqQuoteRecord[] }>(`${crmPath("/api/crm/rfq-quotes", lane)}${query}`)
-      .then((body) => { if (requestId.current === id) setRows(body.quotes); })
-      .catch((err: unknown) => { if (requestId.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
-    api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
-      .then((body) => { if (requestId.current === id) setPotentials(body.potentials); })
-      .catch((err: unknown) => { if (requestId.current === id) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); });
+      .then((body) => { if (quoteRequest.current === id) setRows(body.quotes); })
+      .catch((err: unknown) => { if (quoteRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
   }, [filters.applied, lane]);
+
+  const loadPotentials = useCallback(() => {
+    const id = ++potentialRequest.current;
+    api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
+      .then((body) => { if (potentialRequest.current === id) setPotentials(body.potentials); })
+      .catch((err: unknown) => { if (potentialRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); });
+  }, [lane]);
+
+  const load = useCallback(() => {
+    loadQuotes();
+    loadPotentials();
+  }, [loadQuotes, loadPotentials]);
 
   useEffect(() => {
     setRows([]);
-    setPotentials([]);
     setDraft(null);
     setRemoving(null);
     setError(undefined);
-    load();
-  }, [load]);
+    loadQuotes();
+  }, [loadQuotes]);
 
   useEffect(() => {
-    const onQuoteUpdate = () => {
-      // Reload danh sách báo giá khi có sự kiện cập nhật từ chuông
-      void load();
-    };
-    window.addEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
-    return () => window.removeEventListener(QUOTE_UPDATE_EVENT, onQuoteUpdate);
-  }, [load]);
+    setPotentials([]);
+    loadPotentials();
+  }, [loadPotentials]);
+
+  useNotificationRefresh(loadQuotes);
 
   const choices = potentials.filter((row) => {
     if (!draft) return false;
@@ -345,7 +348,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 data-row-id={row.id}
                 className={cn("border-b last:border-0", highlightId === row.id && FOCUS_ROW_CLASS)}
               >
-                <td className="px-3 py-3 font-medium">{row.code}</td>
+                <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.code} potentialId={row.potentialId} lane={lane} /></td>
                 <td className="px-3 py-3">
                   <p>{row.customerName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{row.leadCode}</p>

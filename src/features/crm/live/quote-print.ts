@@ -163,6 +163,8 @@ export function quoteSheetHtml(input: {
   code?: string | null;
   orderName?: string | null;
   issuedOn?: string | null;
+  /** Chỉ thông tin khách hàng và bảng chi tiết đơn hàng, dùng cho màn hình theo dõi. */
+  compact?: boolean;
 }): string {
   const currency = input.currency ?? "VND";
   const lines = input.lines.filter(filledLine);
@@ -274,7 +276,8 @@ export function quoteSheetHtml(input: {
       </section>`
     : "";
 
-  return `<article class="sheet">
+  return `<article class="sheet ${input.compact ? "sheet-compact" : ""}">
+  ${input.compact ? "" : `
   <header class="masthead">
     <div class="brand">
       <img class="logo" src="${escapeHtml(logoUrl)}" alt="SpeeGo Logistics" width="168" height="50">
@@ -286,6 +289,7 @@ export function quoteSheetHtml(input: {
   </header>
   <div class="accent-bar" aria-hidden="true"></div>
   <h1 class="doc-title">BÁO GIÁ</h1>
+  `}
 
   <section class="party party-wide">
     <h2>Thông tin khách hàng</h2>
@@ -326,8 +330,9 @@ export function quoteSheetHtml(input: {
       <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${depositRows}</tbody></table>` : ""}
 
-  ${bankBlock}
+  ${input.compact ? "" : bankBlock}
 
+  ${input.compact ? "" : `
   <section class="sign">
     <div>
       <p>ĐẠI DIỆN BÊN A</p>
@@ -338,6 +343,7 @@ export function quoteSheetHtml(input: {
       <span>(Ký, đóng dấu)</span>
     </div>
   </section>
+  `}
 </article>`;
 }
 

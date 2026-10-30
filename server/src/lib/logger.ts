@@ -45,7 +45,7 @@ function sanitizeFields(fields: Record<string, unknown>): Record<string, unknown
   return out;
 }
 
-function write(level: "info" | "error", message: string, fields?: Record<string, unknown>) {
+function write(level: "info" | "warn" | "error", message: string, fields?: Record<string, unknown>) {
   let line: string;
   try {
     line = JSON.stringify({
@@ -58,12 +58,16 @@ function write(level: "info" | "error", message: string, fields?: Record<string,
     line = JSON.stringify({ time: new Date().toISOString(), level, message });
   }
   if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
   else console.log(line);
 }
 
 export const logger = {
   info(message: string, fields?: Record<string, unknown>) {
     write("info", message, fields);
+  },
+  warn(message: string, fields?: Record<string, unknown>) {
+    write("warn", message, fields);
   },
   error(message: string, fields?: Record<string, unknown>) {
     write("error", message, fields);

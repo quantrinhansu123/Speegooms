@@ -1,4 +1,4 @@
-import type { CrmLane, QuoteDesk } from "@speego/shared";
+import type { CrmLane, PublicUser, QuoteDesk, Role } from "@speego/shared";
 import type { Request, Response } from "express";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -24,6 +24,15 @@ function laneOf(req: Request): CrmLane {
   if (role === "sale-vn" && value !== "vn") throw new AppError(403, "FORBIDDEN", "Sale Việt Nam chỉ thao tác tuyến Việt Nam");
   if (role === "sale-global" && value !== "global") throw new AppError(403, "FORBIDDEN", "Sale Global chỉ thao tác tuyến Global");
   return value;
+}
+
+function actorOf(req: Request): PublicUser {
+  if (!req.user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+  return req.user;
+}
+
+function roleOf(req: Request): Role {
+  return actorOf(req).role;
 }
 
 function deskOf(req: Request): QuoteDesk {
@@ -67,15 +76,17 @@ export class CrmController {
     res.status(200).json({ potential: await this.crm.updatePotential(laneOf(req), one(req.params.id), req.body) });
   };
 
+  getQuoteTracking = async (req: Request, res: Response) => {
+    res.status(200).json(await this.crm.getQuoteTracking(laneOf(req), one(req.params.id)));
+  };
+
   deletePotential = async (req: Request, res: Response) => {
     await this.crm.deletePotential(laneOf(req), one(req.params.id));
     res.status(204).end();
   };
 
   listQuotes = async (req: Request, res: Response) => {
-    const role = req.user?.role;
-    if (!role) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
-    res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), role) });
+    res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), roleOf(req)) });
   };
 
   listRfqQuotes = async (req: Request, res: Response) => {
@@ -96,12 +107,11 @@ export class CrmController {
   };
 
   requestLogisticsQuote = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.requestLogisticsQuote(laneOf(req), one(req.params.id), req.user));
+    res.status(200).json(await this.crm.requestLogisticsQuote(laneOf(req), one(req.params.id), actorOf(req)));
   };
 
   updateQuote = async (req: Request, res: Response) => {
-    const role = req.user?.role;
-    if (!role) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+    const role = roleOf(req);
     const contentOnly = can(role, "quote.content") && !can(role, "quote.ops");
     res.status(200).json({
       quote: await this.crm.updateQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, { contentOnly, role }),
@@ -109,7 +119,7 @@ export class CrmController {
   };
 
   sendQuote = async (req: Request, res: Response) => {
-    res.status(200).json({ quote: await this.crm.sendQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, req.user) });
+    res.status(200).json({ quote: await this.crm.sendQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, actorOf(req)) });
   };
 
   returnQuote = async (req: Request, res: Response) => {
@@ -117,21 +127,19 @@ export class CrmController {
   };
 
   listQuoteTemplates = async (req: Request, res: Response) => {
-    res.status(200).json({ templates: await this.crm.listQuoteTemplates(deskOf(req), req.user?.role) });
+    res.status(200).json({ templates: await this.crm.listQuoteTemplates(deskOf(req), roleOf(req)) });
   };
 
   createQuoteTemplate = async (req: Request, res: Response) => {
-    res.status(201).json({ template: await this.crm.createQuoteTemplate(deskOf(req), req.body, req.user?.role) });
+    res.status(201).json({ template: await this.crm.createQuoteTemplate(deskOf(req), req.body, roleOf(req)) });
   };
 
   updateQuoteTemplate = async (req: Request, res: Response) => {
-    res.status(200).json({
-      template: await this.crm.updateQuoteTemplate(deskOf(req), one(req.params.id), req.body, req.user?.role),
-    });
+    res.status(200).json({ template: await this.crm.updateQuoteTemplate(deskOf(req), one(req.params.id), req.body, roleOf(req)) });
   };
 
   deleteQuoteTemplate = async (req: Request, res: Response) => {
-    await this.crm.deleteQuoteTemplate(deskOf(req), one(req.params.id), req.user?.role);
+    await this.crm.deleteQuoteTemplate(deskOf(req), one(req.params.id), roleOf(req));
     res.status(204).end();
   };
 

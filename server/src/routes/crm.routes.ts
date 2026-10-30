@@ -17,6 +17,7 @@ export function crmRoutes(container: AppContainer) {
   router.get("/potentials", requirePermission("potential.read"), asyncHandler(crm.listPotentials));
   router.patch("/potentials/:id", requirePermission("potential.write"), validate({ body: updatePotentialSchema }), asyncHandler(crm.updatePotential));
   router.delete("/potentials/:id", requirePermission("potential.write"), asyncHandler(crm.deletePotential));
+  router.get("/potentials/:id/tracking", requirePermission("quote.rfq"), asyncHandler(crm.getQuoteTracking));
   router.post("/potentials/:id/quotes", requirePermission("quote.request"), asyncHandler(crm.requestQuote));
   router.get("/quotes", requirePermission("quote.read"), asyncHandler(crm.listQuotes));
   router.get("/rfq-quotes", requirePermission("quote.rfq"), asyncHandler(crm.listRfqQuotes));

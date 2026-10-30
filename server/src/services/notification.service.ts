@@ -1,5 +1,4 @@
-import type { CrmLane, PublicUser, QuoteDesk, Role } from "@speego/shared";
-import { quoteNotifyRoles } from "../config/quote-access";
+import { quoteNotifyRoles, type CrmLane, type PublicUser, type QuoteDesk, type Role } from "@speego/shared";
 import { AppError } from "../lib/errors";
 import type { NotificationDraft, NotificationRecord, NotificationRepository } from "../repositories/notification.repository";
 

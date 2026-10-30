@@ -1301,19 +1301,20 @@ export class PostgresCrmRepository implements CrmRepository {
     const allowOwn = !allowedKinds || allowedKinds.includes("LOGISTICS");
     const allowShared = !allowedKinds || allowedKinds.includes("SOURCING_LOGISTICS");
     const shared = quoteSearch(search, sql("q.bao_gia_logistics->>'quoteStatus'"), sql("q.bao_gia_logistics->>'contractStatus'")).build();
+    const noRows = Promise.resolve({ rows: [] as QuoteRow[] });
     const [ownRows, sharedRows] = await Promise.all([
       allowOwn
         ? this.query<QuoteRow>(
             `${quoteSelect(tables.logistics, tables.potential, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
             own.values,
           )
-        : Promise.resolve({ rows: [] as QuoteRow[] }),
+        : noRows,
       allowShared
         ? this.query<QuoteRow>(
             `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and l.nhom_khach::text = 'SOURCING_LOGISTICS' order by q.tao_luc desc limit 200`,
             shared.values,
           )
-        : Promise.resolve({ rows: [] as QuoteRow[] }),
+        : noRows,
     ]);
     return [...ownRows.rows.map(toQuote), ...sharedRows.rows.map(toLogisticsQuote)]
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));

@@ -1,4 +1,5 @@
 import type { ListSearch } from "@speego/shared";
+import { AnyMatchCriterion } from "./any-match-criterion";
 import { DateRangeCriterion } from "./date-range-criterion";
 import { ExactMatchCriterion } from "./exact-match-criterion";
 import { SearchBuilder } from "./search-builder";
@@ -17,18 +18,26 @@ export interface PotentialListSearch extends ListSearch {
   potential: string;
   customerKind: string;
   customerType: string;
+  /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
+  potentialIds?: readonly string[];
 }
 
 export interface QuoteListSearch extends ListSearch {
   quoteStatus: string;
   contractStatus: string;
   customerKind: string;
+  /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
+  potentialIds?: readonly string[];
 }
 
 export interface ContractListSearch extends ListSearch {
   opsStatus: string;
   accountingStatus: string;
+  /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
+  quoteIds?: readonly string[];
 }
+
+export const emptyListSearch: ListSearch = { q: "", from: "", to: "" };
 
 const quoteTextColumns = [
   sql("q.ma_hien_thi"),
@@ -75,7 +84,8 @@ export function potentialSearch(input: PotentialListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("l.nguon::text"), input.source))
     .add(new ExactMatchCriterion(sql("l.tiem_nang::text"), input.potential))
     .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind))
-    .add(new ExactMatchCriterion(sql("l.loai_khach_hang::text"), input.customerType));
+    .add(new ExactMatchCriterion(sql("l.loai_khach_hang::text"), input.customerType))
+    .add(new AnyMatchCriterion(sql("l.id"), input.potentialIds, "uuid"));
 }
 
 export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression, contractColumn: SqlExpression): SearchBuilder {
@@ -84,7 +94,8 @@ export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression,
     .add(new DateRangeCriterion(sql("q.tao_luc"), input.from, input.to, "timestamp"))
     .add(new ExactMatchCriterion(statusColumn, input.quoteStatus))
     .add(new ExactMatchCriterion(contractColumn, input.contractStatus))
-    .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind));
+    .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind))
+    .add(new AnyMatchCriterion(sql("q.ma_khach_hang_tiem_nang"), input.potentialIds, "uuid"));
 }
 
 const accountingStatusLabelSql = trustedSql(`case coalesce(h.trang_thai_ke_toan::text, ban_gui_xac_nhan->>'accountingStatus', '')
@@ -151,5 +162,6 @@ export function contractSearch(view: "sale" | "ops" | "accounting", input: Contr
     .add(new TextSearchCriterion(input.q, contractTextColumns))
     .add(new DateRangeCriterion(signedOn, input.from, input.to, "date"))
     .add(new ExactMatchCriterion(sql("h.trang_thai_van_hanh"), input.opsStatus))
-    .add(new ExactMatchCriterion(accountingStatus, input.accountingStatus));
+    .add(new ExactMatchCriterion(accountingStatus, input.accountingStatus))
+    .add(new AnyMatchCriterion(sql("h.ma_bao_gia"), input.quoteIds, "uuid"));
 }
