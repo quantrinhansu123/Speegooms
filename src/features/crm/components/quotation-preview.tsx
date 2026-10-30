@@ -4,7 +4,7 @@ import { originLabels, transportLabels } from "@/config/crm";
 import { formatDate, formatMoney } from "@/lib/format";
 import { quoteTotals } from "@/services/crm/rules";
 import type { Customer, Quotation, QuoteLine, Rfq } from "@/types/crm";
-import { companyLines } from "@/features/crm/live/quote-print";
+import { companyFields, companyName } from "@/features/crm/live/quote-print";
 
 function Section({ index, title, lines, currency }: { index: string; title: string; lines: QuoteLine[]; currency: Quotation["currency"] }) {
   if (lines.length === 0) return null;
@@ -42,20 +42,44 @@ export function QuotationPreview({ quote, customer, rfq, ownerName }: { quote: Q
       )}
 
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-[3px] border-brand-navy px-6 pt-6 pb-4 sm:px-8">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Image src="/logo.png" alt="SpeeGo Logistics" width={168} height={50} className="h-12 w-auto shrink-0" />
-          <div className="min-w-0 border-l-2 border-brand-orange pl-3">
-            <p className="text-sm font-semibold tracking-wide text-brand-navy">{companyLines[0]}</p>
-            {companyLines.slice(1, 4).map((line) => (
-              <p key={line} className="text-[11px] leading-snug text-slate-600">{line}</p>
-            ))}
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Image src="/logo.png" alt="SpeeGo Logistics" width={168} height={50} className="mt-0.5 h-12 w-auto shrink-0" />
+          <div className="min-w-0 flex-1 border-l-2 border-brand-orange pl-3">
+            <p className="mb-1 text-sm font-semibold tracking-wide text-brand-navy">{companyName}</p>
+            <table className="w-full table-fixed text-[11px]">
+              <colgroup>
+                <col className="w-[118px]" />
+                <col />
+              </colgroup>
+              <tbody>
+                {companyFields.map(([label, value]) => (
+                  <tr key={label}>
+                    <th className="py-0.5 pr-2.5 text-left align-top font-bold text-brand-navy">{label}</th>
+                    <td className="py-0.5 align-top text-slate-700">{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div className="text-right">
-          <p className="font-mono text-xs text-brand-navy">{quote.quoteId}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            {formatDate(quote.createdAt)} / HL: {formatDate(quote.validUntil)}
-          </p>
+        <div className="w-full max-w-xs rounded border border-[#c5d0de] bg-[#F6F8FC] p-3 sm:w-64">
+          <p className="mb-2 text-xs font-bold tracking-wide text-brand-navy uppercase">Thông tin chứng từ</p>
+          <table className="w-full text-[11px]">
+            <tbody>
+              <tr>
+                <th className="w-[40%] py-0.5 pr-2 text-left font-bold text-brand-navy">Mã báo giá</th>
+                <td className="py-0.5 text-slate-800">{quote.quoteId}</td>
+              </tr>
+              <tr>
+                <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Ngày lập</th>
+                <td className="py-0.5 text-slate-800">{formatDate(quote.createdAt)}</td>
+              </tr>
+              <tr>
+                <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Hiệu lực</th>
+                <td className="py-0.5 text-slate-800">{formatDate(quote.validUntil)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </header>
       <div aria-hidden className="h-1 bg-brand-orange" />
@@ -63,32 +87,64 @@ export function QuotationPreview({ quote, customer, rfq, ownerName }: { quote: Q
         Báo giá
       </h2>
 
+      <div className="grid gap-3 px-6 pb-3 sm:grid-cols-2 sm:px-8">
+        <section className="rounded border border-[#c5d0de] p-3">
+          <h3 className="mb-2 border-b-2 border-brand-orange pb-1 text-xs font-bold tracking-wide text-brand-navy uppercase">Thông tin khách hàng</h3>
+          <table className="w-full text-[12px]">
+            <tbody>
+              <tr>
+                <th className="w-[34%] py-0.5 pr-2 text-left align-top font-bold text-brand-navy">Khách hàng</th>
+                <td className="py-0.5 text-slate-800">{customer?.name ?? quote.customerId}</td>
+              </tr>
+              {customer?.contactName && (
+                <tr>
+                  <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Người liên hệ</th>
+                  <td className="py-0.5 text-slate-800">{customer.contactName}</td>
+                </tr>
+              )}
+              {customer?.phone && (
+                <tr>
+                  <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Điện thoại</th>
+                  <td className="py-0.5 text-slate-800">{customer.phone}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+        <section className="rounded border border-[#c5d0de] p-3">
+          <h3 className="mb-2 border-b-2 border-brand-orange pb-1 text-xs font-bold tracking-wide text-brand-navy uppercase">Thông tin báo giá</h3>
+          <table className="w-full text-[12px]">
+            <tbody>
+              <tr>
+                <th className="w-[40%] py-0.5 pr-2 text-left font-bold text-brand-navy">Ngày lập</th>
+                <td className="py-0.5 text-slate-800">{formatDate(quote.createdAt)}</td>
+              </tr>
+              <tr>
+                <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Hiệu lực đến</th>
+                <td className="py-0.5 text-slate-800">{formatDate(quote.validUntil)}</td>
+              </tr>
+              <tr>
+                <th className="py-0.5 pr-2 text-left font-bold text-brand-navy">Loại tiền</th>
+                <td className="py-0.5 text-slate-800">{quote.currency}</td>
+              </tr>
+              {rfq && (
+                <tr>
+                  <th className="py-0.5 pr-2 text-left align-top font-bold text-brand-navy">Yêu cầu</th>
+                  <td className="py-0.5 text-slate-700">
+                    {rfq.goodsName} · {rfq.quantity.toLocaleString("vi-VN")} {rfq.unit} · {originLabels[rfq.goodsOrigin]} · {rfq.originPoint} <ArrowText>{"→"}</ArrowText> {rfq.destination} · {transportLabels[rfq.transportMode]}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
       <div className="bg-brand-navy px-6 py-2 text-center text-xs font-bold tracking-[0.08em] text-white uppercase sm:px-8">
-        Thông tin đơn hàng
+        Chi tiết đơn hàng
       </div>
 
       <div className="px-6 py-4 sm:px-8">
-        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs font-semibold text-brand-navy">Kính gửi</dt>
-            <dd className="font-medium text-slate-800">{customer?.name ?? quote.customerId}</dd>
-            {customer && <dd className="text-xs text-slate-500">{customer.contactName} · {customer.phone}</dd>}
-          </div>
-          <div className="sm:text-right">
-            <dt className="text-xs font-semibold text-brand-navy">Ngày lập / Hiệu lực đến</dt>
-            <dd className="tabular text-slate-800">
-              {formatDate(quote.createdAt)} / {formatDate(quote.validUntil)}
-            </dd>
-          </div>
-          {rfq && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs font-semibold text-brand-navy">Yêu cầu</dt>
-              <dd className="text-slate-700">
-                {rfq.goodsName} · {rfq.quantity.toLocaleString("vi-VN")} {rfq.unit} · {originLabels[rfq.goodsOrigin]} · {rfq.originPoint} <ArrowText>{"→"}</ArrowText> {rfq.destination} · {transportLabels[rfq.transportMode]}
-              </dd>
-            </div>
-          )}
-        </dl>
 
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse">

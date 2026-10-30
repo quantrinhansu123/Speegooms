@@ -1,14 +1,22 @@
 import { packagesText } from "@/services/crm/quote-lines";
-import type { QuoteBank, QuoteCurrency, QuoteLine, QuoteNotes, QuoteOrder } from "@speego/shared";
+import { quoteLineImages, type QuoteBank, type QuoteCurrency, type QuoteLine, type QuoteNotes, type QuoteOrder } from "@speego/shared";
 import { SPEEGO_LOGO_DATA_URL } from "./quote-logo";
 
+export const companyName = "CÔNG TY TNHH SPEEGO LOGISTICS";
+
+/** Tiêu đề bên trái — thông tin bên phải (letterhead). */
+export const companyFields: [string, string][] = [
+  ["Địa chỉ HN", "Tầng 24, Leadvisors Tower, 643 Phạm Văn Đồng, Phường Nghĩa Đô, HN"],
+  ["Địa chỉ HCM", "01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM"],
+  ["Địa chỉ Mỹ", "7303 Breen Dr, Houston, TX 77086, US"],
+  ["Điện thoại", "079.673.8695"],
+  ["Email", "sales@speegologistic.com"],
+];
+
+/** @deprecated Dùng companyName + companyFields. Giữ để tương thích preview cũ. */
 export const companyLines = [
-  "CÔNG TY TNHH SPEEGO LOGISTICS",
-  "Hà Nội: Tầng 24, Leadvisors Tower, 643 Phạm Văn Đồng, Phường Nghĩa Đô, HN",
-  "HCM: 01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM",
-  "Mỹ: 7303 Breen Dr, Houston, TX 77086, US",
-  "SĐT: 079.673.8695",
-  "Gmail: sales@speegologistic.com",
+  companyName,
+  ...companyFields.map(([label, value]) => `${label}: ${value}`),
 ];
 
 export interface QuoteCustomer {
@@ -39,6 +47,33 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+/** Bảng tiêu đề trái — thông tin phải, cột thẳng hàng. */
+function kvTable(rows: [string, string][], emptyFallback?: [string, string]): string {
+  const filled = rows.filter(([, value]) => Boolean(value?.trim()));
+  const list = filled.length > 0 ? filled : emptyFallback ? [emptyFallback] : [];
+  if (list.length === 0) return "";
+  const body = list
+    .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
+    .join("");
+  return `<table class="kv"><colgroup><col class="kv-label"><col class="kv-value"></colgroup><tbody>${body}</tbody></table>`;
+}
+
+/** Nhiều cột label|value trên cùng hàng — giảm số dòng, tăng số cột. */
+function kvTableWide(rows: [string, string][], columns = 2, emptyFallback?: [string, string]): string {
+  const filled = rows.filter(([, value]) => Boolean(value?.trim()));
+  const list = filled.length > 0 ? filled : emptyFallback ? [emptyFallback] : [];
+  if (list.length === 0) return "";
+  const cells = list.map(([label, value]) => `<th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td>`);
+  const body: string[] = [];
+  for (let i = 0; i < cells.length; i += columns) {
+    const slice = cells.slice(i, i + columns);
+    while (slice.length < columns) slice.push("<th></th><td></td>");
+    body.push(`<tr>${slice.join("")}</tr>`);
+  }
+  const cols = Array.from({ length: columns }, () => `<col class="kv-label"><col class="kv-value">`).join("");
+  return `<table class="kv kv-wide"><colgroup>${cols}</colgroup><tbody>${body.join("")}</tbody></table>`;
 }
 
 function formatAmount(value: number | null, digits = 2): string {
@@ -73,7 +108,7 @@ function cell(value: string, className = ""): string {
 function filledLine(line: QuoteLine): boolean {
   return Boolean(
     line.stt.trim()
-    || line.image
+    || quoteLineImages(line).length > 0
     || line.quantity != null
     || line.pricePerSet != null
     || line.lineTotal != null
@@ -100,15 +135,35 @@ function todayLabel(): string {
   }).format(new Date());
 }
 
-function moneyWithCurrency(value: number, currency: QuoteCurrency): string {
-  return `${formatAmount(value)} ${currency}`;
+/** Một dòng số + đơn vị (số thẳng số, đơn vị thẳng đơn vị). */
+function numRow(amount: string, unit = ""): string {
+  if (!amount && !unit) return "";
+  return `<span class="num-row"><span class="amt">${escapeHtml(amount)}</span><span class="unit">${escapeHtml(unit)}</span></span>`;
 }
 
-/** Dòng tổng kết dưới bảng hàng: nhãn | số liệu | ghi chú — không nhét vào cột STT. */
-function summaryRow(label: string, value = "", note = ""): string {
+/** Ô số: phần số thẳng cột, đơn vị cố định bên phải. */
+function numCell(amount: string, unit = "", className = "num"): string {
+  if (!amount && !unit) return `<td class="${className}"></td>`;
+  return `<td class="${className}">${numRow(amount, unit)}</td>`;
+}
+
+type SummaryCells = { total?: string; kg?: string; cbm?: string };
+
+function measureCells(weightKg: number | null, cbm: number | null): SummaryCells {
+  return {
+    kg: weightKg != null ? numRow(formatAmount(weightKg), "KG") : "",
+    cbm: cbm != null && cbm > 0 ? numRow(formatAmount(cbm, 3), "CBM") : "",
+  };
+}
+
+/** Dòng tổng kết: nhãn (4 cột đầu) | Tổng tiền | KG | CBM | Thông tin — thẳng cột với bảng hàng. */
+function summaryRow(label: string, cells: SummaryCells = {}, note = ""): string {
   return `<tr>
-    <td class="sum-label">${escapeHtml(label)}</td>
-    <td class="sum-value">${value ? escapeHtml(value).replaceAll("\n", "<br>") : ""}</td>
+    <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
+    <td class="sum-value">${cells.total ?? ""}</td>
+    <td class="sum-value">${cells.kg ?? ""}</td>
+    <td class="sum-value">${cells.cbm ?? ""}</td>
+    <td class="sum-spec"></td>
     <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
   </tr>`;
 }
@@ -135,85 +190,100 @@ export function quoteSheetHtml(input: {
   const logoUrl = input.logoUrl?.trim() || SPEEGO_LOGO_DATA_URL;
 
   const rows = lines.map((line) => {
-    const src = imageSrc(line.image);
-    const image = src ? `<img src="${src}" alt="">` : "";
-    const measure = line.cbm != null && line.cbm > 0
-      ? `${formatAmount(line.cbm, 3)} CBM`
-      : line.weightKg != null
-        ? `${formatAmount(line.weightKg)} KG`
-        : "";
-    const qty = line.quantity == null
+    const images = quoteLineImages(line)
+      .map((item) => imageSrc(item))
+      .filter(Boolean)
+      .map((src) => `<img src="${src}" alt="">`)
+      .join("");
+    const qtyAmount = line.quantity == null ? "" : formatAmount(line.quantity);
+    const qtyUnit = line.quantity == null ? "" : (line.unit && line.unit !== "set" ? line.unit : "");
+    const priceAmount = line.pricePerSet == null ? "" : formatAmount(line.pricePerSet);
+    const priceUnit = line.pricePerSet == null
       ? ""
-      : `${formatAmount(line.quantity)}${line.unit && line.unit !== "set" ? ` ${line.unit}` : ""}`;
-    const price = line.pricePerSet == null
-      ? ""
-      : `${formatAmount(line.pricePerSet)}${line.basis === "unit" ? "" : ` /${{ kg: "kg", cbm: "cbm", lump: "trọn gói" }[line.basis]}`}`;
+      : line.basis === "unit"
+        ? currency
+        : `/${{ kg: "kg", cbm: "cbm", lump: "gói" }[line.basis]}`;
+    const totalAmount = line.lineTotal == null ? "" : formatAmount(line.lineTotal);
+    const totalUnit = line.lineTotal == null ? "" : currency;
+    const weight = line.weightKg != null ? formatAmount(line.weightKg) : "";
+    const volume = line.cbm != null && line.cbm > 0 ? formatAmount(line.cbm, 3) : "";
+    const specText = line.spec.trim();
+    const noteText = lineNote(line);
     return `<tr>
       ${cell(line.stt, "stt")}
-      <td class="image">${image}</td>
-      ${cell(qty, "num")}
-      ${cell(price, "num")}
-      ${cell(line.lineTotal == null ? "" : moneyWithCurrency(line.lineTotal, currency), "num money")}
-      ${cell(measure, "num")}
-      ${cell(line.spec, "wrap")}
-      ${cell(lineNote(line), "wrap")}
+      <td class="image"><div class="image-stack">${images}</div></td>
+      ${numCell(qtyAmount, qtyUnit)}
+      ${numCell(priceAmount, priceUnit)}
+      ${numCell(totalAmount, totalUnit, "num money")}
+      ${weight ? numCell(weight, "KG") : `<td class="num"></td>`}
+      ${volume ? numCell(volume, "CBM") : `<td class="num"></td>`}
+      ${cell(specText, "wrap info")}
+      ${cell(noteText, "wrap info")}
     </tr>`;
   }).join("");
 
   const hasText = (value: string | null | undefined) => Boolean(value?.trim());
-  const info = [
-    ["Khách hàng", input.customer.customerName ?? ""],
-    ["Công ty", input.customer.companyName ?? ""],
-    ["Địa chỉ", input.customer.address ?? ""],
-    ["SĐT", input.customer.phone ?? ""],
-    ["Email", input.customer.email ?? ""],
-  ]
-    .filter(([, value]) => hasText(value))
-    .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
-    .join("");
+  const customerTable = kvTableWide(
+    [
+      ["Khách hàng", input.customer.customerName ?? ""],
+      ["Công ty", input.customer.companyName ?? ""],
+      ["Địa chỉ", input.customer.address ?? ""],
+      ["Điện thoại", input.customer.phone ?? ""],
+      ["Email", input.customer.email ?? ""],
+      ["Hiệu lực", input.notes.validityNote?.trim() ?? ""],
+    ],
+    3,
+    ["Khách hàng", "—"],
+  );
+  const companyTable = kvTableWide(companyFields, 2);
+  const certTable = kvTableWide([
+    ["Mã báo giá", code || "—"],
+    ["Ngày lập", issuedOn],
+    ["Mẫu đơn hàng", orderName || "—"],
+    ["Loại tiền", currency],
+  ], 1);
 
-  const totalLabel = input.notes.totalLabel?.trim() || "Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển";
   const shippingLabel = input.notes.shippingLabel?.trim() ?? "";
   const weightNote = input.notes.weightNote?.trim() ?? "";
   const validityNote = input.notes.validityNote?.trim() ?? "";
   const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
-  const measureTotal = totals.cbm > 0
-    ? `${formatAmount(totals.cbm, 3)} CBM`
-    : totals.weighed
-      ? `${formatAmount(totals.weight)} KG`
-      : "";
 
   const summaryRows = [
-    (totals.priced || hasText(input.notes.totalLabel) || weightNote)
+    (totals.priced || weightNote)
       ? summaryRow(
-          totalLabel,
-          totals.priced ? moneyWithCurrency(totals.goods, currency) : "",
-          [measureTotal, weightNote].filter(Boolean).join(" · "),
+          "Tổng tiền",
+          {
+            total: totals.priced ? numRow(formatAmount(totals.goods), currency) : "",
+            ...measureCells(totals.weighed ? totals.weight : null, totals.cbm > 0 ? totals.cbm : null),
+          },
+          weightNote,
         )
       : "",
     shippingLabel
-      ? summaryRow(shippingLabel, measureTotal, validityNote)
-      : validityNote
-        ? summaryRow("Hiệu lực báo giá", "", validityNote)
-        : "",
+      ? summaryRow(
+          shippingLabel,
+          measureCells(totals.weighed ? totals.weight : null, totals.cbm > 0 ? totals.cbm : null),
+          validityNote,
+        )
+      : "",
     totals.packageCount > 0
       ? summaryRow(
           "Tổng đóng gói",
-          "",
-          `${totals.packageCount} kiện = ${formatAmount(totals.cbm, 3)} CBM, cân tính cước ${formatAmount(totals.weight)} KG`,
+          { ...measureCells(totals.weight, totals.cbm), total: numRow(formatAmount(totals.packageCount), "kiện") },
         )
       : "",
     converted != null
       ? summaryRow(
           `Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)`,
-          `${formatAmount(converted)} VND`,
+          { total: numRow(formatAmount(converted), "VND") },
         )
       : "",
-    ...depositLines.map((line, index) => summaryRow(
-      line,
-      index === 0 && totals.priced ? moneyWithCurrency(totals.goods, currency) : "",
-    )),
   ].filter(Boolean).join("");
+
+  const depositRows = depositLines.map((line, index) => `<tr>
+    <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
+    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), currency) : ""}</td>
+  </tr>`).join("");
 
   const bankParts = [
     hasText(input.bank.accountName) ? `<div><span>Account Name</span>${escapeHtml(input.bank.accountName)}</div>` : "",
@@ -233,46 +303,57 @@ export function quoteSheetHtml(input: {
     <div class="brand">
       <img class="logo" src="${escapeHtml(logoUrl)}" alt="SpeeGo Logistics" width="168" height="50">
       <div class="company">
-        <strong>${escapeHtml(companyLines[0] ?? "")}</strong>
-        ${companyLines.slice(1).map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        <strong>${escapeHtml(companyName)}</strong>
+        ${companyTable}
       </div>
     </div>
     <div class="meta">
-      ${code ? `<p><span>Mã</span>${escapeHtml(code)}</p>` : ""}
-      ${orderName ? `<p><span>Mẫu</span>${escapeHtml(orderName)}</p>` : ""}
-      <p><span>Ngày</span>${escapeHtml(issuedOn)}</p>
+      <p class="meta-heading">Thông tin chứng từ</p>
+      ${certTable}
     </div>
   </header>
   <div class="accent-bar" aria-hidden="true"></div>
   <h1 class="doc-title">BÁO GIÁ</h1>
 
-  <h2 class="banner">THÔNG TIN ĐƠN HÀNG</h2>
+  <section class="party party-wide">
+    <h2>Thông tin khách hàng</h2>
+    ${customerTable}
+  </section>
 
-  ${info ? `<table class="info">${info}</table>` : ""}
+  <h2 class="banner">CHI TIẾT ĐƠN HÀNG</h2>
 
   <table class="items">
     <colgroup>
       <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-measure"><col class="c-spec"><col class="c-note">
+      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup>
     <thead>
       <tr>
         <th>STT</th>
         <th>Hình ảnh</th>
-        <th>Số lượng</th>
-        <th>Đơn giá (${escapeHtml(currency)})</th>
-        <th>Tổng tiền hàng (${escapeHtml(currency)})</th>
-        <th>Cân nặng / CBM</th>
-        <th>Thông số</th>
-        <th>Note</th>
+        <th>SL</th>
+        <th>Đơn giá</th>
+        <th>Tổng tiền</th>
+        <th>KG</th>
+        <th>CBM</th>
+        <th>Thông số kỹ thuật</th>
+        <th>Ghi chú</th>
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="8" class="empty">Chưa có dòng hàng</td></tr>`}
+      ${rows || `<tr><td colspan="9" class="empty">Chưa có dòng hàng</td></tr>`}
     </tbody>
   </table>
 
-  ${summaryRows ? `<table class="summary"><tbody>${summaryRows}</tbody></table>` : ""}
+  ${summaryRows ? `<table class="summary"><colgroup>
+      <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
+      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+    </colgroup><tbody>${summaryRows}</tbody></table>` : ""}
+
+  ${depositRows ? `<table class="summary deposit"><colgroup>
+      <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
+      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+    </colgroup><tbody>${depositRows}</tbody></table>` : ""}
 
   ${bankBlock}
 
@@ -310,10 +391,10 @@ export const quotePrintCss = `
   .sheet { width: 100%; }
 
   .masthead {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: stretch;
     padding-bottom: 10px;
     border-bottom: 3px solid #082A59;
   }
@@ -322,65 +403,114 @@ export const quotePrintCss = `
     background: #F26522;
   }
   .brand {
-    display: flex;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 16px;
     align-items: center;
     min-width: 0;
-    flex: 1 1 auto;
-    max-width: 58%;
   }
   .logo {
-    width: 168px;
+    width: 190px;
     height: auto;
-    max-height: 58px;
+    max-height: 76px;
     object-fit: contain;
     object-position: left center;
-    flex-shrink: 0;
   }
   .company {
     min-width: 0;
-    max-width: 320px;
     border-left: 2px solid #F26522;
-    padding-left: 10px;
+    padding-left: 12px;
   }
   .company strong {
     display: block;
     color: #082A59;
-    font-size: 10pt;
+    font-size: 11pt;
     letter-spacing: 0.02em;
-    margin-bottom: 3px;
+    margin-bottom: 6px;
+    line-height: 1.25;
   }
-  .company p { margin: 0; font-size: 8pt; color: #334155; line-height: 1.3; }
+  .company .kv-label { width: 82px; }
+  .company th { width: 82px; }
   .meta {
-    flex: 0 0 210px;
-    text-align: right;
-    font-size: 9pt;
-    color: #082A59;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid #c5d0de;
+    background: #F6F8FC;
   }
-  .meta p { margin: 2px 0; }
-  .meta span {
-    display: inline-block;
-    min-width: 42px;
-    margin-right: 6px;
-    color: #64748b;
-    font-weight: 600;
-    text-align: left;
+  .meta-heading {
+    margin: 0 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #F26522;
+    color: #082A59;
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.25;
   }
 
+  table.kv {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 9pt;
+  }
+  col.kv-label { width: 88px; }
+  col.kv-value { width: auto; }
+  table.kv th {
+    width: 88px;
+    padding: 2px 8px 2px 0;
+    text-align: left;
+    vertical-align: top;
+    color: #082A59;
+    font-weight: 700;
+    white-space: normal;
+    line-height: 1.3;
+  }
+  table.kv td {
+    padding: 2px 10px 2px 0;
+    text-align: left;
+    vertical-align: top;
+    color: #1e293b;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  table.kv-wide td:nth-child(even) { padding-right: 14px; }
+
   .doc-title {
-    margin: 14px 0 10px;
+    margin: 8px 0 6px;
     padding: 0;
     color: #082A59;
-    font-size: 22pt;
+    font-size: 18pt;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-align: center;
+    line-height: 1.15;
+  }
+
+  .party {
+    border: 1px solid #c5d0de;
+    background: #fff;
+    padding: 6px 8px;
+    min-width: 0;
+    margin: 0 0 8px;
+  }
+  .party-wide { width: 100%; }
+  .party h2 {
+    margin: 0 0 4px;
+    padding-bottom: 3px;
+    border-bottom: 2px solid #F26522;
+    color: #082A59;
+    font-size: 9.5pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     line-height: 1.2;
   }
 
   .banner {
-    margin: 0 0 8px;
-    padding: 7px 10px;
+    margin: 0 0 6px;
+    padding: 5px 8px;
     background: #082A59;
     color: #fff;
     font-size: 11pt;
@@ -390,62 +520,115 @@ export const quotePrintCss = `
     border-left: 6px solid #F26522;
   }
 
-  table.info {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 10px;
-    font-size: 9.5pt;
-  }
-  table.info th {
-    width: 110px;
-    padding: 3px 8px 3px 0;
-    text-align: left;
-    vertical-align: top;
-    color: #082A59;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  table.info td { padding: 3px 0; vertical-align: top; color: #1e293b; }
-
   table.items {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
     font-size: 9pt;
   }
-  .c-stt { width: 3.5%; }
-  .c-image { width: 11%; }
-  .c-qty { width: 7%; }
-  .c-price { width: 10%; }
-  .c-total { width: 11%; }
-  .c-measure { width: 10%; }
-  .c-spec { width: 20%; }
-  .c-note { width: 27.5%; }
+  .c-stt { width: 3%; }
+  .c-image { width: 14%; }
+  .c-qty { width: 6%; }
+  .c-price { width: 9%; }
+  .c-total { width: 12%; }
+  .c-kg { width: 7%; }
+  .c-cbm { width: 7%; }
+  .c-spec { width: 24%; }
+  .c-info { width: 18%; }
   table.items th,
   table.items td {
     border: 1px solid #c5d0de;
-    padding: 5px 6px;
-    vertical-align: middle;
+    padding: 6px 6px;
+    vertical-align: top;
   }
   table.items thead th {
     background: #082A59;
     color: #fff;
     font-weight: 700;
     text-align: center;
+    vertical-align: middle;
     border-color: #082A59;
     border-bottom: 3px solid #F26522;
   }
-  table.items .stt { text-align: center; font-weight: 700; color: #082A59; }
-  table.items .num { text-align: right; white-space: nowrap; color: #082A59; }
-  table.items .money { font-weight: 700; color: #F26522; }
-  table.items .image { text-align: center; padding: 6px 4px; width: 11%; }
+  table.items .stt {
+    text-align: center;
+    font-weight: 700;
+    color: #082A59;
+    font-variant-numeric: tabular-nums;
+  }
+  table.items .num {
+    text-align: right;
+    white-space: nowrap;
+    color: #082A59;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  table.items .num-row,
+  table.summary .num-row,
+  .measure-inline .num-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.8em;
+    gap: 4px;
+    align-items: baseline;
+    width: 100%;
+    min-height: 1.35em;
+  }
+  .measure-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    justify-content: flex-end;
+    width: 100%;
+  }
+  .measure-inline .num-row {
+    width: auto;
+    min-width: 5.5em;
+    grid-template-columns: minmax(2.8em, 1fr) 2.4em;
+  }
+  table.items .amt,
+  table.summary .amt,
+  .measure-inline .amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums lining-nums;
+    min-height: 1.2em;
+  }
+  table.items .unit,
+  .measure-inline .unit {
+    text-align: left;
+    color: #64748b;
+    font-size: 8.5pt;
+    font-weight: 600;
+  }
+  table.items .money .amt { font-weight: 700; color: #F26522; }
+  table.items .money .unit { color: #F26522; }
+  table.items .info {
+    text-align: left;
+    vertical-align: top;
+  }
+  table.items .image {
+    text-align: center;
+    padding: 6px;
+    vertical-align: top;
+  }
+  table.items .image-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    align-items: flex-start;
+  }
   table.items .image img {
-    width: 96px;
-    max-width: 96px;
-    max-height: 96px;
+    width: 132px;
+    max-width: 132px;
+    max-height: 132px;
     object-fit: contain;
   }
-  table.items .wrap { white-space: pre-wrap; text-align: left; word-break: break-word; color: #1e293b; }
+  table.items .wrap {
+    white-space: pre-wrap;
+    text-align: left;
+    word-break: break-word;
+    color: #1e293b;
+    vertical-align: top;
+  }
   table.items .empty { text-align: center; color: #64748b; padding: 16px; }
 
   table.summary {
@@ -461,24 +644,45 @@ export const quotePrintCss = `
     vertical-align: top;
   }
   table.summary .sum-label {
-    width: 42%;
     background: #F6F8FC;
     font-weight: 700;
     color: #082A59;
+    text-align: center;
+    vertical-align: middle;
     border-left: 3px solid #F26522;
   }
   table.summary .sum-value {
-    width: 22%;
     text-align: right;
     font-weight: 700;
     white-space: nowrap;
     color: #F26522;
+    font-variant-numeric: tabular-nums lining-nums;
+    vertical-align: middle;
   }
+  table.summary .sum-value:not(:empty) { background: #FFF200; color: #082A59; }
+  table.summary .sum-value .amt,
+  table.summary .sum-value .unit { color: #082A59; }
   table.summary .sum-note {
-    width: 36%;
     color: #334155;
     white-space: pre-wrap;
     word-break: break-word;
+    text-align: right;
+    vertical-align: middle;
+  }
+  table.summary.deposit { margin-top: 10px; }
+  table.summary.deposit td { padding: 4px 8px; }
+  table.summary .dep-label {
+    font-weight: 700;
+    color: #082A59;
+    text-align: left;
+    vertical-align: middle;
+  }
+  table.summary .dep-value {
+    text-align: right;
+    font-weight: 700;
+    color: #082A59;
+    font-variant-numeric: tabular-nums lining-nums;
+    vertical-align: middle;
   }
 
   .bank {

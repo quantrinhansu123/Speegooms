@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteCurrencies,
+  quoteLineImages,
   quoteOrderSchema,
   updateQuoteSchema,
   type CrmLane,
@@ -27,7 +28,12 @@ import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, image: "", quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
+  return { stt, image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
+}
+
+function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
+  const next = images.filter(Boolean).slice(0, 8);
+  return { images: next, image: next[0] ?? "" };
 }
 
 function amountValue(value: string): number | null {
@@ -42,7 +48,7 @@ function amountText(value: number | null): string {
 }
 
 function filledLine(line: QuoteLine): boolean {
-  return Boolean(line.stt || line.image || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
+  return Boolean(line.stt || quoteLineImages(line).length > 0 || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
 }
 
 function packagesSummary(packages: QuoteLine["packages"]): string {
@@ -76,7 +82,7 @@ function clipboardImage(event: React.ClipboardEvent): File | string | null {
 
 async function compressImage(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const max = 280;
+  const max = 420;
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
@@ -85,9 +91,15 @@ async function compressImage(file: File): Promise<string> {
   if (!context) throw new Error("Không đọc được ảnh");
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const url = canvas.toDataURL("image/jpeg", 0.72);
-  if (url.length > 90_000) throw new Error("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
+  const url = canvas.toDataURL("image/jpeg", 0.78);
+  if (url.length > 100_000) throw new Error("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
   return url;
+}
+
+async function compressMany(files: File[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const file of files) out.push(await compressImage(file));
+  return out;
 }
 
 function OrderLines({
@@ -130,11 +142,11 @@ function OrderLines({
   return (
     <div className="grid gap-3">
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[1080px] text-xs">
+        <table className="w-full min-w-[1180px] text-xs">
           <thead>
             <tr className="border-b bg-muted/50 text-left">
               <th className="px-2 py-2 font-medium">STT</th>
-              <th className="px-2 py-2 font-medium">Hình ảnh</th>
+              <th className="min-w-[180px] px-2 py-2 font-medium">Hình ảnh</th>
               <th className="px-2 py-2 font-medium">Số lượng / đơn vị</th>
               <th className="px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
               <th className="px-2 py-2 font-medium">Tổng tiền hàng ({currency})</th>
@@ -152,10 +164,10 @@ function OrderLines({
                 <td className="px-2 py-2">
                   <div
                     tabIndex={canEdit ? 0 : undefined}
-                    className="flex w-28 flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-w-[168px] max-w-[220px] flex-col gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Ảnh dòng ${index + 1}`}
                     onCopy={(event) => {
-                      const image = safeImage(line.image);
+                      const image = quoteLineImages(line).map(safeImage).find(Boolean);
                       if (!image || !event.clipboardData) return;
                       event.preventDefault();
                       event.clipboardData.setData("text/plain", image);
@@ -165,41 +177,75 @@ function OrderLines({
                       const pasted = clipboardImage(event);
                       if (!pasted) return;
                       event.preventDefault();
+                      const current = quoteLineImages(line);
+                      if (current.length >= 8) {
+                        onError("Tối đa 8 ảnh mỗi dòng");
+                        return;
+                      }
                       if (typeof pasted === "string") {
-                        if (pasted.length > 90_000) {
+                        if (pasted.length > 100_000) {
                           onError("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
                           return;
                         }
-                        updateLine(index, { image: pasted });
+                        updateLine(index, withImages([...current, pasted]));
                         return;
                       }
                       void compressImage(pasted)
-                        .then((image) => updateLine(index, { image }))
+                        .then((image) => updateLine(index, withImages([...current, image])))
                         .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
                     }}
                   >
-                    {safeImage(line.image) && <img src={safeImage(line.image)} alt="" className="h-16 w-16 rounded object-contain" />}
+                    <div className="flex flex-wrap gap-1.5">
+                      {quoteLineImages(line).map((image, imageIndex) => {
+                        const src = safeImage(image);
+                        if (!src) return null;
+                        return (
+                          <div key={`${imageIndex}-${src.slice(0, 24)}`} className="relative">
+                            <img src={src} alt="" className="h-28 w-28 rounded border object-contain bg-white" />
+                            {canEdit && (
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="destructive"
+                                className="absolute -right-1 -top-1"
+                                aria-label={`Xóa ảnh ${imageIndex + 1} dòng ${index + 1}`}
+                                onClick={() => updateLine(index, withImages(quoteLineImages(line).filter((_, i) => i !== imageIndex)))}
+                              >
+                                <Trash2 />
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                     {canEdit && (
                       <>
-                        <label className="inline-flex h-7 w-fit cursor-pointer items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
+                        <label className="inline-flex h-8 w-fit cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
                           <ImagePlus aria-hidden className="size-3.5" />
-                          {line.image ? "Đổi ảnh" : "Thêm ảnh"}
+                          Thêm ảnh
                           <input
                             className="sr-only"
                             type="file"
+                            multiple
                             accept="image/jpeg,image/png,image/webp"
-                            aria-label={`Tải ảnh dòng ${index + 1}`}
+                            aria-label={`Tải nhiều ảnh dòng ${index + 1}`}
                             onChange={(event) => {
-                              const file = event.target.files?.[0];
+                              const files = Array.from(event.target.files ?? []);
                               event.target.value = "";
-                              if (!file) return;
-                              void compressImage(file)
-                                .then((image) => updateLine(index, { image }))
+                              if (files.length === 0) return;
+                              const current = quoteLineImages(line);
+                              const room = 8 - current.length;
+                              if (room <= 0) {
+                                onError("Tối đa 8 ảnh mỗi dòng");
+                                return;
+                              }
+                              void compressMany(files.slice(0, room))
+                                .then((images) => updateLine(index, withImages([...current, ...images])))
                                 .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không đọc được ảnh"));
                             }}
                           />
                         </label>
-                        <p className="text-[10px] text-muted-foreground">hoặc Ctrl+V</p>
+                        <p className="text-[10px] text-muted-foreground">Chọn nhiều ảnh hoặc Ctrl+V · tối đa 8</p>
                       </>
                     )}
                   </div>

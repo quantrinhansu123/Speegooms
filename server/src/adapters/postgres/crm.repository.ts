@@ -244,9 +244,11 @@ function asLines(value: unknown): QuoteLine[] {
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
+    const images = asImages(row.images, row.image);
     return [{
       stt: textField(row.stt),
-      image: textField(row.image),
+      image: images[0] ?? "",
+      images,
       quantity: optionalAmount(row.quantity),
       pricePerSet: optionalAmount(row.pricePerSet),
       lineTotal: optionalAmount(row.lineTotal),
@@ -260,6 +262,15 @@ function asLines(value: unknown): QuoteLine[] {
       attrs: asAttrs(row.attrs),
     }];
   });
+}
+
+function asImages(value: unknown, legacy: unknown): string[] {
+  const fromArray = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
+    : [];
+  if (fromArray.length > 0) return fromArray.slice(0, 8);
+  const single = typeof legacy === "string" ? legacy.trim() : "";
+  return single ? [single] : [];
 }
 
 function asBasis(value: unknown): QuoteLine["basis"] {

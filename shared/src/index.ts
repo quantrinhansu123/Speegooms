@@ -23,6 +23,7 @@ export {
   quoteDeskSchema,
   quoteCurrencies,
   quoteCurrencySchema,
+  quoteLineImages,
   quoteOrderSchema,
   quoteStatusSchema,
   quoteTemplateSchema,

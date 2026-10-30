@@ -114,12 +114,17 @@ export const quotePackageSchema = z.object({
 
 export const quoteAttrSchema = z.object({ key: text(80), value: text(300) });
 
+const quoteImage = z.string().max(100_000).refine(
+  (value) => value === "" || value.startsWith("data:image/") || /^https:\/\//.test(value),
+  "Ảnh không hợp lệ",
+);
+
 export const quoteLineSchema = z.object({
   stt: text(20),
-  image: z.string().max(100_000).refine(
-    (value) => value === "" || value.startsWith("data:image/") || /^https:\/\//.test(value),
-    "Ảnh không hợp lệ",
-  ),
+  /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
+  image: quoteImage.default(""),
+  /** Nhiều ảnh sản phẩm trên một dòng báo giá. */
+  images: z.array(quoteImage).max(8, "Tối đa 8 ảnh mỗi dòng").default([]),
   quantity: amount,
   pricePerSet: amount,
   lineTotal: amount,
@@ -136,6 +141,14 @@ export const quoteLineSchema = z.object({
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
   attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
 });
+
+/** Danh sách ảnh dòng: ưu tiên images[], fallback image cũ. */
+export function quoteLineImages(line: { image?: string | null; images?: string[] | null }): string[] {
+  const list = (line.images ?? []).map((item) => item.trim()).filter(Boolean);
+  if (list.length > 0) return list;
+  const single = line.image?.trim() ?? "";
+  return single ? [single] : [];
+}
 
 const depositLine = text(300);
 
