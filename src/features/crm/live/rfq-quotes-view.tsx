@@ -20,7 +20,7 @@ import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSe
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
-import { contractStatusOptions, customerKindOptions, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
+import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const contractRoles: Role[] = ["admin", "sale-vn", "sale-global"];
