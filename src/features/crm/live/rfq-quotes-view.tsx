@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -15,7 +15,7 @@ import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
-import { downloadQuoteRecordPdf, orderForQuotePdf } from "./quote-print";
+import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
@@ -82,6 +82,23 @@ function optionLabel(row: PotentialRecord): string {
   return `${row.leadCode} — ${row.fullName || "Chưa có tên"}${company}`;
 }
 
+/** Ưu tiên bản đã gửi cho Sale; không có thì lấy mẫu đơn hàng hiện có để xem/in. */
+function printableQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
+  if (row.sentQuote) {
+    return {
+      ...row,
+      orders: [{ ...row.sentQuote.order, selected: true }],
+      notes: row.sentQuote.notes,
+      bank: row.sentQuote.bank,
+    };
+  }
+  return orderForQuotePdf(row.orders) ? row : null;
+}
+
+function viewableQuote(row: RfqQuoteRecord): RfqQuoteRecord {
+  return printableQuote(row) ?? row;
+}
+
 export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
@@ -146,11 +163,6 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
 
   const openCreate = () => {
     setDraft({ id: null, potentialId: "", desk: null });
-    setFormError(undefined);
-  };
-
-  const openEdit = (row: RfqQuoteRecord) => {
-    setDraft({ id: row.id, potentialId: row.potentialId, desk: row.desk });
     setFormError(undefined);
   };
 
@@ -271,10 +283,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             )}
             {rows.map((row) => {
               const logistics = row.customerKind === "SOURCING_LOGISTICS" ? logisticsQuote(row) : null;
-              const visible = (item: { sentQuote: RfqQuoteRecord["sentQuote"]; quoteStatus: string } | null) => Boolean(item?.sentQuote && (sentToSale(item.quoteStatus) || item.quoteStatus === "CHUA_CO_BAO_GIA_LAI"));
-              const canViewQuote = visible(row) || visible(logistics);
-              const pdfSource = orderForQuotePdf(row.orders) ? row : logistics && orderForQuotePdf(logistics.orders) ? logistics : null;
-              const canDownloadPdf = Boolean(canViewQuote && pdfSource);
+              const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
               return (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.code}</td>
@@ -299,23 +308,37 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <RowMenu
                     label={`Thao tác ${row.code}`}
                     items={[
-                      ...(canViewQuote
-                        ? [{ key: "view", label: "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } }]
-                        : []),
-                      ...(canDownloadPdf && pdfSource
-                        ? [{
-                            key: "pdf",
-                            label: "Tải PDF",
-                            icon: <Download />,
-                            onClick: () => {
-                              void downloadQuoteRecordPdf(pdfSource).catch((cause: unknown) => {
-                                setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
-                              });
-                            },
-                          }]
-                        : []),
+                      { key: "view", label: "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
+                      {
+                        key: "print",
+                        label: "In báo giá",
+                        icon: <Printer />,
+                        onClick: () => {
+                          if (!printSource) {
+                            setError("Chưa có mẫu báo giá để in");
+                            return;
+                          }
+                          void printQuoteRecord(printSource).catch((cause: unknown) => {
+                            setError(cause instanceof Error ? cause.message : "Không in được báo giá");
+                          });
+                        },
+                      },
+                      {
+                        key: "pdf",
+                        label: "Tải PDF",
+                        icon: <Download />,
+                        onClick: () => {
+                          if (!printSource) {
+                            setError("Chưa có mẫu báo giá để tải PDF");
+                            return;
+                          }
+                          void downloadQuoteRecordPdf(printSource).catch((cause: unknown) => {
+                            setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
+                          });
+                        },
+                      },
                       ...(canCreateContract && row.contractStatus !== "DA_TAO"
-                        ? [{ key: "contract", label: "Tạo hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
+                        ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
                         : []),
                       ...(row.customerKind === "SOURCING_LOGISTICS"
                         ? [
@@ -326,7 +349,6 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                           ? [{ key: "return", label: "Gửi lại báo giá", icon: <RotateCcw />, onClick: () => setReturning(row) }]
                           : []),
                       ...(canWrite ? [
-                        { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => openEdit(row) },
                         { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
                       ] : []),
                     ]}
@@ -342,7 +364,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{draft?.id ? "Sửa báo giá" : "Thêm báo giá"}</DialogTitle>
+            <DialogTitle>Thêm báo giá</DialogTitle>
           </DialogHeader>
           {draft && (
             <div className="grid gap-3">
@@ -388,33 +410,30 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 { desk: "logistics" as const, quote: logisticsQuote(viewing) },
               ]).map(({ desk, quote }) => {
                 const title = deskTitles[desk];
-                if (!quote?.sentQuote) {
+                if (!quote) {
                   return (
                     <section key={desk} className="rounded-xl border p-3">
                       <h3 className="font-medium">{title}</h3>
-                      <p className="mt-2 text-sm text-muted-foreground">Chưa có bản báo giá đã gửi.</p>
+                      <p className="mt-2 text-sm text-muted-foreground">Chưa có bản báo giá.</p>
                     </section>
                   );
                 }
-                const sent = quote.sentQuote;
+                const source = viewableQuote(quote);
                 return (
                   <QuoteEditor
-                    key={`${viewing.id}-${desk}-${sent.sentAt}`}
+                    key={`${viewing.id}-${desk}-${quote.sentQuote?.sentAt ?? quote.quoteStatus}`}
                     embedded
                     heading={`${title} · ${viewing.code}`}
                     quote={{
-                      ...quote,
+                      ...source,
                       id: `${viewing.id}-${desk}`,
-                      orders: [{ ...sent.order, selected: true }],
-                      notes: sent.notes,
-                      bank: sent.bank,
                     }}
                     templates={[]}
                     canEdit={false}
                     pending={pending}
                     onClose={() => setViewing(null)}
                     onSave={async () => false}
-                    onReturn={() => returnQuote(desk === "logistics" ? { ...viewing, desk } : viewing)}
+                    onReturn={quote.sentQuote ? () => returnQuote(desk === "logistics" ? { ...viewing, desk } : viewing) : undefined}
                   />
                 );
               })}
@@ -426,21 +445,16 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         </Dialog>
       )}
 
-      {viewing?.sentQuote && viewing.customerKind !== "SOURCING_LOGISTICS" && (
+      {viewing && viewing.customerKind !== "SOURCING_LOGISTICS" && (
         <QuoteEditor
-          key={`${viewing.id}-${viewing.sentQuote.sentAt}`}
-          quote={{
-            ...viewing,
-            orders: [{ ...viewing.sentQuote.order, selected: true }],
-            notes: viewing.sentQuote.notes,
-            bank: viewing.sentQuote.bank,
-          }}
+          key={`${viewing.id}-${viewing.sentQuote?.sentAt ?? viewing.quoteStatus}`}
+          quote={viewableQuote(viewing)}
           templates={[]}
           canEdit={false}
           pending={pending}
           onClose={() => setViewing(null)}
           onSave={async () => false}
-          onReturn={() => returnQuote(viewing)}
+          onReturn={viewing.sentQuote ? () => returnQuote(viewing) : undefined}
         />
       )}
 

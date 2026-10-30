@@ -53,11 +53,17 @@ export function ContractCreateDialog({
   const [quantity, setQuantity] = useState("");
   const [productValueText, setProductValueText] = useState(productValue ? String(productValue) : "");
   const [shippingCost, setShippingCost] = useState("");
-  const [totalValue, setTotalValue] = useState(productValue ? String(productValue) : "");
   const [paidAmount, setPaidAmount] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+
+  const syncTotal = (productText: string, shippingText: string) => {
+    const productPart = numberValue(productText) ?? 0;
+    const shippingPart = numberValue(shippingText) ?? 0;
+    return String(productPart + shippingPart);
+  };
+  const totalValue = syncTotal(productValueText, shippingCost);
 
   const submit = async () => {
     const parsed = createContractSchema.safeParse({
@@ -133,8 +139,8 @@ export function ContractCreateDialog({
           <Field label="Chi phí vận chuyển" htmlFor="contract-shipping">
             <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(event.target.value)} />
           </Field>
-          <Field label="Tổng giá trị" htmlFor="contract-total">
-            <Input id="contract-total" inputMode="decimal" value={totalValue} onChange={(event) => setTotalValue(event.target.value)} />
+          <Field label="Tổng giá trị" htmlFor="contract-total" hint="Tự tính = giá trị sản phẩm + chi phí vận chuyển">
+            <Input id="contract-total" inputMode="decimal" value={totalValue} readOnly />
           </Field>
           <Field label="Số tiền đã thanh toán" htmlFor="contract-paid">
             <Input id="contract-paid" inputMode="decimal" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, contractShipToOptions, createContractSchema, opsContractSchema, opsStatusOptions, quoteCurrencies, type CrmLane, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -99,7 +99,7 @@ function shownDate(value: string | null): string {
 
 function FlagCell({ active, tone, label }: { active: boolean; tone: "success" | "danger"; label: string }) {
   if (!active) return <span className="text-muted-foreground">—</span>;
-  return <StatusBadge tone={tone}>{label}</StatusBadge>;
+  return <StatusBadge tone={tone} className="max-w-full whitespace-normal text-left leading-snug">{label}</StatusBadge>;
 }
 
 async function compressImage(file: File): Promise<string> {
@@ -130,7 +130,7 @@ export function ContractsLiveView({
   const canOps = mode === "ops" && opsRoles.includes(user.role);
   const canAccounting = mode === "accounting" && accountingRoles.includes(user.role);
   const canSale = mode === "sale" && saleRoles.includes(user.role);
-  const canResend = canSale || canOps || (mode === "accounting" && user.role === "ke-toan");
+  const canResend = canSale || canOps || canAccounting;
   const canDelete = mode === "accounting" && user.role === "ke-toan";
   const [rows, setRows] = useState<ContractRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -223,18 +223,20 @@ export function ContractsLiveView({
         <FilterSelect id="contract-accounting-status" label="Trạng thái kế toán" value={filters.draft.accountingStatus} onChange={(value) => filters.set("accountingStatus", value)} options={accountingStatusOptions} />
       </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1480px] text-sm">
+        <table className="w-full min-w-[1680px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Báo giá</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium">Khách</th>
               <th className="px-3 py-2 font-medium">Sản phẩm</th>
-              <th className="px-3 py-2 font-medium">Tổng giá trị</th>
-              <th className="px-3 py-2 font-medium">Còn lại</th>
-              <th className="px-3 py-2 font-medium">Dục thanh toán để giao hàng</th>
-              <th className="px-3 py-2 font-medium">Đủ điều kiện đi hàng</th>
-              <th className="px-3 py-2 font-medium">Đủ điều kiện giao hàng</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Đã thanh toán</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Ảnh bill</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Còn lại</th>
+              <th className="min-w-40 px-3 py-2 font-medium">Dục thanh toán để giao hàng</th>
+              <th className="min-w-36 px-3 py-2 font-medium">Đủ điều kiện đi hàng</th>
+              <th className="min-w-36 px-3 py-2 font-medium">Đủ điều kiện giao hàng</th>
               <th className="px-3 py-2 font-medium">Vận hành</th>
               <th className="px-3 py-2 font-medium">Kế toán</th>
               <th className="px-3 py-2 font-medium">Gửi lại</th>
@@ -243,38 +245,53 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
               const flags = contractPaymentFlags({
                 totalValue: row.totalValue,
                 confirmedAmount: row.confirmedAmount,
+                paidAmount: row.paidAmount,
+                balance: row.balance,
                 deliveryOn: row.deliveryOn,
+                accountingStatus: row.accountingStatus,
+                opsStatus: row.opsStatus,
               });
               return (
-              <tr key={row.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-medium">{row.code}</td>
-                <td className="px-3 py-3">{row.quoteCode || "—"}</td>
+              <tr key={row.id} className="border-b last:border-0 align-top">
+                <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3">{row.customerName}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
-                <td className="px-3 py-3">{money(row.totalValue, row.currency)}</td>
-                <td className="px-3 py-3">{money(row.balance, row.currency)}</td>
-                <td className="max-w-56 px-3 py-3">
+                <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{money(row.paidAmount, row.currency)}</td>
+                <td className="px-3 py-3">
+                  {row.images.length === 0 ? "—" : (
+                    <div className="flex flex-wrap gap-1">
+                      {row.images.slice(0, 3).map((image, index) => (
+                        <a key={`${row.id}-bill-${index}`} href={image} target="_blank" rel="noreferrer">
+                          <img src={image} alt={`Bill ${index + 1}`} className="h-10 w-10 rounded border object-cover" />
+                        </a>
+                      ))}
+                      {row.images.length > 3 && <span className="text-xs text-muted-foreground">+{row.images.length - 3}</span>}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap">{money(row.balance, row.currency)}</td>
+                <td className="min-w-40 px-3 py-3">
                   <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
                 </td>
-                <td className="px-3 py-3">
+                <td className="min-w-36 px-3 py-3">
                   <FlagCell active={flags.eligibleToShip} tone="success" label={flags.eligibleToShipLabel} />
                 </td>
-                <td className="px-3 py-3">
+                <td className="min-w-36 px-3 py-3">
                   <FlagCell active={flags.eligibleToDeliver} tone="success" label={flags.eligibleToDeliverLabel} />
                 </td>
-                <td className="px-3 py-3">{row.opsStatus || "—"}</td>
-                <td className="px-3 py-3">
+                <td className="px-3 py-3 whitespace-nowrap">{row.opsStatus || "—"}</td>
+                <td className="px-3 py-3 whitespace-nowrap">
                   {mode !== "accounting" && !row.sentToAccountingAt
                     ? "Chưa gửi"
-                    : mode !== "accounting" && !row.confirmedBackAt
-                      ? "—"
-                      : labelOf(accountingStatusOptions, row.accountingStatus)}
+                    : labelOf(accountingStatusOptions, row.accountingStatus) || "—"}
                 </td>
                 <td className="px-3 py-3">
                   {handoffLines(mode, row).length === 0 ? "—" : handoffLines(mode, row).map((line) => <p key={line}>{line}</p>)}
@@ -366,19 +383,7 @@ function ContractDialog({
   onSaved: (contract: ContractRecord, message: string) => void;
   onResend: (contract: ContractRecord) => Promise<void>;
 }) {
-  const [currency, setCurrency] = useState<QuoteCurrency>(contract.currency);
-  const [customerName, setCustomerName] = useState(contract.customerName);
-  const [saleName, setSaleName] = useState(contract.saleName ?? "");
-  const [shipTo, setShipTo] = useState(
-    (contractShipToOptions as readonly string[]).includes(contract.shipTo ?? "") ? (contract.shipTo ?? "") : "",
-  );
-  const [product, setProduct] = useState(contract.product ?? "");
-  const [quantity, setQuantity] = useState(contract.quantity == null ? "" : String(contract.quantity));
-  const [productValueText, setProductValueText] = useState(String(contract.productValue));
-  const [shippingCost, setShippingCost] = useState(String(contract.shippingCost));
-  const [totalValue, setTotalValue] = useState(String(contract.totalValue));
   const [paidAmount, setPaidAmount] = useState(String(contract.paidAmount));
-  const [signedOn, setSignedOn] = useState(contract.signedOn ?? "");
   const [opsStatus, setOpsStatus] = useState(contract.opsStatus);
   const [tracking, setTracking] = useState(contract.tracking);
   const [note1, setNote1] = useState(contract.note1);
@@ -392,28 +397,29 @@ function ContractDialog({
   const [images, setImages] = useState(contract.images);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const paidValue = numberValue(paidAmount) ?? 0;
+  const balanceValue = Math.max(0, contract.totalValue - paidValue);
   const paymentFlags = contractPaymentFlags({
-    totalValue: numberValue(totalValue) ?? contract.totalValue,
+    totalValue: contract.totalValue,
     confirmedAmount: confirmedAmount.trim() ? numberValue(confirmedAmount) : null,
+    paidAmount: paidValue,
+    balance: balanceValue,
     deliveryOn: deliveryOn || null,
+    accountingStatus: accountingStatus || contract.accountingStatus,
+    opsStatus,
   });
 
   const saveCommercial = async (resendAfter: boolean) => {
-    const parsed = createContractSchema.safeParse({
-      currency,
-      customerName,
-      saleName,
-      shipTo,
-      product,
-      quantity: numberValue(quantity),
-      productValue: numberValue(productValueText) ?? Number.NaN,
-      shippingCost: numberValue(shippingCost) ?? 0,
-      totalValue: numberValue(totalValue) ?? Number.NaN,
-      paidAmount: numberValue(paidAmount) ?? 0,
-      signedOn,
+    const parsed = saleContractPaymentSchema.safeParse({
+      paidAmount: numberValue(paidAmount) ?? Number.NaN,
+      images,
     });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Thông tin hợp đồng chưa đúng");
+      setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
+      return;
+    }
+    if (parsed.data.paidAmount > contract.totalValue) {
+      setError("Số tiền thanh toán không được lớn hơn tổng giá trị");
       return;
     }
     setPending(true);
@@ -424,9 +430,9 @@ function ContractDialog({
         body: JSON.stringify(parsed.data),
       });
       if (resendAfter) await onResend(body.contract);
-      else onSaved(body.contract, "Đã lưu hợp đồng.");
+      else onSaved(body.contract, "Đã lưu thanh toán hợp đồng.");
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không lưu được hợp đồng");
+      setError(cause instanceof ApiError ? cause.message : "Không lưu được thanh toán");
     } finally {
       setPending(false);
     }
@@ -498,6 +504,27 @@ function ContractDialog({
     }
   };
 
+  const pasteImage = async (event: React.ClipboardEvent) => {
+    if (!(canSale || canAccounting)) return;
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (!files.length) return;
+    event.preventDefault();
+    const list = {
+      length: files.length,
+      item: (index: number) => files[index] ?? null,
+      *[Symbol.iterator]() { yield* files; },
+    } as FileList;
+    await addImages(list);
+  };
+
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <DialogContent className="sm:max-w-4xl">
@@ -512,70 +539,47 @@ function ContractDialog({
           <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
             <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
             <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
+            <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
+            <p><span className="text-muted-foreground">Loại tiền: </span>{contract.currency}</p>
+            <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
+            <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
+            <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
+            <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
+            <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
+            <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
+            <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
+            <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
             {canSale ? (
               <>
-                <Field label="Tên khách hàng" htmlFor="contract-customer" required>
-                  <Input id="contract-customer" value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
-                </Field>
-                <Field label="Nhân viên bán" htmlFor="contract-sale">
-                  <Input id="contract-sale" value={saleName} onChange={(event) => setSaleName(event.target.value)} />
-                </Field>
-                <Field label="Vận chuyển đến" htmlFor="contract-ship" className="sm:col-span-2">
-                  <NativeSelect
-                    id="contract-ship"
-                    value={(contractShipToOptions as readonly string[]).includes(shipTo) ? shipTo : ""}
-                    onChange={(event) => setShipTo(event.target.value)}
-                  >
-                    <option value="">Chọn tuyến vận chuyển</option>
-                    {contractShipToOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </NativeSelect>
-                </Field>
-                <Field label="Sản phẩm" htmlFor="contract-product" className="sm:col-span-2">
-                  <Input id="contract-product" value={product} onChange={(event) => setProduct(event.target.value)} />
-                </Field>
-                <Field label="Số lượng" htmlFor="contract-qty">
-                  <Input id="contract-qty" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
-                </Field>
-                <Field label="Ngày ký" htmlFor="contract-signed">
-                  <Input id="contract-signed" type="date" value={signedOn} onChange={(event) => setSignedOn(event.target.value)} />
-                </Field>
-                <Field label="Loại tiền" htmlFor="contract-currency" hint="Áp dụng cho mọi số tiền của hợp đồng">
-                  <NativeSelect id="contract-currency" value={currency} onChange={(event) => setCurrency(event.target.value as QuoteCurrency)}>
-                    {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
-                  </NativeSelect>
-                </Field>
-                <Field label="Giá trị sản phẩm" htmlFor="contract-product-value">
-                  <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(event.target.value)} />
-                </Field>
-                <Field label="Chi phí vận chuyển" htmlFor="contract-shipping">
-                  <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(event.target.value)} />
-                </Field>
-                <Field label="Tổng giá trị" htmlFor="contract-total">
-                  <Input id="contract-total" inputMode="decimal" value={totalValue} onChange={(event) => setTotalValue(event.target.value)} />
-                </Field>
                 <Field label="Số tiền đã thanh toán" htmlFor="contract-paid">
                   <Input id="contract-paid" inputMode="decimal" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
                 </Field>
+                <div
+                  className="rounded-lg border border-dashed p-3"
+                  tabIndex={0}
+                  onPaste={(event) => { void pasteImage(event); }}
+                >
+                  <p className="mb-2 text-sm font-medium">Ảnh bill</p>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {images.map((image, index) => (
+                      <div key={`${index}-${image.slice(0, 24)}`} className="relative">
+                        <img src={image} alt={`Ảnh bill ${index + 1}`} className="h-20 w-20 rounded-md border object-cover" />
+                        <button type="button" className="absolute right-1 top-1 rounded bg-card px-1 text-xs" onClick={() => setImages(images.filter((_, imageIndex) => imageIndex !== index))}>
+                          Xóa
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <Input type="file" accept="image/*" multiple onChange={(event) => { void addImages(event.target.files); event.target.value = ""; }} />
+                  <p className="mt-1 text-xs text-muted-foreground">Ctrl+V để dán ảnh bill vào ô này</p>
+                </div>
                 <div className="flex gap-2 sm:col-span-2">
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveCommercial(false); }}>Lưu</Button>
                   {canResend && <Button type="button" disabled={pending} onClick={() => { void saveCommercial(true); }}>Gửi lại</Button>}
                 </div>
               </>
             ) : (
-              <>
-                <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
-                <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
-                <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
-                <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
-                <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-                <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
-                <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
-                <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
-                <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
-                <p><span className="text-muted-foreground">Còn lại: </span>{money(contract.balance, contract.currency)}</p>
-              </>
+              <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
             )}
           </section>
 
@@ -654,7 +658,11 @@ function ContractDialog({
                     </NativeSelect>
                   </Field>
                 </div>
-                <div className="grid gap-2">
+                <div
+                  className="grid gap-2 rounded-lg border border-dashed p-3"
+                  tabIndex={canAccounting ? 0 : undefined}
+                  onPaste={canAccounting ? (event) => { void pasteImage(event); } : undefined}
+                >
                   <p className="text-sm font-medium">Ảnh về TK</p>
                   <div className="flex flex-wrap gap-2">
                     {images.map((image, index) => (
@@ -669,7 +677,10 @@ function ContractDialog({
                     ))}
                   </div>
                   {canAccounting && (
-                    <Input type="file" accept="image/*" multiple onChange={(event) => { addImages(event.target.files); event.target.value = ""; }} />
+                    <>
+                      <Input type="file" accept="image/*" multiple onChange={(event) => { void addImages(event.target.files); event.target.value = ""; }} />
+                      <p className="text-xs text-muted-foreground">Ctrl+V để dán ảnh vào ô này</p>
+                    </>
                   )}
                 </div>
                 {canAccounting && (

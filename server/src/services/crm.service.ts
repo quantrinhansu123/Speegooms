@@ -7,6 +7,7 @@ import type {
   PublicUser,
   QuoteDesk,
   QuoteTemplateInput,
+  SaleContractPaymentInput,
   UpdateMessageInput,
   UpdatePotentialInput,
   UpdateQuoteInput,
@@ -204,9 +205,10 @@ export class CrmService {
     return result;
   }
 
-  async updateCommercialContract(lane: CrmLane, id: string, input: CreateContractInput): Promise<ContractRecord> {
+  async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord> {
     const result = await this.ready().updateCommercialContract(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
+    if (result === "invalid") throw new AppError(400, "VALIDATION", "Số tiền thanh toán không được lớn hơn tổng giá trị");
     return result;
   }
 

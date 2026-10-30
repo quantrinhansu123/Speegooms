@@ -28,6 +28,9 @@ function contact(value: { phone: string; email: string }, ctx: z.RefinementCtx) 
   if (!value.phone && !value.email) {
     ctx.addIssue({ code: "custom", message: "Cần số điện thoại hoặc email", path: ["phone"] });
   }
+  if (value.phone && !/^\d+$/.test(value.phone)) {
+    ctx.addIssue({ code: "custom", message: "Số điện thoại chỉ được chứa số", path: ["phone"] });
+  }
   if (value.email && !z.string().email().safeParse(value.email).success) {
     ctx.addIssue({ code: "custom", message: "Email không đúng định dạng", path: ["email"] });
   }
@@ -138,6 +141,8 @@ const depositLine = text(300);
 
 export const quoteNotesSchema = z.object({
   totalLabel: text(300),
+  /** Nhãn dòng tổng chi phí vận chuyển (phần Logistics trên mẫu in). */
+  shippingLabel: text(300).default(""),
   weightNote: text(500),
   validityNote: text(500),
   deposit: z.union([
@@ -244,24 +249,42 @@ export const opsStatusOptions = [
   "Hủy đơn",
 ] as const;
 
+const contractImage = z.string().max(100_000).refine(
+  (value) => value.startsWith("data:image/") || /^https:\/\//.test(value),
+  "Ảnh không hợp lệ",
+);
+
 /** Cột J = tổng HĐ, cột O = kế toán xác nhận số tiền (sheet Hợp đồng). */
 export function contractPaymentFlags(input: {
   totalValue: number;
   confirmedAmount: number | null | undefined;
+  paidAmount?: number | null | undefined;
+  balance?: number | null | undefined;
   deliveryOn: string | null | undefined;
+  accountingStatus?: string | null | undefined;
+  opsStatus?: string | null | undefined;
   today?: string;
 }) {
+  const cancelled = input.opsStatus === "Hủy đơn";
   const total = Number.isFinite(input.totalValue) ? input.totalValue : 0;
   const confirmed = input.confirmedAmount == null || !Number.isFinite(input.confirmedAmount)
     ? 0
     : input.confirmedAmount;
-  const eligibleToShip = total > 0 && confirmed >= total * 0.5;
-  // Sheet ghi nhầm "M >= 100% J"; công thức thật dùng O >= 100% J.
-  const eligibleToDeliver = total > 0 && confirmed >= total;
+  const paid = input.paidAmount == null || !Number.isFinite(input.paidAmount) ? 0 : input.paidAmount;
+  const balance = input.balance == null || !Number.isFinite(input.balance) ? null : input.balance;
+  const status = input.accountingStatus ?? "";
+  const fullyPaidByStatus = status === "DA_HOAN_THANH_THANH_TOAN";
+  const depositDoneByStatus = status === "DA_HOAN_THANH_COC" || fullyPaidByStatus;
+  const settledByBalance = total > 0 && ((balance != null && balance <= 0) || paid >= total);
+  let effective = Math.max(confirmed, paid);
+  if (fullyPaidByStatus || settledByBalance) effective = Math.max(effective, total);
+  else if (depositDoneByStatus) effective = Math.max(effective, total * 0.5);
+  const eligibleToShip = !cancelled && total > 0 && effective >= total * 0.5;
+  const eligibleToDeliver = !cancelled && total > 0 && effective >= total;
   const deliveryOn = input.deliveryOn?.trim() || "";
   const today = (input.today ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
   let urgePayment = false;
-  if (deliveryOn && !eligibleToDeliver) {
+  if (!cancelled && deliveryOn && !eligibleToDeliver) {
     const delivery = Date.parse(`${deliveryOn}T00:00:00Z`);
     const now = Date.parse(`${today}T00:00:00Z`);
     if (Number.isFinite(delivery) && Number.isFinite(now)) {
@@ -281,6 +304,36 @@ export function contractPaymentFlags(input: {
 
 export const opsStatusSchema = z.enum(opsStatusOptions);
 
+function orderedContractDays(
+  value: {
+    chinaWarehouseOn: string;
+    containerOn: string;
+    arrivalOn: string;
+    deliveryOn: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const steps: Array<{ key: "chinaWarehouseOn" | "containerOn" | "arrivalOn" | "deliveryOn"; label: string; value: string }> = [
+    { key: "chinaWarehouseOn", label: "Ngày nhập kho TQ", value: value.chinaWarehouseOn },
+    { key: "containerOn", label: "Ngày xuất container", value: value.containerOn },
+    { key: "arrivalOn", label: "Ngày cập cảng đến", value: value.arrivalOn },
+    { key: "deliveryOn", label: "Ngày giao hàng dự kiến", value: value.deliveryOn },
+  ];
+  let previous: { label: string; value: string } | null = null;
+  for (const step of steps) {
+    if (!step.value) continue;
+    if (previous && step.value < previous.value) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${step.label} không được trước ${previous.label}`,
+        path: [step.key],
+      });
+      return;
+    }
+    previous = step;
+  }
+}
+
 export const opsContractSchema = z.object({
   opsStatus: z.union([z.literal(""), opsStatusSchema]),
   tracking: text(200),
@@ -291,15 +344,18 @@ export const opsContractSchema = z.object({
   arrivalOn: day,
   deliveryOn: day,
   send: z.boolean().optional(),
+}).superRefine(orderedContractDays);
+
+/** Sale chỉ cập nhật số đã thanh toán + ảnh bill; không sửa các cột thương mại khác. */
+export const saleContractPaymentSchema = z.object({
+  paidAmount: money,
+  images: z.array(contractImage).max(10, "Tối đa 10 ảnh"),
 });
 
 export const accountingContractSchema = z.object({
   confirmedAmount: money,
   accountingStatus: accountingStatusSchema,
-  images: z.array(z.string().max(100_000).refine(
-    (value) => value.startsWith("data:image/"),
-    "Ảnh không hợp lệ",
-  )).max(10, "Tối đa 10 ảnh"),
+  images: z.array(contractImage).max(10, "Tối đa 10 ảnh"),
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
@@ -328,5 +384,6 @@ export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;
+export type SaleContractPaymentInput = z.infer<typeof saleContractPaymentSchema>;
 export type OpsContractInput = z.infer<typeof opsContractSchema>;
 export type AccountingContractInput = z.infer<typeof accountingContractSchema>;
