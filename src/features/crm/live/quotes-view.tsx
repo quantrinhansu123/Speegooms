@@ -12,17 +12,19 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
+import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf } from "./quote-print";
 import { RowMenu } from "./row-menu";
+import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
 import {
   contractStatusOptions,
   customerKindOptions,
-  labelOf,
   quoteStatusOptions,
   type QuoteRecord,
   type QuoteTemplateRecord,
@@ -61,6 +63,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [editing, setEditing] = useState<QuoteRecord | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
+  const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
   const loadQuotes = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
@@ -198,21 +201,21 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id={`${desk}-quote-kind`} label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
         <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Loại khách</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Mẫu báo giá</th>
-              <th className="px-3 py-2 font-medium">Ghi chú VH</th>
-              <th className="px-3 py-2 font-medium">Trạng thái báo giá</th>
-              <th className="px-3 py-2 font-medium">Hợp đồng</th>
-              {desk === "sourcing" && <th className="px-3 py-2 font-medium">Logistics</th>}
-              <th className="px-3 py-2 font-medium">Ngày</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mẫu báo giá</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú VH</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái báo giá</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
+              {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -234,21 +237,30 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                 },
               ];
               return (
-                <tr key={row.id} className={row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" ? "border-b bg-amber-50 last:border-0" : "border-b last:border-0"}>
+                <tr
+                  key={row.id}
+                  data-row-id={row.id}
+                  className={cn(
+                    "border-b last:border-0",
+                    highlightId === row.id ? FOCUS_ROW_CLASS : row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" && "bg-amber-50",
+                  )}
+                >
                   <td className="px-3 py-3 font-medium">{row.code}</td>
                   <td className="px-3 py-3">
                     <p>{row.customerName || "—"}</p>
                     <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                   </td>
-                  <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
+                  <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                   <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
                   <td className="px-3 py-3">{row.templateName || "—"}</td>
                   <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>
-                  <td className="px-3 py-3">{labelOf(quoteStatusOptions, row.quoteStatus)}</td>
-                  <td className="px-3 py-3">{labelOf(contractStatusOptions, row.contractStatus)}</td>
+                  <td className="px-3 py-3"><QuoteStatusBadge value={row.quoteStatus} /></td>
+                  <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                   {desk === "sourcing" && (
                     <td className="px-3 py-3">
-                      {row.customerKind === "SOURCING_LOGISTICS" ? labelOf(quoteStatusOptions, row.logisticsSheet?.quoteStatus ?? null) : "—"}
+                      {row.customerKind === "SOURCING_LOGISTICS"
+                        ? <QuoteStatusBadge value={row.logisticsSheet?.quoteStatus} />
+                        : <span className="text-muted-foreground">—</span>}
                     </td>
                   )}
                   <td className="px-3 py-3">{shownDate(row.createdAt)}</td>

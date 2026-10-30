@@ -78,7 +78,7 @@ function kvTableWide(rows: [string, string][], columns = 2, emptyFallback?: [str
 
 function formatAmount(value: number | null, digits = 2): string {
   if (value == null) return "";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("vi-VN", {
     minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(digits, 2),
     maximumFractionDigits: digits,
   }).format(value);
@@ -126,15 +126,6 @@ function totalsConverted(lines: QuoteLine[], currency: QuoteCurrency, rate: numb
   return totals.priced ? vndEquivalent(totals.goods, currency, rate) : null;
 }
 
-function todayLabel(): string {
-  return new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date());
-}
-
 /** Một dòng số + đơn vị (số thẳng số, đơn vị thẳng đơn vị). */
 function numRow(amount: string, unit = ""): string {
   if (!amount && !unit) return "";
@@ -177,9 +168,6 @@ export function quoteSheetHtml(input: {
   const lines = input.lines.filter(filledLine);
   const converted = totalsConverted(lines, currency, input.rate ?? null);
   const totals = quoteTotals(lines);
-  const issuedOn = input.issuedOn?.trim() || todayLabel();
-  const code = input.code?.trim() || "";
-  const orderName = input.orderName?.trim() || "";
   const logoUrl = input.logoUrl?.trim() || SPEEGO_LOGO_DATA_URL;
 
   const rows = lines.map((line) => {
@@ -223,23 +211,26 @@ export function quoteSheetHtml(input: {
     ["Khách hàng", "—"],
   );
   const companyTable = kvTableWide(companyFields, 2);
-  const certTable = kvTableWide([
-    ["Mã báo giá", code || "—"],
-    ["Ngày lập", issuedOn],
-    ["Mẫu đơn hàng", orderName || "—"],
-    ["Loại tiền", currency],
-  ], 1);
 
+  const totalLabel = input.notes.totalLabel?.trim() || "Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển";
   const shippingLabel = input.notes.shippingLabel?.trim() ?? "";
   const weightNote = input.notes.weightNote?.trim() ?? "";
   const validityNote = input.notes.validityNote?.trim() ?? "";
   const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
 
   const cbmCell = totals.cbm > 0 ? numRow(formatAmount(totals.cbm, 3), "") : "";
+  const shippingAmount = (() => {
+    if (!shippingLabel) return "";
+    const parsed = Number(shippingLabel.replaceAll(/\s/g, "").replaceAll(".", "").replaceAll(",", "."));
+    if (Number.isFinite(parsed) && /^[\d\s.,]+$/.test(shippingLabel)) {
+      return numRow(formatAmount(parsed), "");
+    }
+    return escapeHtml(shippingLabel);
+  })();
   const summaryRows = [
     (totals.priced || weightNote)
       ? summaryRow(
-          "Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển",
+          totalLabel,
           {
             total: totals.priced ? numRow(formatAmount(totals.goods), "") : "",
             cbm: cbmCell,
@@ -249,8 +240,8 @@ export function quoteSheetHtml(input: {
       : "",
     shippingLabel
       ? summaryRow(
-          shippingLabel,
-          { cbm: cbmCell },
+          "Tổng chi phí vận chuyển",
+          { total: shippingAmount, cbm: cbmCell },
           validityNote,
         )
       : "",
@@ -291,10 +282,6 @@ export function quoteSheetHtml(input: {
         <strong>${escapeHtml(companyName)}</strong>
         ${companyTable}
       </div>
-    </div>
-    <div class="meta">
-      <p class="meta-heading">Thông tin chứng từ</p>
-      ${certTable}
     </div>
   </header>
   <div class="accent-bar" aria-hidden="true"></div>
@@ -375,17 +362,10 @@ export const quotePrintCss = `
   .sheet { width: 100%; }
 
   .masthead {
-    display: grid;
-    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
-    gap: 20px;
-    align-items: stretch;
+    display: block;
     padding-bottom: 10px;
-    border-bottom: 3px solid #082A59;
   }
-  .accent-bar {
-    height: 4px;
-    background: #F26522;
-  }
+  .accent-bar { display: none; }
   .brand {
     display: grid;
     grid-template-columns: 190px 1fr;
@@ -402,8 +382,7 @@ export const quotePrintCss = `
   }
   .company {
     min-width: 0;
-    border-left: 2px solid #F26522;
-    padding-left: 12px;
+    padding-left: 0;
   }
   .company strong {
     display: block;
@@ -415,23 +394,6 @@ export const quotePrintCss = `
   }
   .company .kv-label { width: 82px; }
   .company th { width: 82px; }
-  .meta {
-    min-width: 0;
-    padding: 8px 10px;
-    border: 1px solid #c5d0de;
-    background: #F6F8FC;
-  }
-  .meta-heading {
-    margin: 0 0 6px;
-    padding-bottom: 4px;
-    border-bottom: 2px solid #F26522;
-    color: #082A59;
-    font-size: 10pt;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    line-height: 1.25;
-  }
 
   table.kv {
     width: 100%;
@@ -473,23 +435,38 @@ export const quotePrintCss = `
   }
 
   .party {
-    border: 1px solid #c5d0de;
     background: #fff;
-    padding: 6px 8px;
+    padding: 0;
     min-width: 0;
     margin: 0 0 8px;
   }
   .party-wide { width: 100%; }
   .party h2 {
-    margin: 0 0 4px;
-    padding-bottom: 3px;
-    border-bottom: 2px solid #F26522;
+    margin: 0 0 6px;
+    padding-bottom: 0;
     color: #082A59;
     font-size: 9.5pt;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     line-height: 1.2;
+  }
+  .party table.kv {
+    border-collapse: collapse;
+  }
+  .party table.kv th,
+  .party table.kv td {
+    border: 1px solid #dbe3ee;
+    padding: 5px 8px;
+    background: #fff;
+  }
+  .party table.kv th {
+    background: #f7f9fc;
+    width: auto;
+    white-space: nowrap;
+  }
+  .party table.kv-wide td:nth-child(even) {
+    padding-right: 8px;
   }
 
   .banner {
@@ -501,7 +478,6 @@ export const quotePrintCss = `
     font-weight: 700;
     letter-spacing: 0.08em;
     text-align: center;
-    border-left: 6px solid #F26522;
   }
 
   table.items {
@@ -511,13 +487,13 @@ export const quotePrintCss = `
     font-size: 9pt;
   }
   .c-stt { width: 3.5%; }
-  .c-image { width: 13%; }
+  .c-image { width: 24%; }
   .c-qty { width: 7%; }
   .c-price { width: 9%; }
   .c-total { width: 11%; }
   .c-cbm { width: 7%; }
-  .c-spec { width: 28%; }
-  .c-info { width: 21.5%; }
+  .c-spec { width: 20%; }
+  .c-info { width: 18.5%; }
   table.items th,
   table.items td {
     border: 1px solid #c5d0de;
@@ -598,20 +574,26 @@ export const quotePrintCss = `
   table.items .image {
     text-align: center;
     padding: 6px;
-    vertical-align: top;
+    vertical-align: middle;
   }
   table.items .image-stack {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    justify-items: center;
+    align-items: center;
+  }
+  table.items .image-stack:has(> img:only-child) {
+    grid-template-columns: 1fr;
   }
   table.items .image img {
-    width: 132px;
-    max-width: 132px;
-    max-height: 132px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 88px;
     object-fit: contain;
+  }
+  table.items .image-stack:has(> img:only-child) img {
+    max-height: 120px;
   }
   table.items .wrap {
     white-space: pre-wrap;

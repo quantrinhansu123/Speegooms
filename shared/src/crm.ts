@@ -364,23 +364,30 @@ export const opsContractSchema = z.object({
   send: z.boolean().optional(),
 }).superRefine(orderedContractDays);
 
-/** Một lần khách chuyển khoản. */
+/** Một lần khách chuyển khoản (kèm ảnh bill của lần đó). */
 export const contractPaymentLineSchema = z.object({
   amount: money,
   paidOn: day,
   note: text(300),
+  images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần thanh toán").default([]),
 });
 
-/** Sale cập nhật các lần thanh toán + ảnh bill; không sửa các cột thương mại khác. */
+/** Sale cập nhật các lần thanh toán + ảnh bill theo từng lần; không sửa các cột thương mại khác. */
 export const saleContractPaymentSchema = z.object({
   payments: z.array(contractPaymentLineSchema).max(50, "Tối đa 50 lần thanh toán"),
-  images: z.array(contractImage).max(10, "Tối đa 10 ảnh"),
+});
+
+/** Một lần kế toán xác nhận số tiền (kèm ảnh về TK của lần đó). */
+export const accountingConfirmationLineSchema = z.object({
+  amount: money,
+  note: text(300),
+  images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần xác nhận").default([]),
 });
 
 export const accountingContractSchema = z.object({
-  confirmedAmount: money,
   accountingStatus: accountingStatusSchema,
-  images: z.array(contractImage).max(10, "Tối đa 10 ảnh"),
+  /** Nhiều lần xác nhận; tổng amount = số tiền kế toán xác nhận. */
+  confirmations: z.array(accountingConfirmationLineSchema).max(50, "Tối đa 50 lần xác nhận"),
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
@@ -412,4 +419,5 @@ export type CreateContractInput = z.infer<typeof createContractSchema>;
 export type ContractPaymentLineInput = z.infer<typeof contractPaymentLineSchema>;
 export type SaleContractPaymentInput = z.infer<typeof saleContractPaymentSchema>;
 export type OpsContractInput = z.infer<typeof opsContractSchema>;
+export type AccountingConfirmationLineInput = z.infer<typeof accountingConfirmationLineSchema>;
 export type AccountingContractInput = z.infer<typeof accountingContractSchema>;

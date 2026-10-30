@@ -60,7 +60,7 @@ export function TableHScroll({ children, className }: { children: ReactNode; cla
       >
         <div ref={spacerRef} className="h-3" />
       </div>
-      <div ref={bodyRef} className="overflow-x-auto" onScroll={onBodyScroll}>
+      <div ref={bodyRef} className="overflow-x-auto [&_th]:whitespace-nowrap" onScroll={onBodyScroll}>
         {children}
       </div>
     </div>

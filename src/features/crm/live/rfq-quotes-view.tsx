@@ -9,7 +9,9 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSession } from "@/features/auth/session-provider";
+import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor } from "./quote-editor";
@@ -17,7 +19,8 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
-import { contractStatusOptions, customerKindOptions, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
+import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
+import { contractStatusOptions, customerKindOptions, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const contractRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -118,6 +121,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const requestId = useRef(0);
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", deskFilter: "" });
+  const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
   const load = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
@@ -303,19 +307,19 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
         <table className="w-full min-w-[1080px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Loại khách</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Bàn</th>
-              <th className="px-3 py-2 font-medium">Trạng thái</th>
-              <th className="px-3 py-2 font-medium">Hợp đồng</th>
-              <th className="px-3 py-2 font-medium">Ngày</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Bàn</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -326,24 +330,34 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               const logistics = row.customerKind === "SOURCING_LOGISTICS" ? logisticsQuote(row) : null;
               const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
               return (
-              <tr key={row.id} className="border-b last:border-0">
+              <tr
+                key={row.id}
+                data-row-id={row.id}
+                className={cn("border-b last:border-0", highlightId === row.id && FOCUS_ROW_CLASS)}
+              >
                 <td className="px-3 py-3 font-medium">{row.code}</td>
                 <td className="px-3 py-3">
                   <p>{row.customerName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                 </td>
-                <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
+                <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="max-w-56 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
                 <td className="px-3 py-3">{row.customerKind === "SOURCING_LOGISTICS" ? "Sourcing + Logistics" : deskLabels[row.desk]}</td>
                 <td className="px-3 py-3">
                   {row.customerKind === "SOURCING_LOGISTICS" ? (
-                    <div>
-                      <p>Sourcing: {labelOf(quoteStatusOptions, row.quoteStatus)}</p>
-                      <p>Logistics: {labelOf(quoteStatusOptions, logistics?.quoteStatus ?? null)}</p>
+                    <div className="grid gap-1">
+                      <p className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Sourcing</span>
+                        <QuoteStatusBadge value={row.quoteStatus} />
+                      </p>
+                      <p className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Logistics</span>
+                        <QuoteStatusBadge value={logistics?.quoteStatus} />
+                      </p>
                     </div>
-                  ) : labelOf(quoteStatusOptions, row.quoteStatus)}
+                  ) : <QuoteStatusBadge value={row.quoteStatus} />}
                 </td>
-                <td className="px-3 py-3">{labelOf(contractStatusOptions, row.contractStatus)}</td>
+                <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                 <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
                 <td className="px-3 py-3">
                   <RowMenu

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead, markNotificationRead } from "./api";
+import { OPEN_CONTRACT_EVENT, type OpenContractDetail } from "./open-contract";
 import type { AppNotification } from "./types";
 
 const POLL_MS = 30_000;
@@ -20,6 +21,20 @@ function formatWhen(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+}
+
+/** Gắn `id` / `lane` vào href để mở đúng hợp đồng (kể cả thông báo cũ chỉ lưu list path). */
+function resolveHref(item: AppNotification): string {
+  if (!item.href) return item.href;
+  if (!item.refId) return item.href;
+  try {
+    const url = new URL(item.href, "http://local");
+    url.searchParams.set("id", item.refId);
+    if (item.lane) url.searchParams.set("lane", item.lane);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return item.href;
+  }
 }
 
 function badgeLabel(count: number): string {
@@ -86,7 +101,15 @@ export function NotificationMenu() {
         /* vẫn điều hướng */
       }
     }
-    if (item.href) router.push(item.href);
+    const href = resolveHref(item);
+    if (href) router.push(href);
+    if ((item.refType === "contract" || item.refType === "quote") && item.refId) {
+      window.dispatchEvent(
+        new CustomEvent<OpenContractDetail>(OPEN_CONTRACT_EVENT, {
+          detail: { id: item.refId, lane: item.lane, refType: item.refType },
+        }),
+      );
+    }
   };
 
   const onMarkAll = async () => {

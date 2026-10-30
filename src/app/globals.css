@@ -166,6 +166,12 @@
   }
 }
 
+/* Ngoài @layer để chắc chắn thắng preflight: tiêu đề cột không xuống dòng */
+thead th,
+th {
+  white-space: nowrap;
+}
+
 .workspace-scroll {
   scroll-padding-top: 1rem;
   scrollbar-width: thin;

@@ -542,6 +542,7 @@ type ContractRow = {
   confirmed_back_at: Date | string | null;
   confirmed_amount: string | number | null;
   accounting_status: string | null;
+  confirmations: unknown;
   images: unknown;
   sent_ops_body: unknown;
   sent_accounting_body: unknown;
@@ -580,11 +581,28 @@ const opsSnapshotSql = `coalesce(ban_gui_van_hanh, '{}'::jsonb) || jsonb_build_o
 const accountingSnapshotSql = `jsonb_build_object(
   'confirmedAmount', so_tien_xac_nhan,
   'accountingStatus', trang_thai_ke_toan,
+  'confirmations', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'amount', x.so_tien,
+      'note', coalesce(x.ghi_chu, ''),
+      'images', coalesce(x.anh, '[]'::jsonb)
+    ) order by x.thu_tu)
+    from crm.hop_dong_dong_xac_nhan x
+    where x.ma_hop_dong = crm.hop_dong.id
+  ), '[]'::jsonb),
   'images', coalesce((
+    select jsonb_agg(img order by thu_tu, idx)
+    from (
+      select x.thu_tu, ordinality as idx, img
+      from crm.hop_dong_dong_xac_nhan x
+      cross join lateral jsonb_array_elements_text(coalesce(x.anh, '[]'::jsonb)) with ordinality as t(img, ordinality)
+      where x.ma_hop_dong = crm.hop_dong.id
+    ) flat
+  ), coalesce((
     select jsonb_agg(b.duong_dan order by b.thu_tu)
     from crm.hop_dong_anh_bill b
     where b.ma_hop_dong = crm.hop_dong.id
-  ), '[]'::jsonb),
+  ), '[]'::jsonb)),
   'opsStatus', coalesce(trang_thai_van_hanh, ''),
   'tracking', coalesce(ban_gui_ke_toan->>'tracking', ''),
   'note1', coalesce(ban_gui_ke_toan->>'note1', ''),
@@ -611,6 +629,7 @@ function contractSelect(): string {
          h.gui_ke_toan_luc as sent_to_accounting_at, h.gui_van_hanh_luc as sent_to_ops_at,
          h.gui_xac_nhan_luc as confirmed_back_at, h.so_tien_xac_nhan as confirmed_amount,
          h.trang_thai_ke_toan::text as accounting_status,
+         coalesce(confs.confirmations, '[]'::jsonb) as confirmations,
          coalesce(imgs.images, '[]'::jsonb) as images,
          h.ban_gui_van_hanh as sent_ops_body, h.ban_gui_ke_toan as sent_accounting_body,
          h.ban_gui_xac_nhan as sent_parties_body, h.tao_luc as created_at, h.cap_nhat_luc as updated_at
@@ -624,11 +643,21 @@ function contractSelect(): string {
     select jsonb_agg(jsonb_build_object(
       'amount', d.so_tien,
       'paidOn', to_char(d.ngay_chuyen, 'YYYY-MM-DD'),
-      'note', coalesce(d.ghi_chu, '')
+      'note', coalesce(d.ghi_chu, ''),
+      'images', coalesce(d.anh_bill, '[]'::jsonb)
     ) order by d.thu_tu) as payments
     from crm.hop_dong_dong_thanh_toan d
     where d.ma_hop_dong = h.id
   ) pays on true
+  left join lateral (
+    select jsonb_agg(jsonb_build_object(
+      'amount', x.so_tien,
+      'note', coalesce(x.ghi_chu, ''),
+      'images', coalesce(x.anh, '[]'::jsonb)
+    ) order by x.thu_tu) as confirmations
+    from crm.hop_dong_dong_xac_nhan x
+    where x.ma_hop_dong = h.id
+  ) confs on true
 `;
 }
 
@@ -661,13 +690,37 @@ function paymentList(value: unknown): ContractRecord["payments"] {
     const amount = typeof row.amount === "number" || typeof row.amount === "string" ? moneyValue(row.amount) : 0;
     const paidOn = typeof row.paidOn === "string" && row.paidOn ? row.paidOn.slice(0, 10) : null;
     const note = typeof row.note === "string" ? row.note : "";
-    return [{ amount, paidOn, note }];
+    const images = imageList(row.images);
+    return [{ amount, paidOn, note, images }];
+  });
+}
+
+function confirmationList(value: unknown): ContractRecord["confirmations"] {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as Record<string, unknown>;
+    const amount = typeof row.amount === "number" || typeof row.amount === "string" ? moneyValue(row.amount) : 0;
+    const note = typeof row.note === "string" ? row.note : "";
+    const images = imageList(row.images);
+    return [{ amount, note, images }];
   });
 }
 
 function toContract(row: ContractRow): ContractRecord {
   const payments = paymentList(row.payments);
   const paidAmount = moneyValue(row.paid_amount);
+  const confirmations = confirmationList(row.confirmations);
+  const confirmedAmount = row.confirmed_amount == null ? null : moneyValue(row.confirmed_amount);
+  const confirmationImages = confirmations.flatMap((line) => line.images);
   return {
     id: row.id,
     code: row.code,
@@ -684,7 +737,11 @@ function toContract(row: ContractRow): ContractRecord {
     shippingCost: moneyValue(row.shipping_cost),
     totalValue: moneyValue(row.total_value),
     paidAmount,
-    payments: payments.length > 0 ? payments : paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "" }] : [],
+    payments: payments.length > 0
+      ? payments
+      : paidAmount > 0
+        ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }]
+        : [],
     balance: moneyValue(row.balance),
     signedOn: dayText(row.signed_on),
     opsStatus: row.ops_status ?? "",
@@ -698,9 +755,18 @@ function toContract(row: ContractRow): ContractRecord {
     sentToAccountingAt: row.sent_to_accounting_at ? stamp(row.sent_to_accounting_at) : null,
     sentToOpsAt: row.sent_to_ops_at ? stamp(row.sent_to_ops_at) : null,
     confirmedBackAt: row.confirmed_back_at ? stamp(row.confirmed_back_at) : null,
-    confirmedAmount: row.confirmed_amount == null ? null : moneyValue(row.confirmed_amount),
+    confirmedAmount,
     accountingStatus: row.accounting_status,
-    images: imageList(row.images),
+    confirmations: confirmations.length > 0
+      ? confirmations
+      : confirmedAmount != null && confirmedAmount > 0
+        ? [{ amount: confirmedAmount, note: "", images: imageList(row.images) }]
+        : [],
+    images: (() => {
+      if (confirmationImages.length > 0) return confirmationImages;
+      const fromPayments = payments.flatMap((line) => line.images);
+      return fromPayments.length > 0 ? fromPayments : imageList(row.images);
+    })(),
     createdAt: stamp(row.created_at),
     updatedAt: stamp(row.updated_at),
   };
@@ -767,7 +833,7 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     shippingCost: snapMoney(source, "shippingCost"),
     totalValue: snapMoney(source, "totalValue"),
     paidAmount,
-    payments: paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "" }] : [],
+    payments: paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }] : [],
     balance: snapMoney(source, "balance"),
     signedOn: snapNullableText(source, "signedOn"),
   };
@@ -787,13 +853,21 @@ function applyOpsDetails(base: ContractRecord, source: Record<string, unknown> |
 }
 
 function applyAccounting(base: ContractRecord, source: Record<string, unknown> | null): ContractRecord {
-  if (!source) return { ...base, confirmedAmount: null, accountingStatus: null, images: [] };
+  if (!source) return { ...base, confirmedAmount: null, accountingStatus: null, confirmations: [], images: [] };
   const amount = source.confirmedAmount;
+  const confirmations = confirmationList(source.confirmations);
+  const confirmedAmount = amount == null || amount === "" ? null : moneyValue(typeof amount === "number" || typeof amount === "string" ? amount : null);
+  const images = confirmations.flatMap((line) => line.images);
   return {
     ...base,
-    confirmedAmount: amount == null || amount === "" ? null : moneyValue(typeof amount === "number" || typeof amount === "string" ? amount : null),
+    confirmedAmount,
     accountingStatus: typeof source.accountingStatus === "string" ? source.accountingStatus : null,
-    images: imageList(source.images),
+    confirmations: confirmations.length > 0
+      ? confirmations
+      : confirmedAmount != null && confirmedAmount > 0
+        ? [{ amount: confirmedAmount, note: "", images: imageList(source.images) }]
+        : [],
+    images: images.length > 0 ? images : imageList(source.images),
   };
 }
 
@@ -809,6 +883,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
       ...projected,
       confirmedAmount: live.confirmedAmount,
       accountingStatus: live.accountingStatus,
+      confirmations: live.confirmations,
       images: live.images,
     };
   }
@@ -824,6 +899,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
       currency: live.currency,
       confirmedAmount: live.confirmedAmount,
       accountingStatus: live.accountingStatus,
+      confirmations: live.confirmations,
       images: live.images,
       deliveryOn: live.deliveryOn,
       opsStatus: live.opsStatus,
@@ -835,6 +911,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
     opsStatus: live.opsStatus,
     confirmedAmount: live.confirmedAmount,
     accountingStatus: live.accountingStatus,
+    confirmations: live.confirmations,
     images: live.images,
   };
 }
@@ -1568,16 +1645,31 @@ export class PostgresCrmRepository implements CrmRepository {
     const current = await this.findContractById(lane, id, "accounting");
     if (!current) return "missing" as const;
     if (!current.sentToAccountingAt) return "pending" as const;
+    const confirmations = input.confirmations.filter(
+      (line) => line.amount > 0 || line.note || line.images.length > 0,
+    );
+    const confirmedAmount = confirmations.reduce((sum, line) => sum + line.amount, 0);
     const updated = await this.query(
       `update crm.hop_dong set
          so_tien_xac_nhan = $3,
          trang_thai_ke_toan = $4::crm.trang_thai_xac_nhan_ke_toan
        where id = $1::uuid and tuyen = $2`,
-      [id, lane, input.confirmedAmount, input.accountingStatus],
+      [id, lane, confirmedAmount, input.accountingStatus],
     );
     if (!updated.rowCount) return "missing" as const;
+    await this.query(`delete from crm.hop_dong_dong_xac_nhan where ma_hop_dong = $1::uuid`, [id]);
+    const flatImages: string[] = [];
+    for (const [index, line] of confirmations.entries()) {
+      await this.query(
+        `insert into crm.hop_dong_dong_xac_nhan (ma_hop_dong, so_tien, ghi_chu, thu_tu, anh)
+         values ($1::uuid, $2, $3, $4, $5::jsonb)`,
+        [id, line.amount, blank(line.note), index + 1, JSON.stringify(line.images)],
+      );
+      flatImages.push(...line.images);
+    }
+    // Giữ bảng ảnh hợp đồng đồng bộ cho snapshot / danh sách cũ.
     await this.query(`delete from crm.hop_dong_anh_bill where ma_hop_dong = $1::uuid`, [id]);
-    for (const [index, image] of input.images.entries()) {
+    for (const [index, image] of flatImages.entries()) {
       await this.query(
         `insert into crm.hop_dong_anh_bill (ma_hop_dong, duong_dan, thu_tu) values ($1::uuid, $2, $3)`,
         [id, image, index + 1],
@@ -1589,7 +1681,9 @@ export class PostgresCrmRepository implements CrmRepository {
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
     const current = await this.findContractById(lane, id, "sale");
     if (!current) return "missing" as const;
-    const payments = input.payments.filter((line) => line.amount > 0 || line.paidOn || line.note);
+    const payments = input.payments.filter(
+      (line) => line.amount > 0 || line.paidOn || line.note || line.images.length > 0,
+    );
     const paidAmount = payments.reduce((sum, line) => sum + line.amount, 0);
     if (paidAmount > current.totalValue) return "invalid" as const;
     const updated = await this.query(
@@ -1599,15 +1693,18 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     if (!updated.rowCount) return "missing" as const;
     await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
+    const flatImages: string[] = [];
     for (const [index, line] of payments.entries()) {
       await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu)
-         values ($1::uuid, $2, $3::date, $4, $5)`,
-        [id, line.amount, line.paidOn || null, blank(line.note), index + 1],
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu, anh_bill)
+         values ($1::uuid, $2, $3::date, $4, $5, $6::jsonb)`,
+        [id, line.amount, line.paidOn || null, blank(line.note), index + 1, JSON.stringify(line.images)],
       );
+      flatImages.push(...line.images);
     }
+    // Giữ bảng ảnh hợp đồng đồng bộ (danh sách / snapshot kế toán đọc từ đây).
     await this.query(`delete from crm.hop_dong_anh_bill where ma_hop_dong = $1::uuid`, [id]);
-    for (const [index, image] of input.images.entries()) {
+    for (const [index, image] of flatImages.entries()) {
       await this.query(
         `insert into crm.hop_dong_anh_bill (ma_hop_dong, duong_dan, thu_tu) values ($1::uuid, $2, $3)`,
         [id, image, index + 1],

@@ -17,7 +17,8 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { TableHScroll } from "./table-h-scroll";
-import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
+import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
+import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, potentialOptions, type PotentialRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const sourceOptions = [
@@ -216,31 +217,31 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="lead-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
       </ListSearchBar>
       <TableHScroll>
-        <table className="w-full min-w-[1680px] text-sm">
+        <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Công ty</th>
-              <th className="px-3 py-2 font-medium">Số điện thoại</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Mess</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Công ty</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Số điện thoại</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Email</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mess</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nguồn</th>
-              <th className="px-3 py-2 font-medium">Giai đoạn</th>
-              <th className="px-3 py-2 font-medium">Loại khách</th>
-              <th className="px-3 py-2 font-medium">Đối tượng</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Số lượng</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ</th>
-              <th className="px-3 py-2 font-medium">Ghi chú sale</th>
-              <th className="px-3 py-2 font-medium">Kênh chăm sóc</th>
-              <th className="px-3 py-2 font-medium">Phân loại</th>
-              <th className="px-3 py-2 font-medium">Quy cách</th>
-              <th className="px-3 py-2 font-medium">Trọng lượng</th>
-              <th className="px-3 py-2 font-medium">Phân loại logistics</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ gửi</th>
-              <th className="px-3 py-2 font-medium">Địa chỉ nhận</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Giai đoạn</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Số lượng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Địa chỉ</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú sale</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Kênh chăm sóc</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Quy cách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trọng lượng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại logistics</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Địa chỉ gửi</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Địa chỉ nhận</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -254,15 +255,15 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3">{row.email || "—"}</td>
                 <td className="px-3 py-3">{row.messCode ?? "—"}</td>
                 <td className="whitespace-nowrap px-3 py-3"><BrandTag brand={row.brand} /></td>
-                <td className="px-3 py-3">{labelOf(potentialOptions, row.potential)}</td>
-                <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
-                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
+                <td className="px-3 py-3"><PotentialStatusBadge value={row.potential} /></td>
+                <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
+                <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.productInterest} linkMess={row.linkMess} className="truncate" /></td>
                 <td className="px-3 py-3">{row.quantityNote || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.address} linkMess={row.linkMess} className="truncate" /></td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.saleNote} linkMess={row.linkMess} className="truncate" /></td>
-                <td className="px-3 py-3"><MessLinkedCell value={row.careChannel} linkMess={row.linkMess} /></td>
-                <td className="px-3 py-3">{row.classification || "—"}</td>
+                <td className="px-3 py-3"><CareChannelBadge value={row.careChannel} /></td>
+                <td className="px-3 py-3"><LogisticsClassBadge value={row.classification} /></td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.weightKg == null ? undefined : String(row.weightKg)}>{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.logisticsClass ?? undefined}>{row.logisticsClass || "—"}</td>
@@ -285,23 +286,25 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       </TableHScroll>
 
       <Dialog open={draft !== null} onOpenChange={(openDialog) => { if (!openDialog) { setDraft(null); setEditing(null); } }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Sửa khách hàng tiềm năng</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="grid max-h-[60vh] gap-3 overflow-y-auto pr-1">
-              {formError && <InlineAlert>{formError}</InlineAlert>}
+            <div className="grid max-h-[min(68vh,720px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+              {formError && <div className="sm:col-span-2"><InlineAlert>{formError}</InlineAlert></div>}
               <Field label="Tên khách" htmlFor="pot-name" required>
                 <Input id="pot-name" value={draft.fullName} onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} />
               </Field>
               <Field label="Công ty" htmlFor="pot-company">
                 <Input id="pot-company" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Số điện thoại" htmlFor="pot-phone"><Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
-                <Field label="Email" htmlFor="pot-email"><Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
-              </div>
+              <Field label="Số điện thoại" htmlFor="pot-phone">
+                <Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
+              </Field>
+              <Field label="Email" htmlFor="pot-email">
+                <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
+              </Field>
               <Field label="Nguồn" htmlFor="pot-brand">
                 <NativeSelect id="pot-brand" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
                   <option value="">Chưa chọn</option>
@@ -332,7 +335,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               >
                 <Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} />
               </Field>
-              <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
+              <Field label="Số lượng" htmlFor="pot-qty">
+                <Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} />
+              </Field>
               <Field
                 label="Địa chỉ"
                 htmlFor="pot-address"
@@ -357,20 +362,20 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              {editing?.linkMess && /^https?:\/\//i.test(editing.linkMess) && (
-                <p className="text-sm">
-                  <a href={editing.linkMess} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                    Mở link mess
-                  </a>
-                </p>
-              )}
               <Field label="Phân loại" htmlFor="pot-class">
                 <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack">
+              {editing?.linkMess && /^https?:\/\//i.test(editing.linkMess) && (
+                <p className="text-sm sm:col-span-2">
+                  <a href={editing.linkMess} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    Mở link mess
+                  </a>
+                </p>
+              )}
+              <Field label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack" className="sm:col-span-2">
                 <Textarea id="pot-pack" rows={3} value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} />
               </Field>
               <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">

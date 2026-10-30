@@ -10,7 +10,9 @@ import { ListView } from "@/components/shared/list-view";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { StatCard, type StatCardProps } from "@/components/shared/stat-card";
+import type { StatusTone } from "@/types/status";
 import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
 import { CRM_TODAY, roleRouteScope, sourceLabels } from "@/config/crm";
@@ -22,6 +24,13 @@ import { date, sourceMetrics } from "@/services/backoffice/rules";
 import { delayDays } from "@/services/ops/rules";
 
 interface WorkItem { id: string; title: string; due: string; status: string; href: string }
+
+function workStatusTone(status: string): StatusTone {
+  if (/quá hạn|hủy|nguy/i.test(status)) return "danger";
+  if (/chờ|cần|rà soát|đề xuất/i.test(status)) return "warning";
+  if (/duyệt|hoàn|xong|đã/i.test(status)) return "success";
+  return "info";
+}
 
 /** Icon cho thẻ KPI theo từ khóa trong nhãn; thứ tự khớp từ cụ thể đến chung. */
 const cardIcons: [RegExp, LucideIcon][] = [
@@ -122,7 +131,7 @@ export function RoleDashboard() {
         { key: "name", header: "Nguồn", cell: (r) => sourceLabels[r.source] }, { key: "lead", header: "Lead", cell: (r) => r.leads, align: "right" }, { key: "rfq", header: "Lead có RFQ", cell: (r) => r.rfq, align: "right" }, { key: "order", header: "Lead có đơn", cell: (r) => r.orders, align: "right" }, { key: "rate", header: "Lead → đơn", cell: (r) => `${formatNumber(r.orderRate)}%`, align: "right" },
       ]} /></SectionCard>}
       <ListView headingLevel={2} title="Công việc cần theo dõi" description="Hàng đợi hiện tại theo role; ưu tiên việc quá hạn. Không bị lọc theo kỳ của các thẻ chỉ số." rows={work} getRowId={(w) => w.id} searchLabel="Tìm công việc" searchPlaceholder="Tìm mã, nội dung, trạng thái…" searchText={(w) => [w.id, w.title, w.status]} sort={(a, b) => (a.due || "9999").localeCompare(b.due || "9999")} columns={[
-        { key: "title", header: "Công việc", cell: (w) => <Link className="font-medium text-primary hover:underline" href={w.href}>{w.title}</Link> }, { key: "status", header: "Trạng thái", cell: (w) => w.status }, { key: "due", header: "Mốc ngày / hạn", cell: (w) => w.due ? formatDate(w.due) : "Chưa có hạn" },
+        { key: "title", header: "Công việc", cell: (w) => <Link className="font-medium text-primary hover:underline" href={w.href}>{w.title}</Link> }, { key: "status", header: "Trạng thái", cell: (w) => <StatusBadge tone={workStatusTone(w.status)}>{w.status}</StatusBadge> }, { key: "due", header: "Mốc ngày / hạn", cell: (w) => w.due ? formatDate(w.due) : "Chưa có hạn" },
       ]} />
     </>}
   </>;

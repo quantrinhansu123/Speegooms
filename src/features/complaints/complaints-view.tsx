@@ -21,6 +21,7 @@ import { useBackoffice } from "@/features/backoffice/hooks";
 import { FormDialog } from "@/features/backoffice/form-dialog";
 import { useOps } from "@/features/operations/hooks";
 import { HistoryList } from "@/features/operations/components/history-list";
+import { UncontrolledMoneyInput } from "@/components/shared/money-input";
 import { formatDate, formatVnd } from "@/lib/format";
 import users from "@/mocks/users.json";
 import { canApprove, canWrite, categories, complaintTransitions, priorities } from "@/services/backoffice/rules";
@@ -105,7 +106,7 @@ function CompensationCard({ ticket }: { ticket: Complaint }) {
     <div className="mb-4 flex flex-wrap items-center gap-3"><StatusBadge tone={ticket.compensation.status === "cho-duyet" ? "warning" : "neutral"}>{compensationLabels[ticket.compensation.status]}</StatusBadge><strong>{formatVnd(ticket.compensation.amount)}</strong></div>
     {ticket.compensation.reason && <p className="mb-4 whitespace-pre-wrap text-sm">{ticket.compensation.reason}</p>}
     {canWrite(user.role, "complaints") && !["moi", "hoan-tat"].includes(ticket.status) && ["chua", "tu-choi"].includes(ticket.compensation.status) && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setMessage(actions.proposeCompensation(user, ticket.id, { amount: Number(f.get("amount")), reason: String(f.get("reason")) })); }}>
-      <Field label="Số tiền đề xuất (VND)" htmlFor="comp-amount" required><Input id="comp-amount" name="amount" type="number" min="1" max="1000000000000" step="1" required /></Field>
+      <Field label="Số tiền đề xuất (VND)" htmlFor="comp-amount" required><UncontrolledMoneyInput id="comp-amount" name="amount" required /></Field>
       <Field label="Căn cứ đề xuất" htmlFor="comp-reason" required><Textarea id="comp-reason" name="reason" maxLength={2000} required /></Field><Button type="submit" variant="outline"><Send /> Gửi đề xuất đền bù</Button>
     </form>}
     {canApprove(user.role) && ticket.compensation.status === "cho-duyet" && <div className="space-y-3">

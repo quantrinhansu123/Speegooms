@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { SectionCard } from "@/components/shared/section-card";
 import { approvalMeta, simulatedApprovals } from "@/config/crm";
+import { MoneyInput } from "@/components/shared/money-input";
 import { formatDate, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { quoteNeedsApproval, quoteTotals } from "@/services/crm/rules";
@@ -50,11 +51,11 @@ function LinesEditor({
             <div key={l.id} className="grid grid-cols-12 gap-2 rounded-lg border bg-background p-2.5">
               <Input aria-label={`${title} dòng ${i + 1}: mô tả`} className="col-span-12 h-9 sm:col-span-6" placeholder="Mô tả" disabled={disabled} value={l.label} onChange={(e) => set(i, { label: e.target.value })} />
               <Input aria-label={`${title} dòng ${i + 1}: số lượng`} type="number" min={0} className="col-span-4 h-9 sm:col-span-2" placeholder="SL" disabled={disabled} value={l.quantity} onChange={(e) => set(i, { quantity: Number(e.target.value) })} />
-              <Input aria-label={`${title} dòng ${i + 1}: đơn giá`} type="number" min={0} className="col-span-8 h-9 sm:col-span-4" placeholder="Đơn giá" disabled={disabled} value={l.unitPrice} onChange={(e) => set(i, { unitPrice: Number(e.target.value) })} />
+              <MoneyInput aria-label={`${title} dòng ${i + 1}: đơn giá`} className="col-span-8 h-9 sm:col-span-4" placeholder="Đơn giá" disabled={disabled} value={l.unitPrice} onValueChange={(unitPrice) => set(i, { unitPrice: unitPrice ?? 0 })} />
               <div className="col-span-12 flex items-center justify-between gap-2 text-xs text-muted-foreground sm:col-span-12">
                 <label className="flex items-center gap-1.5">
                   Giá vốn nội bộ
-                  <Input aria-label={`${title} dòng ${i + 1}: giá vốn`} type="number" min={0} className="h-7 w-32" disabled={disabled} value={l.costPrice ?? ""} onChange={(e) => set(i, { costPrice: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                  <MoneyInput aria-label={`${title} dòng ${i + 1}: giá vốn`} className="h-7 w-32" disabled={disabled} value={l.costPrice ?? null} onValueChange={(costPrice) => set(i, { costPrice: costPrice ?? undefined })} />
                 </label>
                 <span className="tabular font-medium text-foreground">{formatMoney(l.quantity * l.unitPrice, currency)}</span>
                 {!disabled && (

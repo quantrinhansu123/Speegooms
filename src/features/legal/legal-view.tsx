@@ -61,8 +61,8 @@ export function LegalReviewsView() {
       columns={[
         { key: "name", header: "Hồ sơ", cell: (r) => <div><p className="font-medium">{r.name}</p><p className="text-xs text-muted-foreground">{r.id} · {r.orderId}</p></div> },
         { key: "type", header: "Loại", cell: (r) => r.type === "hop-dong" ? "Hợp đồng" : "Chứng từ" },
-        { key: "origin", header: "Trạng thái gốc", cell: (r) => r.originStatus },
-        { key: "review", header: "Rà soát pháp lý", cell: (r) => r.ticket ? <LegalBadge status={r.ticket.status} /> : <StatusBadge>Chưa có yêu cầu</StatusBadge> },
+        { key: "origin", header: "Trạng thái gốc", cell: (r) => <StatusBadge tone={/hủy|chưa|chờ/i.test(r.originStatus) ? "warning" : /đã|hoàn|ký/i.test(r.originStatus) ? "success" : "info"}>{r.originStatus}</StatusBadge> },
+        { key: "review", header: "Rà soát pháp lý", cell: (r) => r.ticket ? <LegalBadge status={r.ticket.status} /> : <StatusBadge tone="neutral">Chưa có yêu cầu</StatusBadge> },
         { key: "action", header: "Thao tác", cell: (r) => r.ticket ? null : canWrite(user.role, "legal") ? <Button size="sm" variant="outline" onClick={() => setCreating({ refId: r.id, refType: r.type })}><ShieldCheck /> Yêu cầu rà soát</Button> : "—" },
       ]} />
     {creating && <LegalRequestForm initial={creating} onClose={() => setCreating(undefined)} />}

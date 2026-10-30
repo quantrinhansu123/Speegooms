@@ -21,8 +21,11 @@ import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-field
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
+import { MoneyInput } from "@/components/shared/money-input";
+import { formatMoneyGrouped } from "@/lib/format";
 import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
@@ -57,7 +60,7 @@ function packagesSummary(packages: QuoteLine["packages"]): string {
 }
 
 function money(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+  return formatMoneyGrouped(value);
 }
 
 function safeImage(value: string): string {
@@ -148,15 +151,15 @@ function OrderLines({
         <table className="w-full min-w-[1180px] text-xs">
           <thead>
             <tr className="border-b bg-muted/50 text-left">
-              <th className="px-2 py-2 font-medium">STT</th>
-              <th className="min-w-[180px] px-2 py-2 font-medium">Hình ảnh</th>
-              <th className="px-2 py-2 font-medium">Số lượng / đơn vị</th>
-              <th className="px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
-              <th className="px-2 py-2 font-medium">Tổng tiền hàng ({currency})</th>
-              <th className="px-2 py-2 font-medium">Cân nặng (KG)</th>
-              <th className="px-2 py-2 font-medium">Thông số</th>
-              <th className="px-2 py-2 font-medium">Note</th>
-              <th className="px-2 py-2" />
+              <th className="whitespace-nowrap px-2 py-2 font-medium">STT</th>
+              <th className="min-w-[180px] whitespace-nowrap px-2 py-2 font-medium">Hình ảnh</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Số lượng / đơn vị</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Tổng tiền hàng ({currency})</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Cân nặng (KG)</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Thông số</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Note</th>
+              <th className="whitespace-nowrap px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -261,13 +264,13 @@ function OrderLines({
                 </td>
                 <td className="px-2 py-2">
                   <div className="grid w-36 gap-1">
-                    <Input className="h-8" inputMode="decimal" aria-label={`Đơn giá dòng ${index + 1}`} value={amountText(line.pricePerSet)} disabled={!canEditPricing} onChange={(event) => updateLine(index, { pricePerSet: amountValue(event.target.value) })} />
+                    <MoneyInput className="h-8" aria-label={`Đơn giá dòng ${index + 1}`} value={line.pricePerSet} disabled={!canEditPricing} onValueChange={(pricePerSet) => updateLine(index, { pricePerSet })} />
                     <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
                       {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                     </NativeSelect>
                   </div>
                 </td>
-                <td className="px-2 py-2"><Input className="h-8 w-24" inputMode="decimal" value={amountText(line.lineTotal)} disabled={!canEditPricing} onChange={(event) => updateLine(index, { lineTotal: amountValue(event.target.value) })} /></td>
+                <td className="px-2 py-2"><MoneyInput className="h-8 w-24" value={line.lineTotal} disabled={!canEditPricing} onValueChange={(lineTotal) => updateLine(index, { lineTotal })} /></td>
                 <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEditContent} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} /></td>
                 <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.spec} disabled={!canEditContent} onChange={(event) => updateLine(index, { spec: event.target.value })} /></td>
                 <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.note} disabled={!canEditContent} onChange={(event) => updateLine(index, { note: event.target.value })} /></td>
@@ -568,152 +571,178 @@ export function QuoteEditor({
     </>
   );
 
+  const tabTriggerClass =
+    "h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-[15px] font-semibold text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground";
+  const tabPanelClass = embedded
+    ? "mt-3 space-y-4"
+    : "mt-3 max-h-[min(58vh,640px)] space-y-4 overflow-y-auto pr-1";
+
   const sheet = (
     <>
-      <div className={embedded ? "grid gap-4" : "grid max-h-[68vh] gap-4 overflow-y-auto pr-1"}>
-            {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
-            {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
-            {mode === "content" && (
-              <InlineAlert>
-                Sale điền ảnh, số lượng, quy cách đóng gói. Mua hàng liên hệ xưởng bổ sung thuộc tính chi tiết. Vận hành nhìn thông tin này để báo giá (đơn giá).
-              </InlineAlert>
-            )}
-            <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
-              <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
-              <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
-              <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
-              <p><span className="text-muted-foreground">SĐT: </span>{quote.phone || "—"}</p>
-              <p className="sm:col-span-2"><span className="text-muted-foreground">Email: </span>{quote.email || "—"}</p>
-            </div>
+      {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
+      {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
+      {mode === "content" && (
+        <InlineAlert>
+          Sale điền ảnh, số lượng, quy cách đóng gói. Mua hàng liên hệ xưởng bổ sung thuộc tính chi tiết. Vận hành nhìn thông tin này để báo giá (đơn giá).
+        </InlineAlert>
+      )}
+      <Tabs defaultValue="don-hang" className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
+        <TabsList className="h-auto min-h-0 w-full flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
+          {([
+            ["don-hang", "Đơn hàng"],
+            ["ghi-chu", "Ghi chú"],
+            ["thanh-toan", "Thanh toán"],
+          ] as const).map(([value, label]) => (
+            <TabsTrigger key={value} value={value} className={tabTriggerClass}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-            <div className="grid gap-2">
+        <TabsContent value="don-hang" className={tabPanelClass}>
+          <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
+            <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
+            <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
+            <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
+            <p><span className="text-muted-foreground">SĐT: </span>{quote.phone || "—"}</p>
+            <p className="sm:col-span-2"><span className="text-muted-foreground">Email: </span>{quote.email || "—"}</p>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-medium">Thông tin đơn hàng</h3>
+              {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
+            </div>
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50 text-left">
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Chọn</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Tên mẫu</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Số dòng</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Tiền tệ</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền hàng</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.length === 0 && (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                  )}
+                  {orders.map((order) => {
+                    const totals = quoteTotals(order.lines);
+                    return (
+                      <tr key={order.id} className="border-b last:border-0">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            className="size-4 accent-primary"
+                            checked={order.selected}
+                            disabled={!canEditPricing || pending}
+                            aria-label={`Chọn ${order.name}`}
+                            onChange={(event) => toggle(order.id, event.target.checked)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 font-medium">{order.name}</td>
+                        <td className="px-3 py-2">{order.lines.length}</td>
+                        <td className="px-3 py-2">{order.currency}</td>
+                        <td className="px-3 py-2">{totals.priced ? `${money(totals.goods)} ${order.currency}` : "—"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
+                            {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setOrderError(undefined); setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } }); }}><Pencil />Sửa</Button>}
+                            {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="ghi-chu" className={tabPanelClass}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
+              <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
+            </Field>
+            <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
+              <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
+            </Field>
+            <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
+              <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
+            </Field>
+            <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
+              <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
+            </Field>
+            <div className="grid gap-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="font-medium">Thông tin đơn hàng</h3>
-                {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
+                <span className="text-sm font-medium">Thông tin đặt cọc</span>
+                {canEditPricing && (
+                  <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
+                    <Plus />Thêm dòng
+                  </Button>
+                )}
               </div>
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50 text-left">
-                      <th className="px-3 py-2 font-medium">Chọn</th>
-                      <th className="px-3 py-2 font-medium">Tên mẫu</th>
-                      <th className="px-3 py-2 font-medium">Số dòng</th>
-                      <th className="px-3 py-2 font-medium">Tiền tệ</th>
-                      <th className="px-3 py-2 font-medium">Tổng tiền hàng</th>
-                      <th className="px-3 py-2 font-medium">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length === 0 && (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
-                    )}
-                    {orders.map((order) => {
-                      const totals = quoteTotals(order.lines);
-                      return (
-                        <tr key={order.id} className="border-b last:border-0">
-                          <td className="px-3 py-2">
-                            <input
-                              type="checkbox"
-                              className="size-4 accent-primary"
-                              checked={order.selected}
-                              disabled={!canEditPricing || pending}
-                              aria-label={`Chọn ${order.name}`}
-                              onChange={(event) => toggle(order.id, event.target.checked)}
-                            />
-                          </td>
-                          <td className="px-3 py-2 font-medium">{order.name}</td>
-                          <td className="px-3 py-2">{order.lines.length}</td>
-                          <td className="px-3 py-2">{order.currency}</td>
-                          <td className="px-3 py-2">{totals.priced ? `${money(totals.goods)} ${order.currency}` : "—"}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex flex-wrap gap-1">
-                              <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
-                              {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setOrderError(undefined); setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } }); }}><Pencil />Sửa</Button>}
-                              {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
-                <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
-              </Field>
-              <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
-                <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
-              </Field>
-              <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
-                <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
-              </Field>
-              <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-                <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
-              </Field>
-              <div className="grid gap-2 sm:col-span-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">Thông tin đặt cọc</span>
+              {notes.deposit.length === 0 && <p className="text-sm text-muted-foreground">Chưa có dòng đặt cọc.</p>}
+              {notes.deposit.map((line, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    id={index === 0 ? fieldId("note-deposit") : undefined}
+                    aria-label={`Thông tin đặt cọc ${index + 1}`}
+                    value={line}
+                    disabled={!canEditPricing}
+                    onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
+                  />
                   {canEditPricing && (
-                    <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
-                      <Plus />Thêm dòng
+                    <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
+                      <Trash2 />
                     </Button>
                   )}
                 </div>
-                {notes.deposit.length === 0 && <p className="text-sm text-muted-foreground">Chưa có dòng đặt cọc.</p>}
-                {notes.deposit.map((line, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      id={index === 0 ? fieldId("note-deposit") : undefined}
-                      aria-label={`Thông tin đặt cọc ${index + 1}`}
-                      value={line}
-                      disabled={!canEditPricing}
-                      onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
-                    />
-                    {canEditPricing && (
-                      <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
-                        <Trash2 />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <h3 className="mt-3 border-b pb-3 font-semibold sm:col-span-2">Thông tin thanh toán</h3>
-              <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
-                <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
-              </Field>
-              <Field label="Account Name" htmlFor={fieldId("bank-name")}>
-                <Input id={fieldId("bank-name")} value={bank.accountName} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountName: event.target.value })} />
-              </Field>
-              <Field label="Account Number" htmlFor={fieldId("bank-number")}>
-                <Input id={fieldId("bank-number")} value={bank.accountNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountNumber: event.target.value })} />
-              </Field>
-              <Field label="Routing Number" htmlFor={fieldId("bank-routing")}>
-                <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
-              </Field>
-              <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
-                <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
-                  <option value="">Chưa chọn</option>
-                  {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </NativeSelect>
-              </Field>
-              <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
-                <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
-              </Field>
-              <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
-                <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
-                  {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </NativeSelect>
-              </Field>
-              <Field label="Trạng thái hợp đồng" htmlFor={fieldId("quote-contract")}>
-                <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEditPricing} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
-                  {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </NativeSelect>
-              </Field>
+              ))}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="thanh-toan" className={tabPanelClass}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
+              <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
+            </Field>
+            <Field label="Account Name" htmlFor={fieldId("bank-name")}>
+              <Input id={fieldId("bank-name")} value={bank.accountName} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountName: event.target.value })} />
+            </Field>
+            <Field label="Account Number" htmlFor={fieldId("bank-number")}>
+              <Input id={fieldId("bank-number")} value={bank.accountNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountNumber: event.target.value })} />
+            </Field>
+            <Field label="Routing Number" htmlFor={fieldId("bank-routing")}>
+              <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
+            </Field>
+            <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
+              <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
+                <option value="">Chưa chọn</option>
+                {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
+              <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
+            </Field>
+            <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
+              <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
+                {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Trạng thái hợp đồng" htmlFor={fieldId("quote-contract")}>
+              <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEditPricing} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
+                {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </NativeSelect>
+            </Field>
+          </div>
+        </TabsContent>
+      </Tabs>
       {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter>{actions}</DialogFooter>}
     </>
   );
@@ -727,7 +756,7 @@ export function QuoteEditor({
         </section>
       ) : (
         <Dialog open onOpenChange={(open) => { if (!open && !draft) onClose(); }}>
-          <DialogContent className="sm:max-w-4xl">
+          <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-5xl">
             <DialogHeader>
               <DialogTitle>Báo giá {quote.code}</DialogTitle>
             </DialogHeader>
@@ -764,15 +793,18 @@ export function QuoteEditor({
                   Ưu tiên điền <strong>quy cách đóng gói</strong> (ô vàng) trước khi lưu. Sale điền ảnh/số lượng/quy cách; mua hàng bổ sung chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
                 </InlineAlert>
               )}
-              <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")}>
-                <Input
-                  id={fieldId("order-name")}
-                  value={draft.order.name}
-                  disabled={draft.mode === "view"}
-                  onChange={(event) => setDraft({ ...draft, order: { ...draft.order, name: event.target.value } })}
-                />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className={draft.order.currency !== "VND"
+                ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,11rem)_minmax(9rem,12rem)]"
+                : "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,11rem)]"
+              }>
+                <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")}>
+                  <Input
+                    id={fieldId("order-name")}
+                    value={draft.order.name}
+                    disabled={draft.mode === "view"}
+                    onChange={(event) => setDraft({ ...draft, order: { ...draft.order, name: event.target.value } })}
+                  />
+                </Field>
                 <Field label="Loại tiền" htmlFor={fieldId("order-currency")} hint="VND là nội tệ, còn lại là ngoại tệ báo giá cho khách quốc tế">
                   <NativeSelect
                     id={fieldId("order-currency")}
@@ -788,12 +820,11 @@ export function QuoteEditor({
                 </Field>
                 {draft.order.currency !== "VND" && (
                   <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc. Có tỷ giá thì báo giá in thêm dòng quy đổi VND">
-                    <Input
+                    <MoneyInput
                       id={fieldId("order-rate")}
-                      inputMode="decimal"
-                      value={amountText(draft.order.rate)}
+                      value={draft.order.rate}
                       disabled={draft.mode === "view" || !canEditPricing}
-                      onChange={(event) => setDraft({ ...draft, order: { ...draft.order, rate: amountValue(event.target.value) } })}
+                      onValueChange={(rate) => setDraft({ ...draft, order: { ...draft.order, rate } })}
                     />
                   </Field>
                 )}

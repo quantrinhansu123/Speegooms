@@ -10,10 +10,19 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
+import {
+  clearOpenContractParams,
+  OPEN_CONTRACT_EVENT,
+  readOpenContractFromUrl,
+  type OpenContractDetail,
+} from "@/features/notifications/open-contract";
+import { FOCUS_ROW_CLASS } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -24,6 +33,13 @@ export type ContractPaymentLine = {
   amount: number;
   paidOn: string | null;
   note: string;
+  images: string[];
+};
+
+export type ContractConfirmationLine = {
+  amount: number;
+  note: string;
+  images: string[];
 };
 
 export type ContractRecord = {
@@ -58,29 +74,55 @@ export type ContractRecord = {
   confirmedBackAt: string | null;
   confirmedAmount: number | null;
   accountingStatus: string | null;
+  confirmations: ContractConfirmationLine[];
   images: string[];
   createdAt: string;
   updatedAt: string;
 };
 
-type PaymentDraft = { amount: string; paidOn: string; note: string };
+type PaymentDraft = { amount: string; paidOn: string; note: string; images: string[] };
+type ConfirmationDraft = { amount: string; note: string; images: string[] };
 
 function emptyPaymentDraft(): PaymentDraft {
-  return { amount: "", paidOn: "", note: "" };
+  return { amount: "", paidOn: "", note: "", images: [] };
+}
+
+function emptyConfirmationDraft(): ConfirmationDraft {
+  return { amount: "", note: "", images: [] };
+}
+
+function confirmationDraftsFrom(contract: ContractRecord): ConfirmationDraft[] {
+  if (contract.confirmations?.length) {
+    return contract.confirmations.map((line) => ({
+      amount: formatMoneyGrouped(line.amount),
+      note: line.note ?? "",
+      images: line.images ?? [],
+    }));
+  }
+  if (contract.confirmedAmount != null && contract.confirmedAmount > 0) {
+    return [{ amount: formatMoneyGrouped(contract.confirmedAmount), note: "", images: contract.images.slice() }];
+  }
+  return [emptyConfirmationDraft()];
 }
 
 function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
   if (contract.payments?.length) {
     return contract.payments.map((line) => ({
-      amount: String(line.amount),
+      amount: formatMoneyGrouped(line.amount),
       paidOn: line.paidOn ?? "",
       note: line.note ?? "",
+      images: line.images ?? [],
     }));
   }
   if (contract.paidAmount > 0) {
-    return [{ amount: String(contract.paidAmount), paidOn: "", note: "" }];
+    return [{ amount: formatMoneyGrouped(contract.paidAmount), paidOn: "", note: "", images: contract.images.slice() }];
   }
   return [emptyPaymentDraft()];
+}
+
+function billImagesOf(row: ContractRecord): string[] {
+  const fromPayments = (row.payments ?? []).flatMap((line) => line.images ?? []);
+  return fromPayments.length > 0 ? fromPayments : row.images;
 }
 
 function readSeenMap(userId: string): Record<string, string> {
@@ -179,6 +221,39 @@ function FlagCell({ active, tone, label }: { active: boolean; tone: "success" | 
   return <StatusBadge tone={tone} className="max-w-full whitespace-normal text-left leading-snug">{label}</StatusBadge>;
 }
 
+function opsStatusTone(status: string | null | undefined): "success" | "warning" | "danger" | "info" | "neutral" {
+  switch (status) {
+    case "Hoàn thành":
+      return "success";
+    case "Hủy đơn":
+      return "danger";
+    case "Đang sản xuất":
+    case "Đang vận chuyển":
+    case "Đợi check cọc":
+      return "warning";
+    case "Hợp đồng":
+    case "Đặt cọc":
+    case "Hàng mẫu":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function accountingStatusTone(status: string | null | undefined, pendingSend: boolean): "success" | "warning" | "danger" | "info" | "neutral" {
+  if (pendingSend) return "warning";
+  switch (status) {
+    case "DA_HOAN_THANH_COC":
+    case "DA_HOAN_THANH_THANH_TOAN":
+      return "success";
+    case "CHUA_HOAN_THANH_COC":
+    case "CHUA_HOAN_THANH_THANH_TOAN":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
 async function compressImage(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const max = 280;
@@ -214,13 +289,42 @@ export function ContractsLiveView({
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
   const [removing, setRemoving] = useState<ContractRecord | null>(null);
+  const [billPreview, setBillPreview] = useState<{ code: string; images: string[] } | null>(null);
   const [seen, setSeen] = useState<Record<string, string>>(() => readSeenMap(user.id));
+  const [listLoading, setListLoading] = useState(true);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusLane, setFocusLane] = useState<CrmLane | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const filters = useAppliedSearch({ q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
   const opsStatusFilterOptions = opsStatusOptions.map((status) => [status, status] as const);
 
   useEffect(() => {
     setSeen(readSeenMap(user.id));
   }, [user.id]);
+
+  const requestOpenContract = useCallback((detail: OpenContractDetail) => {
+    if (detail.refType && detail.refType !== "contract") return;
+    setFocusId(detail.id);
+    setHighlightId(null);
+    if (detail.lane && canPick) {
+      if (detail.lane !== lane) setListLoading(true);
+      setFocusLane(detail.lane);
+      setLane(detail.lane);
+      return;
+    }
+    setFocusLane(null);
+  }, [canPick, lane, setLane]);
+
+  useEffect(() => {
+    const fromUrl = readOpenContractFromUrl();
+    if (fromUrl) requestOpenContract(fromUrl);
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<OpenContractDetail>).detail;
+      if (detail?.id) requestOpenContract(detail);
+    };
+    window.addEventListener(OPEN_CONTRACT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CONTRACT_EVENT, onOpen);
+  }, [requestOpenContract]);
 
   const markSeen = useCallback((row: ContractRecord) => {
     const at = new Date().toISOString();
@@ -235,9 +339,11 @@ export function ContractsLiveView({
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
       setError(rangeError);
+      setListLoading(false);
       return;
     }
     setError(undefined);
+    setListLoading(true);
     try {
       const path = crmPath(`/api/crm/contracts?view=${mode}`, lane);
       const sent = mode === "accounting" ? "&sent=1" : "";
@@ -250,10 +356,45 @@ export function ContractsLiveView({
       if (mode === "sale") setSeen(seedSeenIfNeeded(user.id, body.contracts));
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Không tải được hợp đồng");
+    } finally {
+      setListLoading(false);
     }
   }, [filters.applied, lane, mode, user.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!focusId || listLoading) return;
+    if (focusLane && lane !== focusLane) return;
+    const row = rows.find((item) => item.id === focusId);
+    if (row) {
+      setNotice(undefined);
+      markSeen(row);
+      setHighlightId(row.id);
+      setSelected(row);
+      setFocusId(null);
+      setFocusLane(null);
+      clearOpenContractParams();
+      return;
+    }
+    setError("Không tìm thấy hợp đồng được thông báo trong danh sách hiện tại.");
+    setFocusId(null);
+    setFocusLane(null);
+    clearOpenContractParams();
+  }, [focusId, focusLane, lane, listLoading, markSeen, rows]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const scroll = () => {
+      document.querySelector(`[data-row-id="${CSS.escape(highlightId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    };
+    const start = window.setTimeout(scroll, 40);
+    const clear = window.setTimeout(() => setHighlightId(null), 8000);
+    return () => {
+      window.clearTimeout(start);
+      window.clearTimeout(clear);
+    };
+  }, [highlightId]);
 
   const resend = async (row: ContractRecord) => {
     const to = mode === "sale" ? "ops" : mode === "ops" ? "accounting" : "parties";
@@ -318,25 +459,25 @@ export function ContractsLiveView({
       {mode === "sale" && (
         <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[1680px] text-sm">
+      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+        <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
-              <th className="px-3 py-2 font-medium">Khách</th>
-              <th className="px-3 py-2 font-medium">Sản phẩm</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Đã thanh toán</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ảnh bill</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Còn lại</th>
-              <th className="min-w-40 px-3 py-2 font-medium">Dục thanh toán để giao hàng</th>
-              <th className="min-w-36 px-3 py-2 font-medium">Đủ điều kiện đi hàng</th>
-              <th className="min-w-36 px-3 py-2 font-medium">Đủ điều kiện giao hàng</th>
-              <th className="px-3 py-2 font-medium">Vận hành</th>
-              <th className="px-3 py-2 font-medium">Kế toán</th>
-              <th className="px-3 py-2 font-medium">Gửi lại</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
+              <th className="min-w-40 px-3 py-2 font-medium whitespace-nowrap">Dục thanh toán để giao hàng</th>
+              <th className="min-w-36 px-3 py-2 font-medium whitespace-nowrap">Đủ điều kiện đi hàng</th>
+              <th className="min-w-36 px-3 py-2 font-medium whitespace-nowrap">Đủ điều kiện giao hàng</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Vận hành</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Kế toán</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Gửi lại</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -355,24 +496,34 @@ export function ContractsLiveView({
               });
               const unread = mode === "sale" && isUnreadContract(row, seen);
               return (
-              <tr key={row.id} className={unread ? "border-b bg-amber-50 last:border-0 align-top" : "border-b last:border-0 align-top"}>
+              <tr
+                key={row.id}
+                data-row-id={row.id}
+                className={cn(
+                  "border-b last:border-0 align-top",
+                  highlightId === row.id ? FOCUS_ROW_CLASS : unread && "bg-amber-50",
+                )}
+              >
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
-                <td className="px-3 py-3">{row.customerName}</td>
+                <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.paidAmount, row.currency)}</td>
-                <td className="px-3 py-3">
-                  {row.images.length === 0 ? "—" : (
-                    <div className="flex flex-wrap gap-1">
-                      {row.images.slice(0, 3).map((image, index) => (
-                        <a key={`${row.id}-bill-${index}`} href={image} target="_blank" rel="noreferrer">
-                          <img src={image} alt={`Bill ${index + 1}`} className="h-10 w-10 rounded border object-cover" />
-                        </a>
-                      ))}
-                      {row.images.length > 3 && <span className="text-xs text-muted-foreground">+{row.images.length - 3}</span>}
-                    </div>
-                  )}
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {(() => {
+                    const bills = billImagesOf(row);
+                    if (bills.length === 0) return "—";
+                    return (
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-primary hover:underline"
+                        onClick={() => setBillPreview({ code: row.code, images: bills })}
+                      >
+                        {bills.length} bill
+                      </button>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.balance, row.currency)}</td>
                 <td className="min-w-40 px-3 py-3">
@@ -384,11 +535,24 @@ export function ContractsLiveView({
                 <td className="min-w-36 px-3 py-3">
                   <FlagCell active={flags.eligibleToDeliver} tone="success" label={flags.eligibleToDeliverLabel} />
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">{row.opsStatus || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
-                  {mode !== "accounting" && !row.sentToAccountingAt
-                    ? "Chưa gửi"
-                    : labelOf(accountingStatusOptions, row.accountingStatus) || "—"}
+                  {row.opsStatus
+                    ? <StatusBadge tone={opsStatusTone(row.opsStatus)}>{row.opsStatus}</StatusBadge>
+                    : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {(() => {
+                    const pendingSend = mode !== "accounting" && !row.sentToAccountingAt;
+                    const label = pendingSend
+                      ? "Chưa gửi"
+                      : labelOf(accountingStatusOptions, row.accountingStatus);
+                    if (!label) return <span className="text-muted-foreground">—</span>;
+                    return (
+                      <StatusBadge tone={accountingStatusTone(row.accountingStatus, pendingSend)}>
+                        {label}
+                      </StatusBadge>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-3">
                   {handoffLines(mode, row).length === 0 ? "—" : handoffLines(mode, row).map((line) => <p key={line}>{line}</p>)}
@@ -438,6 +602,25 @@ export function ContractsLiveView({
         confirmLabel="Xóa"
         onConfirm={() => { void remove(); }}
       />
+      <Dialog open={billPreview !== null} onOpenChange={(open) => { if (!open) setBillPreview(null); }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Ảnh bill{billPreview ? ` · ${billPreview.code} (${billPreview.images.length})` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid max-h-[70vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+            {billPreview?.images.map((image, index) => (
+              <a key={`${billPreview.code}-preview-${index}`} href={image} target="_blank" rel="noreferrer" className="block">
+                <img src={image} alt={`Bill ${index + 1}`} className="h-40 w-full rounded-md border object-cover" />
+              </a>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBillPreview(null)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {selected && (
         <ContractDialog
           key={selected.id}
@@ -461,9 +644,7 @@ export function ContractsLiveView({
 }
 
 function numberValue(value: string): number | null {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return parseMoneyInput(value);
 }
 
 function ContractDialog({
@@ -494,16 +675,16 @@ function ContractDialog({
   const [containerOn, setContainerOn] = useState(contract.containerOn ?? "");
   const [arrivalOn, setArrivalOn] = useState(contract.arrivalOn ?? "");
   const [deliveryOn, setDeliveryOn] = useState(contract.deliveryOn ?? "");
-  const [confirmedAmount, setConfirmedAmount] = useState(contract.confirmedAmount == null ? "" : String(contract.confirmedAmount));
+  const [confirmations, setConfirmations] = useState<ConfirmationDraft[]>(() => confirmationDraftsFrom(contract));
   const [accountingStatus, setAccountingStatus] = useState(contract.accountingStatus ?? "");
-  const [images, setImages] = useState(contract.images);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const paidValue = payments.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
+  const confirmedValue = confirmations.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
   const paymentFlags = contractPaymentFlags({
     totalValue: contract.totalValue,
-    confirmedAmount: confirmedAmount.trim() ? numberValue(confirmedAmount) : null,
+    confirmedAmount: confirmedValue,
     paidAmount: paidValue,
     balance: balanceValue,
     deliveryOn: deliveryOn || null,
@@ -515,14 +696,18 @@ function ContractDialog({
     setPayments((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
   };
 
+  const updateConfirmation = (index: number, patch: Partial<ConfirmationDraft>) => {
+    setConfirmations((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+  };
+
   const saveCommercial = async (resendAfter: boolean) => {
     const parsed = saleContractPaymentSchema.safeParse({
       payments: payments.map((line) => ({
         amount: numberValue(line.amount) ?? 0,
         paidOn: line.paidOn,
         note: line.note,
+        images: line.images,
       })),
-      images,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
@@ -574,11 +759,13 @@ function ContractDialog({
   };
 
   const saveAccounting = async (resendAfter: boolean) => {
-    const amount = confirmedAmount.trim() ? Number(confirmedAmount) : Number.NaN;
     const parsed = accountingContractSchema.safeParse({
-      confirmedAmount: amount,
       accountingStatus,
-      images,
+      confirmations: confirmations.map((line) => ({
+        amount: numberValue(line.amount) ?? 0,
+        note: line.note,
+        images: line.images,
+      })),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin kế toán chưa đúng");
@@ -600,23 +787,24 @@ function ContractDialog({
     }
   };
 
-  const addImages = async (files: FileList | null) => {
+  const addConfirmationImages = async (confirmationIndex: number, files: FileList | null) => {
     if (!files?.length) return;
     setError(undefined);
     try {
-      const next = [...images];
+      const current = confirmations[confirmationIndex];
+      if (!current) return;
+      const next = [...current.images];
       for (const file of files) {
-        if (next.length >= 10) throw new Error("Tối đa 10 ảnh");
+        if (next.length >= 10) throw new Error("Tối đa 10 ảnh mỗi lần xác nhận");
         next.push(await compressImage(file));
       }
-      setImages(next);
+      updateConfirmation(confirmationIndex, { images: next });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không đọc được ảnh");
     }
   };
 
-  const pasteImage = async (event: React.ClipboardEvent) => {
-    if (!(canSale || canAccounting)) return;
+  const pasteConfirmationImage = async (confirmationIndex: number, event: React.ClipboardEvent) => {
     const items = event.clipboardData?.items;
     if (!items) return;
     const files: File[] = [];
@@ -626,82 +814,208 @@ function ContractDialog({
         if (file) files.push(file);
       }
     }
-    if (!files.length) return;
+    if (files.length === 0) return;
     event.preventDefault();
     const list = {
       length: files.length,
       item: (index: number) => files[index] ?? null,
       *[Symbol.iterator]() { yield* files; },
     } as FileList;
-    await addImages(list);
+    await addConfirmationImages(confirmationIndex, list);
   };
+
+  const addPaymentImages = async (paymentIndex: number, files: FileList | null) => {
+    if (!files?.length) return;
+    setError(undefined);
+    try {
+      const current = payments[paymentIndex]?.images ?? [];
+      const next = [...current];
+      for (const file of files) {
+        if (next.length >= 10) throw new Error("Tối đa 10 ảnh mỗi lần thanh toán");
+        next.push(await compressImage(file));
+      }
+      updatePayment(paymentIndex, { images: next });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Không đọc được ảnh");
+    }
+  };
+
+  const filesFromClipboard = (event: React.ClipboardEvent): FileList | null => {
+    const items = event.clipboardData?.items;
+    if (!items) return null;
+    const files: File[] = [];
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (!files.length) return null;
+    event.preventDefault();
+    return {
+      length: files.length,
+      item: (index: number) => files[index] ?? null,
+      *[Symbol.iterator]() { yield* files; },
+    } as FileList;
+  };
+
+  const pastePaymentImage = async (paymentIndex: number, event: React.ClipboardEvent) => {
+    if (!canSale) return;
+    const list = filesFromClipboard(event);
+    if (list) await addPaymentImages(paymentIndex, list);
+  };
+
+  const defaultTab = canAccounting && !canSale && !canOps
+    ? "ke-toan"
+    : canOps && !canSale
+      ? "van-hanh"
+      : canSale
+        ? "thanh-toan"
+        : "hop-dong";
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>{contract.code} · {contract.customerName}</DialogTitle>
         </DialogHeader>
-        <div className="grid max-h-[70vh] gap-4 overflow-y-auto pr-1">
-          {error && <InlineAlert>{error}</InlineAlert>}
-          <p className="text-sm text-muted-foreground">
-            Lưu chỉ giữ thông tin ở bên đang sửa. Gửi lại mới chuyển thông tin sang bên nhận, và gửi kèm trạng thái. Trạng thái vận hành cập nhật cho các bên ngay khi lưu.
-          </p>
-          <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
-            <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
-            <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
-            <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
-            <p><span className="text-muted-foreground">Loại tiền: </span>{contract.currency}</p>
-            <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
-            <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
-            <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
-            <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-            <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
-            <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
-            <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
-            <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
+        <p className="text-sm text-muted-foreground">
+          Lưu chỉ giữ thông tin ở bên đang sửa. Gửi lại mới chuyển thông tin sang bên nhận, và gửi kèm trạng thái. Trạng thái vận hành cập nhật cho các bên ngay khi lưu.
+        </p>
+        {error && <InlineAlert>{error}</InlineAlert>}
+        <Tabs defaultValue={defaultTab} className="min-h-0 flex-1 overflow-hidden">
+          <TabsList className="h-auto min-h-0 w-full flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
+            {([
+              ["hop-dong", "Hợp đồng"],
+              ["thanh-toan", "Thanh toán"],
+              ["van-hanh", "Vận hành"],
+              ["ke-toan", "Kế toán"],
+            ] as const).map(([value, label]) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-[15px] font-semibold text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="hop-dong" className="mt-3 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
+            <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+              <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
+              <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
+              <p><span className="text-muted-foreground">Loại tiền: </span>{contract.currency}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
+              <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
+              <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(canSale ? paidValue : contract.paidAmount, contract.currency)}</p>
+            </section>
+            <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3">
+              <div>
+                <p className="mb-1 text-sm font-medium">Dục thanh toán để giao hàng</p>
+                <FlagCell active={paymentFlags.urgePayment} tone="danger" label={paymentFlags.urgePaymentLabel} />
+              </div>
+              <div>
+                <p className="mb-1 text-sm font-medium">Đủ điều kiện đi hàng</p>
+                <FlagCell active={paymentFlags.eligibleToShip} tone="success" label={paymentFlags.eligibleToShipLabel} />
+              </div>
+              <div>
+                <p className="mb-1 text-sm font-medium">Đủ điều kiện giao hàng</p>
+                <FlagCell active={paymentFlags.eligibleToDeliver} tone="success" label={paymentFlags.eligibleToDeliverLabel} />
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="thanh-toan" className="mt-3 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
             {canSale ? (
               <>
-                <div className="sm:col-span-2 space-y-3">
+                <section className="space-y-3 rounded-xl border p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Số tiền đã thanh toán</p>
+                    <h3 className="font-medium">Số tiền đã thanh toán</h3>
                     <p className="text-sm text-muted-foreground">Tổng: {money(paidValue, contract.currency)}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng.</p>
+                  <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng; ảnh bill gắn theo từng lần.</p>
                   {payments.map((line, index) => (
-                    <div key={`pay-${index}`} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
-                      <Field label={`Số tiền lần ${index + 1}`} htmlFor={`contract-paid-${index}`}>
+                    <div key={`pay-${index}`} className="space-y-3 rounded-lg border p-3">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
+                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`contract-paid-${index}`}>
+                          <Input
+                            id={`contract-paid-${index}`}
+                            inputMode="decimal"
+                            value={line.amount}
+                            onChange={(event) => updatePayment(index, { amount: formatMoneyInput(event.target.value) })}
+                          />
+                        </Field>
+                        <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
+                          <Input
+                            id={`contract-paid-on-${index}`}
+                            type="date"
+                            value={line.paidOn}
+                            onChange={(event) => updatePayment(index, { paidOn: event.target.value })}
+                          />
+                        </Field>
+                        <Field label="Ghi chú" htmlFor={`contract-paid-note-${index}`}>
+                          <Input
+                            id={`contract-paid-note-${index}`}
+                            value={line.note}
+                            onChange={(event) => updatePayment(index, { note: event.target.value })}
+                          />
+                        </Field>
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={payments.length <= 1}
+                            onClick={() => setPayments((current) => current.filter((_, lineIndex) => lineIndex !== index))}
+                          >
+                            Xóa
+                          </Button>
+                        </div>
+                      </div>
+                      <div
+                        className="rounded-lg border border-dashed p-3"
+                        tabIndex={0}
+                        onPaste={(event) => { void pastePaymentImage(index, event); }}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">Ảnh bill lần {index + 1}</p>
+                          <p className="text-xs text-muted-foreground">{line.images.length}/10 ảnh</p>
+                        </div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {line.images.map((image, imageIndex) => (
+                            <div key={`${imageIndex}-${image.slice(0, 24)}`} className="relative shrink-0">
+                              <img src={image} alt={`Ảnh bill lần ${index + 1}-${imageIndex + 1}`} className="h-20 w-20 rounded-md border object-cover" />
+                              <button
+                                type="button"
+                                className="absolute right-1 top-1 rounded bg-card px-1 text-xs"
+                                onClick={() => updatePayment(index, { images: line.images.filter((_, itemIndex) => itemIndex !== imageIndex) })}
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          ))}
+                          {line.images.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Chưa có ảnh — chọn hoặc dán nhiều ảnh cho lần này.</p>
+                          )}
+                        </div>
                         <Input
-                          id={`contract-paid-${index}`}
-                          inputMode="decimal"
-                          value={line.amount}
-                          onChange={(event) => updatePayment(index, { amount: event.target.value })}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          disabled={line.images.length >= 10}
+                          onChange={(event) => {
+                            void addPaymentImages(index, event.target.files);
+                            event.target.value = "";
+                          }}
                         />
-                      </Field>
-                      <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
-                        <Input
-                          id={`contract-paid-on-${index}`}
-                          type="date"
-                          value={line.paidOn}
-                          onChange={(event) => updatePayment(index, { paidOn: event.target.value })}
-                        />
-                      </Field>
-                      <Field label="Ghi chú" htmlFor={`contract-paid-note-${index}`}>
-                        <Input
-                          id={`contract-paid-note-${index}`}
-                          value={line.note}
-                          onChange={(event) => updatePayment(index, { note: event.target.value })}
-                        />
-                      </Field>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={payments.length <= 1}
-                          onClick={() => setPayments((current) => current.filter((_, lineIndex) => lineIndex !== index))}
-                        >
-                          Xóa
-                        </Button>
+                        <p className="mt-1 text-xs text-muted-foreground">Có thể chọn nhiều ảnh cùng lúc · Ctrl+V để dán</p>
                       </div>
                     </div>
                   ))}
@@ -713,159 +1027,202 @@ function ContractDialog({
                   >
                     <Plus className="size-4" /> Thêm lần thanh toán
                   </Button>
-                </div>
-                <div
-                  className="rounded-lg border border-dashed p-3 sm:col-span-2"
-                  tabIndex={0}
-                  onPaste={(event) => { void pasteImage(event); }}
-                >
-                  <p className="mb-2 text-sm font-medium">Ảnh bill</p>
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {images.map((image, index) => (
-                      <div key={`${index}-${image.slice(0, 24)}`} className="relative">
-                        <img src={image} alt={`Ảnh bill ${index + 1}`} className="h-20 w-20 rounded-md border object-cover" />
-                        <button type="button" className="absolute right-1 top-1 rounded bg-card px-1 text-xs" onClick={() => setImages(images.filter((_, imageIndex) => imageIndex !== index))}>
-                          Xóa
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <Input type="file" accept="image/*" multiple onChange={(event) => { void addImages(event.target.files); event.target.value = ""; }} />
-                  <p className="mt-1 text-xs text-muted-foreground">Ctrl+V để dán ảnh bill vào ô này</p>
-                </div>
-                <div className="flex gap-2 sm:col-span-2">
+                </section>
+                <div className="flex gap-2">
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveCommercial(false); }}>Lưu</Button>
                   {canResend && <Button type="button" disabled={pending} onClick={() => { void saveCommercial(true); }}>Gửi lại</Button>}
                 </div>
               </>
             ) : (
-              <div className="sm:col-span-2 space-y-2">
+              <section className="space-y-3 rounded-xl border p-4">
+                <h3 className="font-medium">Số tiền đã thanh toán</h3>
                 <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
-                {(contract.payments?.length ?? 0) > 0 && (
-                  <ul className="space-y-1 text-sm">
+                {(contract.payments?.length ?? 0) > 0 ? (
+                  <ul className="space-y-2 text-sm">
                     {contract.payments.map((line, index) => (
-                      <li key={`view-pay-${index}`} className="text-muted-foreground">
-                        Lần {index + 1}: {money(line.amount, contract.currency)}
-                        {line.paidOn ? ` · ${shownDate(line.paidOn)}` : ""}
-                        {line.note ? ` · ${line.note}` : ""}
+                      <li key={`view-pay-${index}`} className="space-y-2 rounded-lg border p-3 text-muted-foreground">
+                        <p>
+                          Lần {index + 1}: {money(line.amount, contract.currency)}
+                          {line.paidOn ? ` · ${shownDate(line.paidOn)}` : ""}
+                          {line.note ? ` · ${line.note}` : ""}
+                        </p>
+                        {(line.images?.length ?? 0) > 0 && (
+                          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+                            {line.images.map((image, imageIndex) => (
+                              <a key={`view-bill-${index}-${imageIndex}`} href={image} target="_blank" rel="noreferrer" className="shrink-0">
+                                <img src={image} alt={`Ảnh bill lần ${index + 1}-${imageIndex + 1}`} className="h-16 w-16 rounded border object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Chưa có lần thanh toán.</p>
                 )}
-              </div>
+              </section>
             )}
-          </section>
+          </TabsContent>
 
-          <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-3">
-            <div>
-              <p className="mb-1 text-sm font-medium">Dục thanh toán để giao hàng</p>
-              <FlagCell active={paymentFlags.urgePayment} tone="danger" label={paymentFlags.urgePaymentLabel} />
-            </div>
-            <div>
-              <p className="mb-1 text-sm font-medium">Đủ điều kiện đi hàng</p>
-              <FlagCell active={paymentFlags.eligibleToShip} tone="success" label={paymentFlags.eligibleToShipLabel} />
-            </div>
-            <div>
-              <p className="mb-1 text-sm font-medium">Đủ điều kiện giao hàng</p>
-              <FlagCell active={paymentFlags.eligibleToDeliver} tone="success" label={paymentFlags.eligibleToDeliverLabel} />
-            </div>
-          </section>
-
-          <section className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
-            <h3 className="font-medium sm:col-span-2">Vận hành</h3>
-            <Field label="Trạng thái" htmlFor="ops-status">
-              <NativeSelect id="ops-status" value={opsStatus} disabled={!canOps} onChange={(event) => setOpsStatus(event.target.value)}>
-                <option value="">Chọn trạng thái</option>
-                {opsStatus && !opsStatusOptions.includes(opsStatus as (typeof opsStatusOptions)[number]) && (
-                  <option value={opsStatus}>{opsStatus}</option>
-                )}
-                {opsStatusOptions.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="Tracking" htmlFor="ops-tracking">
-              <Input id="ops-tracking" value={tracking} disabled={!canOps} onChange={(event) => setTracking(event.target.value)} />
-            </Field>
-            <Field label="Note 1" htmlFor="ops-note-1" className="sm:col-span-2">
-              <Textarea id="ops-note-1" value={note1} disabled={!canOps} onChange={(event) => setNote1(event.target.value)} />
-            </Field>
-            <Field label="Note 2" htmlFor="ops-note-2" className="sm:col-span-2">
-              <Textarea id="ops-note-2" value={note2} disabled={!canOps} onChange={(event) => setNote2(event.target.value)} />
-            </Field>
-            <Field label="Ngày nhập kho TQ" htmlFor="ops-china">
-              <Input id="ops-china" type="date" value={chinaWarehouseOn} disabled={!canOps} onChange={(event) => setChinaWarehouseOn(event.target.value)} />
-            </Field>
-            <Field label="Ngày xuất container" htmlFor="ops-container">
-              <Input id="ops-container" type="date" value={containerOn} disabled={!canOps} onChange={(event) => setContainerOn(event.target.value)} />
-            </Field>
-            <Field label="Ngày cập cảng đến" htmlFor="ops-arrival">
-              <Input id="ops-arrival" type="date" value={arrivalOn} disabled={!canOps} onChange={(event) => setArrivalOn(event.target.value)} />
-            </Field>
-            <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery" required={canOps}>
-              <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} required={canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
-            </Field>
-            {canOps && (
-              <div className="flex gap-2 sm:col-span-2">
-                <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveOps(false); }}>{pending ? "Đang lưu…" : "Lưu"}</Button>
-                {canResend && <Button type="button" disabled={pending} onClick={() => { void saveOps(true); }}>Gửi lại</Button>}
-              </div>
-            )}
-          </section>
-
-          <section className="grid gap-3 rounded-xl border p-3">
-            <h3 className="font-medium">Kế toán</h3>
-            {!contract.sentToAccountingAt && <p className="text-sm text-muted-foreground">Vận hành chưa gửi hợp đồng này.</p>}
-            {contract.sentToAccountingAt && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Kế toán xác nhận số tiền" htmlFor="acc-amount">
-                    <Input id="acc-amount" inputMode="decimal" value={confirmedAmount} disabled={!canAccounting} onChange={(event) => setConfirmedAmount(event.target.value)} />
-                  </Field>
-                  <Field label="Kế toán xác nhận trạng thái" htmlFor="acc-status">
-                    <NativeSelect id="acc-status" value={accountingStatus} disabled={!canAccounting} onChange={(event) => setAccountingStatus(event.target.value)}>
-                      <option value="">Chọn trạng thái</option>
-                      {accountingStatusOptions.map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </NativeSelect>
-                  </Field>
+          <TabsContent value="van-hanh" className="mt-3 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
+            <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+              <Field label="Trạng thái" htmlFor="ops-status">
+                <NativeSelect id="ops-status" value={opsStatus} disabled={!canOps} onChange={(event) => setOpsStatus(event.target.value)}>
+                  <option value="">Chọn trạng thái</option>
+                  {opsStatus && !opsStatusOptions.includes(opsStatus as (typeof opsStatusOptions)[number]) && (
+                    <option value={opsStatus}>{opsStatus}</option>
+                  )}
+                  {opsStatusOptions.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Tracking" htmlFor="ops-tracking">
+                <Input id="ops-tracking" value={tracking} disabled={!canOps} onChange={(event) => setTracking(event.target.value)} />
+              </Field>
+              <Field label="Note 1" htmlFor="ops-note-1" className="sm:col-span-2">
+                <Textarea id="ops-note-1" value={note1} disabled={!canOps} onChange={(event) => setNote1(event.target.value)} />
+              </Field>
+              <Field label="Note 2" htmlFor="ops-note-2" className="sm:col-span-2">
+                <Textarea id="ops-note-2" value={note2} disabled={!canOps} onChange={(event) => setNote2(event.target.value)} />
+              </Field>
+              <Field label="Ngày nhập kho TQ" htmlFor="ops-china">
+                <Input id="ops-china" type="date" value={chinaWarehouseOn} disabled={!canOps} onChange={(event) => setChinaWarehouseOn(event.target.value)} />
+              </Field>
+              <Field label="Ngày xuất container" htmlFor="ops-container">
+                <Input id="ops-container" type="date" value={containerOn} disabled={!canOps} onChange={(event) => setContainerOn(event.target.value)} />
+              </Field>
+              <Field label="Ngày cập cảng đến" htmlFor="ops-arrival">
+                <Input id="ops-arrival" type="date" value={arrivalOn} disabled={!canOps} onChange={(event) => setArrivalOn(event.target.value)} />
+              </Field>
+              <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery" required={canOps}>
+                <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} required={canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
+              </Field>
+              {canOps && (
+                <div className="flex gap-2 sm:col-span-2">
+                  <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveOps(false); }}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+                  {canResend && <Button type="button" disabled={pending} onClick={() => { void saveOps(true); }}>Gửi lại</Button>}
                 </div>
-                <div
-                  className="grid gap-2 rounded-lg border border-dashed p-3"
-                  tabIndex={canAccounting ? 0 : undefined}
-                  onPaste={canAccounting ? (event) => { void pasteImage(event); } : undefined}
-                >
-                  <p className="text-sm font-medium">Ảnh về TK</p>
-                  <div className="flex flex-wrap gap-2">
-                    {images.map((image, index) => (
-                      <div key={`${index}-${image.slice(0, 24)}`} className="relative">
-                        <img src={image} alt={`Ảnh tài khoản ${index + 1}`} className="h-20 w-20 rounded-md border object-cover" />
+              )}
+            </section>
+          </TabsContent>
+
+          <TabsContent value="ke-toan" className="mt-3 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
+            <section className="space-y-3 rounded-xl border p-4">
+              {!contract.sentToAccountingAt && <p className="text-sm text-muted-foreground">Vận hành chưa gửi hợp đồng này.</p>}
+              {contract.sentToAccountingAt && (
+                <>
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <Field label="Kế toán xác nhận trạng thái" htmlFor="acc-status" className="min-w-56 flex-1">
+                      <NativeSelect id="acc-status" value={accountingStatus} disabled={!canAccounting} onChange={(event) => setAccountingStatus(event.target.value)}>
+                        <option value="">Chọn trạng thái</option>
+                        {accountingStatusOptions.map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                    <p className="text-sm text-muted-foreground">Tổng xác nhận: {money(confirmedValue, contract.currency)}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Mỗi lần xác nhận là một dòng riêng; ảnh về TK gắn theo từng lần (có thể nhiều ảnh).</p>
+                  {confirmations.map((line, index) => (
+                    <div key={`acc-${index}`} className="space-y-3 rounded-lg border p-3">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`}>
+                          <Input
+                            id={`acc-amount-${index}`}
+                            inputMode="decimal"
+                            value={line.amount}
+                            disabled={!canAccounting}
+                            onChange={(event) => updateConfirmation(index, { amount: formatMoneyInput(event.target.value) })}
+                          />
+                        </Field>
+                        <Field label="Ghi chú" htmlFor={`acc-note-${index}`}>
+                          <Input
+                            id={`acc-note-${index}`}
+                            value={line.note}
+                            disabled={!canAccounting}
+                            onChange={(event) => updateConfirmation(index, { note: event.target.value })}
+                          />
+                        </Field>
                         {canAccounting && (
-                          <button type="button" className="absolute right-1 top-1 rounded bg-card px-1 text-xs" onClick={() => setImages(images.filter((_, imageIndex) => imageIndex !== index))}>
-                            Xóa
-                          </button>
+                          <div className="flex items-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={confirmations.length <= 1}
+                              onClick={() => setConfirmations((current) => current.filter((_, lineIndex) => lineIndex !== index))}
+                            >
+                              Xóa
+                            </Button>
+                          </div>
                         )}
                       </div>
-                    ))}
-                  </div>
+                      <div
+                        className="rounded-lg border border-dashed p-3"
+                        tabIndex={canAccounting ? 0 : undefined}
+                        onPaste={canAccounting ? (event) => { void pasteConfirmationImage(index, event); } : undefined}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">Ảnh về TK lần {index + 1}</p>
+                          <p className="text-xs text-muted-foreground">{line.images.length}/10 ảnh</p>
+                        </div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {line.images.map((image, imageIndex) => (
+                            <div key={`${imageIndex}-${image.slice(0, 24)}`} className="relative shrink-0">
+                              <img src={image} alt={`Ảnh về TK lần ${index + 1}-${imageIndex + 1}`} className="h-20 w-20 rounded-md border object-cover" />
+                              {canAccounting && (
+                                <button
+                                  type="button"
+                                  className="absolute right-1 top-1 rounded bg-card px-1 text-xs"
+                                  onClick={() => updateConfirmation(index, { images: line.images.filter((_, itemIndex) => itemIndex !== imageIndex) })}
+                                >
+                                  Xóa
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {line.images.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Chưa có ảnh — chọn hoặc dán nhiều ảnh cho lần này.</p>
+                          )}
+                        </div>
+                        {canAccounting && (
+                          <>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              disabled={line.images.length >= 10}
+                              onChange={(event) => {
+                                void addConfirmationImages(index, event.target.files);
+                                event.target.value = "";
+                              }}
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">Có thể chọn nhiều ảnh cùng lúc · Ctrl+V để dán</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                   {canAccounting && (
-                    <>
-                      <Input type="file" accept="image/*" multiple onChange={(event) => { void addImages(event.target.files); event.target.value = ""; }} />
-                      <p className="text-xs text-muted-foreground">Ctrl+V để dán ảnh vào ô này</p>
-                    </>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={confirmations.length >= 50}
+                        onClick={() => setConfirmations((current) => [...current, emptyConfirmationDraft()])}
+                      >
+                        <Plus className="size-4" /> Thêm lần thanh toán
+                      </Button>
+                      <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveAccounting(false); }}>{pending ? "Đang lưu…" : "Lưu xác nhận"}</Button>
+                      {canResend && <Button type="button" disabled={pending} onClick={() => { void saveAccounting(true); }}>Gửi lại</Button>}
+                    </div>
                   )}
-                </div>
-                {canAccounting && (
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveAccounting(false); }}>{pending ? "Đang lưu…" : "Lưu xác nhận"}</Button>
-                    {canResend && <Button type="button" disabled={pending} onClick={() => { void saveAccounting(true); }}>Gửi lại</Button>}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        </div>
+                </>
+              )}
+            </section>
+          </TabsContent>
+        </Tabs>
         <DialogFooter>
           <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Đóng</Button>
         </DialogFooter>

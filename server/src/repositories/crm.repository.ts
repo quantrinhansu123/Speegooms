@@ -144,6 +144,13 @@ export interface ContractPaymentLine {
   amount: number;
   paidOn: string | null;
   note: string;
+  images: string[];
+}
+
+export interface ContractConfirmationLine {
+  amount: number;
+  note: string;
+  images: string[];
 }
 
 export interface ContractRecord {
@@ -178,6 +185,8 @@ export interface ContractRecord {
   confirmedBackAt: string | null;
   confirmedAmount: number | null;
   accountingStatus: string | null;
+  /** Các lần kế toán xác nhận (số tiền + ảnh về TK). */
+  confirmations: ContractConfirmationLine[];
   images: string[];
   createdAt: string;
   updatedAt: string;

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
+import { formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { crmPath } from "./lane";
 import type { QuoteSheet } from "./types";
 
@@ -47,9 +48,7 @@ function logisticsShippingTotal(sheet: QuoteSheet | null | undefined): number {
 }
 
 function numberValue(value: string): number | null {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return parseMoneyInput(value);
 }
 
 export function ContractCreateDialog({
@@ -74,8 +73,8 @@ export function ContractCreateDialog({
   const [shipTo, setShipTo] = useState("");
   const [product, setProduct] = useState(quote.goods ?? "");
   const [quantity, setQuantity] = useState(linkedQty != null ? String(linkedQty) : "");
-  const [productValueText, setProductValueText] = useState(productValue ? String(productValue) : "");
-  const [shippingCost, setShippingCost] = useState(linkedShipping ? String(linkedShipping) : "");
+  const [productValueText, setProductValueText] = useState(productValue ? formatMoneyGrouped(productValue) : "");
+  const [shippingCost, setShippingCost] = useState(linkedShipping ? formatMoneyGrouped(linkedShipping) : "");
   const [paidAmount, setPaidAmount] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [error, setError] = useState<string>();
@@ -84,7 +83,7 @@ export function ContractCreateDialog({
   const syncTotal = (productText: string, shippingText: string) => {
     const productPart = numberValue(productText) ?? 0;
     const shippingPart = numberValue(shippingText) ?? 0;
-    return String(productPart + shippingPart);
+    return formatMoneyGrouped(productPart + shippingPart);
   };
   const totalValue = syncTotal(productValueText, shippingCost);
 
@@ -126,11 +125,11 @@ export function ContractCreateDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
-      <DialogContent className="z-[80] sm:max-w-4xl">
+      <DialogContent className="z-[80] max-h-[92dvh] sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>Tạo hợp đồng · {quote.code}</DialogTitle>
         </DialogHeader>
-        <div className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+        <div className="grid max-h-[min(72vh,760px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
           {error && <InlineAlert className="sm:col-span-2">{error}</InlineAlert>}
           <InlineAlert className="sm:col-span-2">
             Số lượng, giá trị hàng và phí vận chuyển được lấy sẵn từ báo giá / thông tin đơn hàng (có thể chỉnh trước khi tạo).
@@ -164,20 +163,20 @@ export function ContractCreateDialog({
             </NativeSelect>
           </Field>
           <Field label="Giá trị sản phẩm" htmlFor="contract-product-value" hint="Tổng tiền hàng từ mẫu đơn đang chọn">
-            <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(event.target.value)} />
+            <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(formatMoneyInput(event.target.value))} />
           </Field>
           <Field
             label="Chi phí vận chuyển"
             htmlFor="contract-shipping"
             hint={quote.logisticsSheet ? "Lấy từ báo giá logistics (mẫu đang chọn)" : "Chưa có báo giá logistics — nhập tay nếu cần"}
           >
-            <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(event.target.value)} />
+            <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(formatMoneyInput(event.target.value))} />
           </Field>
           <Field label="Tổng giá trị" htmlFor="contract-total" hint="Tự tính = giá trị sản phẩm + chi phí vận chuyển">
             <Input id="contract-total" inputMode="decimal" value={totalValue} readOnly />
           </Field>
           <Field label="Số tiền đã thanh toán" htmlFor="contract-paid">
-            <Input id="contract-paid" inputMode="decimal" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
+            <Input id="contract-paid" inputMode="decimal" value={paidAmount} onChange={(event) => setPaidAmount(formatMoneyInput(event.target.value))} />
           </Field>
         </div>
         <DialogFooter>

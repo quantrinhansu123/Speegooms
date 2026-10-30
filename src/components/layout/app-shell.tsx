@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Header } from "./header";
+import { BrandWatermark } from "./brand-watermark";
 import { Sidebar } from "./sidebar";
 import { RouteGate } from "@/components/shared/route-gate";
 
@@ -26,9 +27,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar onNavigate={() => setMenuOpen(false)} />
         </SheetContent>
       </Sheet>
-      <div className="flex h-dvh w-full min-w-0 flex-col lg:pl-64">
+      <div className="relative flex h-dvh w-full min-w-0 flex-col lg:pl-64">
+        <BrandWatermark />
         <Header onOpenMenu={() => setMenuOpen(true)} />
-        <main id="main" tabIndex={-1} className="workspace-scroll min-h-0 w-full min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+        <main id="main" tabIndex={-1} className="workspace-scroll relative z-10 min-h-0 w-full min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
           <RouteGate>{children}</RouteGate>
         </main>
       </div>

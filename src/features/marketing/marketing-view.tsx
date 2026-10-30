@@ -20,6 +20,7 @@ import { canAccess } from "@/config/roles";
 import { useBackoffice } from "@/features/backoffice/hooks";
 import { FormDialog } from "@/features/backoffice/form-dialog";
 import { useCrm } from "@/features/crm/hooks";
+import { UncontrolledMoneyInput } from "@/components/shared/money-input";
 import { formatDate, formatNumber, formatVnd } from "@/lib/format";
 import { canWrite, qualityOptions, sourceMetrics } from "@/services/backoffice/rules";
 import type { Campaign, LeadFeedback } from "@/types/backoffice";
@@ -85,7 +86,7 @@ export function CampaignsView({ source }: { source?: LeadSource }) {
     { key: "period", header: "Thời gian", cell: (c) => `${formatDate(c.startOn)} – ${formatDate(c.endOn)}` },
     { key: "budget", header: "Ngân sách", cell: (c) => formatVnd(c.budget), align: "right" },
     { key: "spent", header: "Đã chi (mock)", cell: (c) => formatVnd(c.spent), align: "right" },
-    { key: "status", header: "Trạng thái", cell: (c) => <StatusBadge tone={c.status === "dang-chay" ? "success" : "neutral"}>{c.status === "dang-chay" ? "Đang chạy" : c.status === "tam-dung" ? "Tạm dừng" : "Kết thúc"}</StatusBadge> },
+    { key: "status", header: "Trạng thái", cell: (c) => <StatusBadge tone={c.status === "dang-chay" ? "success" : c.status === "tam-dung" ? "warning" : "neutral"}>{c.status === "dang-chay" ? "Đang chạy" : c.status === "tam-dung" ? "Tạm dừng" : "Kết thúc"}</StatusBadge> },
     ...(writable ? [{ key: "action", header: "Thao tác", cell: (c: Campaign) => <Button size="sm" variant="outline" disabled={c.status === "ket-thuc"} onClick={() => setError(actions.toggleCampaign(user, c.id))}>{c.status === "dang-chay" ? <Pause /> : <Play />} {c.status === "dang-chay" ? "Tạm dừng" : "Tiếp tục"}</Button> }] : []),
   ];
   return <>
@@ -94,7 +95,7 @@ export function CampaignsView({ source }: { source?: LeadSource }) {
       <Field label="Tên chiến dịch" htmlFor="c-name" required><Input id="c-name" name="name" required maxLength={160} /></Field>
       <Field label="Nguồn" htmlFor="c-source"><NativeSelect id="c-source" name="source" defaultValue={source ?? "ads"}>{activeSources.map((s) => <option key={s} value={s}>{sourceLabels[s]}</option>)}</NativeSelect></Field>
       <div className="grid gap-4 sm:grid-cols-2">{[["startOn", "Bắt đầu"], ["endOn", "Kết thúc"]].map(([name, label]) => <Field key={name} label={label} htmlFor={`c-${name}`} required><Input id={`c-${name}`} name={name} type="date" required defaultValue={CRM_TODAY} /></Field>)}</div>
-      <div className="grid gap-4 sm:grid-cols-2">{[["budget", "Ngân sách (VND)"], ["spent", "Đã chi (VND)"]].map(([name, label]) => <Field key={name} label={label} htmlFor={`c-${name}`}><Input id={`c-${name}`} name={name} type="number" min="0" step="1" defaultValue="0" required /></Field>)}</div>
+      <div className="grid gap-4 sm:grid-cols-2">{[["budget", "Ngân sách (VND)"], ["spent", "Đã chi (VND)"]].map(([name, label]) => <Field key={name} label={label} htmlFor={`c-${name}`}><UncontrolledMoneyInput id={`c-${name}`} name={name} defaultValue={0} required /></Field>)}</div>
     </FormDialog>}
   </>;
 }

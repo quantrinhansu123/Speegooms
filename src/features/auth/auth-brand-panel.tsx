@@ -1,5 +1,5 @@
-import Image from "next/image";
 import { Megaphone, Scale, Ship, TrendingUp, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BrandWatermark } from "@/components/layout/brand-watermark";
 
 const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
@@ -22,17 +22,9 @@ export function AuthBrandPanel() {
           "radial-gradient(60% 45% at 0% 0%, color-mix(in oklab, var(--brand-orange) 16%, transparent), transparent), radial-gradient(45% 40% at 75% 65%, color-mix(in oklab, var(--brand-navy) 7%, transparent), transparent)",
       }}
     >
-      {/* logo phóng to làm nền mờ; multiply để nền trắng của ảnh hòa vào gradient */}
-      <Image
-        src="/logo.png"
-        alt=""
-        aria-hidden
-        width={170}
-        height={51}
-        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 w-[40rem] max-w-none -translate-x-1/2 -translate-y-1/2 -rotate-6 opacity-[0.07] mix-blend-multiply select-none"
-      />
+      <BrandWatermark className="-z-10" imageClassName="w-[40rem] opacity-[0.07]" />
 
-      <div className="my-auto">
+      <div className="relative my-auto">
         <h2
           className="auth-rise text-5xl leading-[1.25] font-semibold tracking-tight text-primary xl:text-6xl"
           style={rise(1)}

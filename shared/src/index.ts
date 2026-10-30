@@ -2,6 +2,7 @@ export { updateRoleSchema, type UpdateRoleInput } from "./admin";
 export { loginSchema, type LoginInput } from "./auth";
 export {
   contractQuoteStatusSchema,
+  accountingConfirmationLineSchema,
   accountingContractSchema,
   contractShipToOptions,
   createContractSchema,
@@ -33,6 +34,7 @@ export {
   updateMessageSchema,
   updatePotentialSchema,
   updateQuoteSchema,
+  type AccountingConfirmationLineInput,
   type AccountingContractInput,
   type ContractPaymentLineInput,
   type CreateContractInput,

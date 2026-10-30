@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { originLabels, transportLabels } from "@/config/crm";
 import { addDays } from "@/features/dashboard/metrics";
 import { ChainTrace } from "@/features/crm/components/chain-trace";
+import { MoneyInput } from "@/components/shared/money-input";
 import { formatDate, formatVnd } from "@/lib/format";
 import { quoteTotal } from "@/services/ops/rules";
 import type { Supplier, SupplierQuote } from "@/types/ops";
@@ -90,10 +91,10 @@ function AddQuoteDialog({ requestId, route, taken, onClose }: { requestId: strin
               {options.map((s) => <option key={s.supplierId} value={s.supplierId}>{s.name} · {s.city}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Đơn giá hàng" htmlFor="aq-price" required><Input id="aq-price" type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} /></Field>
+          <Field label="Đơn giá hàng" htmlFor="aq-price" required><MoneyInput id="aq-price" value={price} onValueChange={(value) => setPrice(value ?? 0)} /></Field>
           <Field label="Thời gian sản xuất (ngày)" htmlFor="aq-lead"><Input id="aq-lead" type="number" min={1} value={lead} onChange={(e) => setLead(Number(e.target.value))} /></Field>
-          <Field label="Cước vận chuyển" htmlFor="aq-freight"><Input id="aq-freight" type="number" min={0} value={freight} onChange={(e) => setFreight(Number(e.target.value))} /></Field>
-          <Field label="Phí kho, xử lý" htmlFor="aq-fee"><Input id="aq-fee" type="number" min={0} value={fee} onChange={(e) => setFee(Number(e.target.value))} /></Field>
+          <Field label="Cước vận chuyển" htmlFor="aq-freight"><MoneyInput id="aq-freight" value={freight} onValueChange={(value) => setFreight(value ?? 0)} /></Field>
+          <Field label="Phí kho, xử lý" htmlFor="aq-fee"><MoneyInput id="aq-fee" value={fee} onValueChange={(value) => setFee(value ?? 0)} /></Field>
           <Field label="Điều kiện thanh toán" htmlFor="aq-terms" className="sm:col-span-2"><Input id="aq-terms" value={terms} onChange={(e) => setTerms(e.target.value)} /></Field>
         </div>
         {error && <InlineAlert>{error}</InlineAlert>}

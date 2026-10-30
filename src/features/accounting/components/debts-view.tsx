@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import type { Column } from "@/components/shared/data-table";
 import { Field, InlineAlert } from "@/components/shared/form-fields";
 import { ListView } from "@/components/shared/list-view";
+import { MoneyInput } from "@/components/shared/money-input";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -31,7 +32,7 @@ function ReceiptDialog({ row, onClose }: { row: ReceivableRow; onClose: () => vo
           <DialogTitle>Ghi nhận khoản thu {row.contract.orderId}</DialogTitle>
           <DialogDescription>Còn phải thu {formatMoney(row.outstanding, "VND")}. Chỉ ghi nhận số liệu, không phải giao dịch thật.</DialogDescription>
         </DialogHeader>
-        <Field label="Số tiền đã thu" htmlFor="rc-amount" required><Input id="rc-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
+        <Field label="Số tiền đã thu" htmlFor="rc-amount" required><MoneyInput id="rc-amount" value={amount} onValueChange={(value) => setAmount(value ?? 0)} /></Field>
         <Field label="Mã tham chiếu sao kê" htmlFor="rc-ref" required><Input id="rc-ref" value={ref} onChange={(e) => setRef(e.target.value)} /></Field>
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>

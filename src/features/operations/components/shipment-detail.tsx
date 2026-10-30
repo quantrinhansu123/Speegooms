@@ -13,6 +13,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ChainTrace } from "@/features/crm/components/chain-trace";
 import { costLabels, milestones, modeLabels, trackingDisclaimer } from "@/config/operations";
+import { MoneyInput } from "@/components/shared/money-input";
 import { formatDate, formatVnd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { delayDays, nextMilestone, shipmentStatus } from "@/services/ops/rules";
@@ -178,7 +179,7 @@ export function ShipmentDetail({ shipmentId }: { shipmentId: string }) {
                     <td className="tabular px-3 py-2.5 text-right">{formatVnd(est)}</td>
                     <td className="px-3 py-2.5 text-right">
                       {writable ? (
-                        <Input aria-label={`Thực tế: ${costLabels[k]}`} type="number" min={0} className="ml-auto h-8 w-32 text-right" value={costs[k]} onChange={(e) => setActual({ ...costs, [k]: Number(e.target.value) })} />
+                        <MoneyInput aria-label={`Thực tế: ${costLabels[k]}`} className="ml-auto h-8 w-32 text-right" value={costs[k]} onValueChange={(value) => setActual({ ...costs, [k]: value ?? 0 })} />
                       ) : <span className="tabular">{act === undefined ? "—" : formatVnd(act)}</span>}
                     </td>
                     <td className={cn("tabular px-5 py-2.5 text-right", diff && diff > 0 ? "text-danger" : diff && diff < 0 ? "text-success" : "")}>{diff === undefined ? "—" : `${diff > 0 ? "+" : ""}${formatVnd(diff)}`}</td>

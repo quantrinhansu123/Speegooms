@@ -17,7 +17,8 @@ import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
-import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
+import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
+import { customerTypeOptions, demandOptions, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -221,24 +222,24 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
         <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
         <table className="w-full min-w-[1680px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Mã</th>
-              <th className="px-3 py-2 font-medium">Ngày</th>
-              <th className="px-3 py-2 font-medium">Tên khách</th>
-              <th className="px-3 py-2 font-medium">Thị trường</th>
-              <th className="px-3 py-2 font-medium">Phân loại</th>
-              <th className="px-3 py-2 font-medium">Đối tượng</th>
-              <th className="px-3 py-2 font-medium">Nhu cầu</th>
-              <th className="px-3 py-2 font-medium">Hàng hóa</th>
-              <th className="px-3 py-2 font-medium">Sales - hot & warm</th>
-              <th className="px-3 py-2 font-medium">Pain-Point của KH</th>
-              <th className="px-3 py-2 font-medium">Link mess</th>
-              <th className="px-3 py-2 font-medium">Ghi chú Sale</th>
-              <th className="px-3 py-2 font-medium">Trạng thái</th>
-              <th className="px-3 py-2 font-medium">Thao tác</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tên khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Nhu cầu</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Sales - hot & warm</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Pain-Point của KH</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Link mess</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú Sale</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -249,9 +250,9 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3 whitespace-nowrap">{row.receivedAt ? formatDate(dateInputFromIso(row.receivedAt)) : "—"}</td>
                 <td className="px-3 py-3">{row.customerName}</td>
                 <td className="px-3 py-3">{row.market || "—"}</td>
-                <td className="px-3 py-3">{labelOf(messageClassificationOptions, row.classification)}</td>
-                <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
-                <td className="px-3 py-3">{labelOf(demandOptions, row.demand)}</td>
+                <td className="px-3 py-3"><HeatBadge value={row.classification} /></td>
+                <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
+                <td className="px-3 py-3"><DemandBadge value={row.demand} /></td>
                 <td className="px-3 py-3">{row.goods || "—"}</td>
                 <td className="px-3 py-3">{row.saleName || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.painPoint ?? undefined}>{row.painPoint || "—"}</td>
@@ -265,13 +266,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                   ) : "—"}
                 </td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.note ?? undefined}>{row.note || "—"}</td>
-                <td className="px-3 py-3">{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</td>
+                <td className="px-3 py-3"><MessageStatusBadge status={row.status} leadCode={row.leadCode} /></td>
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-1.5">
                     {canConvert && !row.leadId && row.status !== "LOST" && (
                       <Button
                         size="sm"
-                        variant="outline"
                         title="Chuyển sang Khách tiềm năng"
                         aria-label={`Chuyển sang Khách tiềm năng · ${row.messCode}`}
                         onClick={() => convert(row)}

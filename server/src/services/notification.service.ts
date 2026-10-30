@@ -12,6 +12,13 @@ function deskPath(desk: QuoteDesk): string {
   return desk === "logistics" ? "/van-hanh/logistics-bao-gia" : "/van-hanh/sourcing-bao-gia";
 }
 
+/** Deep-link tới đúng bản ghi trên trang danh sách (`?id=` + `lane` khi cần). */
+function recordHref(path: string, id: string, lane?: CrmLane): string {
+  const query = new URLSearchParams({ id });
+  if (lane) query.set("lane", lane);
+  return `${path}?${query}`;
+}
+
 function laneLabel(lane: CrmLane): string {
   return lane === "vn" ? "Việt Nam" : "Global";
 }
@@ -57,7 +64,7 @@ export class NotificationService {
         type: "quote.request",
         title: "Yêu cầu báo giá mới",
         body: `${actor.name} yêu cầu báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
-        href: deskPath(desk),
+        href: recordHref(deskPath(desk), quoteId, lane),
         lane,
         refType: "quote",
         refId: quoteId,
@@ -75,7 +82,7 @@ export class NotificationService {
         type: "quote.send",
         title: "Báo giá đã gửi",
         body: `${actor.name} đã gửi báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
-        href: salePath(lane, "rfq"),
+        href: recordHref(salePath(lane, "rfq"), quoteId, lane),
         lane,
         refType: "quote",
         refId: quoteId,
@@ -92,7 +99,7 @@ export class NotificationService {
         type: "quote.return",
         title: "Yêu cầu làm lại báo giá",
         body: `${actor.name} gửi lại báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
-        href: deskPath(desk),
+        href: recordHref(deskPath(desk), quoteId, lane),
         lane,
         refType: "quote",
         refId: quoteId,
@@ -109,7 +116,7 @@ export class NotificationService {
         type: "contract.create",
         title: "Hợp đồng mới",
         body: `${actor.name} tạo hợp đồng ${contractCode} (${laneLabel(lane)}).`,
-        href: "/van-hanh/don-hang",
+        href: recordHref("/van-hanh/don-hang", contractId, lane),
         lane,
         refType: "contract",
         refId: contractId,
@@ -133,7 +140,7 @@ export class NotificationService {
           type: "contract.resend.ops",
           title: "Hợp đồng gửi Vận hành",
           body: `${actor.name} gửi lại hợp đồng ${contractCode} cho Vận hành (${laneLabel(lane)}).`,
-          href: "/van-hanh/don-hang",
+          href: recordHref("/van-hanh/don-hang", contractId, lane),
           lane,
           refType: "contract",
           refId: contractId,
@@ -150,7 +157,7 @@ export class NotificationService {
           type: "contract.resend.accounting",
           title: "Hợp đồng gửi Kế toán",
           body: `${actor.name} gửi lại hợp đồng ${contractCode} cho Kế toán (${laneLabel(lane)}).`,
-          href: "/ke-toan/hop-dong",
+          href: recordHref("/ke-toan/hop-dong", contractId, lane),
           lane,
           refType: "contract",
           refId: contractId,
@@ -168,7 +175,7 @@ export class NotificationService {
         type: "contract.resend.parties",
         title: "Kế toán xác nhận hợp đồng",
         body,
-        href: salePath(lane, "hop-dong"),
+        href: recordHref(salePath(lane, "hop-dong"), contractId, lane),
         lane,
         refType: "contract",
         refId: contractId,
@@ -182,7 +189,7 @@ export class NotificationService {
         type: "contract.resend.parties",
         title: "Kế toán xác nhận hợp đồng",
         body,
-        href: "/van-hanh/don-hang",
+        href: recordHref("/van-hanh/don-hang", contractId, lane),
         lane,
         refType: "contract",
         refId: contractId,

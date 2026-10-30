@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { MoneyInput } from "@/components/shared/money-input";
 import { costLabels, modeLabels } from "@/config/operations";
 import type { TransportMode } from "@/types/crm";
 import type { CostSet } from "@/types/ops";
@@ -59,7 +60,7 @@ export function ShipmentCreateDialog({ orderId, onClose, onCreated }: { orderId:
           <Field label="Ngày nhận hàng dự kiến" htmlFor="sc-start" className="sm:col-span-2"><Input id="sc-start" type="date" value={startOn} onChange={(e) => setStartOn(e.target.value)} /></Field>
           {(Object.keys(costLabels) as (keyof CostSet)[]).map((k) => (
             <Field key={k} label={`${costLabels[k]} dự kiến`} htmlFor={`sc-${k}`}>
-              <Input id={`sc-${k}`} type="number" min={0} value={est[k]} onChange={(e) => setEst({ ...est, [k]: Number(e.target.value) })} />
+              <MoneyInput id={`sc-${k}`} value={est[k]} onValueChange={(value) => setEst({ ...est, [k]: value ?? 0 })} />
             </Field>
           ))}
         </div>

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import type { Column } from "@/components/shared/data-table";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { ListView } from "@/components/shared/list-view";
+import { MoneyInput } from "@/components/shared/money-input";
 import { paymentKindLabels, paymentPurposeLabels, paymentStatusMeta, tierFor } from "@/config/accounting";
 import { formatDate, formatMoney } from "@/lib/format";
 import { canCreatePayment } from "@/services/accounting/rules";
@@ -75,7 +76,7 @@ function CreatePaymentDialog({ onClose }: { onClose: () => void }) {
             {target.refId && <span className="font-mono text-xs text-muted-foreground"> · {target.refId}</span>}
           </p>
           <Field label="Số tiền (VND)" htmlFor="cp-amount" required hint={amount > 0 ? `Thuộc ${tierFor(amount).label}: ${tierFor(amount).approver} (ngưỡng mô phỏng, cần cấu hình)` : undefined}>
-            <Input id="cp-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <MoneyInput id="cp-amount" value={amount} onValueChange={(value) => setAmount(value ?? 0)} />
           </Field>
           <Field label="Ghi chú" htmlFor="cp-note"><Input id="cp-note" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         </div>

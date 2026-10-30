@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { MoneyInput } from "@/components/shared/money-input";
 import { formatMoney } from "@/lib/format";
 import type { Contract, DepositChannel } from "@/types/crm";
 import { useCrm } from "../hooks";
@@ -37,7 +38,7 @@ export function DepositRequestDialog({ contract, open, onOpenChange }: { contrac
         </DialogHeader>
         <div className="grid gap-4">
           <Field label="Số tiền cọc" htmlFor="dp-amount" required hint="Gợi ý theo tỷ lệ cọc mô phỏng, Sale chỉnh theo hợp đồng thực tế.">
-            <Input id="dp-amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <MoneyInput id="dp-amount" value={amount} onValueChange={(value) => setAmount(value ?? 0)} />
           </Field>
           <Field label="Kênh nhận tiền" htmlFor="dp-channel">
             <NativeSelect id="dp-channel" value={channel} onChange={(e) => setChannel(e.target.value as DepositChannel)}>
