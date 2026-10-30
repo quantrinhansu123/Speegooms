@@ -16,6 +16,7 @@ import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { TableHScroll } from "./table-h-scroll";
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -31,7 +32,20 @@ const sourceOptions = [
 function BrandTag({ brand }: { brand: string | null }) {
   const item = brandOptions.find((option) => option[0] === brand);
   if (!item) return <span className="text-muted-foreground">—</span>;
-  return <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${item[2]}`}>{item[1]}</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${item[2]}`}>{item[1]}</span>;
+}
+
+function MessLinkedCell({ value, linkMess, className }: { value: string | null; linkMess: string | null; className?: string }) {
+  const text = value?.trim() || "";
+  if (!text) return <span className={className}>—</span>;
+  if (linkMess && /^https?:\/\//i.test(linkMess)) {
+    return (
+      <a href={linkMess} target="_blank" rel="noreferrer" className={`text-primary hover:underline ${className ?? ""}`} title={text}>
+        {text}
+      </a>
+    );
+  }
+  return <span className={className} title={text}>{text}</span>;
 }
 
 type Draft = {
@@ -201,7 +215,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="lead-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
         <FilterSelect id="lead-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <TableHScroll>
         <table className="w-full min-w-[1680px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -211,7 +225,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="px-3 py-2 font-medium">Số điện thoại</th>
               <th className="px-3 py-2 font-medium">Email</th>
               <th className="px-3 py-2 font-medium">Mess</th>
-              <th className="px-3 py-2 font-medium">Nguồn</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Nguồn</th>
               <th className="px-3 py-2 font-medium">Giai đoạn</th>
               <th className="px-3 py-2 font-medium">Loại khách</th>
               <th className="px-3 py-2 font-medium">Đối tượng</th>
@@ -239,15 +253,15 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3">{row.phone || "—"}</td>
                 <td className="px-3 py-3">{row.email || "—"}</td>
                 <td className="px-3 py-3">{row.messCode ?? "—"}</td>
-                <td className="px-3 py-3"><BrandTag brand={row.brand} /></td>
+                <td className="whitespace-nowrap px-3 py-3"><BrandTag brand={row.brand} /></td>
                 <td className="px-3 py-3">{labelOf(potentialOptions, row.potential)}</td>
                 <td className="px-3 py-3">{labelOf(customerKindOptions, row.customerKind)}</td>
                 <td className="px-3 py-3">{labelOf(customerTypeOptions, row.customerType)}</td>
-                <td className="px-3 py-3">{row.productInterest || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.productInterest} linkMess={row.linkMess} className="truncate" /></td>
                 <td className="px-3 py-3">{row.quantityNote || "—"}</td>
-                <td className="px-3 py-3">{row.address || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.saleNote ?? undefined}>{row.saleNote || "—"}</td>
-                <td className="px-3 py-3">{row.careChannel || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.address} linkMess={row.linkMess} className="truncate" /></td>
+                <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.saleNote} linkMess={row.linkMess} className="truncate" /></td>
+                <td className="px-3 py-3"><MessLinkedCell value={row.careChannel} linkMess={row.linkMess} /></td>
                 <td className="px-3 py-3">{row.classification || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.weightKg == null ? undefined : String(row.weightKg)}>{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
@@ -268,7 +282,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       <Dialog open={draft !== null} onOpenChange={(openDialog) => { if (!openDialog) { setDraft(null); setEditing(null); } }}>
         <DialogContent className="sm:max-w-lg">
@@ -311,16 +325,45 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {customerTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Hàng hóa" htmlFor="pot-goods"><Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} /></Field>
+              <Field
+                label="Hàng hóa"
+                htmlFor="pot-goods"
+                hint={editing?.linkMess ? "Link từ mess" : editing?.messCode ? `Từ mess ${editing.messCode}` : undefined}
+              >
+                <Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} />
+              </Field>
               <Field label="Số lượng" htmlFor="pot-qty"><Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} /></Field>
-              <Field label="Địa chỉ" htmlFor="pot-address"><Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></Field>
-              <Field label="Ghi chú sale" htmlFor="pot-note"><Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} /></Field>
-              <Field label="Kênh chăm sóc" htmlFor="pot-care">
+              <Field
+                label="Địa chỉ"
+                htmlFor="pot-address"
+                hint={editing?.linkMess ? "Link từ mess" : undefined}
+              >
+                <Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} />
+              </Field>
+              <Field
+                label="Ghi chú sale"
+                htmlFor="pot-note"
+                hint={editing?.linkMess ? "Link từ mess" : editing?.messCode ? `Từ mess ${editing.messCode}` : undefined}
+              >
+                <Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} />
+              </Field>
+              <Field
+                label="Kênh chăm sóc"
+                htmlFor="pot-care"
+                hint={editing?.linkMess ? "Link từ mess" : undefined}
+              >
                 <NativeSelect id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value as Draft["careChannel"] })}>
                   <option value="">Chưa chọn</option>
                   {careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
+              {editing?.linkMess && /^https?:\/\//i.test(editing.linkMess) && (
+                <p className="text-sm">
+                  <a href={editing.linkMess} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    Mở link mess
+                  </a>
+                </p>
+              )}
               <Field label="Phân loại" htmlFor="pot-class">
                 <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>

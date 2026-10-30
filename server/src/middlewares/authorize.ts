@@ -12,3 +12,15 @@ export function requirePermission(action: Permission): RequestHandler {
     next();
   };
 }
+
+/** Cho phép nếu đủ ít nhất một quyền trong danh sách. */
+export function requireAnyPermission(actions: readonly Permission[]): RequestHandler {
+  return (req, _res, next) => {
+    const role = req.user?.role;
+    if (!role || !actions.some((action) => can(role, action))) {
+      next(new AppError(403, "FORBIDDEN", "Bạn không có quyền thực hiện"));
+      return;
+    }
+    next();
+  };
+}

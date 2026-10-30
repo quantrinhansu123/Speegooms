@@ -141,27 +141,20 @@ function numRow(amount: string, unit = ""): string {
   return `<span class="num-row"><span class="amt">${escapeHtml(amount)}</span><span class="unit">${escapeHtml(unit)}</span></span>`;
 }
 
-/** Ô số: phần số thẳng cột, đơn vị cố định bên phải. */
+/** Ô số: đơn vị trong header thì chỉ hiện số; có unit thì số + đơn vị thẳng cột. */
 function numCell(amount: string, unit = "", className = "num"): string {
   if (!amount && !unit) return `<td class="${className}"></td>`;
+  if (!unit) return `<td class="${className}"><span class="amt">${escapeHtml(amount)}</span></td>`;
   return `<td class="${className}">${numRow(amount, unit)}</td>`;
 }
 
-type SummaryCells = { total?: string; kg?: string; cbm?: string };
+type SummaryCells = { total?: string; cbm?: string };
 
-function measureCells(weightKg: number | null, cbm: number | null): SummaryCells {
-  return {
-    kg: weightKg != null ? numRow(formatAmount(weightKg), "KG") : "",
-    cbm: cbm != null && cbm > 0 ? numRow(formatAmount(cbm, 3), "CBM") : "",
-  };
-}
-
-/** Dòng tổng kết: nhãn (4 cột đầu) | Tổng tiền | KG | CBM | Thông tin — thẳng cột với bảng hàng. */
+/** Dòng tổng kết: nhãn (STT→Đơn giá) | Tổng tiền | CBM | Thông số | Note — thẳng cột mẫu. */
 function summaryRow(label: string, cells: SummaryCells = {}, note = ""): string {
   return `<tr>
     <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
     <td class="sum-value">${cells.total ?? ""}</td>
-    <td class="sum-value">${cells.kg ?? ""}</td>
     <td class="sum-value">${cells.cbm ?? ""}</td>
     <td class="sum-spec"></td>
     <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
@@ -196,27 +189,21 @@ export function quoteSheetHtml(input: {
       .map((src) => `<img src="${src}" alt="">`)
       .join("");
     const qtyAmount = line.quantity == null ? "" : formatAmount(line.quantity);
-    const qtyUnit = line.quantity == null ? "" : (line.unit && line.unit !== "set" ? line.unit : "");
     const priceAmount = line.pricePerSet == null ? "" : formatAmount(line.pricePerSet);
-    const priceUnit = line.pricePerSet == null
+    const priceUnit = line.pricePerSet == null || line.basis === "unit"
       ? ""
-      : line.basis === "unit"
-        ? currency
-        : `/${{ kg: "kg", cbm: "cbm", lump: "gói" }[line.basis]}`;
+      : `/${{ kg: "kg", cbm: "cbm", lump: "gói" }[line.basis]}`;
     const totalAmount = line.lineTotal == null ? "" : formatAmount(line.lineTotal);
-    const totalUnit = line.lineTotal == null ? "" : currency;
-    const weight = line.weightKg != null ? formatAmount(line.weightKg) : "";
     const volume = line.cbm != null && line.cbm > 0 ? formatAmount(line.cbm, 3) : "";
     const specText = line.spec.trim();
     const noteText = lineNote(line);
     return `<tr>
       ${cell(line.stt, "stt")}
       <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(qtyAmount, qtyUnit)}
+      ${numCell(qtyAmount, "")}
       ${numCell(priceAmount, priceUnit)}
-      ${numCell(totalAmount, totalUnit, "num money")}
-      ${weight ? numCell(weight, "KG") : `<td class="num"></td>`}
-      ${volume ? numCell(volume, "CBM") : `<td class="num"></td>`}
+      ${numCell(totalAmount, "", "num money")}
+      ${volume ? numCell(volume, "") : `<td class="num"></td>`}
       ${cell(specText, "wrap info")}
       ${cell(noteText, "wrap info")}
     </tr>`;
@@ -248,13 +235,14 @@ export function quoteSheetHtml(input: {
   const validityNote = input.notes.validityNote?.trim() ?? "";
   const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
 
+  const cbmCell = totals.cbm > 0 ? numRow(formatAmount(totals.cbm, 3), "") : "";
   const summaryRows = [
     (totals.priced || weightNote)
       ? summaryRow(
-          "Tổng tiền",
+          "Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển",
           {
-            total: totals.priced ? numRow(formatAmount(totals.goods), currency) : "",
-            ...measureCells(totals.weighed ? totals.weight : null, totals.cbm > 0 ? totals.cbm : null),
+            total: totals.priced ? numRow(formatAmount(totals.goods), "") : "",
+            cbm: cbmCell,
           },
           weightNote,
         )
@@ -262,27 +250,24 @@ export function quoteSheetHtml(input: {
     shippingLabel
       ? summaryRow(
           shippingLabel,
-          measureCells(totals.weighed ? totals.weight : null, totals.cbm > 0 ? totals.cbm : null),
+          { cbm: cbmCell },
           validityNote,
-        )
-      : "",
-    totals.packageCount > 0
-      ? summaryRow(
-          "Tổng đóng gói",
-          { ...measureCells(totals.weight, totals.cbm), total: numRow(formatAmount(totals.packageCount), "kiện") },
         )
       : "",
     converted != null
       ? summaryRow(
           `Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)`,
-          { total: numRow(formatAmount(converted), "VND") },
+          { total: numRow(formatAmount(converted), "") },
         )
       : "",
   ].filter(Boolean).join("");
 
   const depositRows = depositLines.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
-    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), currency) : ""}</td>
+    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), "") : ""}</td>
+    <td class="dep-value"></td>
+    <td></td>
+    <td></td>
   </tr>`).join("");
 
   const bankParts = [
@@ -325,34 +310,33 @@ export function quoteSheetHtml(input: {
   <table class="items">
     <colgroup>
       <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup>
     <thead>
       <tr>
         <th>STT</th>
         <th>Hình ảnh</th>
-        <th>SL</th>
-        <th>Đơn giá</th>
-        <th>Tổng tiền</th>
-        <th>KG</th>
-        <th>CBM</th>
-        <th>Thông số kỹ thuật</th>
-        <th>Ghi chú</th>
+        <th>Số lượng<br><span class="th-sub">(set)</span></th>
+        <th>Đơn giá<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
+        <th>Tổng tiền hàng<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
+        <th>(CBM)</th>
+        <th>Thông số kỹ thuật và tính năng của sản phẩm</th>
+        <th>Note</th>
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="9" class="empty">Chưa có dòng hàng</td></tr>`}
+      ${rows || `<tr><td colspan="8" class="empty">Chưa có dòng hàng</td></tr>`}
     </tbody>
   </table>
 
   ${summaryRows ? `<table class="summary"><colgroup>
       <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${summaryRows}</tbody></table>` : ""}
 
   ${depositRows ? `<table class="summary deposit"><colgroup>
       <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-kg"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${depositRows}</tbody></table>` : ""}
 
   ${bankBlock}
@@ -526,15 +510,14 @@ export const quotePrintCss = `
     table-layout: fixed;
     font-size: 9pt;
   }
-  .c-stt { width: 3%; }
-  .c-image { width: 14%; }
-  .c-qty { width: 6%; }
+  .c-stt { width: 3.5%; }
+  .c-image { width: 13%; }
+  .c-qty { width: 7%; }
   .c-price { width: 9%; }
-  .c-total { width: 12%; }
-  .c-kg { width: 7%; }
+  .c-total { width: 11%; }
   .c-cbm { width: 7%; }
-  .c-spec { width: 24%; }
-  .c-info { width: 18%; }
+  .c-spec { width: 28%; }
+  .c-info { width: 21.5%; }
   table.items th,
   table.items td {
     border: 1px solid #c5d0de;
@@ -549,6 +532,14 @@ export const quotePrintCss = `
     vertical-align: middle;
     border-color: #082A59;
     border-bottom: 3px solid #F26522;
+    line-height: 1.25;
+  }
+  table.items .th-sub {
+    display: inline-block;
+    font-size: 8pt;
+    font-weight: 600;
+    opacity: 0.92;
+    letter-spacing: 0;
   }
   table.items .stt {
     text-align: center;

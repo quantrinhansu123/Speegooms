@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { crmPath } from "./lane";
+import type { QuoteSheet } from "./types";
 
 type QuoteSource = {
   id: string;
@@ -17,13 +18,32 @@ type QuoteSource = {
   address: string | null;
   goods: string | null;
   orders: QuoteOrder[];
+  logisticsSheet?: QuoteSheet | null;
 };
 
-/** Mẫu đang chọn: tổng tiền hàng và loại tiền của chính mẫu đó. */
-function selectedOrder(orders: QuoteOrder[]): { total: number; currency: QuoteCurrency } {
-  const order = orders.find((item) => item.selected) ?? orders[0];
+/** Mẫu đang chọn trên báo giá sourcing (hoặc mẫu đầu). */
+function selectedOrder(orders: QuoteOrder[]): QuoteOrder | null {
+  return orders.find((item) => item.selected) ?? orders[0] ?? null;
+}
+
+function orderProductTotal(order: QuoteOrder | null): { total: number; currency: QuoteCurrency } {
   if (!order) return { total: 0, currency: "VND" };
   return { total: order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0), currency: order.currency };
+}
+
+/** Tổng số lượng từ các dòng đơn hàng đã chọn. */
+function orderQuantity(order: QuoteOrder | null): number | null {
+  if (!order) return null;
+  const values = order.lines.map((line) => line.quantity).filter((value): value is number => value != null);
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+function logisticsShippingTotal(sheet: QuoteSheet | null | undefined): number {
+  if (!sheet) return 0;
+  const order = selectedOrder(sheet.orders);
+  if (!order) return 0;
+  return order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
 }
 
 function numberValue(value: string): number | null {
@@ -44,15 +64,18 @@ export function ContractCreateDialog({
   onCreated: () => void;
 }) {
   const user = useSession();
-  const { total: productValue, currency: orderCurrency } = selectedOrder(quote.orders);
+  const order = selectedOrder(quote.orders);
+  const { total: productValue, currency: orderCurrency } = orderProductTotal(order);
+  const linkedQty = orderQuantity(order);
+  const linkedShipping = logisticsShippingTotal(quote.logisticsSheet);
   const [currency, setCurrency] = useState<QuoteCurrency>(orderCurrency);
   const [customerName, setCustomerName] = useState(quote.customerName ?? "");
   const [saleName, setSaleName] = useState(user.name);
   const [shipTo, setShipTo] = useState("");
   const [product, setProduct] = useState(quote.goods ?? "");
-  const [quantity, setQuantity] = useState("");
+  const [quantity, setQuantity] = useState(linkedQty != null ? String(linkedQty) : "");
   const [productValueText, setProductValueText] = useState(productValue ? String(productValue) : "");
-  const [shippingCost, setShippingCost] = useState("");
+  const [shippingCost, setShippingCost] = useState(linkedShipping ? String(linkedShipping) : "");
   const [paidAmount, setPaidAmount] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [error, setError] = useState<string>();
@@ -97,6 +120,10 @@ export function ContractCreateDialog({
     }
   };
 
+  const qtyHint = order
+    ? `Lấy từ thông tin đơn hàng “${order.name}”: ${order.lines.filter((line) => line.quantity != null).map((line) => `${line.quantity}${line.unit ? ` ${line.unit}` : ""}`).join(" + ") || "chưa có số lượng"}`
+    : "Chưa có mẫu đơn hàng trên báo giá";
+
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <DialogContent className="z-[80] sm:max-w-4xl">
@@ -105,6 +132,9 @@ export function ContractCreateDialog({
         </DialogHeader>
         <div className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
           {error && <InlineAlert className="sm:col-span-2">{error}</InlineAlert>}
+          <InlineAlert className="sm:col-span-2">
+            Số lượng, giá trị hàng và phí vận chuyển được lấy sẵn từ báo giá / thông tin đơn hàng (có thể chỉnh trước khi tạo).
+          </InlineAlert>
           <Field label="Tên khách hàng" htmlFor="contract-customer" required>
             <Input id="contract-customer" value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
           </Field>
@@ -119,10 +149,10 @@ export function ContractCreateDialog({
               ))}
             </NativeSelect>
           </Field>
-          <Field label="Sản phẩm" htmlFor="contract-product" className="sm:col-span-2">
+          <Field label="Sản phẩm" htmlFor="contract-product" className="sm:col-span-2" hint="Lấy từ hàng hóa trên báo giá">
             <Input id="contract-product" value={product} onChange={(event) => setProduct(event.target.value)} />
           </Field>
-          <Field label="Số lượng" htmlFor="contract-qty">
+          <Field label="Số lượng" htmlFor="contract-qty" hint={qtyHint}>
             <Input id="contract-qty" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
           </Field>
           <Field label="Ngày ký" htmlFor="contract-signed">
@@ -133,10 +163,14 @@ export function ContractCreateDialog({
               {quoteCurrencies.map((code) => <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Giá trị sản phẩm" htmlFor="contract-product-value">
+          <Field label="Giá trị sản phẩm" htmlFor="contract-product-value" hint="Tổng tiền hàng từ mẫu đơn đang chọn">
             <Input id="contract-product-value" inputMode="decimal" value={productValueText} onChange={(event) => setProductValueText(event.target.value)} />
           </Field>
-          <Field label="Chi phí vận chuyển" htmlFor="contract-shipping">
+          <Field
+            label="Chi phí vận chuyển"
+            htmlFor="contract-shipping"
+            hint={quote.logisticsSheet ? "Lấy từ báo giá logistics (mẫu đang chọn)" : "Chưa có báo giá logistics — nhập tay nếu cần"}
+          >
             <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(event.target.value)} />
           </Field>
           <Field label="Tổng giá trị" htmlFor="contract-total" hint="Tự tính = giá trị sản phẩm + chi phí vận chuyển">

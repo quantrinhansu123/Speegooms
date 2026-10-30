@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
-import { reassignQuoteSchema, type CrmLane } from "@speego/shared";
+import { reassignQuoteSchema, type CrmLane, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -103,7 +103,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
+  const canContent = writeRoles.includes(user.role);
   const canCreateContract = contractRoles.includes(user.role);
+  const contentEditMode = canContent ? "content" as const : "none" as const;
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -202,6 +204,45 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
 
   const sentToSale = (status: string) => status === "DA_CO_BAO_GIA" || status === "DA_CO_BAO_GIA_LAI";
 
+  const saveQuoteContent = (row: RfqQuoteRecord, input: UpdateQuoteInput, options?: { close?: boolean }) => {
+    setPending(true);
+    setError(undefined);
+    return api<{ quote: RfqQuoteRecord }>(crmPath(`/api/crm/quotes/${row.id}?desk=${row.desk}`, lane), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    })
+      .then((body) => {
+        setViewing((current) => {
+          if (!current || current.id !== row.id) return current;
+          if (row.desk === "logistics" && current.customerKind === "SOURCING_LOGISTICS") {
+            return {
+              ...current,
+              logisticsSheet: {
+                templateId: body.quote.templateId,
+                templateName: body.quote.templateName,
+                opsNote: body.quote.opsNote,
+                quoteStatus: body.quote.quoteStatus,
+                contractStatus: body.quote.contractStatus,
+                orders: body.quote.orders,
+                notes: body.quote.notes,
+                bank: body.quote.bank,
+                sentQuote: body.quote.sentQuote,
+              },
+            };
+          }
+          return { ...current, ...body.quote, desk: current.desk, logisticsSheet: current.logisticsSheet };
+        });
+        if (options?.close !== false) setViewing(null);
+        load();
+        return true;
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : "Không lưu được thông tin đơn hàng");
+        return false;
+      })
+      .finally(() => setPending(false));
+  };
+
   const returnQuote = (row: RfqQuoteRecord) => {
     setPending(true);
     setError(undefined);
@@ -237,7 +278,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     <>
       <PageHeader
         title="Báo giá (RFQ)"
-        description={`Báo giá chọn từ khách hàng tiềm năng tuyến ${laneName(lane)}.`}
+        description={`Điền thông tin đơn hàng (ảnh, quy cách) rồi chờ VH báo giá · tuyến ${laneName(lane)}. Tạo hợp đồng sẽ lấy sẵn số lượng và giá từ báo giá.`}
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
@@ -308,7 +349,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <RowMenu
                     label={`Thao tác ${row.code}`}
                     items={[
-                      { key: "view", label: "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
+                      { key: "view", label: canContent ? "Xem / điền thông tin đơn" : "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
                       {
                         key: "print",
                         label: "In báo giá",
@@ -418,21 +459,23 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </section>
                   );
                 }
-                const source = viewableQuote(quote);
+                // Khi điền nội dung dùng bản đơn hàng hiện tại; chỉ xem bản đã gửi khi chỉ đọc.
+                const source = canContent ? quote : viewableQuote(quote);
+                const rowForSave: RfqQuoteRecord = desk === "logistics"
+                  ? { ...viewing, ...source, id: viewing.id, desk: "logistics" }
+                  : viewing;
                 return (
                   <QuoteEditor
                     key={`${viewing.id}-${desk}-${quote.sentQuote?.sentAt ?? quote.quoteStatus}`}
                     embedded
                     heading={`${title} · ${viewing.code}`}
-                    quote={{
-                      ...source,
-                      id: `${viewing.id}-${desk}`,
-                    }}
+                    quote={{ ...source, id: viewing.id }}
                     templates={[]}
-                    canEdit={false}
+                    editMode={contentEditMode}
+                    desk={desk}
                     pending={pending}
                     onClose={() => setViewing(null)}
-                    onSave={async () => false}
+                    onSave={(input, options) => saveQuoteContent(rowForSave, input, options)}
                     onReturn={quote.sentQuote ? () => returnQuote(desk === "logistics" ? { ...viewing, desk } : viewing) : undefined}
                   />
                 );
@@ -448,12 +491,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       {viewing && viewing.customerKind !== "SOURCING_LOGISTICS" && (
         <QuoteEditor
           key={`${viewing.id}-${viewing.sentQuote?.sentAt ?? viewing.quoteStatus}`}
-          quote={viewableQuote(viewing)}
+          quote={canContent ? viewing : viewableQuote(viewing)}
           templates={[]}
-          canEdit={false}
+          editMode={contentEditMode}
+          desk={viewing.desk}
           pending={pending}
           onClose={() => setViewing(null)}
-          onSave={async () => false}
+          onSave={(input, options) => saveQuoteContent(viewing, input, options)}
           onReturn={viewing.sentQuote ? () => returnQuote(viewing) : undefined}
         />
       )}

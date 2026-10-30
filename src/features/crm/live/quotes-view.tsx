@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -28,6 +29,7 @@ import {
 } from "./types";
 
 const opsRoles: Role[] = ["admin", "van-hanh"];
+const contentRoles: Role[] = ["admin", "van-hanh", "sale-vn", "sale-global"];
 
 const titles: Record<QuoteDesk, string> = {
   sourcing: "Sourcing – Báo giá",
@@ -42,8 +44,11 @@ function shownDate(value: string): string {
 
 export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const user = useSession();
+  const router = useRouter();
   const { lane, canPick, setLane } = useCrmLane();
   const canOps = opsRoles.includes(user.role);
+  const canContent = contentRoles.includes(user.role);
+  const editMode = canOps ? "full" as const : canContent ? "content" as const : "none" as const;
   const [rows, setRows] = useState<QuoteRecord[]>([]);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -157,7 +162,13 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     <>
       <PageHeader
         title={titles[desk]}
-        description={lane === "vn" ? "Báo giá tuyến Việt Nam." : "Báo giá tuyến Global."}
+        description={
+          desk === "sourcing"
+            ? "Sale điền ảnh/quy cách; mua hàng bổ sung chi tiết xưởng; vận hành báo giá. Sau khi gửi đơn hàng → chuyển Logistics."
+            : lane === "vn"
+              ? "Báo giá vận chuyển tuyến Việt Nam."
+              : "Báo giá vận chuyển tuyến Global."
+        }
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
@@ -256,12 +267,22 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           key={editing.id}
           quote={editing}
           templates={templates}
-          canEdit={canOps}
+          editMode={editMode}
+          desk={desk}
           pending={pending}
           error={quoteError}
           onClose={() => setEditing(null)}
           onSave={saveQuote}
-          onSend={sendQuote}
+          onSend={canOps ? sendQuote : undefined}
+          onContinueLogistics={
+            desk === "sourcing"
+              ? () => {
+                  setEditing(null);
+                  setNotice("Đã chuyển sang Logistics – Báo giá. Mở phiếu để báo giá vận chuyển.");
+                  router.push("/van-hanh/logistics-bao-gia");
+                }
+              : undefined
+          }
         />
       )}
 

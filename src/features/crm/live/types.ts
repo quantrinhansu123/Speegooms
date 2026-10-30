@@ -48,6 +48,7 @@ export interface PotentialRecord {
   logisticsClass: string | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;
+  linkMess: string | null;
   createdAt: string;
 }
 

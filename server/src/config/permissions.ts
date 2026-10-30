@@ -11,6 +11,8 @@ export const permissions = {
   "quote.rfq": ["admin", "ban-gd", "sale-vn", "sale-global"],
   "quote.request": ["admin", "sale-vn", "sale-global"],
   "quote.logistics": ["admin", "van-hanh"],
+  /** Sale / VH điền ảnh, số lượng, quy cách, thông số đơn hàng (không gửi báo giá). */
+  "quote.content": ["admin", "sale-vn", "sale-global", "van-hanh"],
   "quote.ops": ["admin", "van-hanh"],
   "quote.return": ["admin", "sale-vn", "sale-global"],
   "contract.read": ["admin", "ban-gd", "sale-vn", "sale-global", "van-hanh", "ke-toan"],

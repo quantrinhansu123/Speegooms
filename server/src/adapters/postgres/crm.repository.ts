@@ -90,6 +90,7 @@ type PotentialRow = {
   logistics_class: string | null;
   ship_from_address: string | null;
   ship_to_address: string | null;
+  link_mess: string | null;
   created_at: Date | string;
 };
 
@@ -461,14 +462,17 @@ function potentialSelect(message: string, potential: string): string {
          l.ma_tin_nhan::text as mess_id, m.ma_hien_thi as mess_code,
          l.ho_ten as full_name, l.ten_cong_ty as company_name,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nguon::text as source,
-         l.san_pham_quan_tam as product_interest, l.ghi_chu_so_luong as quantity_note,
-         l.dia_chi as address, l.ghi_chu_ban_hang as sale_note,
+         coalesce(nullif(l.san_pham_quan_tam, ''), m.hang_hoa) as product_interest,
+         l.ghi_chu_so_luong as quantity_note,
+         l.dia_chi as address,
+         coalesce(nullif(l.ghi_chu_ban_hang, ''), m.ghi_chu) as sale_note,
          l.tiem_nang::text as potential, l.trang_thai::text as status,
          l.nhom_khach::text as customer_kind, l.loai_khach_hang::text as customer_type,
          l.thuong_hieu::text as brand, l.kenh_cham_soc as care_channel,
          l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
+         m.link_mess as link_mess,
          l.tao_luc as created_at
   from ${potential} l
   left join ${message} m on m.id = l.ma_tin_nhan
@@ -523,6 +527,7 @@ type ContractRow = {
   total_value: string | number;
   paid_amount: string | number;
   balance: string | number;
+  payments: unknown;
   signed_on: Date | string | null;
   ops_status: string | null;
   tracking: string | null;
@@ -542,6 +547,7 @@ type ContractRow = {
   sent_accounting_body: unknown;
   sent_parties_body: unknown;
   created_at: Date | string;
+  updated_at: Date | string;
 };
 
 const commercialSnapshotSql = `jsonb_build_object(
@@ -597,6 +603,7 @@ function contractSelect(): string {
          h.van_chuyen_den as ship_to, h.san_pham as product, h.so_luong as quantity,
          h.loai_tien as currency, h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
          h.tong_gia_tri as total_value, h.so_tien_thanh_toan as paid_amount, h.so_tien_con_lai as balance,
+         coalesce(pays.payments, '[]'::jsonb) as payments,
          h.ngay_ky::text as signed_on, h.trang_thai_van_hanh as ops_status, h.tracking,
          h.ghi_chu_1 as note_1, h.ghi_chu_2 as note_2,
          h.ngay_nhap_kho_tq::text as china_warehouse_on, h.ngay_xuat_container::text as container_on,
@@ -606,13 +613,22 @@ function contractSelect(): string {
          h.trang_thai_ke_toan::text as accounting_status,
          coalesce(imgs.images, '[]'::jsonb) as images,
          h.ban_gui_van_hanh as sent_ops_body, h.ban_gui_ke_toan as sent_accounting_body,
-         h.ban_gui_xac_nhan as sent_parties_body, h.tao_luc as created_at
+         h.ban_gui_xac_nhan as sent_parties_body, h.tao_luc as created_at, h.cap_nhat_luc as updated_at
   from crm.hop_dong h
   left join lateral (
     select jsonb_agg(b.duong_dan order by b.thu_tu) as images
     from crm.hop_dong_anh_bill b
     where b.ma_hop_dong = h.id
   ) imgs on true
+  left join lateral (
+    select jsonb_agg(jsonb_build_object(
+      'amount', d.so_tien,
+      'paidOn', to_char(d.ngay_chuyen, 'YYYY-MM-DD'),
+      'note', coalesce(d.ghi_chu, '')
+    ) order by d.thu_tu) as payments
+    from crm.hop_dong_dong_thanh_toan d
+    where d.ma_hop_dong = h.id
+  ) pays on true
 `;
 }
 
@@ -629,7 +645,29 @@ function imageList(value: unknown): string[] {
   return parsed.flatMap((item) => (typeof item === "string" ? [item] : []));
 }
 
+function paymentList(value: unknown): ContractRecord["payments"] {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as Record<string, unknown>;
+    const amount = typeof row.amount === "number" || typeof row.amount === "string" ? moneyValue(row.amount) : 0;
+    const paidOn = typeof row.paidOn === "string" && row.paidOn ? row.paidOn.slice(0, 10) : null;
+    const note = typeof row.note === "string" ? row.note : "";
+    return [{ amount, paidOn, note }];
+  });
+}
+
 function toContract(row: ContractRow): ContractRecord {
+  const payments = paymentList(row.payments);
+  const paidAmount = moneyValue(row.paid_amount);
   return {
     id: row.id,
     code: row.code,
@@ -645,7 +683,8 @@ function toContract(row: ContractRow): ContractRecord {
     productValue: moneyValue(row.product_value),
     shippingCost: moneyValue(row.shipping_cost),
     totalValue: moneyValue(row.total_value),
-    paidAmount: moneyValue(row.paid_amount),
+    paidAmount,
+    payments: payments.length > 0 ? payments : paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "" }] : [],
     balance: moneyValue(row.balance),
     signedOn: dayText(row.signed_on),
     opsStatus: row.ops_status ?? "",
@@ -663,6 +702,7 @@ function toContract(row: ContractRow): ContractRecord {
     accountingStatus: row.accounting_status,
     images: imageList(row.images),
     createdAt: stamp(row.created_at),
+    updatedAt: stamp(row.updated_at),
   };
 }
 
@@ -708,11 +748,13 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
       shippingCost: 0,
       totalValue: 0,
       paidAmount: 0,
+      payments: [],
       balance: 0,
       signedOn: null,
     };
   }
   const quantity = source.quantity;
+  const paidAmount = snapMoney(source, "paidAmount");
   return {
     ...base,
     customerName: snapText(source, "customerName"),
@@ -724,7 +766,8 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     productValue: snapMoney(source, "productValue"),
     shippingCost: snapMoney(source, "shippingCost"),
     totalValue: snapMoney(source, "totalValue"),
-    paidAmount: snapMoney(source, "paidAmount"),
+    paidAmount,
+    payments: paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "" }] : [],
     balance: snapMoney(source, "balance"),
     signedOn: snapNullableText(source, "signedOn"),
   };
@@ -775,6 +818,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
       ...projected,
       // Tiền/bill và trạng thái kế toán lấy bản live để cột giục TT / đủ điều kiện khớp thực tế.
       paidAmount: live.paidAmount,
+      payments: live.payments,
       balance: live.balance,
       totalValue: live.totalValue,
       currency: live.currency,
@@ -846,6 +890,7 @@ function toPotential(row: PotentialRow): PotentialRecord {
     logisticsClass: row.logistics_class,
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
+    linkMess: row.link_mess,
     createdAt: stamp(row.created_at),
   };
 }
@@ -1456,6 +1501,17 @@ export class PostgresCrmRepository implements CrmRepository {
         input.currency,
       ],
     );
+    if (input.paidAmount > 0) {
+      await this.query(
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu)
+         select id, $3, 1 from crm.hop_dong
+         where tuyen = $1 and ma_bao_gia = $2::uuid
+           and not exists (
+             select 1 from crm.hop_dong_dong_thanh_toan d where d.ma_hop_dong = crm.hop_dong.id
+           )`,
+        [lane, quoteId, input.paidAmount],
+      );
+    }
     await this.query(
       `update ${tables.sourcing} set
          trang_thai_hop_dong = 'DA_TAO'::crm.trang_thai_hop_dong_bao_gia,
@@ -1533,13 +1589,23 @@ export class PostgresCrmRepository implements CrmRepository {
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
     const current = await this.findContractById(lane, id, "sale");
     if (!current) return "missing" as const;
-    if (input.paidAmount > current.totalValue) return "invalid" as const;
+    const payments = input.payments.filter((line) => line.amount > 0 || line.paidOn || line.note);
+    const paidAmount = payments.reduce((sum, line) => sum + line.amount, 0);
+    if (paidAmount > current.totalValue) return "invalid" as const;
     const updated = await this.query(
       `update crm.hop_dong set so_tien_thanh_toan = $3
        where id = $1::uuid and tuyen = $2`,
-      [id, lane, input.paidAmount],
+      [id, lane, paidAmount],
     );
     if (!updated.rowCount) return "missing" as const;
+    await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
+    for (const [index, line] of payments.entries()) {
+      await this.query(
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu)
+         values ($1::uuid, $2, $3::date, $4, $5)`,
+        [id, line.amount, line.paidOn || null, blank(line.note), index + 1],
+      );
+    }
     await this.query(`delete from crm.hop_dong_anh_bill where ma_hop_dong = $1::uuid`, [id]);
     for (const [index, image] of input.images.entries()) {
       await this.query(
@@ -1607,7 +1673,7 @@ export class PostgresCrmRepository implements CrmRepository {
     return result.rows[0] ? projectContract(result.rows[0], view) : null;
   }
 
-  private async findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {
+  async findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {
     const tables = quoteTables[lane];
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(

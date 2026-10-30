@@ -122,11 +122,55 @@ export class CrmService {
     return result;
   }
 
-  async updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord> {
-    const result = await this.ready().updateQuote(lane, desk, id, input);
+  async updateQuote(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    input: UpdateQuoteInput,
+    options?: { contentOnly?: boolean },
+  ): Promise<QuoteRecord> {
+    const patch = options?.contentOnly ? await this.contentOnlyPatch(lane, desk, id, input) : input;
+    const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     return result;
+  }
+
+  /** Sale chỉ được cập nhật thông tin đơn hàng; giữ nguyên giá / mẫu / trạng thái / ngân hàng do VH quản lý. */
+  private async contentOnlyPatch(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    input: UpdateQuoteInput,
+  ): Promise<UpdateQuoteInput> {
+    const current = await this.ready().findQuote(lane, desk, id);
+    if (!current) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    const orders = input.orders.map((order) => {
+      const previous = current.orders.find((item) => item.id === order.id);
+      return {
+        ...order,
+        selected: previous?.selected ?? order.selected,
+        lines: order.lines.map((line, index) => {
+          const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
+          if (!previousLine) return line;
+          return {
+            ...line,
+            pricePerSet: previousLine.pricePerSet,
+            basis: previousLine.basis,
+            lineTotal: previousLine.lineTotal,
+          };
+        }),
+      };
+    });
+    return {
+      templateId: current.templateId,
+      opsNote: current.opsNote ?? "",
+      quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
+      contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
+      orders,
+      notes: current.notes,
+      bank: current.bank,
+    };
   }
 
   async sendQuote(

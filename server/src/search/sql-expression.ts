@@ -9,3 +9,8 @@ export function sql(expression: string): SqlExpression {
   }
   return expression as SqlExpression;
 }
+
+/** Biểu thức SQL tĩnh đã kiểm duyệt (CASE, nhãn tiếng Việt, …). Không truyền input người dùng. */
+export function trustedSql(expression: string): SqlExpression {
+  return expression as SqlExpression;
+}

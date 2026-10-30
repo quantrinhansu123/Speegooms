@@ -54,7 +54,7 @@ const messageFields = {
   market: text(160),
   classification: messageClassificationSchema.optional(),
   saleName: text(160),
-  painPoint: text(2000),
+  painPoint: z.string().trim().min(1, "Nhập Pain-Point của KH").max(2000),
   linkMess: text(500),
 };
 
@@ -347,6 +347,11 @@ function orderedContractDays(
   }
 }
 
+const requiredDay = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Nhập ngày giao hàng dự kiến");
+
 export const opsContractSchema = z.object({
   opsStatus: z.union([z.literal(""), opsStatusSchema]),
   tracking: text(200),
@@ -355,13 +360,20 @@ export const opsContractSchema = z.object({
   chinaWarehouseOn: day,
   containerOn: day,
   arrivalOn: day,
-  deliveryOn: day,
+  deliveryOn: requiredDay,
   send: z.boolean().optional(),
 }).superRefine(orderedContractDays);
 
-/** Sale chỉ cập nhật số đã thanh toán + ảnh bill; không sửa các cột thương mại khác. */
+/** Một lần khách chuyển khoản. */
+export const contractPaymentLineSchema = z.object({
+  amount: money,
+  paidOn: day,
+  note: text(300),
+});
+
+/** Sale cập nhật các lần thanh toán + ảnh bill; không sửa các cột thương mại khác. */
 export const saleContractPaymentSchema = z.object({
-  paidAmount: money,
+  payments: z.array(contractPaymentLineSchema).max(50, "Tối đa 50 lần thanh toán"),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh"),
 });
 
@@ -397,6 +409,7 @@ export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;
+export type ContractPaymentLineInput = z.infer<typeof contractPaymentLineSchema>;
 export type SaleContractPaymentInput = z.infer<typeof saleContractPaymentSchema>;
 export type OpsContractInput = z.infer<typeof opsContractSchema>;
 export type AccountingContractInput = z.infer<typeof accountingContractSchema>;

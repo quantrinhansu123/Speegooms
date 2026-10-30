@@ -58,6 +58,7 @@ export function ListSearchBar({
   onSearch,
   onReset,
   dateLabel,
+  searchPlaceholder = "Mã, tên, hàng hóa...",
   children,
 }: {
   q: string;
@@ -69,6 +70,7 @@ export function ListSearchBar({
   onSearch: () => void;
   onReset: () => void;
   dateLabel: string;
+  searchPlaceholder?: string;
   children?: ReactNode;
 }) {
   const rangeError = dateRangeError(from, to);
@@ -81,7 +83,7 @@ export function ListSearchBar({
       }}
     >
       <Field label="Tìm kiếm" htmlFor="list-q">
-        <Input id="list-q" value={q} placeholder="Mã, tên, hàng hóa..." onChange={(event) => onQ(event.target.value)} />
+        <Input id="list-q" value={q} placeholder={searchPlaceholder} onChange={(event) => onQ(event.target.value)} />
       </Field>
       <Field label={dateLabel} htmlFor="list-from" error={rangeError}>
         <Input id="list-from" type="date" value={from} onChange={(event) => onFrom(event.target.value)} />

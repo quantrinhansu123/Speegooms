@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Eye, Pencil, Send, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { accountingContractSchema, contractPaymentFlags, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -20,6 +20,12 @@ import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSe
 import { RowMenu } from "./row-menu";
 import { labelOf } from "./types";
 
+export type ContractPaymentLine = {
+  amount: number;
+  paidOn: string | null;
+  note: string;
+};
+
 export type ContractRecord = {
   id: string;
   code: string;
@@ -36,6 +42,7 @@ export type ContractRecord = {
   shippingCost: number;
   totalValue: number;
   paidAmount: number;
+  payments: ContractPaymentLine[];
   balance: number;
   signedOn: string | null;
   opsStatus: string;
@@ -53,7 +60,77 @@ export type ContractRecord = {
   accountingStatus: string | null;
   images: string[];
   createdAt: string;
+  updatedAt: string;
 };
+
+type PaymentDraft = { amount: string; paidOn: string; note: string };
+
+function emptyPaymentDraft(): PaymentDraft {
+  return { amount: "", paidOn: "", note: "" };
+}
+
+function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
+  if (contract.payments?.length) {
+    return contract.payments.map((line) => ({
+      amount: String(line.amount),
+      paidOn: line.paidOn ?? "",
+      note: line.note ?? "",
+    }));
+  }
+  if (contract.paidAmount > 0) {
+    return [{ amount: String(contract.paidAmount), paidOn: "", note: "" }];
+  }
+  return [emptyPaymentDraft()];
+}
+
+function readSeenMap(userId: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(`speego.contract-seen.${userId}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([id, at]) => (typeof at === "string" ? [[id, at]] : [])),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeSeenMap(userId: string, map: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(`speego.contract-seen.${userId}`, JSON.stringify(map));
+}
+
+/** Lần đầu mở trang: đánh dấu các hợp đồng hiện có đã xem để không tô vàng cả danh sách cũ. */
+function seedSeenIfNeeded(userId: string, rows: ContractRecord[]): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const flagKey = `speego.contract-seen.${userId}.seeded`;
+  const current = readSeenMap(userId);
+  if (window.localStorage.getItem(flagKey)) return current;
+  const now = new Date().toISOString();
+  const next = { ...current };
+  for (const row of rows) {
+    if (!next[row.id]) next[row.id] = row.updatedAt || row.createdAt || now;
+  }
+  writeSeenMap(userId, next);
+  window.localStorage.setItem(flagKey, "1");
+  return next;
+}
+
+function activityAt(row: ContractRecord): string {
+  return [row.updatedAt, row.createdAt, row.confirmedBackAt, row.sentToOpsAt, row.sentToAccountingAt]
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? row.createdAt;
+}
+
+function isUnreadContract(row: ContractRecord, seen: Record<string, string>): boolean {
+  const last = seen[row.id];
+  if (!last) return true;
+  return activityAt(row) > last;
+}
 
 const accountingStatusOptions = [
   ["DA_HOAN_THANH_COC", "Đã hoàn thành cọc"],
@@ -137,8 +214,22 @@ export function ContractsLiveView({
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
   const [removing, setRemoving] = useState<ContractRecord | null>(null);
+  const [seen, setSeen] = useState<Record<string, string>>(() => readSeenMap(user.id));
   const filters = useAppliedSearch({ q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
   const opsStatusFilterOptions = opsStatusOptions.map((status) => [status, status] as const);
+
+  useEffect(() => {
+    setSeen(readSeenMap(user.id));
+  }, [user.id]);
+
+  const markSeen = useCallback((row: ContractRecord) => {
+    const at = new Date().toISOString();
+    setSeen((current) => {
+      const next = { ...current, [row.id]: at };
+      writeSeenMap(user.id, next);
+      return next;
+    });
+  }, [user.id]);
 
   const load = useCallback(async () => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
@@ -156,10 +247,11 @@ export function ContractsLiveView({
       });
       const body = await api<{ contracts: ContractRecord[] }>(`${path}${sent}${query}`);
       setRows(body.contracts);
+      if (mode === "sale") setSeen(seedSeenIfNeeded(user.id, body.contracts));
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Không tải được hợp đồng");
     }
-  }, [filters.applied, lane, mode]);
+  }, [filters.applied, lane, mode, user.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -218,10 +310,14 @@ export function ContractsLiveView({
         onSearch={filters.search}
         onReset={filters.reset}
         dateLabel="Từ ngày ký"
+        searchPlaceholder="Tìm mọi trường: mã, khách, sản phẩm, trạng thái, tracking, ghi chú…"
       >
         <FilterSelect id="contract-ops-status" label="Trạng thái vận hành" value={filters.draft.opsStatus} onChange={(value) => filters.set("opsStatus", value)} options={opsStatusFilterOptions} />
         <FilterSelect id="contract-accounting-status" label="Trạng thái kế toán" value={filters.draft.accountingStatus} onChange={(value) => filters.set("accountingStatus", value)} options={accountingStatusOptions} />
       </ListSearchBar>
+      {mode === "sale" && (
+        <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
+      )}
       <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[1680px] text-sm">
           <thead>
@@ -257,8 +353,9 @@ export function ContractsLiveView({
                 accountingStatus: row.accountingStatus,
                 opsStatus: row.opsStatus,
               });
+              const unread = mode === "sale" && isUnreadContract(row, seen);
               return (
-              <tr key={row.id} className="border-b last:border-0 align-top">
+              <tr key={row.id} className={unread ? "border-b bg-amber-50 last:border-0 align-top" : "border-b last:border-0 align-top"}>
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3">{row.customerName}</td>
@@ -304,7 +401,11 @@ export function ContractsLiveView({
                         key: "open",
                         label: canSale || canOps || canAccounting ? "Cập nhật" : "Xem",
                         icon: canSale || canOps || canAccounting ? <Pencil /> : <Eye />,
-                        onClick: () => { setNotice(undefined); setSelected(row); },
+                        onClick: () => {
+                          setNotice(undefined);
+                          markSeen(row);
+                          setSelected(row);
+                        },
                       },
                       ...(canResend ? [{
                         key: "resend",
@@ -348,6 +449,7 @@ export function ContractsLiveView({
           onClose={() => setSelected(null)}
           onResend={resend}
           onSaved={(contract, message) => {
+            markSeen(contract);
             setSelected(contract);
             setNotice(message);
             load();
@@ -383,7 +485,7 @@ function ContractDialog({
   onSaved: (contract: ContractRecord, message: string) => void;
   onResend: (contract: ContractRecord) => Promise<void>;
 }) {
-  const [paidAmount, setPaidAmount] = useState(String(contract.paidAmount));
+  const [payments, setPayments] = useState<PaymentDraft[]>(() => paymentDraftsFrom(contract));
   const [opsStatus, setOpsStatus] = useState(contract.opsStatus);
   const [tracking, setTracking] = useState(contract.tracking);
   const [note1, setNote1] = useState(contract.note1);
@@ -397,7 +499,7 @@ function ContractDialog({
   const [images, setImages] = useState(contract.images);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const paidValue = numberValue(paidAmount) ?? 0;
+  const paidValue = payments.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
   const paymentFlags = contractPaymentFlags({
     totalValue: contract.totalValue,
@@ -409,16 +511,25 @@ function ContractDialog({
     opsStatus,
   });
 
+  const updatePayment = (index: number, patch: Partial<PaymentDraft>) => {
+    setPayments((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+  };
+
   const saveCommercial = async (resendAfter: boolean) => {
     const parsed = saleContractPaymentSchema.safeParse({
-      paidAmount: numberValue(paidAmount) ?? Number.NaN,
+      payments: payments.map((line) => ({
+        amount: numberValue(line.amount) ?? 0,
+        paidOn: line.paidOn,
+        note: line.note,
+      })),
       images,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
       return;
     }
-    if (parsed.data.paidAmount > contract.totalValue) {
+    const totalPaid = parsed.data.payments.reduce((sum, line) => sum + line.amount, 0);
+    if (totalPaid > contract.totalValue) {
       setError("Số tiền thanh toán không được lớn hơn tổng giá trị");
       return;
     }
@@ -551,11 +662,60 @@ function ContractDialog({
             <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
             {canSale ? (
               <>
-                <Field label="Số tiền đã thanh toán" htmlFor="contract-paid">
-                  <Input id="contract-paid" inputMode="decimal" value={paidAmount} onChange={(event) => setPaidAmount(event.target.value)} />
-                </Field>
+                <div className="sm:col-span-2 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Số tiền đã thanh toán</p>
+                    <p className="text-sm text-muted-foreground">Tổng: {money(paidValue, contract.currency)}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng.</p>
+                  {payments.map((line, index) => (
+                    <div key={`pay-${index}`} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
+                      <Field label={`Số tiền lần ${index + 1}`} htmlFor={`contract-paid-${index}`}>
+                        <Input
+                          id={`contract-paid-${index}`}
+                          inputMode="decimal"
+                          value={line.amount}
+                          onChange={(event) => updatePayment(index, { amount: event.target.value })}
+                        />
+                      </Field>
+                      <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
+                        <Input
+                          id={`contract-paid-on-${index}`}
+                          type="date"
+                          value={line.paidOn}
+                          onChange={(event) => updatePayment(index, { paidOn: event.target.value })}
+                        />
+                      </Field>
+                      <Field label="Ghi chú" htmlFor={`contract-paid-note-${index}`}>
+                        <Input
+                          id={`contract-paid-note-${index}`}
+                          value={line.note}
+                          onChange={(event) => updatePayment(index, { note: event.target.value })}
+                        />
+                      </Field>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={payments.length <= 1}
+                          onClick={() => setPayments((current) => current.filter((_, lineIndex) => lineIndex !== index))}
+                        >
+                          Xóa
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={payments.length >= 50}
+                    onClick={() => setPayments((current) => [...current, emptyPaymentDraft()])}
+                  >
+                    <Plus className="size-4" /> Thêm lần thanh toán
+                  </Button>
+                </div>
                 <div
-                  className="rounded-lg border border-dashed p-3"
+                  className="rounded-lg border border-dashed p-3 sm:col-span-2"
                   tabIndex={0}
                   onPaste={(event) => { void pasteImage(event); }}
                 >
@@ -579,7 +739,20 @@ function ContractDialog({
                 </div>
               </>
             ) : (
-              <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
+              <div className="sm:col-span-2 space-y-2">
+                <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
+                {(contract.payments?.length ?? 0) > 0 && (
+                  <ul className="space-y-1 text-sm">
+                    {contract.payments.map((line, index) => (
+                      <li key={`view-pay-${index}`} className="text-muted-foreground">
+                        Lần {index + 1}: {money(line.amount, contract.currency)}
+                        {line.paidOn ? ` · ${shownDate(line.paidOn)}` : ""}
+                        {line.note ? ` · ${line.note}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </section>
 
@@ -629,8 +802,8 @@ function ContractDialog({
             <Field label="Ngày cập cảng đến" htmlFor="ops-arrival">
               <Input id="ops-arrival" type="date" value={arrivalOn} disabled={!canOps} onChange={(event) => setArrivalOn(event.target.value)} />
             </Field>
-            <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery">
-              <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
+            <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery" required={canOps}>
+              <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} required={canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
             </Field>
             {canOps && (
               <div className="flex gap-2 sm:col-span-2">
