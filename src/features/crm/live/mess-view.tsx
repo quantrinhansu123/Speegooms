@@ -243,20 +243,31 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="max-w-48 truncate px-3 py-3" title={row.note ?? undefined}>{row.note || "—"}</td>
                 <td className="px-3 py-3">{row.leadCode ? `Đã chuyển · ${row.leadCode}` : messageStatusLabels[row.status] ?? row.status}</td>
                 <td className="px-3 py-3">
-                  <RowMenu
-                    label={`Thao tác ${row.messCode}`}
-                    items={[
-                      ...(canConvert && !row.leadId && row.status !== "LOST"
-                        ? [{ key: "convert", label: "Chuyển tiềm năng", icon: <UserPlus />, onClick: () => convert(row) }]
-                        : []),
-                      ...(canWrite
-                        ? [
-                            { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setEditingId(row.id); setFormError(undefined); setDraft(draftFrom(row)); } },
-                            { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
-                          ]
-                        : []),
-                    ]}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    {canConvert && !row.leadId && row.status !== "LOST" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Chuyển sang Khách tiềm năng"
+                        aria-label={`Chuyển sang Khách tiềm năng · ${row.messCode}`}
+                        onClick={() => convert(row)}
+                      >
+                        <UserPlus />
+                        Chuyển
+                      </Button>
+                    )}
+                    <RowMenu
+                      label={`Thao tác ${row.messCode}`}
+                      items={[
+                        ...(canWrite
+                          ? [
+                              { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setEditingId(row.id); setFormError(undefined); setDraft(draftFrom(row)); } },
+                              { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -314,8 +325,14 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2">
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
               </Field>
-              <Field label="Số điện thoại" htmlFor="mess-phone">
-                <Input id="mess-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
+              <Field label="Số điện thoại" htmlFor="mess-phone" hint="Chỉ nhập số">
+                <Input
+                  id="mess-phone"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={draft.phone}
+                  onChange={(event) => setDraft({ ...draft, phone: event.target.value.replace(/\D/g, "").slice(0, 30) })}
+                />
               </Field>
               <Field label="Email" htmlFor="mess-email">
                 <Input id="mess-email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />

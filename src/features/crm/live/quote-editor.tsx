@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
 import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
+import { QuoteSheetPreview } from "./quote-sheet-preview";
 
 function emptyLine(stt: string): QuoteLine {
   return { stt, image: "", quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
@@ -136,7 +137,7 @@ function OrderLines({
               <th className="px-2 py-2 font-medium">Hình ảnh</th>
               <th className="px-2 py-2 font-medium">Số lượng / đơn vị</th>
               <th className="px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
-              <th className="px-2 py-2 font-medium">Tổng tiền hàng</th>
+              <th className="px-2 py-2 font-medium">Tổng tiền hàng ({currency})</th>
               <th className="px-2 py-2 font-medium">Cân nặng (KG)</th>
               <th className="px-2 py-2 font-medium">Thông số</th>
               <th className="px-2 py-2 font-medium">Note</th>
@@ -318,7 +319,7 @@ export function QuoteEditor({
     contractStatusOptions.some((item) => item[0] === quote.contractStatus) ? quote.contractStatus as (typeof contractStatusOptions)[number][0] : "CHUA_TAO",
   );
   const [orders, setOrders] = useState<QuoteOrder[]>(quote.orders);
-  const [notes, setNotes] = useState<QuoteNotes>(quote.notes);
+  const [notes, setNotes] = useState<QuoteNotes>({ ...quote.notes, shippingLabel: quote.notes.shippingLabel ?? "" });
   const [bank, setBank] = useState<QuoteBank>(quote.bank);
   const [formError, setFormError] = useState<string>();
   const [draft, setDraft] = useState<{ mode: "create" | "edit" | "view"; order: QuoteOrder } | null>(null);
@@ -369,13 +370,17 @@ export function QuoteEditor({
     rate: order.rate,
     notes,
     bank,
-    logoUrl: `${window.location.origin}/logo.png`,
+    code: quote.code,
+    orderName: order.name,
+    issuedOn: quote.createdAt
+      ? new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(quote.createdAt))
+      : undefined,
   });
 
   const pdfNameFor = (order: QuoteOrder) => `${quote.code || "bao-gia"}${order.name ? `-${order.name}` : ""}`;
 
   const printOrder = (order: QuoteOrder) => {
-    printQuoteSheet(sheetHtmlFor(order));
+    void printQuoteSheet(sheetHtmlFor(order));
   };
 
   const downloadOrderPdf = async (order: QuoteOrder) => {
@@ -390,29 +395,24 @@ export function QuoteEditor({
     }
   };
 
-  const selectedOrder = () => {
-    const selected = orders.find((order) => order.selected);
-    if (!selected) {
-      setFormError("Chọn một mẫu báo giá để tải PDF");
-      return null;
-    }
-    setFormError(undefined);
-    return selected;
-  };
-
   const printSelected = () => {
-    const selected = orders.find((order) => order.selected);
-    if (!selected) {
-      setFormError("Chọn một mẫu báo giá để in");
+    const selected = orders.filter((order) => order.selected);
+    const targets = selected.length > 0 ? selected : orders;
+    if (targets.length === 0) {
+      setFormError("Chưa có mẫu báo giá để in");
       return;
     }
     setFormError(undefined);
-    printOrder(selected);
+    void printQuoteSheet(targets.map((order) => sheetHtmlFor(order)));
   };
 
   const downloadSelectedPdf = () => {
-    const selected = selectedOrder();
-    if (!selected) return;
+    const selected = orders.find((order) => order.selected) ?? orders[0];
+    if (!selected) {
+      setFormError("Chưa có mẫu báo giá để tải PDF");
+      return;
+    }
+    setFormError(undefined);
     void downloadOrderPdf(selected);
   };
 
@@ -474,7 +474,7 @@ export function QuoteEditor({
       {canEdit && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {!canEdit && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
-        <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Tạo hợp đồng</Button>
+        <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Chuyển Hợp đồng</Button>
       )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
       {canEdit && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
@@ -532,7 +532,7 @@ export function QuoteEditor({
                           <td className="px-3 py-2 font-medium">{order.name}</td>
                           <td className="px-3 py-2">{order.lines.length}</td>
                           <td className="px-3 py-2">{order.currency}</td>
-                          <td className="px-3 py-2">{totals.priced ? money(totals.goods) : "—"}</td>
+                          <td className="px-3 py-2">{totals.priced ? `${money(totals.goods)} ${order.currency}` : "—"}</td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-1">
                               <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
@@ -549,14 +549,17 @@ export function QuoteEditor({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Tổng giá trị hàng hóa" htmlFor={fieldId("note-total")}>
-                <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} />
+              <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
+                <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
               </Field>
-              <Field label="Ghi chú cân nặng" htmlFor={fieldId("note-weight")}>
-                <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} />
+              <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
+                <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
               </Field>
-              <Field className="sm:col-span-2" label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-                <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} />
+              <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
+                <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
+              </Field>
+              <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
+                <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEdit} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
               </Field>
               <div className="grid gap-2 sm:col-span-2">
                 <div className="flex items-center justify-between gap-3">
@@ -698,13 +701,17 @@ export function QuoteEditor({
                   </Field>
                 )}
               </div>
-              <OrderLines
-                lines={draft.order.lines}
-                currency={draft.order.currency}
-                canEdit={draft.mode !== "view"}
-                onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
-                onError={setOrderError}
-              />
+              {draft.mode === "view" ? (
+                <QuoteSheetPreview html={sheetHtmlFor(draft.order)} title={`Xem trước ${draft.order.name || quote.code}`} />
+              ) : (
+                <OrderLines
+                  lines={draft.order.lines}
+                  currency={draft.order.currency}
+                  canEdit
+                  onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
+                  onError={setOrderError}
+                />
+              )}
             </div>
             <DialogFooter>
               {draft.mode === "view" && (

@@ -15,6 +15,7 @@ import type {
   QuoteDesk,
   QuoteNotes,
   QuoteOrder,
+  SaleContractPaymentInput,
   SentQuote,
   QuoteTemplateInput,
   UpdateMessageInput,
@@ -199,7 +200,7 @@ export interface CrmRepository {
   createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
   updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;
   updateAccountingContract(lane: CrmLane, id: string, input: AccountingContractInput): Promise<ContractRecord | "missing" | "pending">;
-  updateCommercialContract(lane: CrmLane, id: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
+  updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord | "missing" | "invalid">;
   resendContract(lane: CrmLane, id: string, target: "ops" | "accounting" | "parties"): Promise<ContractRecord | "missing" | "pending">;
   deleteContract(lane: CrmLane, id: string): Promise<"ok" | "missing">;
 }

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { accountingContractSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
@@ -34,7 +34,7 @@ export function crmRoutes(container: AppContainer) {
   router.post("/quotes/:id/contract", requirePermission("contract.create"), validate({ body: createContractSchema }), asyncHandler(crm.createContract));
   router.patch("/contracts/:id/ops", requirePermission("contract.ops"), validate({ body: opsContractSchema }), asyncHandler(crm.updateOpsContract));
   router.patch("/contracts/:id/accounting", requirePermission("contract.accounting"), validate({ body: accountingContractSchema }), asyncHandler(crm.updateAccountingContract));
-  router.patch("/contracts/:id/commercial", requirePermission("contract.create"), validate({ body: createContractSchema }), asyncHandler(crm.updateCommercialContract));
+  router.patch("/contracts/:id/commercial", requirePermission("contract.create"), validate({ body: saleContractPaymentSchema }), asyncHandler(crm.updateCommercialContract));
   router.post("/contracts/:id/resend", requirePermission("contract.resend"), asyncHandler(crm.resendContract));
   router.delete("/contracts/:id", requirePermission("contract.delete"), asyncHandler(crm.deleteContract));
   return router;

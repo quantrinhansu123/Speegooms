@@ -12,6 +12,7 @@ import {
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
+  type SaleContractPaymentInput,
   type SentQuote,
   type QuoteTemplateInput,
   type UpdateMessageInput,
@@ -193,7 +194,7 @@ function emptyLogisticsSheet() {
     quoteStatus: "CHUA_CO_BAO_GIA",
     contractStatus: "CHUA_TAO",
     orders: [],
-    notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] },
+    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [] },
     bank: defaultQuoteBank,
     sentQuote: null,
   };
@@ -298,9 +299,12 @@ function asDeposit(value: unknown): string[] {
 }
 
 function asNotes(value: unknown): QuoteNotes {
-  const row = value && typeof value === "object" ? value as { totalLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown } : {};
+  const row = value && typeof value === "object"
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown }
+    : {};
   return {
     totalLabel: textField(row.totalLabel),
+    shippingLabel: textField(row.shippingLabel),
     weightNote: textField(row.weightNote),
     validityNote: textField(row.validityNote),
     deposit: asDeposit(row.deposit),
@@ -744,8 +748,32 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
   const sentToOps = jsonObject(row.sent_ops_body);
   const sentToAccounting = jsonObject(row.sent_accounting_body);
   const sentToParties = jsonObject(row.sent_parties_body);
-  if (view === "sale") return applyAccounting(applyOpsDetails(live, sentToParties), sentToParties);
-  if (view === "ops") return applyAccounting(applyCommercial(live, sentToOps), sentToParties);
+  // Trạng thái/số tiền/ảnh kế toán luôn lấy bản live để Sale/VH thấy đủ điều kiện đi hàng, giục TT...
+  if (view === "sale") {
+    const projected = applyOpsDetails(live, sentToParties);
+    return {
+      ...projected,
+      confirmedAmount: live.confirmedAmount,
+      accountingStatus: live.accountingStatus,
+      images: live.images,
+    };
+  }
+  if (view === "ops") {
+    const projected = applyCommercial(live, sentToOps);
+    return {
+      ...projected,
+      // Tiền/bill và trạng thái kế toán lấy bản live để cột giục TT / đủ điều kiện khớp thực tế.
+      paidAmount: live.paidAmount,
+      balance: live.balance,
+      totalValue: live.totalValue,
+      currency: live.currency,
+      confirmedAmount: live.confirmedAmount,
+      accountingStatus: live.accountingStatus,
+      images: live.images,
+      deliveryOn: live.deliveryOn,
+      opsStatus: live.opsStatus,
+    };
+  }
   const received = applyOpsDetails(applyCommercial(live, sentToAccounting), sentToAccounting);
   return {
     ...received,
@@ -1491,38 +1519,23 @@ export class PostgresCrmRepository implements CrmRepository {
     return (await this.findContractById(lane, id, "accounting")) ?? "missing";
   }
 
-  async updateCommercialContract(lane: CrmLane, id: string, input: CreateContractInput) {
+  async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
+    const current = await this.findContractById(lane, id, "sale");
+    if (!current) return "missing" as const;
+    if (input.paidAmount > current.totalValue) return "invalid" as const;
     const updated = await this.query(
-      `update crm.hop_dong set
-         ten_khach_hang = $3,
-         nhan_vien_ban = $4,
-         van_chuyen_den = $5,
-         san_pham = $6,
-         so_luong = $7,
-         gia_tri_san_pham = $8,
-         chi_phi_van_chuyen = $9,
-         tong_gia_tri = $10,
-         so_tien_thanh_toan = $11,
-         ngay_ky = $12::date,
-         loai_tien = $13
+      `update crm.hop_dong set so_tien_thanh_toan = $3
        where id = $1::uuid and tuyen = $2`,
-      [
-        id,
-        lane,
-        input.customerName.trim(),
-        blank(input.saleName),
-        blank(input.shipTo),
-        blank(input.product),
-        input.quantity,
-        input.productValue,
-        input.shippingCost,
-        input.totalValue,
-        input.paidAmount,
-        input.signedOn || null,
-        input.currency,
-      ],
+      [id, lane, input.paidAmount],
     );
     if (!updated.rowCount) return "missing" as const;
+    await this.query(`delete from crm.hop_dong_anh_bill where ma_hop_dong = $1::uuid`, [id]);
+    for (const [index, image] of input.images.entries()) {
+      await this.query(
+        `insert into crm.hop_dong_anh_bill (ma_hop_dong, duong_dan, thu_tu) values ($1::uuid, $2, $3)`,
+        [id, image, index + 1],
+      );
+    }
     return (await this.findContractById(lane, id, "sale")) ?? "missing";
   }
 
