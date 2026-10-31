@@ -3,6 +3,7 @@ import {
   canEditQuoteDesk,
   canViewCustomerKind,
   canViewQuote,
+  visibleCustomerKinds,
   visibleKindsForDesk,
   type AccountingContractInput,
   type ConvertMessageInput,
@@ -79,8 +80,10 @@ export class CrmService {
     return result;
   }
 
-  listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]> {
-    return this.ready().listPotentials(lane, search);
+  listPotentials(lane: CrmLane, search: PotentialListSearch, role: Role): Promise<PotentialRecord[]> {
+    const allowedKinds = visibleCustomerKinds(role);
+    if (allowedKinds && allowedKinds.length === 0) return Promise.resolve([]);
+    return this.ready().listPotentials(lane, { ...search, allowedKinds });
   }
 
   async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord> {
@@ -305,8 +308,8 @@ export class CrmService {
       this.listTrackingQuotes(lane, quoteSearch, role),
     ]);
     const potential = potentials[0] ?? null;
-    // Thuần LOGISTICS: sourcing không xem được hồ sơ; thuần SOURCING: sourcing + logistics đều xem được.
-    if (potential && !can(role, "quote.rfq") && !canViewCustomerKind(role, potential.customerKind)) {
+    // Menu KH tiềm năng / theo dõi: thuần LOGISTICS thì sourcing không xem được.
+    if (potential && !canViewCustomerKind(role, potential.customerKind) && !can(role, "quote.rfq")) {
       throw new AppError(403, "FORBIDDEN", "Không có quyền xem hồ sơ khách hàng này");
     }
     const quoteIds = [...new Set(quotes.flatMap((quote) => [quote.id, quote.logisticsQuoteId].filter((id): id is string => Boolean(id))))];

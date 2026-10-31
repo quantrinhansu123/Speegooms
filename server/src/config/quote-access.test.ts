@@ -6,6 +6,7 @@ import {
   canViewCustomerKind,
   canViewQuote,
   quoteNotifyRoles,
+  visibleCustomerKinds,
   visibleKindsForDesk,
   type Role,
 } from "@speego/shared";
@@ -53,6 +54,8 @@ describe("quote-access", () => {
     assert.equal(canViewCustomerKind("logistics", "LOGISTICS"), true);
     assert.equal(canViewCustomerKind("sourcing", "SOURCING_LOGISTICS"), true);
     assert.equal(canViewCustomerKind("logistics", "SOURCING_LOGISTICS"), true);
+    assert.equal(visibleCustomerKinds("sale-vn"), null);
+    assert.deepEqual([...(visibleCustomerKinds("sourcing") ?? [])].sort(), ["SOURCING", "SOURCING_LOGISTICS"].sort());
   });
 
   it("denies roles without a desk policy", () => {

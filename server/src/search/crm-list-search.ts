@@ -20,6 +20,8 @@ export interface PotentialListSearch extends ListSearch {
   customerType: string;
   /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
   potentialIds?: readonly string[];
+  /** ACL nhóm khách theo role (null = mọi nhóm). Không đọc từ query string. */
+  allowedKinds?: readonly string[] | null;
 }
 
 export interface QuoteListSearch extends ListSearch {
@@ -85,7 +87,8 @@ export function potentialSearch(input: PotentialListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("l.tiem_nang::text"), input.potential))
     .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind))
     .add(new ExactMatchCriterion(sql("l.loai_khach_hang::text"), input.customerType))
-    .add(new AnyMatchCriterion(sql("l.id"), input.potentialIds, "uuid"));
+    .add(new AnyMatchCriterion(sql("l.id"), input.potentialIds, "uuid"))
+    .add(new AnyMatchCriterion(sql("l.nhom_khach::text"), input.allowedKinds === null ? undefined : input.allowedKinds));
 }
 
 export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression, contractColumn: SqlExpression): SearchBuilder {

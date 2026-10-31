@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrackingOverview, accountingLabel } from "./tracking-overview";
 import { SectionCard } from "@/components/shared/section-card";
 import { InlineAlert } from "@/components/shared/form-fields";
-import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { crmPath } from "./lane";
@@ -50,15 +49,8 @@ export function QuoteTracking({
   );
 }
 
-function trackingBackHref(role: string, lane: CrmLane): string {
-  if (role === "sourcing" || role === "van-hanh") return "/van-hanh/sourcing-bao-gia";
-  if (role === "logistics") return "/van-hanh/logistics-bao-gia";
-  return lane === "vn" ? "/sale-viet-nam/rfq" : "/sale-global/rfq";
-}
-
 export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; lane: CrmLane }) {
-  const user = useSession();
-  const backHref = trackingBackHref(user.role, lane);
+  const backHref = lane === "vn" ? "/sale-viet-nam/tiem-nang" : "/sale-global/tiem-nang";
   const [data, setData] = useState<{ potential?: PotentialRecord; quotes: RfqQuoteRecord[]; contracts: ContractRecord[]; errors: string[] }>();
   const [revision, setRevision] = useState(0);
   const [activeTab, setActiveTab] = useState("customer");

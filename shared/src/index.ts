@@ -63,6 +63,7 @@ export {
   canViewCustomerKind,
   canViewQuote,
   quoteNotifyRoles,
+  visibleCustomerKinds,
   visibleKindsForDesk,
 } from "./quote-access";
 export { listSearchSchema, type ListSearch } from "./search";
