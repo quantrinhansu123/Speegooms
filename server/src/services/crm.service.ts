@@ -1,6 +1,7 @@
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
+  canViewCustomerKind,
   canViewQuote,
   visibleKindsForDesk,
   type AccountingContractInput,
@@ -303,11 +304,16 @@ export class CrmService {
       this.ready().listPotentials(lane, { ...emptyListSearch, source: "", potential: "", customerKind: "", customerType: "", potentialIds }),
       this.listTrackingQuotes(lane, quoteSearch, role),
     ]);
+    const potential = potentials[0] ?? null;
+    // Thuần LOGISTICS: sourcing không xem được hồ sơ; thuần SOURCING: sourcing + logistics đều xem được.
+    if (potential && !can(role, "quote.rfq") && !canViewCustomerKind(role, potential.customerKind)) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền xem hồ sơ khách hàng này");
+    }
     const quoteIds = [...new Set(quotes.flatMap((quote) => [quote.id, quote.logisticsQuoteId].filter((id): id is string => Boolean(id))))];
     const contracts = quoteIds.length
       ? await this.ready().listContracts(lane, false, "sale", { ...emptyListSearch, opsStatus: "", accountingStatus: "", quoteIds })
       : [];
-    return { potential: potentials[0] ?? null, quotes, contracts };
+    return { potential, quotes, contracts };
   }
 
   /** Sale/RFQ: đủ hai bàn. Sourcing/Logistics/VH: chỉ phần được phép theo desk policy. */

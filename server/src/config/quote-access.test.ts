@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
+  canViewCustomerKind,
   canViewQuote,
   quoteNotifyRoles,
   visibleKindsForDesk,
@@ -42,6 +43,16 @@ describe("quote-access", () => {
     assert.equal(canViewQuote("logistics", "sourcing", "SOURCING_LOGISTICS"), false);
     assert.equal(canViewQuote("logistics", "logistics", "LOGISTICS"), true);
     assert.equal(canViewQuote("logistics", "logistics", "SOURCING_LOGISTICS"), true);
+  });
+
+  it("scopes potential kinds: pure sourcing shared, pure logistics hidden from sourcing", () => {
+    assert.equal(canViewCustomerKind("sourcing", "SOURCING"), true);
+    assert.equal(canViewCustomerKind("logistics", "SOURCING"), true);
+    assert.equal(canViewCustomerKind("van-hanh", "SOURCING"), true);
+    assert.equal(canViewCustomerKind("sourcing", "LOGISTICS"), false);
+    assert.equal(canViewCustomerKind("logistics", "LOGISTICS"), true);
+    assert.equal(canViewCustomerKind("sourcing", "SOURCING_LOGISTICS"), true);
+    assert.equal(canViewCustomerKind("logistics", "SOURCING_LOGISTICS"), true);
   });
 
   it("denies roles without a desk policy", () => {

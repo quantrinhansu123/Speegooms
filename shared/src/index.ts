@@ -60,6 +60,7 @@ export {
 export {
   canAccessQuoteDesk,
   canEditQuoteDesk,
+  canViewCustomerKind,
   canViewQuote,
   quoteNotifyRoles,
   visibleKindsForDesk,
