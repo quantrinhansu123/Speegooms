@@ -28,7 +28,7 @@ test("CRM queries match the deployed id primary keys without writing data", { sk
   const quoteSearch = { ...emptyList, quoteStatus: "", contractStatus: "", customerKind: "" };
   const message = createMessageSchema.parse({ customerName: "Schema check", phone: "0900000000", email: "", goods: "", note: "", market: "", saleName: "", painPoint: "Khách cần tư vấn chi tiết", linkMess: "" });
   const potential = updatePotentialSchema.parse({ fullName: "Schema check", companyName: "", phone: "0900000000", email: "", productInterest: "", quantityNote: "", address: "", saleNote: "", potential: "POTENTIAL" });
-  const quote = updateQuoteSchema.parse({ templateId: id, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO", orders: [], notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: "" }, bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" } });
+  const quote = updateQuoteSchema.parse({ templateId: id, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO", orders: [], notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: "", logisticsFees: [] }, bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" } });
   try {
     for (const lane of ["vn", "global"] as const) {
       assert.ok(Array.isArray(await repository.listMessages(lane, messageSearch)));

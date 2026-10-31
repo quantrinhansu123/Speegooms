@@ -244,7 +244,7 @@ function emptyLogisticsSheet() {
     quoteStatus: "CHUA_CO_BAO_GIA",
     contractStatus: "CHUA_TAO",
     orders: [],
-    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [] },
+    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [] },
     bank: defaultQuoteBank,
     sentQuote: null,
   };
@@ -359,9 +359,23 @@ function asDeposit(value: unknown): string[] {
   return line ? [line] : [];
 }
 
+function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as { label?: unknown; value?: unknown };
+      const label = textField(row.label);
+      if (!label) return null;
+      return { label, value: textField(row.value) };
+    })
+    .filter((item): item is { label: string; value: string } => item != null)
+    .slice(0, 30);
+}
+
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown; logisticsFees?: unknown }
     : {};
   return {
     totalLabel: textField(row.totalLabel),
@@ -369,6 +383,7 @@ function asNotes(value: unknown): QuoteNotes {
     weightNote: textField(row.weightNote),
     validityNote: textField(row.validityNote),
     deposit: asDeposit(row.deposit),
+    logisticsFees: asLogisticsFees(row.logisticsFees),
   };
 }
 

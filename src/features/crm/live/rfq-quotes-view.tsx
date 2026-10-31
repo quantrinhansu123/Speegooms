@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
-import { reassignQuoteSchema, type CrmLane, type UpdateQuoteInput } from "@speego/shared";
+import { reassignQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -15,7 +15,7 @@ import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractCreateDialog } from "./contract-create-dialog";
-import { QuoteEditor } from "./quote-editor";
+import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
@@ -258,6 +258,25 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         return false;
       })
       .finally(() => setPending(false));
+  };
+
+  const saveSaleLead = (row: RfqQuoteRecord, input: UpdatePotentialInput) => {
+    setError(undefined);
+    return api<{ potential: PotentialRecord }>(crmPath(`/api/crm/potentials/${row.potentialId}`, lane), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    })
+      .then((body) => {
+        const patch = quoteFieldsFromPotential(input, body.potential.requirementImages ?? input.requirementImages ?? []);
+        setViewing((current) => (current && current.id === row.id ? { ...current, ...patch } : current));
+        setRows((current) => current.map((item) => (item.id === row.id ? { ...item, ...patch } : item)));
+        load();
+        return patch;
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : "Không lưu được thông tin khách tiềm năng");
+        return null;
+      });
   };
 
   const returnQuote = (row: RfqQuoteRecord) => {
@@ -503,6 +522,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     pending={pending}
                     onClose={() => setViewing(null)}
                     onSave={(input, options) => saveQuoteContent(rowForSave, input, options)}
+                    onSaveSale={canWrite ? (input) => saveSaleLead(viewing, input) : undefined}
                     onReturn={quote.sentQuote ? () => returnQuote(desk === "logistics" ? { ...viewing, desk } : viewing) : undefined}
                   />
                 );
@@ -525,6 +545,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           pending={pending}
           onClose={() => setViewing(null)}
           onSave={(input, options) => saveQuoteContent(viewing, input, options)}
+          onSaveSale={canWrite ? (input) => saveSaleLead(viewing, input) : undefined}
           onReturn={viewing.sentQuote ? () => returnQuote(viewing) : undefined}
         />
       )}

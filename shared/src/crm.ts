@@ -167,6 +167,12 @@ export function quoteLineImages(line: { image?: string | null; images?: string[]
 
 const depositLine = text(300);
 
+/** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
+export const logisticsFeeSchema = z.object({
+  label: text(120),
+  value: text(300),
+});
+
 export const quoteNotesSchema = z.object({
   totalLabel: text(300),
   /** Nhãn dòng tổng chi phí vận chuyển (phần Logistics trên mẫu in). */
@@ -177,6 +183,8 @@ export const quoteNotesSchema = z.object({
     depositLine,
     z.array(depositLine).max(20, "Tối đa 20 dòng đặt cọc"),
   ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
+  /** Chi phí logistics chi tiết (cảng, vận chuyển, thông quan…). */
+  logisticsFees: z.array(logisticsFeeSchema).max(30, "Tối đa 30 dòng chi phí logistics").default([]),
 });
 
 export const quoteBankSchema = z.object({
