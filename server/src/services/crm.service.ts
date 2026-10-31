@@ -18,6 +18,7 @@ import {
   type UpdatePotentialInput,
   type UpdateQuoteInput,
 } from "@speego/shared";
+import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
 import {
   emptyListSearch,
@@ -294,18 +295,44 @@ export class CrmService {
     return this.ready().listContracts(lane, sentOnly, view, search);
   }
 
-  /** Hồ sơ một khách: tiềm năng, báo giá (cả hai bàn) và hợp đồng liên kết — lọc ngay trong SQL. */
-  async getQuoteTracking(lane: CrmLane, potentialId: string): Promise<QuoteTracking> {
+  /** Hồ sơ một khách: tiềm năng, báo giá và hợp đồng liên kết — Sale xem đủ; bàn ops lọc theo ACL. */
+  async getQuoteTracking(lane: CrmLane, potentialId: string, role: Role): Promise<QuoteTracking> {
     const potentialIds = [potentialId];
+    const quoteSearch = { ...emptyListSearch, quoteStatus: "", contractStatus: "", customerKind: "", potentialIds };
     const [potentials, quotes] = await Promise.all([
       this.ready().listPotentials(lane, { ...emptyListSearch, source: "", potential: "", customerKind: "", customerType: "", potentialIds }),
-      this.ready().listRfqQuotes(lane, { ...emptyListSearch, quoteStatus: "", contractStatus: "", customerKind: "", potentialIds }, ""),
+      this.listTrackingQuotes(lane, quoteSearch, role),
     ]);
     const quoteIds = [...new Set(quotes.flatMap((quote) => [quote.id, quote.logisticsQuoteId].filter((id): id is string => Boolean(id))))];
     const contracts = quoteIds.length
       ? await this.ready().listContracts(lane, false, "sale", { ...emptyListSearch, opsStatus: "", accountingStatus: "", quoteIds })
       : [];
     return { potential: potentials[0] ?? null, quotes, contracts };
+  }
+
+  /** Sale/RFQ: đủ hai bàn. Sourcing/Logistics/VH: chỉ phần được phép theo desk policy. */
+  private async listTrackingQuotes(
+    lane: CrmLane,
+    search: QuoteListSearch,
+    role: Role,
+  ): Promise<RfqQuoteRecord[]> {
+    if (can(role, "quote.rfq")) {
+      return this.ready().listRfqQuotes(lane, search, "");
+    }
+    const [sourcing, logistics] = await Promise.all([
+      canAccessQuoteDesk(role, "sourcing")
+        ? this.ready().listQuotes(lane, "sourcing", search, visibleKindsForDesk(role, "sourcing"))
+        : Promise.resolve([]),
+      canAccessQuoteDesk(role, "logistics")
+        ? this.ready().listQuotes(lane, "logistics", search, visibleKindsForDesk(role, "logistics"))
+        : Promise.resolve([]),
+    ]);
+    const sourcingRows = sourcing.map((quote) => ({ ...quote, desk: "sourcing" as const }));
+    const covered = new Set(sourcingRows.map((quote) => quote.id));
+    const logisticsRows = logistics
+      .filter((quote) => quote.customerKind !== "SOURCING_LOGISTICS" || !covered.has(quote.id))
+      .map((quote) => ({ ...quote, desk: "logistics" as const }));
+    return [...sourcingRows, ...logisticsRows].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   async createContract(

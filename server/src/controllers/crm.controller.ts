@@ -77,7 +77,7 @@ export class CrmController {
   };
 
   getQuoteTracking = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.getQuoteTracking(laneOf(req), one(req.params.id)));
+    res.status(200).json(await this.crm.getQuoteTracking(laneOf(req), one(req.params.id), roleOf(req)));
   };
 
   deletePotential = async (req: Request, res: Response) => {
