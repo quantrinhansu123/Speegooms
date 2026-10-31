@@ -1,5 +1,7 @@
 "use client";
 
+import { isCombinedSourcing } from "@speego/shared";
+
 import { Fragment, useState } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
@@ -75,6 +77,8 @@ function OrderLines({
   currency,
   canEditContent,
   canEditPricing,
+  packagingRequired,
+  canEditPackaging,
   onChange,
   onError,
 }: {
@@ -82,6 +86,8 @@ function OrderLines({
   currency: QuoteCurrency;
   canEditContent: boolean;
   canEditPricing: boolean;
+  packagingRequired: boolean;
+  canEditPackaging: boolean;
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
 }) {
@@ -253,7 +259,7 @@ function OrderLines({
                 <td />
                 <td colSpan={8} className="px-2 py-3">
                   <div className="grid gap-3 lg:grid-cols-2">
-                    <div
+                    {packagingRequired && <div
                       className={`grid gap-2 rounded-md border-2 p-3 ${
                         line.packages.length === 0
                           ? "border-amber-600 bg-amber-50"
@@ -283,15 +289,15 @@ function OrderLines({
                               placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
                               aria-label={`Kiện ${pi + 1} dòng ${index + 1}: ${key}`}
                               value={pkg[key] ? String(pkg[key]) : ""}
-                              disabled={!canEditContent}
+                              disabled={!canEditPackaging}
                               onChange={(event) => updateLine(index, { packages: line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)) })}
                             />
                           ))}
-                          {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
+                          {canEditPackaging && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
                         </div>
                       ))}
-                      {canEditContent && <Button type="button" size="sm" variant="outline" className="w-fit border-amber-700/40 bg-white" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
-                    </div>
+                      {canEditPackaging && <Button type="button" size="sm" variant="outline" className="w-fit border-amber-700/40 bg-white" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
+                    </div>}
                     <div className="grid gap-1.5 rounded-md border bg-muted/20 p-3">
                       <p className="font-medium">Thuộc tính chi tiết (mua hàng liên hệ xưởng)</p>
                       <p className="text-[11px] text-muted-foreground">Chất liệu, bảo hành, lead time, MOQ… điền sau khi xác nhận với xưởng.</p>
@@ -359,8 +365,10 @@ export function QuoteEditor({
   onContinueLogistics?: () => void;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
+  const packagingRequired = desk === "logistics" || !isCombinedSourcing(quote);
   const canEditContent = mode === "content" || mode === "full";
   const canEditPricing = mode === "full";
+  const canEditPackaging = canEditContent && (quote.quoteWorkflow === "LEGACY" || canEditPricing);
   const [templateId, setTemplateId] = useState(quote.templateId ?? "");
   const [opsNote, setOpsNote] = useState(quote.opsNote ?? "");
   const [quoteStatus, setQuoteStatus] = useState<(typeof quoteStatusOptions)[number][0]>(
@@ -498,7 +506,7 @@ export function QuoteEditor({
       setOrderError("Nhập ít nhất một dòng hàng");
       return;
     }
-    if (parsed.data.lines.some((line) => line.packages.length === 0)) {
+    if (packagingRequired && canEditPackaging && parsed.data.lines.some((line) => line.packages.length === 0)) {
       setOrderError("Mỗi dòng hàng cần quy cách đóng gói (số kiện, kích thước, kg/kiện)");
       return;
     }
@@ -831,6 +839,8 @@ export function QuoteEditor({
                   currency={draft.order.currency}
                   canEditContent={canEditContent}
                   canEditPricing={canEditPricing}
+                  packagingRequired={packagingRequired}
+                  canEditPackaging={canEditPackaging}
                   onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
                   onError={setOrderError}
                 />
@@ -878,7 +888,7 @@ export function QuoteEditor({
             if (
               status
               && desk === "sourcing"
-              && quote.customerKind === "SOURCING_LOGISTICS"
+              && isCombinedSourcing(quote)
               && onContinueLogistics
             ) {
               setLogisticsHandoff(true);
@@ -890,7 +900,7 @@ export function QuoteEditor({
         open={logisticsHandoff}
         onOpenChange={setLogisticsHandoff}
         title="Chuyển báo giá vận chuyển"
-        description="Đã gửi báo giá thông tin đơn hàng. Tiếp tục báo giá thông tin vận chuyển cho khách Sourcing + Logistics?"
+        description="Đã gửi báo giá thông tin đơn hàng. Tiếp tục báo giá thông tin vận chuyển cho khách Sourcing?"
         confirmLabel="Sang Logistics"
         onConfirm={() => {
           setLogisticsHandoff(false);

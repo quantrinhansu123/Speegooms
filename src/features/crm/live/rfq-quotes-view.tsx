@@ -1,5 +1,7 @@
 "use client";
 
+import { isCombinedSourcing } from "@speego/shared";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane, type UpdateQuoteInput } from "@speego/shared";
@@ -68,13 +70,14 @@ function shownDate(value: string): string {
 
 function primaryDesk(kind: string | null): RfqQuoteRecord["desk"] | null {
   if (kind === "LOGISTICS") return "logistics";
-  if (kind === "SOURCING" || kind === "SOURCING_LOGISTICS") return "sourcing";
+  if (kind === "SOURCING") return "sourcing";
   return null;
 }
 
-function matchesDesk(kind: string | null, desk: RfqQuoteRecord["desk"]): boolean {
-  if (desk === "logistics") return kind === "LOGISTICS" || kind === "SOURCING_LOGISTICS";
-  return kind === "SOURCING" || kind === "SOURCING_LOGISTICS";
+function matchesDesk(row: PotentialRecord, desk: RfqQuoteRecord["desk"]): boolean {
+  const kind = row.customerKind;
+  if (desk === "logistics") return kind === "LOGISTICS" || isCombinedSourcing(row);
+  return kind === "SOURCING";
 }
 
 function optionLabel(row: PotentialRecord): string {
@@ -171,7 +174,10 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     if (!draft) return false;
     if (draft.desk) {
       if (row.id === draft.potentialId) return true;
-      if (!matchesDesk(row.customerKind, draft.desk)) return false;
+      if (!matchesDesk(row, draft.desk)) return false;
+      const current = rows.find((quote) => quote.id === draft.id);
+      if (current && draft.desk === "sourcing" && current.quoteWorkflow !== row.quoteWorkflow) return false;
+      if (draft.desk === "logistics" && row.customerKind !== "LOGISTICS") return false;
       return !rows.some((quote) => quote.potentialId === row.id && quote.desk === draft.desk);
     }
     const desk = primaryDesk(row.customerKind);
@@ -192,7 +198,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       setFormError(`Chọn khách hàng tiềm năng tuyến ${laneName(lane)}`);
       return;
     }
-    if (draft.desk && !matchesDesk(chosen.customerKind, draft.desk)) {
+    if (draft.desk && !matchesDesk(chosen, draft.desk)) {
       setFormError("Khách này không cùng bàn báo giá trên tuyến đang chọn");
       return;
     }
@@ -231,7 +237,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       .then((body) => {
         setViewing((current) => {
           if (!current || current.id !== row.id) return current;
-          if (row.desk === "logistics" && current.customerKind === "SOURCING_LOGISTICS") {
+          if (row.desk === "logistics" && isCombinedSourcing(current)) {
             return {
               ...current,
               logisticsSheet: {
@@ -340,7 +346,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {rows.map((row) => {
-              const logistics = row.customerKind === "SOURCING_LOGISTICS" ? logisticsQuote(row) : null;
+              const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
               const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
               return (
               <tr
@@ -355,9 +361,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 </td>
                 <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="max-w-56 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
-                <td className="px-3 py-3">{row.customerKind === "SOURCING_LOGISTICS" ? "Sourcing + Logistics" : deskLabels[row.desk]}</td>
+                <td className="px-3 py-3">{isCombinedSourcing(row) ? "Sourcing" : deskLabels[row.desk]}</td>
                 <td className="px-3 py-3">
-                  {row.customerKind === "SOURCING_LOGISTICS" ? (
+                  {isCombinedSourcing(row) ? (
                     <div className="grid gap-1">
                       <p className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">Sourcing</span>
@@ -408,7 +414,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                       ...(canCreateContract && row.contractStatus !== "DA_TAO"
                         ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
                         : []),
-                      ...(row.customerKind === "SOURCING_LOGISTICS"
+                      ...(isCombinedSourcing(row)
                         ? [
                           ...(canWrite && sentToSale(row.quoteStatus) ? [{ key: "return-sourcing", label: "Gửi lại Sourcing", icon: <RotateCcw />, onClick: () => setReturning(row) }] : []),
                           ...(canWrite && logistics && sentToSale(logistics.quoteStatus) ? [{ key: "return-logistics", label: "Gửi lại Logistics", icon: <RotateCcw />, onClick: () => setReturning(logistics) }] : []),
@@ -466,7 +472,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         </DialogContent>
       </Dialog>
 
-      {viewing && viewing.customerKind === "SOURCING_LOGISTICS" && (
+      {viewing && isCombinedSourcing(viewing) && (
         <Dialog open onOpenChange={(open) => { if (!open) setViewing(null); }}>
           <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
@@ -515,7 +521,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         </Dialog>
       )}
 
-      {viewing && viewing.customerKind !== "SOURCING_LOGISTICS" && (
+      {viewing && !isCombinedSourcing(viewing) && (
         <QuoteEditor
           key={`${viewing.id}-${viewing.sentQuote?.sentAt ?? viewing.quoteStatus}`}
           quote={canContent ? viewing : viewableQuote(viewing)}
@@ -546,7 +552,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         open={returning !== null}
         onOpenChange={(open) => { if (!open) setReturning(null); }}
         title="Gửi lại báo giá"
-        description={returning ? `Vận hành sẽ thấy ${returning.code}${returning.customerKind === "SOURCING_LOGISTICS" ? ` (${deskTitles[returning.desk]})` : ""} cần tạo báo giá mới.` : ""}
+        description={returning ? `Vận hành sẽ thấy ${returning.code}${isCombinedSourcing(returning) ? ` (${deskTitles[returning.desk]})` : ""} cần tạo báo giá mới.` : ""}
         confirmLabel="Gửi lại"
         onConfirm={() => { if (returning) void returnQuote(returning); }}
       />

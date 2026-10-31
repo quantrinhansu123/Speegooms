@@ -87,7 +87,7 @@ function draftFrom(row: PotentialRecord): Draft {
     address: row.address ?? "",
     saleNote: row.saleNote ?? "",
     potential: potentialOptions.some((item) => item[0] === row.potential) ? row.potential as Draft["potential"] : "POTENTIAL",
-    customerKind: row.customerKind === "SOURCING" || row.customerKind === "LOGISTICS" || row.customerKind === "SOURCING_LOGISTICS" ? row.customerKind : "",
+    customerKind: row.customerKind === "SOURCING" || row.customerKind === "LOGISTICS" ? row.customerKind : "",
     customerType: row.customerType === "INDIVIDUAL" || row.customerType === "PRINCIPAL" || row.customerType === "ENTERPRISE" ? row.customerType : "",
     brand: brandOptions.some((item) => item[0] === row.brand) ? row.brand as Draft["brand"] : "",
     careChannel: careChannelOptions.some((item) => item[0] === row.careChannel) ? row.careChannel as Draft["careChannel"] : "",
@@ -154,7 +154,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       brand: draft.brand || undefined,
       careChannel: draft.careChannel || undefined,
       classification: draft.classification || undefined,
-      packSpec: draft.packSpec || undefined,
       weightKg: draft.weightKg.trim() === "" ? undefined : Number(draft.weightKg),
       logisticsClass: draft.logisticsClass || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
@@ -386,8 +385,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   </a>
                 </p>
               )}
-              <Field label="Quy cách đóng gói (KH logistics)" htmlFor="pot-pack" className="sm:col-span-2">
-                <Textarea id="pot-pack" rows={3} value={draft.packSpec} onChange={(event) => setDraft({ ...draft, packSpec: event.target.value })} />
+              <Field label="Quy cách đóng gói đã lưu (Logistics nhập tại báo giá)" htmlFor="pot-pack" className="sm:col-span-2">
+                <Textarea id="pot-pack" rows={3} value={draft.packSpec} readOnly />
               </Field>
               <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">
                 <Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />

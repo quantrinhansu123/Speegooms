@@ -50,6 +50,7 @@ const files = [
   "027_tiem_nang_yeu_cau_chuyen.sql",
   "028_doi_chu_nhiem_thanh_chu_tiem.sql",
   "029_vai_tro_sourcing_logistics.sql",
+  "030_luong_bao_gia_sourcing.sql",
 ];
 
 await client.connect();
@@ -86,7 +87,7 @@ try {
     const row = state.rows[0];
     // Chỉ baseline 001-005. 006 (đổi id sang uuid) idempotent nên chạy lại an toàn,
     // còn 007 chỉ chạy khi schema chưa được Việt hoá.
-    const baseline = row?.co_users ? files.slice(0, 5) : row?.co_nguoi_dung ? files : [];
+    const baseline = row?.co_users ? files.slice(0, 5) : row?.co_nguoi_dung ? files.slice(0, files.indexOf("030_luong_bao_gia_sourcing.sql")) : [];
     for (const file of baseline) {
       await client.query("insert into app.lich_su_cap_nhat_cau_truc (ten_tep) values ($1) on conflict do nothing", [file]);
       applied.add(file);

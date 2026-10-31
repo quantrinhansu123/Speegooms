@@ -1,5 +1,7 @@
 "use client";
 
+import { isCombinedSourcing } from "@speego/shared";
+
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
@@ -258,7 +260,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                   <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                   {desk === "sourcing" && (
                     <td className="px-3 py-3">
-                      {row.customerKind === "SOURCING_LOGISTICS"
+                      {isCombinedSourcing(row)
                         ? <QuoteStatusBadge value={row.logisticsSheet?.quoteStatus} />
                         : <span className="text-muted-foreground">—</span>}
                     </td>

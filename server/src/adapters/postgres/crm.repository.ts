@@ -1,4 +1,7 @@
 import {
+  isCombinedSourcing,
+  quoteAccessKind,
+  type QuoteWorkflow,
   type AccountingContractInput,
   type CreateContractInput,
   type ConvertMessageInput,
@@ -82,6 +85,7 @@ type PotentialRow = {
   potential: string;
   status: string;
   customer_kind: string | null;
+  quote_workflow: QuoteWorkflow;
   customer_type: string | null;
   brand: string | null;
   care_channel: string | null;
@@ -127,6 +131,7 @@ type QuoteRow = {
   phone: string | null;
   email: string | null;
   customer_kind: string | null;
+  quote_workflow: QuoteWorkflow;
   goods: string | null;
   template_id: string | null;
   template_name: string | null;
@@ -167,7 +172,7 @@ function kindClause(
 ): { sql: string; values: unknown[] } {
   if (!allowedKinds) return { sql: "", values: [] };
   return {
-    sql: ` and l.nhom_khach::text = any($${startAt}::text[])`,
+    sql: ` and (case when l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED' then 'SOURCING_LOGISTICS' else l.nhom_khach::text end) = any($${startAt}::text[])`,
     values: [allowedKinds],
   };
 }
@@ -187,7 +192,7 @@ function quoteSelect(quote: string, potential: string, logistics: string | null,
   select q.id::text as id, q.ma_hien_thi as code,
          q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
          l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
-         l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind,
+         l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow,
          l.san_pham_quan_tam as goods, q.ma_mau::text as template_id, m.ten as template_name,
          q.ghi_chu_vh as ops_note, q.trang_thai_bao_gia::text as quote_status,
          q.trang_thai_hop_dong::text as contract_status,
@@ -390,6 +395,7 @@ function toQuote(row: QuoteRow): QuoteRecord {
     phone: row.phone,
     email: row.email,
     customerKind: row.customer_kind,
+    quoteWorkflow: row.quote_workflow,
     goods: row.goods,
     templateId: row.template_id,
     templateName: row.template_name,
@@ -482,7 +488,7 @@ function potentialSelect(message: string, potential: string): string {
          l.dia_chi as address,
          coalesce(nullif(l.ghi_chu_ban_hang, ''), m.ghi_chu) as sale_note,
          l.tiem_nang::text as potential, l.trang_thai::text as status,
-         l.nhom_khach::text as customer_kind, l.loai_khach_hang::text as customer_type,
+         l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow, l.loai_khach_hang::text as customer_type,
          l.thuong_hieu::text as brand, l.kenh_cham_soc as care_channel,
          l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
@@ -976,6 +982,7 @@ function toPotential(row: PotentialRow): PotentialRecord {
     potential: row.potential,
     status: row.status,
     customerKind: row.customer_kind,
+    quoteWorkflow: row.quote_workflow,
     customerType: row.customer_type,
     brand: row.brand,
     careChannel: row.care_channel,
@@ -1206,7 +1213,7 @@ export class PostgresCrmRepository implements CrmRepository {
          thuong_hieu = $13::text::crm.lead_brand,
          kenh_cham_soc = $14,
          phan_loai = $15::text::crm.lead_classification,
-         quy_cach_dong_goi = $16,
+         quy_cach_dong_goi = coalesce($16, quy_cach_dong_goi),
          trong_luong_kg = $17,
          phan_loai_logistics = $18,
          dia_chi_gui = $19,
@@ -1311,7 +1318,7 @@ export class PostgresCrmRepository implements CrmRepository {
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and l.nhom_khach::text = 'SOURCING_LOGISTICS' order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') order by q.tao_luc desc limit 200`,
             shared.values,
           )
         : noRows,
@@ -1325,10 +1332,15 @@ export class PostgresCrmRepository implements CrmRepository {
       desk === "logistics" ? Promise.resolve([]) : this.listQuotes(lane, "sourcing", search),
       desk === "sourcing" ? Promise.resolve([]) : this.listQuotes(lane, "logistics", search),
     ]);
+    // Keep a combined order visible when filtering RFQ by the Logistics desk.
+    const combinedLogistics = desk === "logistics"
+      ? (await Promise.all(logistics.filter(isCombinedSourcing).map((quote) => this.findQuote(lane, "sourcing", quote.id))))
+        .filter((quote): quote is QuoteRecord => quote !== null)
+      : [];
     return [
-      ...sourcing.map((quote) => ({ ...quote, desk: "sourcing" as const })),
+      ...[...sourcing, ...combinedLogistics].map((quote) => ({ ...quote, desk: "sourcing" as const })),
       ...logistics
-        .filter((quote) => quote.customerKind !== "SOURCING_LOGISTICS")
+        .filter((quote) => !isCombinedSourcing(quote))
         .map((quote) => ({ ...quote, desk: "logistics" as const })),
     ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
@@ -1339,16 +1351,19 @@ export class PostgresCrmRepository implements CrmRepository {
     const current = sourcing ?? await this.findQuote(lane, "logistics", id);
     if (!current) return "missing";
     const desk: QuoteDesk = sourcing ? "sourcing" : "logistics";
-    const found = await this.query<{ customer_kind: string | null }>(
-      `select nhom_khach::text as customer_kind
+    const found = await this.query<{ customer_kind: string | null; quote_workflow: QuoteWorkflow }>(
+      `select nhom_khach::text as customer_kind, luong_bao_gia as quote_workflow
        from ${tables.potential}
        where id = $1::uuid and xoa_luc is null`,
       [potentialId],
     );
     if (!found.rowCount) return "missing";
-    const allowed = desksForKind(found.rows[0]?.customer_kind ?? null);
+    const allowed = desksForKind(quoteAccessKind({ customerKind: found.rows[0].customer_kind, quoteWorkflow: found.rows[0].quote_workflow }));
     if (allowed.length === 0) return "kind";
     if (!allowed.includes(desk)) return "desk";
+    // A reassignment cannot silently change the structure of an existing quote.
+    if (current.quoteWorkflow !== found.rows[0].quote_workflow && desk === "sourcing") return "desk";
+    if (desk === "logistics" && found.rows[0].customer_kind !== "LOGISTICS") return "desk";
     const taken = await this.query(
       `select 1 from ${tables[desk]}
        where ma_khach_hang_tiem_nang = $1::uuid and id <> $2::uuid`,
@@ -1376,15 +1391,15 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async requestQuote(lane: CrmLane, potentialId: string) {
     const tables = quoteTables[lane];
-    const found = await this.query<{ customer_kind: string | null }>(
-      `select nhom_khach::text as customer_kind
+    const found = await this.query<{ customer_kind: string | null; quote_workflow: QuoteWorkflow }>(
+      `select nhom_khach::text as customer_kind, luong_bao_gia as quote_workflow
        from ${tables.potential}
        where id = $1::uuid and xoa_luc is null`,
       [potentialId],
     );
     if (!found.rowCount) return "missing" as const;
     const kind = found.rows[0]?.customer_kind;
-    if (kind !== "SOURCING" && kind !== "LOGISTICS" && kind !== "SOURCING_LOGISTICS") return "kind" as const;
+    if (kind !== "SOURCING" && kind !== "LOGISTICS") return "kind" as const;
     const desk: QuoteDesk = kind === "LOGISTICS" ? "logistics" : "sourcing";
     const inserted = await this.query(
       `insert into ${tables[desk]} (ma_khach_hang_tiem_nang)
@@ -1392,7 +1407,7 @@ export class PostgresCrmRepository implements CrmRepository {
        on conflict (ma_khach_hang_tiem_nang) do nothing`,
       [potentialId],
     );
-    if (kind === "SOURCING_LOGISTICS") {
+    if (isCombinedSourcing({ customerKind: kind ?? null, quoteWorkflow: found.rows[0].quote_workflow })) {
       await this.query(
         `update ${tables.sourcing}
          set bao_gia_logistics = $2::jsonb
@@ -1408,7 +1423,7 @@ export class PostgresCrmRepository implements CrmRepository {
   async requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string) {
     const sourcing = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!sourcing) return "missing" as const;
-    if (sourcing.customerKind !== "SOURCING_LOGISTICS") return "kind" as const;
+    if (!isCombinedSourcing(sourcing)) return "kind" as const;
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
        set bao_gia_logistics = $2::jsonb
@@ -1832,7 +1847,7 @@ export class PostgresCrmRepository implements CrmRepository {
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.id = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.id = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
         [id],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
@@ -1853,7 +1868,7 @@ export class PostgresCrmRepository implements CrmRepository {
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS'`,
+        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
         [potentialId],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
@@ -1872,7 +1887,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const shared = await this.query(
       `select 1 from ${tables.sourcing} q
        join ${tables.potential} l on l.id = q.ma_khach_hang_tiem_nang
-       where q.id = $1::uuid and l.nhom_khach::text = 'SOURCING_LOGISTICS' and l.xoa_luc is null`,
+       where q.id = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') and l.xoa_luc is null`,
       [id],
     );
     return Boolean(shared.rowCount);

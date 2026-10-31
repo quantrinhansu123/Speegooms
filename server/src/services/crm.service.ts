@@ -1,3 +1,4 @@
+import { isCombinedSourcing, quoteAccessKind } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -119,7 +120,7 @@ export class CrmService {
     this.assertDeskEdit(role, desk);
     const quote = await this.ready().findQuote(lane, desk, id);
     if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
-    if (!canViewQuote(role, desk, quote.customerKind)) {
+    if (!canViewQuote(role, desk, quoteAccessKind(quote))) {
       throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
     }
     return quote;
@@ -154,8 +155,11 @@ export class CrmService {
         result.desk,
         result.quote.code,
         result.quote.id,
-        result.quote.customerKind,
+        quoteAccessKind(result.quote),
       );
+    }
+    if (actor && result.created && isCombinedSourcing(result.quote)) {
+      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.quote.code, result.quote.id, quoteAccessKind(result.quote));
     }
     return result;
   }
@@ -168,7 +172,7 @@ export class CrmService {
     this.assertDeskEdit(actor.role, "sourcing");
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
-    if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing + Logistics mới tạo báo giá Logistics");
+    if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
     if (result.created) {
       await this.notifications?.notifyQuoteRequested(
         actor,
@@ -176,7 +180,7 @@ export class CrmService {
         "logistics",
         result.quote.code,
         result.quote.id,
-        result.quote.customerKind,
+        quoteAccessKind(result.quote),
       );
     }
     return result;
@@ -213,9 +217,13 @@ export class CrmService {
         selected: previous?.selected ?? order.selected,
         lines: order.lines.map((line, index) => {
           const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
-          if (!previousLine) return line;
+          const packaging = current.quoteWorkflow === "COMBINED"
+            ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
+            : {};
+          if (!previousLine) return { ...line, ...packaging };
           return {
             ...line,
+            ...packaging,
             pricePerSet: previousLine.pricePerSet,
             basis: previousLine.basis,
             lineTotal: previousLine.lineTotal,
@@ -262,7 +270,7 @@ export class CrmService {
         desk,
         result.code,
         result.id,
-        result.customerKind,
+        quoteAccessKind(result),
       );
     }
     return result;
@@ -339,7 +347,7 @@ export class CrmService {
     const sourcingRows = sourcing.map((quote) => ({ ...quote, desk: "sourcing" as const }));
     const covered = new Set(sourcingRows.map((quote) => quote.id));
     const logisticsRows = logistics
-      .filter((quote) => quote.customerKind !== "SOURCING_LOGISTICS" || !covered.has(quote.id))
+      .filter((quote) => !isCombinedSourcing(quote) || !covered.has(quote.id))
       .map((quote) => ({ ...quote, desk: "logistics" as const }));
     return [...sourcingRows, ...logisticsRows].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }

@@ -540,7 +540,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 onChange={(event) => setConvertDraft({ ...convertDraft, requirements: event.target.value })}
               />
             </Field>
-            <Field label="Lý do chuyển" htmlFor="convert-reason" required>
+            <Field label="Lý do chuyển" htmlFor="convert-reason">
               <Textarea
                 id="convert-reason"
                 rows={3}

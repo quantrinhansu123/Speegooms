@@ -1,3 +1,4 @@
+import type { QuoteWorkflow } from "@speego/shared";
 import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
 
 export interface MessageRecord {
@@ -39,6 +40,7 @@ export interface PotentialRecord {
   potential: string;
   status: string;
   customerKind: string | null;
+  quoteWorkflow: QuoteWorkflow;
   customerType: string | null;
   brand: string | null;
   careChannel: string | null;
@@ -85,9 +87,8 @@ export const customerTypeOptions = [
 ] as const;
 
 export const customerKindOptions = [
-  ["SOURCING", "Thuần sourcing"],
+  ["SOURCING", "Sourcing"],
   ["LOGISTICS", "Thuần logistics"],
-  ["SOURCING_LOGISTICS", "Sourcing + Logistics"],
 ] as const;
 
 export const classificationOptions = [
@@ -117,6 +118,7 @@ export interface QuoteRecord {
   phone: string | null;
   email: string | null;
   customerKind: string | null;
+  quoteWorkflow: QuoteWorkflow;
   goods: string | null;
   templateId: string | null;
   templateName: string | null;

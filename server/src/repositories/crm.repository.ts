@@ -1,3 +1,4 @@
+import type { QuoteWorkflow } from "@speego/shared";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -67,6 +68,7 @@ export interface PotentialRecord {
   potential: string;
   status: string;
   customerKind: string | null;
+  quoteWorkflow: QuoteWorkflow;
   customerType: string | null;
   brand: string | null;
   careChannel: string | null;
@@ -94,6 +96,7 @@ export interface QuoteRecord {
   phone: string | null;
   email: string | null;
   customerKind: string | null;
+  quoteWorkflow: QuoteWorkflow;
   goods: string | null;
   templateId: string | null;
   templateName: string | null;

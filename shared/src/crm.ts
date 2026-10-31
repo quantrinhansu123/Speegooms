@@ -17,7 +17,7 @@ export const leadBrandSchema = z.enum([
 export const messageDemandSchema = z.enum(["SHIPPING", "SOURCING"]);
 export const messageClassificationSchema = z.enum(["HOT", "WARM", "COLD", "DEAD"]);
 export const customerTypeSchema = z.enum(["INDIVIDUAL", "PRINCIPAL", "ENTERPRISE"]);
-export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS", "SOURCING_LOGISTICS"]);
+export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
 export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
 export const careChannelSchema = z.enum(["FACEBOOK", "ZALO", "WHATSAPP", "VIBER"]);
@@ -98,7 +98,7 @@ export const convertMessageSchema = z.object({
     (value) => value.startsWith("data:image/") || /^https:\/\//.test(value),
     "Ảnh không hợp lệ",
   )).max(20, "Tối đa 20 ảnh").default([]),
-  reason: z.string().trim().min(1, "Nhập lý do chuyển").max(2000),
+  reason: z.string().trim().max(2000).default(""),
 });
 
 export const quoteDeskSchema = z.enum(["sourcing", "logistics"]);

@@ -110,8 +110,6 @@ function demandTone(value: string | null | undefined): StatusTone {
 
 function customerKindTone(value: string | null | undefined): StatusTone {
   switch (value) {
-    case "SOURCING_LOGISTICS":
-      return "success";
     case "SOURCING":
       return "warning";
     case "LOGISTICS":
