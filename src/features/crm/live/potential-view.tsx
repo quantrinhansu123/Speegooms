@@ -259,7 +259,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-medium"><p className="mb-2">{row.leadCode}</p><QuoteTracking potentialId={row.id} lane={lane} /></td>
+                <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
                 <td className="px-3 py-3">{row.fullName}</td>
                 <td className="px-3 py-3">{row.companyName || "—"}</td>
                 <td className="px-3 py-3">{row.phone || "—"}</td>

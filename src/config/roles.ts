@@ -70,10 +70,16 @@ export const roleConfig: Record<Role, RoleConfig> = {
   "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che"] },
 };
 
+/** Theo dõi báo giá theo tuyến: /theo-doi-bao-gia/vn|global/:potentialId */
+const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
+
 export function canAccess(role: Role, href: string): boolean {
   if (href === "/demo-guide" || href.startsWith("/demo-guide/")) return true;
   if (href === "/cai-dat") return true;
   if (href === "/reports" || href.startsWith("/reports/")) return (Object.keys(reportConfig) as ReportKey[]).some((key) => canViewReport(role, key));
+  if (TRACKING_HREF.test(href)) {
+    return role === "admin" || role === "ban-gd" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing" || role === "logistics";
+  }
   const { modules } = roleConfig[role];
   return modules === "*" || modules.some((m) => href === m || href.startsWith(`${m}/`));
 }

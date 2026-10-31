@@ -25,13 +25,28 @@ function Details({ rows }: { rows: [string, ReactNode][] }) {
 
 const trackingLinkStyles = {
   button: "inline-flex rounded-md border px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring",
-  code: "cursor-pointer font-mono text-primary transition-colors hover:text-brand-orange hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring",
+  /** Mã báo giá / mã lead: hover cam + gạch chân, không dùng nút riêng. */
+  code: "cursor-pointer font-mono font-medium text-primary transition-colors hover:text-brand-orange hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring",
 } as const;
 
-export function QuoteTracking({ potentialId, lane, code, variant = "button" }: { potentialId: string; lane: CrmLane; code?: string; variant?: keyof typeof trackingLinkStyles }) {
-  return <Link href={`/crm/theo-doi-bao-gia/${lane}/${encodeURIComponent(potentialId)}`} className={trackingLinkStyles[variant]}>
-    {code ?? "Theo dõi chi tiết"}
-  </Link>;
+export function QuoteTracking({
+  potentialId,
+  lane,
+  code,
+  variant,
+}: {
+  potentialId: string;
+  lane: CrmLane;
+  code?: string;
+  /** Có `code` thì mặc định kiểu mã (hover), không thì nút "Theo dõi chi tiết". */
+  variant?: keyof typeof trackingLinkStyles;
+}) {
+  const style = variant ?? (code ? "code" : "button");
+  return (
+    <Link href={`/theo-doi-bao-gia/${lane}/${encodeURIComponent(potentialId)}`} className={trackingLinkStyles[style]}>
+      {code ?? "Theo dõi chi tiết"}
+    </Link>
+  );
 }
 
 export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; lane: CrmLane }) {
@@ -74,7 +89,7 @@ export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; 
   if (!data) return <p role="status">Đang tải hồ sơ liên quan…</p>;
   const { potential: p, quotes, contracts, errors } = data;
   const sheets = quotes.flatMap((q) => q.logisticsSheet && q.desk !== "logistics" ? [q, { ...q, ...q.logisticsSheet, id: q.logisticsQuoteId ?? `${q.id}-logistics`, desk: "logistics" as const }] : [q]);
-  if (!p && !quotes.length && !errors.length) return <div className="space-y-4 rounded-xl border p-6"><h1 className="text-xl font-semibold">Không tìm thấy hồ sơ</h1><p>Hồ sơ không tồn tại hoặc không thuộc phạm vi truy cập của bạn.</p><Link href="/crm/rfq" className="text-primary hover:underline">Về danh sách báo giá</Link></div>;
+  if (!p && !quotes.length && !errors.length) return <div className="space-y-4 rounded-xl border p-6"><h1 className="text-xl font-semibold">Không tìm thấy hồ sơ</h1><p>Hồ sơ không tồn tại hoặc không thuộc phạm vi truy cập của bạn.</p><Link href={lane === "vn" ? "/sale-viet-nam/rfq" : "/sale-global/rfq"} className="text-primary hover:underline">Về danh sách báo giá</Link></div>;
   return <div className="space-y-5">
     <Link href={lane === "vn" ? "/sale-viet-nam/rfq" : "/sale-global/rfq"} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" aria-hidden />Danh sách RFQ / Báo giá</Link>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-5 shadow-xs">
