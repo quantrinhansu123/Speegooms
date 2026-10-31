@@ -468,11 +468,11 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
 
       {viewing && viewing.customerKind === "SOURCING_LOGISTICS" && (
         <Dialog open onOpenChange={(open) => { if (!open) setViewing(null); }}>
-          <DialogContent className="sm:max-w-4xl">
+          <DialogContent className="max-h-[96dvh] w-[min(98vw,120rem)] max-w-none sm:max-w-none">
             <DialogHeader>
               <DialogTitle>Báo giá {viewing.customerName || viewing.leadCode}</DialogTitle>
             </DialogHeader>
-            <div className="grid max-h-[72vh] gap-4 overflow-y-auto pr-1">
+            <div className="grid max-h-[80dvh] gap-4 overflow-y-auto pr-1">
               {([
                 { desk: "sourcing" as const, quote: viewing },
                 { desk: "logistics" as const, quote: logisticsQuote(viewing) },
