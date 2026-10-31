@@ -69,7 +69,7 @@ export class CrmController {
   };
 
   listPotentials = async (req: Request, res: Response) => {
-    res.status(200).json({ potentials: await this.crm.listPotentials(laneOf(req), readPotentialSearch(req)) });
+    res.status(200).json({ potentials: await this.crm.listPotentials(laneOf(req), readPotentialSearch(req), roleOf(req)) });
   };
 
   updatePotential = async (req: Request, res: Response) => {
@@ -77,7 +77,7 @@ export class CrmController {
   };
 
   getQuoteTracking = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.getQuoteTracking(laneOf(req), one(req.params.id)));
+    res.status(200).json(await this.crm.getQuoteTracking(laneOf(req), one(req.params.id), roleOf(req)));
   };
 
   deletePotential = async (req: Request, res: Response) => {

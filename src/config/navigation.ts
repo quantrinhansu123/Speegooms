@@ -182,7 +182,7 @@ export function getBreadcrumbs(pathname: string): Crumb[] {
     const base = tracking[1] === "vn" ? "/sale-viet-nam" : "/sale-global";
     return [...crumbs,
       { title: tracking[1] === "vn" ? "Sale Việt Nam" : "Sale Global", href: base },
-      { title: "Báo giá (RFQ)", href: `${base}/rfq` },
+      { title: "Khách tiềm năng", href: `${base}/tiem-nang` },
       { title: "Theo dõi chi tiết", href: pathname },
     ];
   }

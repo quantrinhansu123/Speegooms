@@ -50,6 +50,7 @@ export function QuoteTracking({
 }
 
 export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; lane: CrmLane }) {
+  const backHref = lane === "vn" ? "/sale-viet-nam/tiem-nang" : "/sale-global/tiem-nang";
   const [data, setData] = useState<{ potential?: PotentialRecord; quotes: RfqQuoteRecord[]; contracts: ContractRecord[]; errors: string[] }>();
   const [revision, setRevision] = useState(0);
   const [activeTab, setActiveTab] = useState("customer");
@@ -89,9 +90,9 @@ export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; 
   if (!data) return <p role="status">Đang tải hồ sơ liên quan…</p>;
   const { potential: p, quotes, contracts, errors } = data;
   const sheets = quotes.flatMap((q) => q.logisticsSheet && q.desk !== "logistics" ? [q, { ...q, ...q.logisticsSheet, id: q.logisticsQuoteId ?? `${q.id}-logistics`, desk: "logistics" as const }] : [q]);
-  if (!p && !quotes.length && !errors.length) return <div className="space-y-4 rounded-xl border p-6"><h1 className="text-xl font-semibold">Không tìm thấy hồ sơ</h1><p>Hồ sơ không tồn tại hoặc không thuộc phạm vi truy cập của bạn.</p><Link href={lane === "vn" ? "/sale-viet-nam/rfq" : "/sale-global/rfq"} className="text-primary hover:underline">Về danh sách báo giá</Link></div>;
+  if (!p && !quotes.length && !errors.length) return <div className="space-y-4 rounded-xl border p-6"><h1 className="text-xl font-semibold">Không tìm thấy hồ sơ</h1><p>Hồ sơ không tồn tại hoặc không thuộc phạm vi truy cập của bạn.</p><Link href={backHref} className="text-primary hover:underline">Về danh sách báo giá</Link></div>;
   return <div className="space-y-5">
-    <Link href={lane === "vn" ? "/sale-viet-nam/rfq" : "/sale-global/rfq"} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" aria-hidden />Danh sách RFQ / Báo giá</Link>
+    <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" aria-hidden />Danh sách báo giá</Link>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-5 shadow-xs">
       <div><p className="mb-1 text-sm text-muted-foreground">Theo dõi báo giá · {lane === "vn" ? "Việt Nam" : "Global"}</p><h1 className="font-mono text-2xl font-semibold text-primary">{p?.leadCode || quotes[0]?.leadCode || "Hồ sơ khách hàng"}</h1><p className="mt-1 font-medium">{p?.fullName || quotes[0]?.customerName}</p><p className="mt-2 text-sm text-muted-foreground">{p ? labelOf(potentialOptions, p.potential) : "Chưa tải được khách hàng"}</p></div>
       <Button type="button" variant="outline" size="icon" aria-label="Làm mới hồ sơ" title="Làm mới" onClick={() => { setData(undefined); setRevision((value) => value + 1); }}><RefreshCw aria-hidden className="size-4" /></Button>

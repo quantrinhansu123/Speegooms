@@ -42,6 +42,32 @@ export function canViewQuote(role: Role, desk: QuoteDesk, customerKind: string |
   return customerKind != null && kinds.includes(customerKind);
 }
 
+/**
+ * KH tiềm năng theo nhóm khách (menu Sale VN / Sale Global):
+ * - Thuần SOURCING: sale + sourcing + logistics (+ admin/VH) đều xem được
+ * - Thuần LOGISTICS: sourcing không xem được
+ * - SOURCING_LOGISTICS: xem được nếu thấy ít nhất một bàn
+ * Role không có desk policy (Sale): `null` = mọi nhóm khách.
+ */
+export function visibleCustomerKinds(role: Role): readonly string[] | null {
+  const policy = deskPolicy[role];
+  if (!policy) return null;
+  const kinds = new Set<string>();
+  for (const desk of Object.keys(policy.view) as QuoteDesk[]) {
+    const scope = policy.view[desk];
+    if (scope === null) return null;
+    for (const kind of scope) kinds.add(kind);
+  }
+  return [...kinds];
+}
+
+export function canViewCustomerKind(role: Role, customerKind: string | null): boolean {
+  if (!customerKind) return false;
+  const kinds = visibleCustomerKinds(role);
+  if (kinds === null) return true;
+  return kinds.includes(customerKind);
+}
+
 /** Role vận hành nhận thông báo yêu cầu / trả lại báo giá của một bàn. */
 export function quoteNotifyRoles(desk: QuoteDesk, customerKind?: string | null): Role[] {
   const kind = customerKind ?? (desk === "logistics" ? "LOGISTICS" : "SOURCING");

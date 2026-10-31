@@ -5,7 +5,7 @@ export const permissions = {
   "message.read": ["admin", "ban-gd", "marketing", "sale-vn", "sale-global"],
   "message.write": ["admin", "marketing", "sale-vn", "sale-global"],
   "message.convert": ["admin", "sale-vn", "sale-global"],
-  "potential.read": ["admin", "ban-gd", "sale-vn", "sale-global"],
+  "potential.read": ["admin", "ban-gd", "sale-vn", "sale-global", "van-hanh", "sourcing", "logistics"],
   "potential.write": ["admin", "sale-vn", "sale-global"],
   "quote.read": ["admin", "ban-gd", "van-hanh", "sourcing", "logistics"],
   "quote.rfq": ["admin", "ban-gd", "sale-vn", "sale-global"],
