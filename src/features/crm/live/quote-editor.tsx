@@ -25,7 +25,19 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { contractStatusOptions, quoteStatusOptions, type QuoteRecord, type QuoteTemplateRecord } from "./types";
+import {
+  brandOptions,
+  careChannelOptions,
+  classificationOptions,
+  contractStatusOptions,
+  customerKindOptions,
+  customerTypeOptions,
+  labelOf,
+  potentialOptions,
+  quoteStatusOptions,
+  type QuoteRecord,
+  type QuoteTemplateRecord,
+} from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
 import { formatMoneyGrouped } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
@@ -33,6 +45,7 @@ import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload
 import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
+import { RequirementImageSlider } from "./requirement-image-slider";
 
 function emptyLine(stt: string): QuoteLine {
   return { stt, image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
@@ -41,6 +54,84 @@ function emptyLine(stt: string): QuoteLine {
 function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
   const next = images.filter(Boolean).slice(0, 8);
   return { images: next, image: next[0] ?? "" };
+}
+
+type SaleFact = [string, string, boolean?];
+
+function SaleFactsTable({ groups }: { groups: { title: string; rows: SaleFact[] }[] }) {
+  const cellValue = (value: string) => {
+    const empty = !value || value === "—";
+    return (
+      <td className={`px-3 py-2 text-sm break-words whitespace-pre-wrap ${empty ? "text-muted-foreground/70" : "font-medium"}`}>
+        {value}
+      </td>
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <tbody>
+          {groups.map((group) => {
+            const pairs: SaleFact[][] = [];
+            for (let i = 0; i < group.rows.length; ) {
+              const [label, value, wide] = group.rows[i]!;
+              if (wide) {
+                pairs.push([[label, value, true]]);
+                i += 1;
+                continue;
+              }
+              const next = group.rows[i + 1];
+              if (next && !next[2]) {
+                pairs.push([[label, value], next]);
+                i += 2;
+              } else {
+                pairs.push([[label, value]]);
+                i += 1;
+              }
+            }
+            return (
+              <Fragment key={group.title}>
+                <tr className="border-b bg-muted/50">
+                  <th colSpan={4} className="px-3 py-2 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    {group.title}
+                  </th>
+                </tr>
+                {pairs.map((pair, index) => {
+                  if (pair.length === 1 && pair[0]![2]) {
+                    const [label, value] = pair[0]!;
+                    const empty = !value || value === "—";
+                    return (
+                      <tr key={`${group.title}-${label}-${index}`} className="border-b last:border-0">
+                        <th className="w-[9rem] whitespace-nowrap bg-muted/20 px-3 py-2 text-left text-xs font-medium text-muted-foreground align-top">{label}</th>
+                        <td colSpan={3} className={`px-3 py-2 text-sm break-words whitespace-pre-wrap ${empty ? "text-muted-foreground/70" : "font-medium"}`}>{value}</td>
+                      </tr>
+                    );
+                  }
+                  const left = pair[0]!;
+                  const right = pair[1];
+                  return (
+                    <tr key={`${group.title}-${left[0]}-${index}`} className="border-b last:border-0">
+                      <th className="w-[9rem] whitespace-nowrap bg-muted/20 px-3 py-2 text-left text-xs font-medium text-muted-foreground align-top">{left[0]}</th>
+                      {cellValue(left[1])}
+                      {right ? (
+                        <>
+                          <th className="w-[9rem] whitespace-nowrap bg-muted/20 px-3 py-2 text-left text-xs font-medium text-muted-foreground align-top">{right[0]}</th>
+                          {cellValue(right[1])}
+                        </>
+                      ) : (
+                        <td colSpan={2} />
+                      )}
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function amountValue(value: string): number | null {
@@ -63,8 +154,131 @@ function packagesSummary(packages: QuoteLine["packages"]): string {
   return `${m.count} kiện · ${m.cbm} cbm · tính cước ${m.chargeableKg} kg`;
 }
 
+const factoryAttrKeys = ["Chất liệu", "MOQ", "Lead time", "Bảo hành"] as const;
+
+function attrValue(attrs: QuoteLine["attrs"], key: string): string {
+  return attrs.find((item) => item.key === key)?.value ?? "";
+}
+
+function withAttr(attrs: QuoteLine["attrs"], key: string, value: string): QuoteLine["attrs"] {
+  const known = new Set<string>(factoryAttrKeys);
+  const extras = attrs.filter((item) => !known.has(item.key) && (item.key.trim() || item.value.trim()));
+  const next = factoryAttrKeys
+    .map((itemKey) => {
+      const nextValue = itemKey === key ? value : attrValue(attrs, itemKey);
+      return nextValue.trim() ? { key: itemKey, value: nextValue.trim() } : null;
+    })
+    .filter((item) => item != null);
+  return [...next, ...extras];
+}
+
+function LinePackagesEditor({
+  line,
+  lineLabel,
+  canEdit,
+  onChange,
+}: {
+  line: QuoteLine;
+  lineLabel: string;
+  canEdit: boolean;
+  onChange: (packages: QuoteLine["packages"]) => void;
+}) {
+  return (
+    <div
+      className={`grid gap-2 rounded-md border-2 p-3 ${
+        line.packages.length === 0
+          ? "border-amber-600 bg-amber-50"
+          : "border-amber-500/50 bg-amber-50/60"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-amber-950">
+          Quy cách đóng gói <span className="text-amber-700" aria-hidden>*</span>
+          {lineLabel ? <span className="font-medium text-amber-900/80"> · {lineLabel}</span> : null}
+        </p>
+        {line.packages.length === 0 ? (
+          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+            Bắt buộc — đừng bỏ sót
+          </span>
+        ) : (
+          <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
+        )}
+      </div>
+      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm) · kg/kiện — dùng để báo giá và tính cước.</p>
+      {line.packages.map((pkg, pi) => (
+        <div key={pi} className="flex flex-wrap items-center gap-1">
+          {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => (
+            <Input
+              key={key}
+              className="h-8 w-[4.5rem] border-amber-700/30 bg-white"
+              inputMode="decimal"
+              placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
+              aria-label={`Kiện ${pi + 1} ${lineLabel}: ${key}`}
+              value={pkg[key] ? String(pkg[key]) : ""}
+              disabled={!canEdit}
+              onChange={(event) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)))}
+            />
+          ))}
+          {canEdit && (
+            <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => onChange(line.packages.filter((_, xi) => xi !== pi))}>
+              <Trash2 />
+            </Button>
+          )}
+        </div>
+      ))}
+      {canEdit && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-fit border-amber-700/40 bg-white"
+          onClick={() => onChange([...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }])}
+        >
+          <Plus />Thêm kiện
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function money(value: number): string {
   return formatMoneyGrouped(value);
+}
+
+/** Tổng số lượng gom theo đơn vị tính, vd "120 set, 30 kg". */
+function orderQuantityText(lines: QuoteLine[]): string {
+  const byUnit = new Map<string, number>();
+  for (const line of lines) {
+    if (line.quantity == null) continue;
+    const unit = line.unit?.trim() || "set";
+    byUnit.set(unit, (byUnit.get(unit) ?? 0) + line.quantity);
+  }
+  return [...byUnit].map(([unit, total]) => `${money(total)} ${unit}`).join(", ");
+}
+
+/** Mô tả ngắn của mẫu: quy cách / thuộc tính dòng đầu có dữ liệu. */
+function orderSpecText(lines: QuoteLine[]): string {
+  for (const line of lines) {
+    const spec = line.spec.trim();
+    if (spec) return spec;
+    const attrs = line.attrs.filter((attr) => attr.value.trim()).map((attr) => `${attr.key}: ${attr.value}`).join(" · ");
+    if (attrs) return attrs;
+  }
+  return "";
+}
+
+/** Đơn giá từng dòng kèm đơn vị tính theo cách tính giá, vd "120.000 VND/set". */
+function orderPriceTexts(lines: QuoteLine[], currency: string): string[] {
+  return lines
+    .filter((line) => line.pricePerSet != null)
+    .map((line) => {
+      const unit = line.basis === "kg" ? "kg" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
+      return `${money(line.pricePerSet!)} ${currency}/${unit}`;
+    });
+}
+
+function orderNoteText(lines: QuoteLine[]): string {
+  return lines.map((line) => line.note.trim()).filter(Boolean).join("\n");
 }
 
 function safeImage(value: string): string {
@@ -91,17 +305,14 @@ function OrderLines({
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
 }) {
-  const canEdit = canEditContent || canEditPricing;
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange(lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
       let next = { ...line, ...patch };
-      // Có kiện thì CBM và cân tính cước suy ra từ kiện
       if ("packages" in patch && next.packages.length > 0) {
         const m = packageMetrics(next.packages);
         next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
       }
-      // Đổi số lượng, giá, cách tính hoặc kiện thì tự tính lại thành tiền; vẫn sửa tay được sau đó
       if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm"].some((k) => k in patch)) {
         const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
         if (total != null) next = { ...next, lineTotal: total };
@@ -116,92 +327,104 @@ function OrderLines({
     onChange([...lines, emptyLine(String(next))]);
   };
 
+  const addImages = (index: number, line: QuoteLine, incoming: string[]) => {
+    const current = quoteLineImages(line);
+    const room = 8 - current.length;
+    if (room <= 0) {
+      onError("Tối đa 8 ảnh mỗi dòng");
+      return;
+    }
+    updateLine(index, withImages([...current, ...incoming.slice(0, room)]));
+  };
+
   return (
     <div className="grid gap-3">
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[1180px] text-xs">
+        <table className="w-full min-w-[980px] text-sm">
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
+            <tr className="border-b bg-muted/50 text-left text-xs">
               <th className="whitespace-nowrap px-2 py-2 font-medium">STT</th>
-              <th className="min-w-[180px] whitespace-nowrap px-2 py-2 font-medium">Hình ảnh</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Số lượng / đơn vị</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Đơn giá ({currency}) / cách tính</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Tổng tiền hàng ({currency})</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Cân nặng (KG)</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Thông số</th>
-              <th className="whitespace-nowrap px-2 py-2 font-medium">Note</th>
-              <th className="whitespace-nowrap px-2 py-2" />
+              <th className="min-w-[160px] whitespace-nowrap px-2 py-2 font-medium">Hình ảnh</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">SL / ĐV</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Đơn giá ({currency})</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Thành tiền</th>
+              <th className="min-w-[120px] whitespace-nowrap px-2 py-2 font-medium">Thông số</th>
+              <th className="min-w-[220px] whitespace-nowrap px-2 py-2 font-medium">Thuộc tính xưởng</th>
+              <th className="min-w-[100px] whitespace-nowrap px-2 py-2 font-medium">Note</th>
+              <th className="px-2 py-2" />
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, index) => (
-              <Fragment key={index}>
-              <tr className={`align-top ${line.packages.length || line.attrs.length || canEdit ? "" : "border-b last:border-0"}`}>
-                <td className="px-2 py-2"><Input className="h-8 w-14" value={line.stt} disabled={!canEditContent} onChange={(event) => updateLine(index, { stt: event.target.value })} /></td>
-                <td className="px-2 py-2">
-                  <div
-                    tabIndex={canEditContent ? 0 : undefined}
-                    className="flex min-w-[168px] max-w-[220px] flex-col gap-1.5 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Ảnh dòng ${index + 1}`}
-                    onCopy={(event) => {
-                      const image = quoteLineImages(line).map(safeImage).find(Boolean);
-                      if (!image || !event.clipboardData) return;
-                      event.preventDefault();
-                      event.clipboardData.setData("text/plain", image);
-                    }}
-                    onPaste={(event) => {
-                      if (!canEditContent) return;
-                      const pasted = clipboardImage(event);
-                      if (!pasted) return;
-                      event.preventDefault();
-                      const current = quoteLineImages(line);
-                      if (current.length >= 8) {
-                        onError("Tối đa 8 ảnh mỗi dòng");
-                        return;
-                      }
-                      if (typeof pasted === "string") {
-                        if (pasted.length > 100_000) {
-                          onError("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
+            {lines.map((line, index) => {
+              const images = quoteLineImages(line);
+              const showMetric = line.basis === "kg" || line.basis === "cbm";
+              return (
+                <tr key={index} className="border-b align-top last:border-0">
+                  <td className="px-2 py-2">
+                    <Input className="h-8 w-12" aria-label={`STT dòng ${index + 1}`} value={line.stt} disabled={!canEditContent} onChange={(event) => updateLine(index, { stt: event.target.value })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <div
+                      tabIndex={canEditContent ? 0 : undefined}
+                      className="flex max-w-[220px] flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Ảnh dòng ${index + 1}`}
+                      onCopy={(event) => {
+                        const image = images.map(safeImage).find(Boolean);
+                        if (!image || !event.clipboardData) return;
+                        event.preventDefault();
+                        event.clipboardData.setData("text/plain", image);
+                      }}
+                      onPaste={(event) => {
+                        if (!canEditContent) return;
+                        const pasted = clipboardImage(event);
+                        if (!pasted) return;
+                        event.preventDefault();
+                        if (images.length >= 8) {
+                          onError("Tối đa 8 ảnh mỗi dòng");
                           return;
                         }
-                        void uploadDataImage(pasted)
-                          .then((image) => updateLine(index, withImages([...current, image])))
+                        if (typeof pasted === "string") {
+                          if (pasted.length > 100_000) {
+                            onError("Ảnh quá lớn, hãy chọn ảnh nhỏ hơn");
+                            return;
+                          }
+                          void uploadDataImage(pasted)
+                            .then((image) => addImages(index, line, [image]))
+                            .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
+                          return;
+                        }
+                        void uploadImageFile(pasted)
+                          .then((image) => addImages(index, line, [image]))
                           .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
-                        return;
-                      }
-                      void uploadImageFile(pasted)
-                        .then((image) => updateLine(index, withImages([...current, image])))
-                        .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
-                    }}
-                  >
-                    <div className="flex flex-wrap gap-1.5">
-                      {quoteLineImages(line).map((image, imageIndex) => {
-                        const src = safeImage(image);
-                        if (!src) return null;
-                        return (
-                          <div key={`${imageIndex}-${src.slice(0, 24)}`} className="relative">
-                            <img src={src} alt="" className="h-28 w-28 rounded border object-contain bg-white" />
-                            {canEditContent && (
-                              <Button
-                                type="button"
-                                size="icon-xs"
-                                variant="destructive"
-                                className="absolute -right-1 -top-1"
-                                aria-label={`Xóa ảnh ${imageIndex + 1} dòng ${index + 1}`}
-                                onClick={() => updateLine(index, withImages(quoteLineImages(line).filter((_, i) => i !== imageIndex)))}
-                              >
-                                <Trash2 />
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {canEditContent && (
-                      <>
-                        <label className="inline-flex h-8 w-fit cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
-                          <ImagePlus aria-hidden className="size-3.5" />
-                          Thêm ảnh
+                      }}
+                    >
+                      <div className="flex flex-wrap gap-1">
+                        {images.map((image, imageIndex) => {
+                          const src = safeImage(image);
+                          if (!src) return null;
+                          return (
+                            <div key={`${imageIndex}-${src.slice(0, 24)}`} className="relative">
+                              <img src={src} alt="" className="h-16 w-16 rounded border bg-white object-contain" />
+                              {canEditContent && (
+                                <Button
+                                  type="button"
+                                  size="icon-xs"
+                                  variant="destructive"
+                                  className="absolute -right-1 -top-1"
+                                  aria-label={`Xóa ảnh ${imageIndex + 1} dòng ${index + 1}`}
+                                  onClick={() => updateLine(index, withImages(images.filter((_, i) => i !== imageIndex)))}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {canEditContent && images.length < 8 && (
+                        <label className="inline-flex h-7 w-fit cursor-pointer items-center gap-1 rounded-md border px-2 text-[11px] hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
+                          <ImagePlus aria-hidden className="size-3" />
+                          Thêm
                           <input
                             className="sr-only"
                             type="file"
@@ -212,113 +435,109 @@ function OrderLines({
                               const files = Array.from(event.target.files ?? []);
                               event.target.value = "";
                               if (files.length === 0) return;
-                              const current = quoteLineImages(line);
-                              const room = 8 - current.length;
+                              const room = 8 - images.length;
                               if (room <= 0) {
                                 onError("Tối đa 8 ảnh mỗi dòng");
                                 return;
                               }
                               void uploadImageFiles(files.slice(0, room))
-                                .then((images) => updateLine(index, withImages([...current, ...images])))
+                                .then((next) => addImages(index, line, next))
                                 .catch((err: unknown) => onError(err instanceof Error ? err.message : "Không tải được ảnh"));
                             }}
                           />
                         </label>
-                        <p className="text-[10px] text-muted-foreground">Chọn nhiều ảnh hoặc Ctrl+V · tối đa 8</p>
-                      </>
-                    )}
-                  </div>
-                </td>
-                <td className="px-2 py-2">
-                  <div className="grid w-24 gap-1">
-                    <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} value={amountText(line.quantity)} disabled={!canEditContent} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} />
-                    <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEditContent} onChange={(event) => updateLine(index, { unit: event.target.value })} />
-                  </div>
-                </td>
-                <td className="px-2 py-2">
-                  <div className="grid w-36 gap-1">
-                    <MoneyInput className="h-8" aria-label={`Đơn giá dòng ${index + 1}`} value={line.pricePerSet} disabled={!canEditPricing} onValueChange={(pricePerSet) => updateLine(index, { pricePerSet })} />
-                    <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
-                      {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
-                    </NativeSelect>
-                  </div>
-                </td>
-                <td className="px-2 py-2"><MoneyInput className="h-8 w-24" value={line.lineTotal} disabled={!canEditPricing} onValueChange={(lineTotal) => updateLine(index, { lineTotal })} /></td>
-                <td className="px-2 py-2"><Input className="h-8 w-20" inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEditContent} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} /></td>
-                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.spec} disabled={!canEditContent} onChange={(event) => updateLine(index, { spec: event.target.value })} /></td>
-                <td className="px-2 py-2"><Textarea className="min-h-16 w-44" value={line.note} disabled={!canEditContent} onChange={(event) => updateLine(index, { note: event.target.value })} /></td>
-                <td className="px-2 py-2">
-                  {canEditContent && (
-                    <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa dòng ${index + 1}`} onClick={() => onChange(lines.filter((_, lineIndex) => lineIndex !== index))}>
-                      <Trash2 />
-                    </Button>
-                  )}
-                </td>
-              </tr>
-              <tr className="border-b last:border-0">
-                <td />
-                <td colSpan={8} className="px-2 py-3">
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {packagingRequired && <div
-                      className={`grid gap-2 rounded-md border-2 p-3 ${
-                        line.packages.length === 0
-                          ? "border-amber-600 bg-amber-50"
-                          : "border-amber-500/50 bg-amber-50/60"
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-amber-950">
-                          Quy cách đóng gói <span className="text-amber-700" aria-hidden>*</span>
-                        </p>
-                        {line.packages.length === 0 ? (
-                          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                            Bắt buộc — đừng bỏ sót
-                          </span>
-                        ) : (
-                          <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm) · kg/kiện — dùng để báo giá và tính cước.</p>
-                      {line.packages.map((pkg, pi) => (
-                        <div key={pi} className="flex flex-wrap items-center gap-1">
-                          {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => (
-                            <Input
-                              key={key}
-                              className="h-8 w-[4.5rem] border-amber-700/30 bg-white"
-                              inputMode="decimal"
-                              placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
-                              aria-label={`Kiện ${pi + 1} dòng ${index + 1}: ${key}`}
-                              value={pkg[key] ? String(pkg[key]) : ""}
-                              disabled={!canEditPackaging}
-                              onChange={(event) => updateLine(index, { packages: line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)) })}
-                            />
-                          ))}
-                          {canEditPackaging && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => updateLine(index, { packages: line.packages.filter((_, xi) => xi !== pi) })}><Trash2 /></Button>}
-                        </div>
-                      ))}
-                      {canEditPackaging && <Button type="button" size="sm" variant="outline" className="w-fit border-amber-700/40 bg-white" onClick={() => updateLine(index, { packages: [...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] })}><Plus />Thêm kiện</Button>}
-                    </div>}
-                    <div className="grid gap-1.5 rounded-md border bg-muted/20 p-3">
-                      <p className="font-medium">Thuộc tính chi tiết (mua hàng liên hệ xưởng)</p>
-                      <p className="text-[11px] text-muted-foreground">Chất liệu, bảo hành, lead time, MOQ… điền sau khi xác nhận với xưởng.</p>
-                      {line.attrs.map((attr, ai) => (
-                        <div key={ai} className="flex items-center gap-1">
-                          <Input className="h-7 w-32" placeholder="Tên" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: tên`} value={attr.key} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, key: event.target.value } : x)) })} />
-                          <Input className="h-7" placeholder="Giá trị" aria-label={`Thuộc tính ${ai + 1} dòng ${index + 1}: giá trị`} value={attr.value} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((x, xi) => (xi === ai ? { ...x, value: event.target.value } : x)) })} />
-                          {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa thuộc tính ${ai + 1}`} onClick={() => updateLine(index, { attrs: line.attrs.filter((_, xi) => xi !== ai) })}><Trash2 /></Button>}
-                        </div>
-                      ))}
-                      {canEditContent && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
+                      )}
                     </div>
-                  </div>
-                </td>
-              </tr>
-              </Fragment>
-            ))}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="grid w-[5.5rem] gap-1">
+                      <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} value={amountText(line.quantity)} disabled={!canEditContent} onChange={(event) => updateLine(index, { quantity: amountValue(event.target.value) })} placeholder="SL" />
+                      <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEditContent} onChange={(event) => updateLine(index, { unit: event.target.value })} placeholder="ĐV" />
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="grid w-36 gap-1">
+                      <MoneyInput className="h-8" aria-label={`Đơn giá dòng ${index + 1}`} value={line.pricePerSet} disabled={!canEditPricing} onValueChange={(pricePerSet) => updateLine(index, { pricePerSet })} />
+                      <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
+                        {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                      </NativeSelect>
+                      {showMetric && (
+                        <Input
+                          className="h-8"
+                          inputMode="decimal"
+                          aria-label={line.basis === "kg" ? `Cân nặng dòng ${index + 1}` : `CBM dòng ${index + 1}`}
+                          value={amountText(line.basis === "kg" ? line.weightKg : line.cbm)}
+                          disabled={!canEditContent}
+                          onChange={(event) => updateLine(index, line.basis === "kg" ? { weightKg: amountValue(event.target.value) } : { cbm: amountValue(event.target.value) })}
+                          placeholder={line.basis === "kg" ? "KG" : "CBM"}
+                        />
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <MoneyInput className="h-8 w-28" aria-label={`Thành tiền dòng ${index + 1}`} value={line.lineTotal} disabled={!canEditPricing} onValueChange={(lineTotal) => updateLine(index, { lineTotal })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <Textarea className="min-h-16 w-36" aria-label={`Thông số dòng ${index + 1}`} value={line.spec} disabled={!canEditContent} onChange={(event) => updateLine(index, { spec: event.target.value })} placeholder="Thông số" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="grid w-[14.5rem] grid-cols-2 gap-1.5">
+                      {factoryAttrKeys.map((key) => (
+                        <Input
+                          key={key}
+                          className="h-8 text-xs"
+                          aria-label={`${key} dòng ${index + 1}`}
+                          value={attrValue(line.attrs, key)}
+                          disabled={!canEditContent}
+                          onChange={(event) => updateLine(index, { attrs: withAttr(line.attrs, key, event.target.value) })}
+                          placeholder={key}
+                        />
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <Textarea className="min-h-16 w-32" aria-label={`Note dòng ${index + 1}`} value={line.note} disabled={!canEditContent} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Note" />
+                  </td>
+                  <td className="px-2 py-2">
+                    {canEditContent && (
+                      <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa dòng ${index + 1}`} onClick={() => onChange(lines.filter((_, lineIndex) => lineIndex !== index))}>
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      {canEditContent && <Button type="button" variant="outline" onClick={addLine}><Plus />Thêm dòng</Button>}
+      {lines.map((line, index) => (
+        <div key={index} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-2">
+          {packagingRequired && (
+            <LinePackagesEditor line={line} lineLabel={`STT ${line.stt || index + 1}`} canEdit={canEditPackaging} onChange={(packages) => updateLine(index, { packages })} />
+          )}
+          <div className="grid content-start gap-2">
+            <label className="grid gap-2 text-sm">
+              <span>{`Trọng lượng (kg) · STT ${line.stt || index + 1}`}</span>
+              <Input inputMode="decimal" value={amountText(line.weightKg)} disabled={!canEditContent} onChange={(event) => updateLine(index, { weightKg: amountValue(event.target.value) })} />
+            </label>
+            <p className="text-sm font-medium">Thuộc tính xưởng khác</p>
+            {line.attrs.map((attr, attrIndex) => factoryAttrKeys.some((key) => key === attr.key) ? null : (
+              <div key={attrIndex} className="flex items-center gap-1">
+                <Input aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={attr.key} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, key: event.target.value } : item) })} />
+                <Input aria-label={`Giá trị thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={attr.value} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, value: event.target.value } : item) })} />
+                {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label="Xóa thuộc tính" onClick={() => updateLine(index, { attrs: line.attrs.filter((_, i) => i !== attrIndex) })}><Trash2 /></Button>}
+              </div>
+            ))}
+            {canEditContent && <Button type="button" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
+          </div>
+        </div>
+      ))}
+      {canEditContent && (
+        <Button type="button" variant="outline" onClick={addLine}>
+          <Plus />Thêm dòng
+        </Button>
+      )}
     </div>
   );
 }
@@ -548,10 +767,69 @@ export function QuoteEditor({
   );
 
   const tabTriggerClass =
-    "h-11 flex-1 items-center justify-center rounded-lg px-3 py-2 text-[15px] font-semibold text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground";
+    "h-14 min-h-14 flex-1 items-center justify-center rounded-xl px-4 py-3 text-base font-bold tracking-wide text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground sm:text-lg";
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
-    : "mt-3 max-h-[min(58vh,640px)] space-y-4 overflow-y-auto pr-1";
+    : "mt-3 max-h-[min(72vh,780px)] space-y-4 overflow-y-auto pr-1";
+  const defaultTab = desk === "logistics" ? "logistics" : desk === "sourcing" ? "sourcing" : "sale";
+  const brandLabel = brandOptions.find((item) => item[0] === quote.brand)?.[1] ?? quote.brand ?? "—";
+  const logisticsLeadFacts: [string, string][] = [
+    ["Quy cách đóng gói (tiềm năng)", quote.packSpec || "—"],
+    ["Trọng lượng (kg)", quote.weightKg == null ? "—" : String(quote.weightKg)],
+    ["Phân loại logistics", quote.logisticsClass || "—"],
+    ["Địa chỉ gửi", quote.shipFromAddress || "—"],
+    ["Địa chỉ nhận", quote.shipToAddress || "—"],
+  ];
+  const requirementImages = quote.requirementImages ?? [];
+  const saleFact = (value: string | null | undefined) => (value && value.trim() ? value : "—");
+  const saleContactFacts: [string, string, boolean?][] = [
+    ["Tên khách", saleFact(quote.customerName)],
+    ["Công ty", saleFact(quote.companyName)],
+    ["Số điện thoại", saleFact(quote.phone)],
+    ["Email", saleFact(quote.email)],
+    ["Địa chỉ", saleFact(quote.address), true],
+  ];
+  const saleProfileFacts: [string, string][] = [
+    ["Nguồn", brandLabel],
+    ["Giai đoạn", labelOf(potentialOptions, quote.potential)],
+    ["Loại khách", labelOf(customerKindOptions, quote.customerKind)],
+    ["Đối tượng", labelOf(customerTypeOptions, quote.customerType)],
+    ["Kênh chăm sóc", labelOf(careChannelOptions, quote.careChannel)],
+    ["Phân loại", labelOf(classificationOptions, quote.classification)],
+  ];
+  const saleNeedFacts: [string, string, boolean?][] = [
+    ["Hàng hóa", saleFact(quote.goods), true],
+    ["Số lượng", saleFact(quote.quantityNote)],
+    ["Yêu cầu của khách", saleFact(quote.requirements), true],
+    ["Ghi chú sale", saleFact(quote.saleNote), true],
+  ];
+  const saleLogisticsFacts: [string, string, boolean?][] = [
+    ["Quy cách đóng gói", saleFact(quote.packSpec)],
+    ["Trọng lượng (kg)", quote.weightKg == null ? "—" : String(quote.weightKg)],
+    ["Phân loại logistics", saleFact(quote.logisticsClass)],
+    ["Địa chỉ gửi", saleFact(quote.shipFromAddress), true],
+    ["Địa chỉ nhận", saleFact(quote.shipToAddress), true],
+  ];
+
+  const patchOrderLinePackages = (orderId: string, lineIndex: number, packages: QuoteLine["packages"]) => {
+    setOrders((current) => current.map((order) => {
+      if (order.id !== orderId) return order;
+      return {
+        ...order,
+        lines: order.lines.map((line, index) => {
+          if (index !== lineIndex) return line;
+          let next: QuoteLine = { ...line, packages };
+          if (packages.length > 0) {
+            const m = packageMetrics(packages);
+            next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
+          }
+          const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
+          if (total != null) next = { ...next, lineTotal: total };
+          return next;
+        }),
+      };
+    }));
+  };
 
   const sheet = (
     <>
@@ -559,15 +837,15 @@ export function QuoteEditor({
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
       {mode === "content" && (
         <InlineAlert>
-          Sale điền ảnh, số lượng, quy cách đóng gói. Mua hàng liên hệ xưởng bổ sung thuộc tính chi tiết. Vận hành nhìn thông tin này để báo giá (đơn giá).
+          Sale điền ảnh, số lượng ở Sourcing. Nhân sự Logistics nhập quy cách đóng gói tại báo giá vận chuyển. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
         </InlineAlert>
       )}
-      <Tabs defaultValue="don-hang" className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        <TabsList className="h-auto min-h-0 w-full flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
+      <Tabs defaultValue={defaultTab} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
+        <TabsList className="h-auto min-h-0 w-full flex-wrap items-stretch justify-start gap-2 rounded-2xl border border-foreground/10 bg-muted p-2 group-data-horizontal/tabs:h-auto">
           {([
-            ["don-hang", "Đơn hàng"],
-            ["ghi-chu", "Ghi chú"],
-            ["thanh-toan", "Thanh toán"],
+            ["sale", "Sale"],
+            ["sourcing", "Sourcing"],
+            ["logistics", "Logistics"],
           ] as const).map(([value, label]) => (
             <TabsTrigger key={value} value={value} className={tabTriggerClass}>
               {label}
@@ -575,7 +853,51 @@ export function QuoteEditor({
           ))}
         </TabsList>
 
-        <TabsContent value="don-hang" className={tabPanelClass}>
+        <TabsContent value="sale" className={tabPanelClass}>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
+              <span className="rounded-md bg-background px-2.5 py-1 font-mono text-sm font-semibold tracking-wide">{quote.leadCode || "—"}</span>
+              {quote.messCode ? (
+                <span className="rounded-md border bg-background px-2.5 py-1 font-mono text-sm text-muted-foreground">{quote.messCode}</span>
+              ) : null}
+              <span className="rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary">
+                {labelOf(potentialOptions, quote.potential)}
+              </span>
+              {quote.linkMess && /^https?:\/\//i.test(quote.linkMess) ? (
+                <a href={quote.linkMess} target="_blank" rel="noreferrer" className="ml-auto text-sm font-medium text-primary hover:underline">
+                  Mở link mess
+                </a>
+              ) : null}
+            </div>
+
+            <SaleFactsTable
+              groups={[
+                { title: "Liên hệ", rows: saleContactFacts },
+                { title: "Phân loại khách", rows: saleProfileFacts },
+              ]}
+            />
+
+            <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+              <SaleFactsTable groups={[{ title: "Nhu cầu", rows: saleNeedFacts }]} />
+              <div className="overflow-hidden rounded-lg border">
+                <div className="border-b bg-muted/50 px-3 py-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Ảnh yêu cầu</div>
+                <div className="p-3">
+                  {requirementImages.length > 0 ? (
+                    <RequirementImageSlider images={requirementImages} showTitle={false} />
+                  ) : (
+                    <p className="rounded-lg border border-dashed bg-muted/20 px-3 py-8 text-center text-sm text-muted-foreground">
+                      Chưa có ảnh yêu cầu từ khách tiềm năng.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <SaleFactsTable groups={[{ title: "Logistics (từ tiềm năng)", rows: saleLogisticsFacts }]} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sourcing" className={tabPanelClass}>
           <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm sm:grid-cols-2">
             <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
             <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
@@ -594,19 +916,34 @@ export function QuoteEditor({
                 <thead>
                   <tr className="border-b bg-muted/50 text-left">
                     <th className="whitespace-nowrap px-3 py-2 font-medium">Chọn</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-2 font-medium">Tên mẫu</th>
-                    <th className="whitespace-nowrap px-3 py-2 font-medium">Số dòng</th>
-                    <th className="whitespace-nowrap px-3 py-2 font-medium">Tiền tệ</th>
-                    <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền hàng</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Số lượng</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Đơn giá</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Số kiện</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium">CBM</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Cân nặng (kg)</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Cân tính cước (kg)</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Tổng tiền hàng</th>
+                    <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú</th>
                     <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                    <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                   )}
                   {orders.map((order) => {
                     const totals = quoteTotals(order.lines);
+                    const previewImages = order.lines
+                      .flatMap((line) => quoteLineImages(line).map(safeImage).filter(Boolean))
+                      .slice(0, 6);
+                    const quantityText = orderQuantityText(order.lines);
+                    const specText = orderSpecText(order.lines);
+                    const priceTexts = orderPriceTexts(order.lines, order.currency);
+                    const noteText = orderNoteText(order.lines);
+                    const packed = packageMetrics(order.lines.flatMap((line) => line.packages));
+                    const vndTotal = totals.priced && order.currency !== "VND" && order.rate ? totals.goods * order.rate : null;
                     return (
                       <tr key={order.id} className="border-b last:border-0">
                         <td className="px-3 py-2">
@@ -619,10 +956,51 @@ export function QuoteEditor({
                             onChange={(event) => toggle(order.id, event.target.checked)}
                           />
                         </td>
-                        <td className="px-3 py-2 font-medium">{order.name}</td>
-                        <td className="px-3 py-2">{order.lines.length}</td>
-                        <td className="px-3 py-2">{order.currency}</td>
-                        <td className="px-3 py-2">{totals.priced ? `${money(totals.goods)} ${order.currency}` : "—"}</td>
+                        <td className="px-3 py-2">
+                          {previewImages.length === 0 ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {previewImages.map((src, imageIndex) => (
+                                <img
+                                  key={`${order.id}-${imageIndex}`}
+                                  src={src}
+                                  alt=""
+                                  className="h-14 w-14 rounded border bg-white object-contain"
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="max-w-xs px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-medium">{order.name}</span>
+                            {order.selected && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">Đang chọn</span>}
+                          </div>
+                          {specText && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-xs text-muted-foreground" title={specText}>{specText}</p>}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2">{quantityText || "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {priceTexts.length === 0 ? <span className="text-muted-foreground">—</span> : (
+                            <div className="grid gap-0.5">
+                              {priceTexts.slice(0, 2).map((item, index) => <span key={index}>{item}</span>)}
+                              {priceTexts.length > 2 && <span className="text-xs text-muted-foreground">+{priceTexts.length - 2} dòng khác</span>}
+                            </div>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{totals.packageCount > 0 ? money(totals.packageCount) : "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{totals.cbm > 0 ? totals.cbm : "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{totals.weighed ? money(totals.weight) : "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{packed.count > 0 ? money(packed.chargeableKg) : "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {totals.priced ? <span className="font-medium">{money(totals.goods)} {order.currency}</span> : <span className="text-muted-foreground">—</span>}
+                          {vndTotal != null && (
+                            <p className="text-xs text-muted-foreground">≈ {money(Math.round(vndTotal))} VND (tỷ giá {money(order.rate!)})</p>
+                          )}
+                        </td>
+                        <td className="min-w-40 max-w-xs px-3 py-2">
+                          {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
                             <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
@@ -637,18 +1015,10 @@ export function QuoteEditor({
               </table>
             </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="ghi-chu" className={tabPanelClass}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
               <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
-            </Field>
-            <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
-              <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
-            </Field>
-            <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
-              <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
             </Field>
             <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
               <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
@@ -683,8 +1053,49 @@ export function QuoteEditor({
           </div>
         </TabsContent>
 
-        <TabsContent value="thanh-toan" className={tabPanelClass}>
+        <TabsContent value="logistics" className={tabPanelClass}>
+          <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
+            <h3 className="font-semibold sm:col-span-2">Thông tin logistics từ tiềm năng</h3>
+            {logisticsLeadFacts.map(([label, value]) => (
+              <p key={label} className={label.startsWith("Quy cách") || label.startsWith("Địa chỉ") ? "sm:col-span-2" : undefined}>
+                <span className="text-muted-foreground">{label}: </span>
+                <span className="font-medium whitespace-pre-wrap">{value}</span>
+              </p>
+            ))}
+          </div>
+
+          {packagingRequired && <div className="grid gap-3">
+            <div>
+              <h3 className="font-medium">Quy cách đóng gói theo dòng hàng</h3>
+              <p className="text-sm text-muted-foreground">Điền số kiện · D × R × C · kg/kiện cho từng dòng để tính cước và báo giá vận chuyển.</p>
+            </div>
+            {orders.length === 0 && (
+              <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">Chưa có thông tin đơn hàng — tạo ở tab Sourcing trước.</p>
+            )}
+            {orders.map((order) => (
+              <div key={order.id} className="grid gap-3 rounded-xl border p-3">
+                <p className="font-medium">{order.name || "Không tên"} · {order.currency}</p>
+                {order.lines.length === 0 && <p className="text-sm text-muted-foreground">Chưa có dòng hàng.</p>}
+                {order.lines.map((line, lineIndex) => (
+                  <LinePackagesEditor
+                    key={`${order.id}-${lineIndex}`}
+                    line={line}
+                    lineLabel={`STT ${line.stt || lineIndex + 1}`}
+                    canEdit={canEditPackaging}
+                    onChange={(packages) => patchOrderLinePackages(order.id, lineIndex, packages)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>}
+
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
+              <Input id={fieldId("note-weight")} value={notes.weightNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })} placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế" />
+            </Field>
+            <Field label="Tổng chi phí vận chuyển (Logistics)" htmlFor={fieldId("note-shipping")}>
+              <Input id={fieldId("note-shipping")} value={notes.shippingLabel ?? ""} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })} placeholder="Tổng chi phí vận chuyển từ ..." />
+            </Field>
             <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
               <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
             </Field>
@@ -732,7 +1143,7 @@ export function QuoteEditor({
         </section>
       ) : (
         <Dialog open onOpenChange={(open) => { if (!open && !draft) onClose(); }}>
-          <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-5xl">
+          <DialogContent className="flex max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none">
             <DialogHeader>
               <DialogTitle>Báo giá {quote.code}</DialogTitle>
             </DialogHeader>
@@ -756,7 +1167,7 @@ export function QuoteEditor({
 
       {draft && (
         <Dialog open onOpenChange={(open) => { if (!open) setDraft(null); }}>
-          <DialogContent className="z-[80] sm:max-w-6xl">
+          <DialogContent className="z-[80] w-[min(96vw,90rem)] max-w-none sm:max-w-none">
             <DialogHeader>
               <DialogTitle>
                 {draft.mode === "create" ? "Tạo thông tin đơn hàng" : draft.mode === "edit" ? "Sửa thông tin đơn hàng" : "Xem thông tin đơn hàng"}
@@ -766,62 +1177,60 @@ export function QuoteEditor({
               {orderError && <InlineAlert>{orderError}</InlineAlert>}
               {draft.mode !== "view" && (
                 <InlineAlert>
-                  Ưu tiên điền <strong>quy cách đóng gói</strong> (ô vàng) trước khi lưu. Sale điền ảnh/số lượng/quy cách; mua hàng bổ sung chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
+                  Điền ảnh + số lượng ở đây. Quy cách đóng gói → tab Logistics. Đơn giá do vận hành điền.
                 </InlineAlert>
               )}
-              <div className={draft.order.currency !== "VND"
-                ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,11rem)_minmax(9rem,12rem)]"
-                : "grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,11rem)]"
-              }>
+              <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
                 <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")}>
                   <Input
                     id={fieldId("order-name")}
                     value={draft.order.name}
                     disabled={draft.mode === "view"}
                     onChange={(event) => setDraft({ ...draft, order: { ...draft.order, name: event.target.value } })}
+                    placeholder="VD: Mẫu A — 500 set"
                   />
                 </Field>
-                <Field label="Loại tiền" htmlFor={fieldId("order-currency")} hint="Chọn từ danh sách hoặc thêm mã 3 chữ cái (ví dụ THB)">
-                  <div className="flex flex-wrap gap-2">
-                    <NativeSelect
-                      id={fieldId("order-currency")}
-                      className="min-w-[8rem] flex-1"
-                      value={draft.order.currency}
-                      disabled={draft.mode === "view" || !canEditPricing}
-                      onChange={(event) => {
-                        const currency = event.target.value.toUpperCase();
-                        setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
+                <Field label="Loại tiền" htmlFor={fieldId("order-currency")}>
+                  <NativeSelect
+                    id={fieldId("order-currency")}
+                    value={draft.order.currency}
+                    disabled={draft.mode === "view" || !canEditPricing}
+                    onChange={(event) => {
+                      const currency = event.target.value.toUpperCase();
+                      setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
+                    }}
+                  >
+                    {Array.from(new Set<string>([...quoteCurrencies, draft.order.currency, ...extraCurrencies]))
+                      .filter(Boolean)
+                      .map((code) => (
+                        <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>
+                      ))}
+                  </NativeSelect>
+                </Field>
+                {draft.mode !== "view" && canEditPricing && (
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        const next = window.prompt("Nhập mã tiền tệ mới (3 chữ cái, ví dụ THB)")?.trim().toUpperCase() ?? "";
+                        if (!next) return;
+                        if (!/^[A-Z]{3}$/.test(next)) {
+                          setOrderError("Mã tiền tệ gồm đúng 3 chữ cái");
+                          return;
+                        }
+                        setExtraCurrencies((current) => current.includes(next) ? current : [...current, next]);
+                        setDraft({ ...draft, order: { ...draft.order, currency: next, rate: next === "VND" ? null : draft.order.rate } });
+                        setOrderError(undefined);
                       }}
                     >
-                      {Array.from(new Set<string>([...quoteCurrencies, draft.order.currency, ...extraCurrencies]))
-                        .filter(Boolean)
-                        .map((code) => (
-                          <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>
-                        ))}
-                    </NativeSelect>
-                    {draft.mode !== "view" && canEditPricing && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          const next = window.prompt("Nhập mã tiền tệ mới (3 chữ cái, ví dụ THB)")?.trim().toUpperCase() ?? "";
-                          if (!next) return;
-                          if (!/^[A-Z]{3}$/.test(next)) {
-                            setOrderError("Mã tiền tệ gồm đúng 3 chữ cái");
-                            return;
-                          }
-                          setExtraCurrencies((current) => current.includes(next) ? current : [...current, next]);
-                          setDraft({ ...draft, order: { ...draft.order, currency: next, rate: next === "VND" ? null : draft.order.rate } });
-                          setOrderError(undefined);
-                        }}
-                      >
-                        Thêm loại tiền
-                      </Button>
-                    )}
+                      Thêm loại tiền
+                    </Button>
                   </div>
-                </Field>
+                )}
                 {draft.order.currency !== "VND" && (
-                  <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc. Có tỷ giá thì báo giá in thêm dòng quy đổi VND">
+                  <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc — có tỷ giá thì sheet in thêm dòng VND" className="sm:col-span-3">
                     <MoneyInput
                       id={fieldId("order-rate")}
                       value={draft.order.rate}
@@ -879,6 +1288,12 @@ export function QuoteEditor({
         confirmLabel="Gửi"
         onConfirm={() => {
           if (!onSend) return;
+          const missingPack = orders.some((order) => order.selected && order.lines.some((line) => line.packages.length === 0));
+          if (missingPack) {
+            setFormError("Mỗi dòng hàng đã chọn cần quy cách đóng gói ở tab Logistics trước khi gửi báo giá");
+            setConfirmSend(false);
+            return;
+          }
           const data = payloadFor(orders);
           if (!data) return;
           void onSend(data).then((status) => {

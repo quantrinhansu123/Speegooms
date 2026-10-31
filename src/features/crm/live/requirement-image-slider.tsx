@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Expand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-export function RequirementImageSlider({ images }: { images: string[] }) {
+export function RequirementImageSlider({ images, showTitle = true }: { images: string[]; showTitle?: boolean }) {
   const [index, setIndex] = useState(0);
   const current = Math.min(index, images.length - 1);
 
@@ -39,7 +39,7 @@ export function RequirementImageSlider({ images }: { images: string[] }) {
   return (
     <Dialog>
       <section aria-label="Ảnh yêu cầu" aria-roledescription="trình chiếu" onKeyDown={onKeyDown} className="space-y-3">
-        <p className="text-sm font-medium">Ảnh yêu cầu</p>
+        {showTitle ? <p className="text-sm font-medium">Ảnh yêu cầu</p> : null}
         <DialogTrigger
           type="button"
           aria-label={`Phóng to ảnh yêu cầu ${current + 1}`}

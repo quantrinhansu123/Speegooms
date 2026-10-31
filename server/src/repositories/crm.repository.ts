@@ -97,7 +97,21 @@ export interface QuoteRecord {
   email: string | null;
   customerKind: string | null;
   quoteWorkflow: QuoteWorkflow;
+  customerType: string | null;
+  brand: string | null;
+  potential: string | null;
+  careChannel: string | null;
+  classification: string | null;
   goods: string | null;
+  quantityNote: string | null;
+  saleNote: string | null;
+  packSpec: string | null;
+  weightKg: number | null;
+  logisticsClass: string | null;
+  shipFromAddress: string | null;
+  shipToAddress: string | null;
+  messCode: string | null;
+  linkMess: string | null;
   templateId: string | null;
   templateName: string | null;
   opsNote: string | null;
@@ -109,6 +123,8 @@ export interface QuoteRecord {
   sentQuote: SentQuote | null;
   logisticsQuoteId: string | null;
   logisticsSheet: QuoteSheet | null;
+  requirements: string | null;
+  requirementImages: string[];
   createdAt: string;
 }
 

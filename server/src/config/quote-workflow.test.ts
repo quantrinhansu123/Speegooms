@@ -70,6 +70,35 @@ test("Logistics SQL scope separates legacy sourcing from combined sourcing", asy
   assert.ok(statements.some(({ sql }) => sql.includes("l.luong_bao_gia = 'COMBINED'")));
 });
 
+test("quote projection preserves both workflow and Sale requirement images after merging", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const repository = new PostgresCrmRepository({
+      query: async (sql: string) => {
+        assert.match(sql, /l\.luong_bao_gia as quote_workflow/);
+        assert.match(sql, /l\.anh_yeu_cau as requirement_images/);
+        assert.match(sql, /left join crm\.tin_nhan_(viet_nam|global) msg/);
+        return { rowCount: 1, rows: [{
+          id: "quote", customer_kind: "SOURCING", quote_workflow: "COMBINED",
+          customer_type: "ENTERPRISE", brand: "SOURCING", potential: "POTENTIAL",
+          requirements: "Giữ yêu cầu khách", requirement_images: ["https://example.com/requirement.png"],
+          sale_note: "Giữ ghi chú Sale", mess_code: "MESS-1", link_mess: "https://example.com/message",
+          created_at: new Date(),
+        }] };
+      },
+    } as unknown as pg.Pool);
+    const [quote] = await repository.listQuotes(lane, "sourcing", {
+      q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "SOURCING",
+    });
+    assert.equal(isCombinedSourcing(quote), true);
+    assert.equal(quote.customerType, "ENTERPRISE");
+    assert.equal(quote.requirements, "Giữ yêu cầu khách");
+    assert.deepEqual(quote.requirementImages, ["https://example.com/requirement.png"]);
+    assert.equal(quote.saleNote, "Giữ ghi chú Sale");
+    assert.equal(quote.messCode, "MESS-1");
+    assert.equal(quote.linkMess, "https://example.com/message");
+  }
+});
+
 test("a new combined order notifies both desks once", async () => {
   const desks: QuoteDesk[] = [];
   let created = true;

@@ -109,11 +109,13 @@ const laneTables = {
 
 const quoteTables = {
   vn: {
+    message: "crm.tin_nhan_viet_nam",
     potential: "crm.khach_hang_tiem_nang_viet_nam",
     sourcing: "crm.bao_gia_sourcing_viet_nam",
     logistics: "crm.bao_gia_logistics_viet_nam",
   },
   global: {
+    message: "crm.tin_nhan_global",
     potential: "crm.khach_hang_tiem_nang_global",
     sourcing: "crm.bao_gia_sourcing_global",
     logistics: "crm.bao_gia_logistics_global",
@@ -132,7 +134,21 @@ type QuoteRow = {
   email: string | null;
   customer_kind: string | null;
   quote_workflow: QuoteWorkflow;
+  customer_type: string | null;
+  brand: string | null;
+  potential: string | null;
+  care_channel: string | null;
+  classification: string | null;
   goods: string | null;
+  quantity_note: string | null;
+  sale_note: string | null;
+  pack_spec: string | null;
+  weight_kg: number | string | null;
+  logistics_class: string | null;
+  ship_from_address: string | null;
+  ship_to_address: string | null;
+  mess_code: string | null;
+  link_mess: string | null;
   template_id: string | null;
   template_name: string | null;
   ops_note: string | null;
@@ -145,6 +161,8 @@ type QuoteRow = {
   logistics_quote_id: string | null;
   logistics_sheet: unknown;
   logistics_template_name: string | null;
+  requirements: string | null;
+  requirement_images: unknown;
   created_at: Date | string;
 };
 
@@ -177,7 +195,13 @@ function kindClause(
   };
 }
 
-function quoteSelect(quote: string, potential: string, logistics: string | null, sheet: boolean): string {
+function quoteSelect(
+  quote: string,
+  potential: string,
+  message: string,
+  logistics: string | null,
+  sheet: boolean,
+): string {
   const logisticsColumn = logistics ? "lq.id::text" : "null";
   const logisticsJoin = logistics
     ? `left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang`
@@ -193,7 +217,16 @@ function quoteSelect(quote: string, potential: string, logistics: string | null,
          q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
          l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow,
-         l.san_pham_quan_tam as goods, q.ma_mau::text as template_id, m.ten as template_name,
+         l.loai_khach_hang::text as customer_type, l.thuong_hieu::text as brand,
+         l.tiem_nang::text as potential, l.kenh_cham_soc as care_channel,
+         l.phan_loai::text as classification,
+         l.san_pham_quan_tam as goods, l.ghi_chu_so_luong as quantity_note,
+         l.ghi_chu_ban_hang as sale_note, l.quy_cach_dong_goi as pack_spec,
+         l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
+         l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
+         l.yeu_cau_khach as requirements, l.anh_yeu_cau as requirement_images,
+         msg.ma_hien_thi as mess_code, msg.link_mess as link_mess,
+         q.ma_mau::text as template_id, m.ten as template_name,
          q.ghi_chu_vh as ops_note, q.trang_thai_bao_gia::text as quote_status,
          q.trang_thai_hop_dong::text as contract_status,
          q.chi_tiet_don_hang as order_lines, q.ghi_chu as common_notes,
@@ -202,6 +235,7 @@ function quoteSelect(quote: string, potential: string, logistics: string | null,
   from ${quote} q
   join ${potential} l on l.id = q.ma_khach_hang_tiem_nang
   left join crm.mau_bao_gia m on m.id = q.ma_mau
+  left join ${message} msg on msg.id = l.ma_tin_nhan
   ${sheetJoin}
   ${logisticsJoin}
   where l.xoa_luc is null
@@ -396,7 +430,21 @@ function toQuote(row: QuoteRow): QuoteRecord {
     email: row.email,
     customerKind: row.customer_kind,
     quoteWorkflow: row.quote_workflow,
+    customerType: row.customer_type,
+    brand: row.brand,
+    potential: row.potential,
+    careChannel: row.care_channel,
+    classification: row.classification,
     goods: row.goods,
+    quantityNote: row.quantity_note,
+    saleNote: row.sale_note,
+    packSpec: row.pack_spec,
+    weightKg: weight(row.weight_kg),
+    logisticsClass: row.logistics_class,
+    shipFromAddress: row.ship_from_address,
+    shipToAddress: row.ship_to_address,
+    messCode: row.mess_code,
+    linkMess: row.link_mess,
     templateId: row.template_id,
     templateName: row.template_name,
     opsNote: row.ops_note,
@@ -408,6 +456,8 @@ function toQuote(row: QuoteRow): QuoteRecord {
     sentQuote: asSent(row.sent_copy),
     logisticsQuoteId: row.logistics_quote_id,
     logisticsSheet: asSheet(row.logistics_sheet, row.logistics_template_name),
+    requirements: row.requirements,
+    requirementImages: imageList(row.requirement_images),
     createdAt: stamp(row.created_at),
   };
 }
@@ -1300,7 +1350,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (desk === "sourcing") {
       const kindFilter = kindClause(allowedKinds, own.values.length + 1);
       const result = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc limit 200`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc limit 200`,
         [...own.values, ...kindFilter.values],
       );
       return result.rows.map(toQuote);
@@ -1312,13 +1362,13 @@ export class PostgresCrmRepository implements CrmRepository {
     const [ownRows, sharedRows] = await Promise.all([
       allowOwn
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.logistics, tables.potential, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
             own.values,
           )
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, null, true)} ${shared.sql} and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') order by q.tao_luc desc limit 200`,
             shared.values,
           )
         : noRows,
@@ -1842,18 +1892,18 @@ export class PostgresCrmRepository implements CrmRepository {
     const tables = quoteTables[lane];
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.id = $1::uuid`,
+        `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} and q.id = $1::uuid`,
         [id],
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.id = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.id = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
         [id],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
     }
     const result = await this.query<QuoteRow>(
-      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.id = $1::uuid`,
+      `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} and q.id = $1::uuid`,
       [id],
     );
     return result.rows[0] ? toQuote(result.rows[0]) : null;
@@ -1863,18 +1913,18 @@ export class PostgresCrmRepository implements CrmRepository {
     const tables = quoteTables[lane];
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, null, false)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
+        `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
         [potentialId],
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
         [potentialId],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
     }
     const result = await this.query<QuoteRow>(
-      `${quoteSelect(tables.sourcing, tables.potential, tables.logistics, true)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
+      `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
       [potentialId],
     );
     return result.rows[0] ? toQuote(result.rows[0]) : null;
