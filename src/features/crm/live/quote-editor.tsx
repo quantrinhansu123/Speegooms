@@ -1,5 +1,6 @@
 "use client";
 
+import { api } from "@/lib/api";
 import { isCombinedSourcing } from "@speego/shared";
 
 import { Fragment, useEffect, useState } from "react";
@@ -75,12 +76,14 @@ function LogisticsFeesEditor({
   notes,
   setNotes,
   canEdit,
+  canEditOrderNotes = false,
   pending,
   fieldId,
 }: {
   notes: QuoteNotes;
   setNotes: (notes: QuoteNotes) => void;
   canEdit: boolean;
+  canEditOrderNotes?: boolean;
   pending: boolean;
   fieldId: (name: string) => string;
 }) {
@@ -134,7 +137,7 @@ function LogisticsFeesEditor({
           <Input
             id={fieldId("note-weight")}
             value={notes.weightNote}
-            disabled={!canEdit}
+            disabled={!canEditOrderNotes}
             onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })}
             placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế"
           />
@@ -841,10 +844,15 @@ export function QuoteEditor({
   onContinueLogistics?: () => void;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
-  const packagingRequired = desk === "logistics" || !isCombinedSourcing(quote);
-  const canEditContent = mode === "content" || mode === "full";
-  const canEditPricing = mode === "full";
-  const canEditPackaging = canEditContent && (quote.quoteWorkflow === "LEGACY" || canEditPricing);
+  const packagingRequired = desk !== "logistics" && !isCombinedSourcing(quote);
+  const showPackaging = desk === "sourcing" || desk === "logistics" || !isCombinedSourcing(quote);
+  const canSendQuote = mode === "full";
+  const canEditLogisticsFees = mode === "full" && desk === "logistics";
+  const canEditContent = desk !== "logistics" && (mode === "content" || mode === "full");
+  const canEditPricing = mode === "full" && desk !== "logistics";
+  const canEditPackaging = canEditContent && canEditPricing;
+  const [ratePending, setRatePending] = useState(false);
+  const [rateInfo, setRateInfo] = useState<{ currency: string; updatedAt: string | null } | null>(null);
   const [lead, setLead] = useState(quote);
   const [editingSale, setEditingSale] = useState(false);
   const [saleDraft, setSaleDraft] = useState<SaleLeadDraft | null>(null);
@@ -879,7 +887,7 @@ export function QuoteEditor({
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
 
-  const canSaveSale = Boolean(onSaveSale);
+  const canSaveSale = desk !== "logistics" && Boolean(onSaveSale);
 
   useEffect(() => {
     setLead(quote);
@@ -1101,21 +1109,21 @@ export function QuoteEditor({
       <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
       </Button>
-      {canEditPricing && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
-      {!canEditPricing && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
+      {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
+      {!canSendQuote && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
         <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Chuyển Hợp đồng</Button>
       )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
-      {canEditContent && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+      {(canEditContent || canEditLogisticsFees) && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
     </>
   );
 
   const tabTriggerClass =
-    "h-14 min-h-14 flex-1 items-center justify-center rounded-xl px-4 py-3 text-base font-bold tracking-wide text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground sm:text-lg";
+    "h-12 min-h-12 w-full min-w-0 items-center justify-center rounded-xl px-2 py-2 text-base font-bold tracking-wide text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground sm:h-14 sm:min-h-14 sm:px-4 sm:py-3 sm:text-lg";
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
-    : "mt-3 max-h-[min(72vh,780px)] space-y-4 overflow-y-auto pr-1";
+    : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
   const defaultTab = desk === "logistics" ? "logistics" : desk === "sourcing" ? "sourcing" : "sale";
   const brandLabel = brandOptions.find((item) => item[0] === lead.brand)?.[1] ?? lead.brand ?? "—";
   const logisticsLeadFacts: [string, string][] = [
@@ -1176,17 +1184,34 @@ export function QuoteEditor({
     }));
   };
 
+  const loadExchangeRate = async () => {
+    if (!draft || draft.mode === "view" || !canEditPricing) return;
+    const { id, currency } = draft.order;
+    setRatePending(true);
+    setOrderError(undefined);
+    try {
+      const result = await api<{ currency: string; rate: number; updatedAt: string | null }>(`/api/crm/exchange-rate?currency=${encodeURIComponent(currency)}`);
+      setDraft((current) => current && current.order.id === id && current.order.currency === currency
+        ? { ...current, order: { ...current.order, rate: result.rate } } : current);
+      setRateInfo({ currency, updatedAt: result.updatedAt });
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : "Không lấy được tỷ giá. Vui lòng nhập tay.");
+    } finally {
+      setRatePending(false);
+    }
+  };
+
   const sheet = (
     <>
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
       {mode === "content" && (
         <InlineAlert>
-          Sale điền ảnh, số lượng ở Sourcing. Nhân sự Logistics nhập quy cách đóng gói tại báo giá vận chuyển. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
+          Sale điền ảnh, số lượng ở Sourcing. Sourcing nhập thông tin đơn hàng và đóng gói; Logistics chỉ nhập chi phí logistics. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
         </InlineAlert>
       )}
       <Tabs defaultValue={defaultTab} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        <TabsList className="h-auto min-h-0 w-full flex-wrap items-stretch justify-start gap-2 rounded-2xl border border-foreground/10 bg-muted p-2 group-data-horizontal/tabs:h-auto">
+        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:grid-cols-4 sm:gap-2 sm:p-2">
           {([
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
@@ -1354,7 +1379,7 @@ export function QuoteEditor({
 
                 <section className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
                   <h3 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase sm:col-span-2">Logistics (từ tiềm năng)</h3>
-                  <Field label="Quy cách đóng gói đã lưu (Logistics nhập tại báo giá)" htmlFor={fieldId("sale-pack")} className="sm:col-span-2">
+                  <Field label="Quy cách đóng gói đã lưu (Sourcing nhập tại đơn hàng)" htmlFor={fieldId("sale-pack")} className="sm:col-span-2">
                     <Textarea id={fieldId("sale-pack")} rows={2} value={saleDraft.packSpec} readOnly />
                   </Field>
                   <Field label="Trọng lượng (kg)" htmlFor={fieldId("sale-weight")}>
@@ -1560,7 +1585,7 @@ export function QuoteEditor({
             </div>
           </div>
 
-          {packagingRequired && <OrderPackagesBlock
+          {showPackaging && <OrderPackagesBlock
             orders={orders}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
@@ -1569,7 +1594,8 @@ export function QuoteEditor({
           <LogisticsFeesEditor
             notes={notes}
             setNotes={setNotes}
-            canEdit={canEditContent || canEditPricing}
+            canEdit={canEditLogisticsFees}
+            canEditOrderNotes={canEditPricing}
             pending={pending}
             fieldId={(name) => fieldId(`sourcing-${name}`)}
           />
@@ -1597,7 +1623,7 @@ export function QuoteEditor({
                   ))}</tbody>
                 </table>
               </div>
-              <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Nhập đóng gói và đơn giá vận chuyển vào báo giá Logistics bên dưới.</p>
+              <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Sourcing cung cấp thông tin hàng và đóng gói. Logistics nhập chi phí logistics bên dưới.</p>
             </section>
           )}
           <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
@@ -1610,7 +1636,7 @@ export function QuoteEditor({
             ))}
           </div>
 
-          {packagingRequired && <OrderPackagesBlock
+          {showPackaging && <OrderPackagesBlock
             orders={orders}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
@@ -1619,7 +1645,8 @@ export function QuoteEditor({
           <LogisticsFeesEditor
             notes={notes}
             setNotes={setNotes}
-            canEdit={canEditContent || canEditPricing}
+            canEdit={canEditLogisticsFees}
+            canEditOrderNotes={canEditPricing}
             pending={pending}
             fieldId={fieldId}
           />
@@ -1708,7 +1735,7 @@ export function QuoteEditor({
               {orderError && <InlineAlert>{orderError}</InlineAlert>}
               {draft.mode !== "view" && (
                 <InlineAlert>
-                  Điền ảnh + số lượng ở đây. Quy cách đóng gói → tab Logistics. Đơn giá do vận hành điền.
+                  Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics.
                 </InlineAlert>
               )}
               <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
@@ -1762,12 +1789,16 @@ export function QuoteEditor({
                 )}
                 {draft.order.currency !== "VND" && (
                   <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc — có tỷ giá thì sheet in thêm dòng VND" className="sm:col-span-3">
+                    <div className="flex gap-2">
                     <MoneyInput
                       id={fieldId("order-rate")}
                       value={draft.order.rate}
                       disabled={draft.mode === "view" || !canEditPricing}
                       onValueChange={(rate) => setDraft({ ...draft, order: { ...draft.order, rate } })}
                     />
+                    {draft.mode !== "view" && canEditPricing && <Button type="button" variant="outline" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Tỷ giá tham khảo, cập nhật hằng ngày. Có thể chỉnh tay trước khi lưu. <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer" className="underline">Rates By Exchange Rate API</a>{rateInfo?.currency === draft.order.currency && rateInfo.updatedAt ? " · Cập nhật " + new Date(rateInfo.updatedAt).toLocaleDateString("vi-VN") : ""}</p>
                   </Field>
                 )}
               </div>
@@ -1779,7 +1810,7 @@ export function QuoteEditor({
                   currency={draft.order.currency}
                   canEditContent={canEditContent}
                   canEditPricing={canEditPricing}
-                  packagingRequired={packagingRequired}
+                  packagingRequired={showPackaging}
                   canEditPackaging={canEditPackaging}
                   onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
                   onError={setOrderError}

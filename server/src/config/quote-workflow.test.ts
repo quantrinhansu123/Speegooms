@@ -7,6 +7,7 @@ import {
 import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
+import { quoteDeskPatch } from "../services/quote-edit-policy";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -144,6 +145,31 @@ const handoffInput = () => updateQuoteSchema.parse({
       weightKg: 20, cbm: 0.4, unit: "thùng", basis: "unit", spec: "Kích thước sản phẩm", note: "Không xếp chồng",
       attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
+});
+
+test("Logistics can change only costs, while Sourcing owns the order", () => {
+  const original = handoffInput();
+  const current = { ...original, orders: original.orders } as QuoteRecord;
+  const submitted = structuredClone(original);
+  submitted.orders[0].lines[0].quantity = 999;
+  submitted.orders[0].lines[0].pricePerSet = 100000;
+  submitted.orders[0].rate = 999;
+  submitted.bank.accountName = "Changed";
+  submitted.opsNote = "Changed";
+  submitted.notes.weightNote = "Changed";
+  submitted.notes.shippingLabel = "500 VND";
+  submitted.notes.logisticsFees = [{ label: "Vận chuyển", value: "500 VND" }];
+  const costs = quoteDeskPatch("logistics", current, submitted);
+  assert.deepEqual(costs.orders, original.orders);
+  assert.deepEqual(costs.bank, original.bank);
+  assert.equal(costs.opsNote, original.opsNote);
+  assert.equal(costs.notes.weightNote, original.notes.weightNote);
+  assert.deepEqual(costs.notes.logisticsFees, submitted.notes.logisticsFees);
+  assert.equal(costs.notes.shippingLabel, "500 VND");
+  const order = quoteDeskPatch("sourcing", current, submitted);
+  assert.equal(order.orders[0].lines[0].quantity, 999);
+  assert.equal(order.orders[0].rate, 999);
+  assert.deepEqual(order.notes.logisticsFees, original.notes.logisticsFees);
 });
 
 test("handoff carries product details without treating sourcing prices as shipping prices", () => {

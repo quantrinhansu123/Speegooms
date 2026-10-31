@@ -1,3 +1,4 @@
+import { exchangeRate } from "../services/exchange-rate.service";
 import { Router } from "express";
 import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
@@ -9,6 +10,10 @@ export function crmRoutes(container: AppContainer) {
   const router = Router();
   const crm = container.crmController;
   router.use(container.authenticate);
+  router.get("/exchange-rate", requireAnyPermission(["quote.read", "quote.rfq"]), asyncHandler(async (req, res) => {
+    const currency = typeof req.query.currency === "string" ? req.query.currency.toUpperCase() : "";
+    res.json(await exchangeRate(currency));
+  }));
   router.get("/messages", requirePermission("message.read"), asyncHandler(crm.listMessages));
   router.post("/messages", requirePermission("message.write"), validate({ body: createMessageSchema }), asyncHandler(crm.createMessage));
   router.patch("/messages/:id", requirePermission("message.write"), validate({ body: updateMessageSchema }), asyncHandler(crm.updateMessage));

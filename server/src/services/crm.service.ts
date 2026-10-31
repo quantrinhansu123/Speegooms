@@ -1,3 +1,4 @@
+import { quoteDeskPatch } from "./quote-edit-policy";
 import { isCombinedSourcing, quoteAccessKind } from "@speego/shared";
 import {
   canAccessQuoteDesk,
@@ -194,7 +195,10 @@ export class CrmService {
     options: { contentOnly: boolean; role: Role },
   ): Promise<QuoteRecord> {
     if (!options.contentOnly) await this.assertQuoteEdit(lane, desk, id, options.role);
-    const patch = options.contentOnly ? await this.contentOnlyPatch(lane, desk, id, input) : input;
+    const current = await this.ready().findQuote(lane, desk, id);
+    if (!current) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    const content = options.contentOnly ? await this.contentOnlyPatch(lane, desk, id, input) : input;
+    const patch = quoteDeskPatch(desk, current, content);
     const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
@@ -249,8 +253,8 @@ export class CrmService {
     input: UpdateQuoteInput,
     actor: PublicUser,
   ): Promise<QuoteRecord> {
-    await this.assertQuoteEdit(lane, desk, id, actor.role);
-    const result = await this.ready().sendQuote(lane, desk, id, input);
+    const current = await this.assertQuoteEdit(lane, desk, id, actor.role);
+    const result = await this.ready().sendQuote(lane, desk, id, quoteDeskPatch(desk, current, input));
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
