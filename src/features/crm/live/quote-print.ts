@@ -219,16 +219,24 @@ export function quoteSheetHtml(input: {
   const weightNote = input.notes.weightNote?.trim() ?? "";
   const validityNote = input.notes.validityNote?.trim() ?? "";
   const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
+  const logisticsFees = (input.notes.logisticsFees ?? [])
+    .map((fee) => ({ label: fee.label.trim(), value: fee.value.trim() }))
+    .filter((fee) => fee.label || fee.value);
 
   const cbmCell = totals.cbm > 0 ? numRow(formatAmount(totals.cbm, 3), "") : "";
-  const shippingAmount = (() => {
-    if (!shippingLabel) return "";
-    const parsed = Number(shippingLabel.replaceAll(/\s/g, "").replaceAll(".", "").replaceAll(",", "."));
-    if (Number.isFinite(parsed) && /^[\d\s.,]+$/.test(shippingLabel)) {
+  const moneyOrText = (raw: string) => {
+    if (!raw) return "";
+    const parsed = Number(raw.replaceAll(/\s/g, "").replaceAll(".", "").replaceAll(",", "."));
+    if (Number.isFinite(parsed) && /^[\d\s.,]+$/.test(raw)) {
       return numRow(formatAmount(parsed), "");
     }
-    return escapeHtml(shippingLabel);
-  })();
+    return escapeHtml(raw);
+  };
+  const shippingAmount = moneyOrText(shippingLabel);
+  const feeRows = logisticsFees.map((fee) => summaryRow(
+    fee.label || "Chi phí logistics",
+    { total: moneyOrText(fee.value), cbm: "" },
+  )).join("");
   const summaryRows = [
     (totals.priced || weightNote)
       ? summaryRow(
@@ -240,6 +248,7 @@ export function quoteSheetHtml(input: {
           weightNote,
         )
       : "",
+    feeRows,
     shippingLabel
       ? summaryRow(
           "Tổng chi phí vận chuyển",
