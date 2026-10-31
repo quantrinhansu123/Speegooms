@@ -1054,6 +1054,30 @@ export function QuoteEditor({
         </TabsContent>
 
         <TabsContent value="logistics" className={tabPanelClass}>
+          {desk === "logistics" && quote.sourcingContext && (
+            <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
+              <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
+              {quote.sourcingContext.opsNote && <p className="whitespace-pre-wrap text-sm">{quote.sourcingContext.opsNote}</p>}
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b bg-muted/50 text-left">
+                    {["STT", "Ảnh hàng", "Số lượng", "Thông số / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
+                  </tr></thead>
+                  <tbody>{quote.sourcingContext.order.lines.map((line, index) => (
+                    <tr key={index} className="border-b align-top last:border-0">
+                      <td className="px-3 py-2">{line.stt}</td>
+                      <td className="min-w-36 px-3 py-2">{quoteLineImages(line).length > 0 ? <RequirementImageSlider images={quoteLineImages(line)} showTitle={false} /> : "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{amountText(line.quantity)} {line.unit}</td>
+                      <td className="min-w-48 whitespace-pre-wrap px-3 py-2">{[line.spec, ...line.attrs.map((attr) => attr.key + ": " + attr.value)].filter(Boolean).join("\n") || "—"}</td>
+                      <td className="whitespace-pre-wrap px-3 py-2">{line.note || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{line.pricePerSet == null ? "—" : money(line.pricePerSet) + " " + quote.sourcingContext!.order.currency + " / " + pricingBasisLabels[line.basis]}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Nhập đóng gói và đơn giá vận chuyển vào báo giá Logistics bên dưới.</p>
+            </section>
+          )}
           <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
             <h3 className="font-semibold sm:col-span-2">Thông tin logistics từ tiềm năng</h3>
             {logisticsLeadFacts.map(([label, value]) => (
@@ -1289,7 +1313,7 @@ export function QuoteEditor({
         onConfirm={() => {
           if (!onSend) return;
           const missingPack = orders.some((order) => order.selected && order.lines.some((line) => line.packages.length === 0));
-          if (missingPack) {
+          if (packagingRequired && missingPack) {
             setFormError("Mỗi dòng hàng đã chọn cần quy cách đóng gói ở tab Logistics trước khi gửi báo giá");
             setConfirmSend(false);
             return;

@@ -9,7 +9,7 @@ import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
-import { defaultQuoteBank, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
+import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
 
 test("conversion reason is optional while customer requirements remain mandatory", () => {
   for (const reason of [undefined, "", "   ", "Khách cần mua hàng"]) {
@@ -135,4 +135,77 @@ test("Sale content updates preserve Logistics packaging for the new workflow", a
     },
   } as unknown as CrmRepository);
   await service.updateQuote("vn", "logistics", "quote", input, { contentOnly: true, role: "sale-vn" });
+});
+
+const handoffInput = () => updateQuoteSchema.parse({
+  templateId: null, opsNote: "Giao hàng dễ vỡ", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+  orders: [{ id: "00000000-0000-0000-0000-000000000001", name: "Mẫu khách chọn", selected: true, currency: "VND", rate: null,
+    lines: [{ stt: "1", image: "https://example.com/product.png", quantity: 12, pricePerSet: 500, lineTotal: 6000,
+      weightKg: 20, cbm: 0.4, unit: "thùng", basis: "unit", spec: "Kích thước sản phẩm", note: "Không xếp chồng",
+      attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [] }] }],
+  notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
+});
+
+test("handoff carries product details without treating sourcing prices as shipping prices", () => {
+  const source = handoffInput().orders[0];
+  const before = structuredClone(source);
+  const shipping = logisticsOrderFromSourcing(source);
+  assert.equal(shipping.name, source.name);
+  assert.equal(shipping.lines[0].quantity, 12);
+  assert.equal(shipping.lines[0].unit, "thùng");
+  assert.equal(shipping.lines[0].image, source.lines[0].image);
+  assert.equal(shipping.lines[0].spec, source.lines[0].spec);
+  assert.equal(shipping.lines[0].note, source.lines[0].note);
+  assert.deepEqual(shipping.lines[0].attrs, source.lines[0].attrs);
+  assert.equal(shipping.lines[0].weightKg, 20);
+  assert.equal(shipping.lines[0].pricePerSet, null);
+  assert.equal(shipping.lines[0].lineTotal, null);
+  assert.deepEqual(source, before);
+});
+
+test("Sourcing send atomically includes a Logistics handoff on both lanes", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const input = handoffInput();
+    let handoff: { orders: typeof input.orders } | undefined;
+    const repository = new PostgresCrmRepository({
+      query: async (sql: string, values: unknown[]) => {
+        if (sql.trimStart().startsWith("update")) {
+          assert.match(sql, /ban_da_gui = \$9::jsonb/);
+          assert.match(sql, /bao_gia_logistics = case/);
+          assert.match(sql, /else bao_gia_logistics end/);
+          assert.match(sql, /bao_gia_logistics->>'sentQuote' is null/);
+          handoff = JSON.parse(values[9] as string);
+          return { rowCount: 1, rows: [] };
+        }
+        return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", created_at: new Date() }] };
+      },
+    } as unknown as pg.Pool);
+    await repository.sendQuote(lane, "sourcing", "quote", input);
+    assert.equal(handoff?.orders.length, 1);
+    assert.equal(handoff?.orders[0].lines[0].quantity, 12);
+    assert.equal(handoff?.orders[0].lines[0].pricePerSet, null);
+  }
+});
+
+test("Logistics receives the sent source context and existing shipping work is preserved", async () => {
+  const input = handoffInput();
+  for (const existing of [false, true]) {
+    const source = input.orders[0];
+    const shipping = logisticsOrderFromSourcing(source);
+    shipping.lines[0].pricePerSet = 77;
+    shipping.lines[0].packages = [{ count: 2, lengthCm: 30, widthCm: 40, heightCm: 50, actualKg: 10 }];
+    const repository = new PostgresCrmRepository({
+      query: async (sql: string) => ({ rowCount: 1, rows: sql.includes("bao_gia_sourcing") ? [{
+        customer_kind: "SOURCING", quote_workflow: "COMBINED", created_at: new Date(), ops_note: input.opsNote,
+        sent_copy: { sentAt: new Date().toISOString(), order: source, notes: input.notes, bank: input.bank },
+        logistics_sheet: { ...input, orders: existing ? [shipping] : [], sentQuote: null },
+      }] : [] }),
+    } as unknown as pg.Pool);
+    const quote = await repository.findQuote("vn", "logistics", "quote");
+    assert.equal(quote?.sourcingContext?.order.lines[0].pricePerSet, 500);
+    assert.equal(quote?.sourcingContext?.opsNote, "Giao hàng dễ vỡ");
+    assert.equal(quote?.orders[0].lines[0].quantity, 12);
+    assert.equal(quote?.orders[0].lines[0].pricePerSet, existing ? 77 : null);
+    assert.equal(quote?.orders[0].lines[0].packages.length, existing ? 1 : 0);
+  }
 });

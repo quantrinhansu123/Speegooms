@@ -145,6 +145,7 @@ export interface QuoteRecord {
   sentQuote: SentQuote | null;
   logisticsQuoteId: string | null;
   logisticsSheet: QuoteSheet | null;
+  sourcingContext: { order: QuoteOrder; opsNote: string | null } | null;
   requirements: string | null;
   requirementImages: string[];
   createdAt: string;

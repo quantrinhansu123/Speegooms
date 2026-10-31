@@ -120,7 +120,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${editing.id}/send?desk=${desk}`, lane), { method: "POST", body: JSON.stringify(input) })
       .then((body) => {
         setEditing(body.quote);
-        setNotice(`Đã gửi báo giá ${body.quote.code} cho Sale`);
+        setNotice(isCombinedSourcing(body.quote) && desk === "sourcing"
+          ? `Đã gửi báo giá ${body.quote.code} cho Sale và chuyển thông tin hàng hóa sang Logistics`
+          : `Đã gửi báo giá ${body.quote.code} cho Sale`);
         loadQuotes();
         return body.quote.quoteStatus;
       })

@@ -1,5 +1,6 @@
 import {
   isCombinedSourcing,
+  logisticsOrderFromSourcing,
   quoteAccessKind,
   type QuoteWorkflow,
   type AccountingContractInput,
@@ -456,6 +457,7 @@ function toQuote(row: QuoteRow): QuoteRecord {
     sentQuote: asSent(row.sent_copy),
     logisticsQuoteId: row.logistics_quote_id,
     logisticsSheet: asSheet(row.logistics_sheet, row.logistics_template_name),
+    sourcingContext: null,
     requirements: row.requirements,
     requirementImages: imageList(row.requirement_images),
     createdAt: stamp(row.created_at),
@@ -482,11 +484,14 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     opsNote: sheet.opsNote,
     quoteStatus: sheet.quoteStatus,
     contractStatus: sheet.contractStatus,
-    orders: sheet.orders,
+    orders: sheet.orders.length === 0 && !sheet.sentQuote && base.sentQuote
+      ? [logisticsOrderFromSourcing(base.sentQuote.order)]
+      : sheet.orders,
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,
     logisticsSheet: null,
+    sourcingContext: base.sentQuote ? { order: base.sentQuote.order, opsNote: base.opsNote } : null,
   };
 }
 
@@ -1474,11 +1479,17 @@ export class PostgresCrmRepository implements CrmRepository {
     const sourcing = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!sourcing) return "missing" as const;
     if (!isCombinedSourcing(sourcing)) return "kind" as const;
+    const handoffSheet = {
+      ...emptyLogisticsSheet(),
+      orders: sourcing.sentQuote ? [logisticsOrderFromSourcing(sourcing.sentQuote.order)] : [],
+    };
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
-       set bao_gia_logistics = $2::jsonb
-       where id = $1::uuid and bao_gia_logistics is null`,
-      [sourcingQuoteId, JSON.stringify(emptyLogisticsSheet())],
+       set bao_gia_logistics = case when bao_gia_logistics is null then $2::jsonb
+         else jsonb_set(bao_gia_logistics, '{orders}', $2::jsonb->'orders') end
+       where id = $1::uuid and (bao_gia_logistics is null
+         or ($3::boolean and coalesce(bao_gia_logistics->'orders', '[]'::jsonb) = '[]'::jsonb and bao_gia_logistics->>'sentQuote' is null))`,
+      [sourcingQuoteId, JSON.stringify(handoffSheet), Boolean(sourcing.sentQuote)],
     );
     const quote = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!quote) return "missing" as const;
@@ -1542,6 +1553,8 @@ export class PostgresCrmRepository implements CrmRepository {
       notes: input.notes,
       bank: input.bank,
     };
+    const handoff = desk === "sourcing" && isCombinedSourcing(quote);
+    const handoffSheet = { ...emptyLogisticsSheet(), orders: [logisticsOrderFromSourcing(selected)] };
     const updated = await this.query(
       `update ${quoteTables[lane][desk]}
        set ma_mau = $2::uuid,
@@ -1552,6 +1565,11 @@ export class PostgresCrmRepository implements CrmRepository {
            ghi_chu = $7::jsonb,
            tai_khoan_ngan_hang = $8::jsonb,
            ban_da_gui = $9::jsonb
+           ${handoff ? `, bao_gia_logistics = case
+             when bao_gia_logistics is null then $10::jsonb
+             when coalesce(bao_gia_logistics->'orders', '[]'::jsonb) = '[]'::jsonb and bao_gia_logistics->>'sentQuote' is null
+               then jsonb_set(bao_gia_logistics, '{orders}', $10::jsonb->'orders')
+             else bao_gia_logistics end` : ""}
        where id = $1::uuid`,
       [
         id,
@@ -1563,6 +1581,7 @@ export class PostgresCrmRepository implements CrmRepository {
         JSON.stringify(input.notes),
         JSON.stringify(input.bank),
         JSON.stringify(sent),
+        ...(handoff ? [JSON.stringify(handoffSheet)] : []),
       ],
     );
     if (!updated.rowCount) return "missing" as const;

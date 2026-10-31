@@ -1,6 +1,6 @@
 "use client";
 
-import { isCombinedSourcing } from "@speego/shared";
+import { isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
@@ -45,7 +45,9 @@ function logisticsQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
     opsNote: sheet.opsNote,
     quoteStatus: sheet.quoteStatus,
     contractStatus: sheet.contractStatus,
-    orders: sheet.orders,
+    orders: sheet.orders.length === 0 && !sheet.sentQuote && row.sentQuote
+      ? [logisticsOrderFromSourcing(row.sentQuote.order)] : sheet.orders,
+    sourcingContext: row.sentQuote ? { order: row.sentQuote.order, opsNote: row.opsNote } : null,
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,

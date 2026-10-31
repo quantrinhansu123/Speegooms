@@ -70,3 +70,4 @@ export { listSearchSchema, type ListSearch } from "./search";
 export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user";
 
 export { isCombinedSourcing, quoteAccessKind, type QuoteWorkflow } from "./quote-workflow";
+export { logisticsOrderFromSourcing } from "./quote-handoff";

@@ -256,6 +256,9 @@ export class CrmService {
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
+    if (desk === "sourcing" && isCombinedSourcing(result)) {
+      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.code, result.id, quoteAccessKind(result));
+    }
     return result;
   }
 
