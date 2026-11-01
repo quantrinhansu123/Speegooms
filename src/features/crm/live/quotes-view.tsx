@@ -3,7 +3,6 @@
 import { isCombinedSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { canEditQuoteDesk, quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -46,7 +45,6 @@ function shownDate(value: string): string {
 
 export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const user = useSession();
-  const router = useRouter();
   const { lane, canPick, setLane } = useCrmLane();
   const canOps = canEditQuoteDesk(user.role, desk);
   /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
@@ -121,7 +119,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       .then((body) => {
         setEditing(body.quote);
         setNotice(isCombinedSourcing(body.quote) && desk === "sourcing"
-          ? `Đã gửi báo giá ${body.quote.code} cho Sale và chuyển thông tin hàng hóa sang Logistics`
+          ? `Đã gửi báo giá ${body.quote.code} cho Sale. Bấm Gửi qua Logistics để thông báo cho nhân sự Logistics`
           : `Đã gửi báo giá ${body.quote.code} cho Sale`);
         loadQuotes();
         return body.quote.quoteStatus;
@@ -290,15 +288,19 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           onClose={() => setEditing(null)}
           onSave={saveQuote}
           onSend={canOps ? sendQuote : undefined}
-          onContinueLogistics={
-            desk === "sourcing"
-              ? () => {
-                  setEditing(null);
-                  setNotice("Đã chuyển sang Logistics – Báo giá. Mở phiếu để báo giá vận chuyển.");
-                  router.push("/van-hanh/logistics-bao-gia");
-                }
-              : undefined
-          }
+          onContinueLogistics={desk === "sourcing" ? async () => {
+            setPending(true);
+            setQuoteError(undefined);
+            try {
+              await api(crmPath(`/api/crm/quotes/${editing.id}/logistics`, lane), { method: "POST" });
+              setNotice("Đã gửi thông tin đơn hàng và thông báo cho nhân sự Logistics.");
+              loadQuotes();
+              return true;
+            } catch (error) {
+              setQuoteError(error instanceof Error ? error.message : "Không gửi được qua Logistics");
+              return false;
+            } finally { setPending(false); }
+          } : undefined}
         />
       )}
 

@@ -159,9 +159,6 @@ export class CrmService {
         quoteAccessKind(result.quote),
       );
     }
-    if (actor && result.created && isCombinedSourcing(result.quote)) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.quote.code, result.quote.id, quoteAccessKind(result.quote));
-    }
     return result;
   }
 
@@ -174,16 +171,14 @@ export class CrmService {
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
-    if (result.created) {
-      await this.notifications?.notifyQuoteRequested(
-        actor,
-        lane,
-        "logistics",
-        result.quote.code,
-        result.quote.id,
-        quoteAccessKind(result.quote),
-      );
-    }
+    await this.notifications?.notifyQuoteRequested(
+      actor,
+      lane,
+      "logistics",
+      result.quote.code,
+      result.quote.id,
+      quoteAccessKind(result.quote),
+    );
     return result;
   }
 
@@ -260,9 +255,6 @@ export class CrmService {
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
-    if (desk === "sourcing" && isCombinedSourcing(result)) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.code, result.id, quoteAccessKind(result));
-    }
     return result;
   }
 

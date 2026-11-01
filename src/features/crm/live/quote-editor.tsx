@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
-import { isCombinedSourcing } from "@speego/shared";
+import { isCombinedSourcing, quoteMoneyValue } from "@speego/shared";
 
 import { Fragment, useEffect, useState } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -42,7 +42,7 @@ import {
   type QuoteTemplateRecord,
 } from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
-import { formatMoneyGrouped } from "@/lib/format";
+import { formatMoneyGrouped, formatMoneyInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
 import { lineAmount, packageMetrics, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
@@ -58,17 +58,6 @@ function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
   const next = images.filter(Boolean).slice(0, 8);
   return { images: next, image: next[0] ?? "" };
 }
-
-const LOGISTICS_FEE_PRESETS = [
-  "Chi phí cảng biển",
-  "Phí vận chuyển",
-  "Local charges",
-  "Phí thông quan",
-  "Phí chứng từ / Bill",
-  "Phí nâng hạ",
-  "Phí lưu container",
-  "Phí bảo hiểm",
-] as const;
 
 type SaleFact = [string, string, boolean?];
 
@@ -88,10 +77,9 @@ function LogisticsFeesEditor({
   fieldId: (name: string) => string;
 }) {
   const fees = notes.logisticsFees ?? [];
-  const used = new Set(fees.map((item) => item.label.trim().toLowerCase()).filter(Boolean));
-  const addFee = (label = "") => {
+  const addFee = () => {
     if (fees.length >= 30) return;
-    setNotes({ ...notes, logisticsFees: [...fees, { label, value: "" }] });
+    setNotes({ ...notes, logisticsFees: [...fees, { label: "", value: "" }] });
   };
   const patchFee = (index: number, patch: Partial<(typeof fees)[number]>) => {
     setNotes({
@@ -105,32 +93,14 @@ function LogisticsFeesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-base font-semibold">Chi phí logistics</h3>
-          <p className="text-sm text-muted-foreground">Cảng biển, vận chuyển, local… tự thêm các trường quan trọng.</p>
+          <p className="text-sm text-muted-foreground">Thêm tên phí và số tiền theo từng đơn hàng.</p>
         </div>
         {canEdit ? (
           <Button type="button" variant="outline" size="sm" disabled={pending || fees.length >= 30} onClick={() => addFee()}>
-            <Plus />Thêm trường
+            <Plus />Thêm phí
           </Button>
         ) : null}
       </div>
-
-      {canEdit ? (
-        <div className="flex flex-wrap gap-2">
-          {LOGISTICS_FEE_PRESETS.filter((label) => !used.has(label.toLowerCase())).map((label) => (
-            <Button
-              key={label}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8"
-              disabled={pending || fees.length >= 30}
-              onClick={() => addFee(label)}
-            >
-              <Plus />{label}
-            </Button>
-          ))}
-        </div>
-      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
         <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
@@ -145,9 +115,9 @@ function LogisticsFeesEditor({
         <Field label="Tổng chi phí vận chuyển" htmlFor={fieldId("note-shipping")}>
           <Input
             id={fieldId("note-shipping")}
-            value={notes.shippingLabel ?? ""}
+            value={moneyText(notes.shippingLabel ?? "")}
             disabled={!canEdit}
-            onChange={(event) => setNotes({ ...notes, shippingLabel: event.target.value })}
+            onChange={(event) => setNotes({ ...notes, shippingLabel: formatMoneyInput(event.target.value) })}
             placeholder="Tổng chi phí vận chuyển từ ..."
           />
         </Field>
@@ -155,7 +125,7 @@ function LogisticsFeesEditor({
 
       {fees.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-          Chưa có dòng chi phí chi tiết. Bấm gợi ý hoặc Thêm trường.
+          Chưa có dòng chi phí chi tiết. Bấm Thêm phí để nhập.
         </p>
       ) : (
         <div className="grid gap-3">
@@ -173,9 +143,9 @@ function LogisticsFeesEditor({
               <Field label="Số tiền / ghi chú" htmlFor={fieldId(`fee-value-${index}`)}>
                 <Input
                   id={fieldId(`fee-value-${index}`)}
-                  value={fee.value}
+                  value={moneyText(fee.value)}
                   disabled={!canEdit}
-                  onChange={(event) => patchFee(index, { value: event.target.value })}
+                  onChange={(event) => patchFee(index, { value: formatMoneyInput(event.target.value) })}
                   placeholder="Số tiền hoặc mô tả"
                 />
               </Field>
@@ -396,6 +366,11 @@ function amountValue(value: string): number | null {
   if (!trimmed) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function moneyText(raw: string): string {
+  const amount = quoteMoneyValue(raw);
+  return amount == null ? raw : formatMoneyGrouped(amount);
 }
 
 function amountText(value: number | null): string {
@@ -841,7 +816,7 @@ export function QuoteEditor({
   onContractCreated?: () => void;
   desk?: "sourcing" | "logistics";
   /** Sau khi gửi báo giá sourcing xong (KH sourcing+logistics), chuyển sang bàn logistics. */
-  onContinueLogistics?: () => void;
+  onContinueLogistics?: () => Promise<boolean>;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
   const packagingRequired = desk !== "logistics" && !isCombinedSourcing(quote);
@@ -1110,6 +1085,7 @@ export function QuoteEditor({
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
       </Button>
       {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
+      {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
       {!canSendQuote && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
         <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Chuyển Hợp đồng</Button>
@@ -1211,13 +1187,12 @@ export function QuoteEditor({
         </InlineAlert>
       )}
       <Tabs defaultValue={defaultTab} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        <TabsList className="grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:grid-cols-4 sm:gap-2 sm:p-2">
+        <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${desk === "logistics" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {([
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
             ["logistics", "Logistics"],
-            ["accounting", "Kế toán"],
-          ] as const).map(([value, label]) => (
+          ] as const).filter(([value]) => desk !== "logistics" || value !== "sourcing").map(([value, label]) => (
             <TabsTrigger key={value} value={value} className={tabTriggerClass}>
               {label}
             </TabsTrigger>
@@ -1551,7 +1526,7 @@ export function QuoteEditor({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
-              <Input id={fieldId("note-total")} value={notes.totalLabel} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: event.target.value })} placeholder="Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển" />
+              <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
             </Field>
             <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
               <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
@@ -1599,6 +1574,27 @@ export function QuoteEditor({
             pending={pending}
             fieldId={(name) => fieldId(`sourcing-${name}`)}
           />
+          <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+            <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
+              <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
+                <option value="">Chưa chọn</option>
+                {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
+              <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
+            </Field>
+            <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
+              <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
+                {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Trạng thái hợp đồng" htmlFor={fieldId("quote-contract")}>
+              <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEditPricing} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
+                {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </NativeSelect>
+            </Field>
+          </section>
         </TabsContent>
 
         <TabsContent value="logistics" className={tabPanelClass}>
@@ -1652,41 +1648,7 @@ export function QuoteEditor({
           />
         </TabsContent>
 
-        <TabsContent value="accounting" className={tabPanelClass}>
-          <div className="grid gap-3 text-base sm:grid-cols-2 [&_label]:text-base [&_input]:h-11 [&_input]:text-base [&_select]:h-11 [&_select]:text-base">
-            <Field label="Tài khoản" htmlFor={fieldId("bank-title")}>
-              <Input id={fieldId("bank-title")} value={bank.title} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, title: event.target.value })} />
-            </Field>
-            <Field label="Account Name" htmlFor={fieldId("bank-name")}>
-              <Input id={fieldId("bank-name")} value={bank.accountName} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountName: event.target.value })} />
-            </Field>
-            <Field label="Account Number" htmlFor={fieldId("bank-number")}>
-              <Input id={fieldId("bank-number")} value={bank.accountNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, accountNumber: event.target.value })} />
-            </Field>
-            <Field label="Routing Number" htmlFor={fieldId("bank-routing")}>
-              <Input id={fieldId("bank-routing")} value={bank.routingNumber} disabled={!canEditPricing} onChange={(event) => setBank({ ...bank, routingNumber: event.target.value })} />
-            </Field>
-            <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
-              <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
-                <option value="">Chưa chọn</option>
-                {templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </NativeSelect>
-            </Field>
-            <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
-              <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
-            </Field>
-            <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
-              <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
-                {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </NativeSelect>
-            </Field>
-            <Field label="Trạng thái hợp đồng" htmlFor={fieldId("quote-contract")}>
-              <NativeSelect id={fieldId("quote-contract")} value={contractStatus} disabled={!canEditPricing} onChange={(event) => setContractStatus(event.target.value as (typeof contractStatusOptions)[number][0])}>
-                {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </NativeSelect>
-            </Field>
-          </div>
-        </TabsContent>
+
       </Tabs>
       {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter>{actions}</DialogFooter>}
     </>
@@ -1889,12 +1851,12 @@ export function QuoteEditor({
       <ConfirmDialog
         open={logisticsHandoff}
         onOpenChange={setLogisticsHandoff}
-        title="Chuyển báo giá vận chuyển"
-        description="Đã gửi báo giá thông tin đơn hàng. Tiếp tục báo giá thông tin vận chuyển cho khách Sourcing?"
-        confirmLabel="Sang Logistics"
+        title="Gửi qua Logistics"
+        description="Gửi thông tin đơn hàng đã chốt và thông báo cho nhân sự Logistics lập báo giá vận chuyển."
+        confirmLabel="Gửi qua Logistics"
         onConfirm={() => {
           setLogisticsHandoff(false);
-          onContinueLogistics?.();
+          void onContinueLogistics?.();
         }}
       />
       <ConfirmDialog

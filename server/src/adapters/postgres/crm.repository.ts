@@ -1,5 +1,6 @@
 import {
   isCombinedSourcing,
+  shippingInCurrency,
   logisticsOrderFromSourcing,
   quoteAccessKind,
   type QuoteWorkflow,
@@ -927,7 +928,8 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     shippingCost: snapMoney(source, "shippingCost"),
     totalValue: snapMoney(source, "totalValue"),
     paidAmount,
-    payments: paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }] : [],
+    payments: paymentList(source.payments).length > 0 ? paymentList(source.payments)
+      : paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }] : [],
     balance: snapMoney(source, "balance"),
     signedOn: snapNullableText(source, "signedOn"),
   };
@@ -975,6 +977,8 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
     const projected = applyOpsDetails(live, sentToParties);
     return {
       ...projected,
+      deliveryOn: live.deliveryOn,
+      opsStatus: live.opsStatus,
       confirmedAmount: live.confirmedAmount,
       accountingStatus: live.accountingStatus,
       confirmations: live.confirmations,
@@ -1002,6 +1006,12 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
   const received = applyOpsDetails(applyCommercial(live, sentToAccounting), sentToAccounting);
   return {
     ...received,
+    payments: live.payments,
+    paidAmount: live.paidAmount,
+    balance: live.balance,
+    totalValue: live.totalValue,
+    currency: live.currency,
+    deliveryOn: live.deliveryOn,
     opsStatus: live.opsStatus,
     confirmedAmount: live.confirmedAmount,
     accountingStatus: live.accountingStatus,
@@ -1706,6 +1716,14 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     const quote = found.rows[0];
     if (!quote) return "missing" as const;
+    const source = await this.findQuote(lane, "sourcing", quoteId);
+    if (source?.logisticsSheet) {
+      const order = source.sentQuote?.order ?? source.orders.find((item) => item.selected) ?? source.orders[0];
+      const shipping = shippingInCurrency(source.logisticsSheet, { currency: input.currency, rate: order?.currency === input.currency ? order.rate : null });
+      if (shipping == null) throw new AppError(400, "RULE", "Chi phí vận chuyển hoặc tỷ giá trên báo giá chưa hợp lệ");
+      input = { ...input, shippingCost: shipping, totalValue: input.productValue + shipping };
+      if (input.paidAmount > input.totalValue) throw new AppError(400, "RULE", "Thanh toán vượt tổng hợp đồng");
+    }
     await this.query(
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,

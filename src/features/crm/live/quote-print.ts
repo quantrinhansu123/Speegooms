@@ -339,9 +339,9 @@ export function quoteSheetHtml(input: {
       <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${depositRows}</tbody></table>` : ""}
 
-  ${input.compact ? "" : bankBlock}
-
   ${input.compact ? "" : `
+  <section class="payment-signatures">
+  ${bankBlock}
   <section class="sign">
     <div>
       <p>ĐẠI DIỆN BÊN A</p>
@@ -351,6 +351,7 @@ export function quoteSheetHtml(input: {
       <p>ĐẠI DIỆN BÊN B</p>
       <span>(Ký, đóng dấu)</span>
     </div>
+  </section>
   </section>
   `}
 </article>`;
@@ -673,6 +674,11 @@ export const quotePrintCss = `
     vertical-align: middle;
   }
 
+  .payment-signatures {
+    display: flow-root;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   .bank {
     margin-top: 12px;
     padding: 8px 10px 8px 12px;
@@ -706,7 +712,6 @@ export const quotePrintCss = `
     page-break-inside: avoid;
   }
   .sign div {
-    min-height: 96px;
     text-align: center;
     padding-top: 8px;
     border-top: 2px solid #082A59;
@@ -715,6 +720,11 @@ export const quotePrintCss = `
     margin: 0;
     font-weight: 700;
     color: #082A59;
+  }
+  .sign div::after {
+    content: "";
+    display: block;
+    height: 75mm;
   }
   .sign span {
     display: block;
@@ -765,6 +775,7 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
   </style></head><body>${body}</body></html>`);
   doc.close();
   await waitForImages(doc);
+  await doc.fonts.ready;
   win.focus();
   win.print();
   win.addEventListener("afterprint", () => frame.remove());
@@ -827,13 +838,14 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
   host.style.left = "-12000px";
   host.style.top = "0";
   // Nội dung trong vùng A4 ngang trừ lề trái/phải ~12mm.
-  host.style.width = `${1123 - 90}px`;
+  host.style.width = "273mm";
   host.style.background = "#fff";
   host.innerHTML = `<style>${quotePrintCss}</style><div class="sheet-wrap">${html}</div>`;
   document.body.appendChild(host);
 
   try {
     await waitForImages(host);
+    await document.fonts.ready;
     const canvas = await html2canvas(host, {
       scale: 2,
       useCORS: true,
@@ -843,23 +855,38 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
       windowWidth: host.scrollWidth,
       windowHeight: host.scrollHeight,
     });
-    const image = canvas.toDataURL("image/jpeg", 0.95);
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const sideMargin = 12;
     const contentWidth = pageWidth - sideMargin * 2;
-    const imgHeight = (canvas.height * contentWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(image, "JPEG", sideMargin, position, contentWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(image, "JPEG", sideMargin, position, contentWidth, imgHeight);
-      heightLeft -= pageHeight;
+    const topMargin = 10;
+    const pixelsPerMm = canvas.width / contentWidth;
+    const pagePixels = Math.floor((pageHeight - topMargin * 2) * pixelsPerMm);
+    const hostTop = host.getBoundingClientRect().top;
+    const scale = canvas.width / host.getBoundingClientRect().width;
+    // Keep rows and the complete bank/signature block together where they fit a page.
+    const protectedBlocks = Array.from(host.querySelectorAll("tr, .payment-signatures")).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((rect.bottom - hostTop) * scale) };
+    });
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = canvas.width;
+    let start = 0;
+    while (start < canvas.height) {
+      let end = Math.min(start + pagePixels, canvas.height);
+      // Moving a boundary may expose another crossing block (e.g. a nested bank row).
+      let crossing;
+      while ((crossing = protectedBlocks.find((block) => block.top > start && block.top < end && block.bottom > end && block.bottom - block.top <= pagePixels))) {
+        end = crossing.top;
+      }
+      pageCanvas.height = end - start;
+      const context = pageCanvas.getContext("2d");
+      if (!context) throw new Error("Không thể tạo trang PDF");
+      context.drawImage(canvas, 0, start, canvas.width, end - start, 0, 0, canvas.width, end - start);
+      if (start > 0) pdf.addPage();
+      pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", sideMargin, topMargin, contentWidth, (end - start) / pixelsPerMm);
+      start = end;
     }
 
     pdf.save(`${safePdfFilename(filename)}.pdf`);

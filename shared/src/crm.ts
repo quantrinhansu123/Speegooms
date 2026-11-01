@@ -407,7 +407,7 @@ export const saleContractPaymentSchema = z.object({
 
 /** Một lần kế toán xác nhận số tiền (kèm ảnh về TK của lần đó). */
 export const accountingConfirmationLineSchema = z.object({
-  amount: money,
+  amount: money.positive("Nhập số tiền xác nhận lớn hơn 0"),
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần xác nhận").default([]),
 });
@@ -415,7 +415,7 @@ export const accountingConfirmationLineSchema = z.object({
 export const accountingContractSchema = z.object({
   accountingStatus: accountingStatusSchema,
   /** Nhiều lần xác nhận; tổng amount = số tiền kế toán xác nhận. */
-  confirmations: z.array(accountingConfirmationLineSchema).max(50, "Tối đa 50 lần xác nhận"),
+  confirmations: z.array(accountingConfirmationLineSchema).min(1, "Nhập ít nhất một số tiền xác nhận").max(50, "Tối đa 50 lần xác nhận"),
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;

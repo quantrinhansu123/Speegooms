@@ -615,6 +615,7 @@ export function ContractsLiveView({
         <ContractDialog
           key={selected.id}
           contract={selected}
+          aggregatePayments={mode === "accounting"}
           canSale={canSale}
           canOps={canOps}
           canAccounting={canAccounting}
@@ -639,6 +640,7 @@ function numberValue(value: string): number | null {
 
 function ContractDialog({
   contract,
+  aggregatePayments,
   canSale,
   canOps,
   canAccounting,
@@ -648,6 +650,7 @@ function ContractDialog({
   onResend,
 }: {
   contract: ContractRecord;
+  aggregatePayments: boolean;
   canSale: boolean;
   canOps: boolean;
   canAccounting: boolean;
@@ -749,10 +752,14 @@ function ContractDialog({
   };
 
   const saveAccounting = async (resendAfter: boolean) => {
+    if (confirmations.length === 0 || confirmations.some((line) => !line.amount.trim() || (numberValue(line.amount) ?? 0) <= 0)) {
+      setError("Nhập số tiền xác nhận lớn hơn 0 cho từng lần thanh toán.");
+      return;
+    }
     const parsed = accountingContractSchema.safeParse({
       accountingStatus,
       confirmations: confirmations.map((line) => ({
-        amount: numberValue(line.amount) ?? 0,
+        amount: numberValue(line.amount) ?? Number.NaN,
         note: line.note,
         images: line.images,
       })),
@@ -999,7 +1006,15 @@ function ContractDialog({
               <section className="space-y-3 rounded-xl border p-4">
                 <h3 className="font-medium">Số tiền đã thanh toán</h3>
                 <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
-                {(contract.payments?.length ?? 0) > 0 ? (
+                {aggregatePayments ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {billImagesOf(contract).map((image, index) => (
+                      <a key={`accounting-bill-${index}`} href={image} target="_blank" rel="noreferrer">
+                        <img src={image} alt={`Ảnh bill ${index + 1}`} className="h-16 w-16 rounded border object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (contract.payments?.length ?? 0) > 0 ? (
                   <ul className="space-y-2 text-sm">
                     {contract.payments.map((line, index) => (
                       <li key={`view-pay-${index}`} className="space-y-2 rounded-lg border p-3 text-muted-foreground">
@@ -1090,9 +1105,10 @@ function ContractDialog({
                   {confirmations.map((line, index) => (
                     <div key={`acc-${index}`} className="space-y-3 rounded-lg border p-3">
                       <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
-                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`}>
+                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`} required>
                           <Input
                             id={`acc-amount-${index}`}
+                            required
                             inputMode="decimal"
                             value={line.amount}
                             disabled={!canAccounting}

@@ -1,8 +1,10 @@
 "use client";
 
+import { quoteAmount } from "@speego/shared";
+
 import { isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -14,6 +16,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractCreateDialog } from "./contract-create-dialog";
@@ -112,6 +115,11 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const canCreateContract = contractRoles.includes(user.role);
   const contentEditMode = canContent ? "content" as const : "none" as const;
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
+  const rowsWithTotals = useMemo(() => rows.map((row) => ({
+    row,
+    sourcingTotal: quoteAmount(row, "sourcing"),
+    logisticsTotal: quoteAmount(row.logisticsSheet, "logistics"),
+  })), [rows]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -357,6 +365,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Bàn</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Sourcing</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Logistics</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
@@ -364,9 +374,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
-            {rows.map((row) => {
+            {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
               const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
               return (
@@ -397,6 +407,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   ) : <QuoteStatusBadge value={row.quoteStatus} />}
                 </td>
+                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>
                 <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                 <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
                 <td className="px-3 py-3">

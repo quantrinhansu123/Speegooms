@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { contractShipToOptions, createContractSchema, quoteCurrencies, type CrmLane, type QuoteCurrency, type QuoteOrder } from "@speego/shared";
+import { quoteAmount, shippingInCurrency, type QuoteNotes, type SentQuote, contractShipToOptions, createContractSchema, quoteCurrencies, type CrmLane, type QuoteCurrency, type QuoteOrder } from "@speego/shared";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +19,8 @@ type QuoteSource = {
   address: string | null;
   goods: string | null;
   orders: QuoteOrder[];
+  notes: QuoteNotes;
+  sentQuote?: SentQuote | null;
   logisticsSheet?: QuoteSheet | null;
 };
 
@@ -27,24 +29,12 @@ function selectedOrder(orders: QuoteOrder[]): QuoteOrder | null {
   return orders.find((item) => item.selected) ?? orders[0] ?? null;
 }
 
-function orderProductTotal(order: QuoteOrder | null): { total: number; currency: QuoteCurrency } {
-  if (!order) return { total: 0, currency: "VND" };
-  return { total: order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0), currency: order.currency };
-}
-
 /** Tổng số lượng từ các dòng đơn hàng đã chọn. */
 function orderQuantity(order: QuoteOrder | null): number | null {
   if (!order) return null;
   const values = order.lines.map((line) => line.quantity).filter((value): value is number => value != null);
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0);
-}
-
-function logisticsShippingTotal(sheet: QuoteSheet | null | undefined): number {
-  if (!sheet) return 0;
-  const order = selectedOrder(sheet.orders);
-  if (!order) return 0;
-  return order.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
 }
 
 function numberValue(value: string): number | null {
@@ -63,10 +53,12 @@ export function ContractCreateDialog({
   onCreated: () => void;
 }) {
   const user = useSession();
-  const order = selectedOrder(quote.orders);
-  const { total: productValue, currency: orderCurrency } = orderProductTotal(order);
+  const order = quote.sentQuote?.order ?? selectedOrder(quote.orders);
+  const sourceTotal = quoteAmount(quote, "sourcing");
+  const productValue = sourceTotal.amount ?? 0;
+  const orderCurrency = sourceTotal.currency;
   const linkedQty = orderQuantity(order);
-  const linkedShipping = logisticsShippingTotal(quote.logisticsSheet);
+
   const [currency, setCurrency] = useState<QuoteCurrency>(orderCurrency);
   const [customerName, setCustomerName] = useState(quote.customerName ?? "");
   const [saleName, setSaleName] = useState(user.name);
@@ -74,7 +66,8 @@ export function ContractCreateDialog({
   const [product, setProduct] = useState(quote.goods ?? "");
   const [quantity, setQuantity] = useState(linkedQty != null ? String(linkedQty) : "");
   const [productValueText, setProductValueText] = useState(productValue ? formatMoneyGrouped(productValue) : "");
-  const [shippingCost, setShippingCost] = useState(linkedShipping ? formatMoneyGrouped(linkedShipping) : "");
+  const linkedShipping = shippingInCurrency(quote.logisticsSheet, { currency, rate: order?.currency === currency ? order.rate : null });
+  const shippingCost = linkedShipping == null ? "" : formatMoneyGrouped(linkedShipping);
   const [paidAmount, setPaidAmount] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [error, setError] = useState<string>();
@@ -88,6 +81,7 @@ export function ContractCreateDialog({
   const totalValue = syncTotal(productValueText, shippingCost);
 
   const submit = async () => {
+    if (linkedShipping == null) { setError("Chi phí logistics hoặc tỷ giá trên báo giá chưa hợp lệ"); return; }
     const parsed = createContractSchema.safeParse({
       currency,
       customerName,
@@ -168,9 +162,9 @@ export function ContractCreateDialog({
           <Field
             label="Chi phí vận chuyển"
             htmlFor="contract-shipping"
-            hint={quote.logisticsSheet ? "Lấy từ báo giá logistics (mẫu đang chọn)" : "Chưa có báo giá logistics — nhập tay nếu cần"}
+            hint="Tự lấy từ chi phí logistics trên báo giá; không cộng trùng tổng phí với các dòng phí chi tiết"
           >
-            <Input id="contract-shipping" inputMode="decimal" value={shippingCost} onChange={(event) => setShippingCost(formatMoneyInput(event.target.value))} />
+            <Input id="contract-shipping" inputMode="decimal" value={shippingCost} readOnly />
           </Field>
           <Field label="Tổng giá trị" htmlFor="contract-total" hint="Tự tính = giá trị sản phẩm + chi phí vận chuyển">
             <Input id="contract-total" inputMode="decimal" value={totalValue} readOnly />
