@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { Server } from "node:net";
-import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 
-test("Vercel entry exports the configured API without starting a listener", { timeout: 20_000 }, async (t) => {
+// Run with plain `node --test`, without tsx resolving extensionless TS imports.
+test("built Vercel entry runs on native Node without starting a listener", { timeout: 20_000 }, async (t) => {
   const overrides = {
     NODE_ENV: "test",
     DB_PROVIDER: "memory",
@@ -29,21 +29,23 @@ test("Vercel entry exports the configured API without starting a listener", { ti
   const listener = t.mock.method(Server.prototype, "listen", () => {
     throw new Error("The Vercel entry must not open an HTTP listener during import");
   });
-  const { default: app } = await import("../index");
+  const { default: app } = await import("../index.js");
   assert.equal(typeof app, "function");
   assert.equal(listener.mock.callCount(), 0);
   listener.mock.restore();
 
   const server = app.listen(0, "127.0.0.1");
-  t.after(() => new Promise<void>((resolve, reject) => {
+  t.after(() => new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
     server.closeAllConnections();
   }));
-  await new Promise<void>((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     server.once("listening", resolve);
     server.once("error", reject);
   });
-  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const origin = `http://127.0.0.1:${address.port}`;
   const health = await fetch(`${origin}/api/health`, {
     headers: { origin: overrides.CORS_ORIGINS },
   });
@@ -55,7 +57,7 @@ test("Vercel entry exports the configured API without starting a listener", { ti
 
   const csrf = await fetch(`${origin}/api/security/csrf`);
   assert.equal(csrf.status, 200);
-  assert.equal(typeof ((await csrf.json()) as { token: string }).token, "string");
+  assert.equal(typeof (await csrf.json()).token, "string");
   assert.ok(csrf.headers.get("set-cookie"));
   const me = await fetch(`${origin}/api/auth/me`);
   assert.equal(me.status, 401);

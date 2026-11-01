@@ -5,11 +5,13 @@ Tạo project riêng cho BE từ cùng repository với FE:
 - Root Directory: `server`.
 - Framework Preset: **Express** (`server/vercel.json` đã khai báo).
 - Bật **Include source files outside of the Root Directory in the Build Step** vì BE dùng workspace `../shared`.
-- Giữ Install Command, Build Command và Output Directory theo mặc định Express. Không dùng `next build` hay chọn thư mục `db`.
+- Giữ Install Command và Output Directory theo mặc định Express. Build Command là `pnpm run build` (đã khai báo trong `vercel.json`). Không dùng `next build` hay chọn thư mục `db`.
 - Thêm `ENABLE_EXPERIMENTAL_COREPACK=1` để cài pnpm theo `packageManager` ở gốc repository.
 - Import env BE vào **Production**. Chỉ dùng cùng env cho Preview nếu chủ đích dùng chung database.
 
-Entry `index.ts` tạo container một lần khi module được nạp và export Express app, không mở port hay đăng ký xử lý tắt process. `src/main.ts` vẫn dùng cho local/server Node chạy thường. Trên Vercel, env được lấy từ Project Settings; entry không đọc `server/.env`.
+Entry `index.js` nạp bundle `dist/vercel-app.js`, tạo container một lần và export Express app, không mở port hay đăng ký xử lý tắt process. Build bằng esbuild gộp TypeScript của BE và workspace `shared`, để Node.js chạy JavaScript mà không cần bộ nạp TypeScript hoặc import thiếu đuôi file. `src/main.ts` vẫn dùng cho local/server Node chạy thường. Trên Vercel, env được lấy từ Project Settings; entry không đọc `server/.env`.
+
+Kiểm tra tại máy bằng `pnpm --filter @speego/server test`: lệnh này build bundle, chạy test nghiệp vụ, rồi chạy test entry bằng Node.js thuần. Không commit thư mục `server/dist`; Vercel tạo lại trong bước build.
 
 ## Env BE
 

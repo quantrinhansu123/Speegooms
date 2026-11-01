@@ -15,5 +15,5 @@
       "@speego/shared": ["../shared/src/index.ts"]
     }
   },
-  "include": ["index.ts", "src/**/*.ts", "src/**/*.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }
