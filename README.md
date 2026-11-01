@@ -1,7 +1,26 @@
 ﻿# SpeeGo Management Platform
 
-Frontend demo quản trị logistics với Next.js 16, React 19, TypeScript và component dùng chung.
-Dữ liệu lưu localStorage; không kết nối dịch vụ ngoài. Auth, phân quyền FE và phê duyệt chỉ là mô phỏng.
+Ứng dụng quản trị logistics với Next.js 16, React 19, TypeScript và component dùng chung.
+Đăng nhập và các màn CRM live dùng backend Express trong `server`; các màn demo còn lại dùng localStorage.
+
+## Deploy FE lên Vercel
+
+Tạo project FE riêng từ cùng repository với BE, chọn Root Directory `./`, preset **Next.js**,
+Build Command `pnpm build`, giữ Install Command và Output Directory mặc định. Đặt env **Production** trước khi build:
+
+```dotenv
+API_URL=https://speegooms.vercel.app
+ENABLE_EXPERIMENTAL_COREPACK=1
+```
+
+`API_URL` là origin BE, không kèm `/api`. FE rewrite `/api/*` tới BE; phần kiểm tra phiên phía server
+gọi trực tiếp BE và chuyển tiếp cookie phiên. Thay đổi `API_URL` cần build/deploy lại FE.
+Chỉ đặt URL và cấu hình công cụ trên FE; database, Cloudinary và các secret đặt trên BE.
+Hướng dẫn deploy BE: [server/README.md](server/README.md).
+
+Sau khi FE có tên miền, cập nhật `CORS_ORIGINS` trên BE theo origin FE rồi redeploy BE.
+Kiểm tra `/api/health` qua tên miền FE, đăng nhập, tải lại trang, đăng xuất, ghi dữ liệu và upload ảnh.
+Ở local, khi chưa đặt `API_URL`, rewrite dùng `http://127.0.0.1:4000`; chạy `pnpm dev:stack` để mở cả FE và BE.
 
 ## Chạy ứng dụng
 
@@ -37,5 +56,5 @@ không sửa dữ liệu trình duyệt. Chưa thay thế E2E API hoặc kiểm 
 - [Frontend Architecture](FRONTEND_ARCHITECTURE.md), [Design System](DESIGN_SYSTEM.md).
 - [Báo cáo nghiệm thu FE demo](FINAL_AUDIT.md).
 
-Chưa có Backend/auth production, upload tệp, hãng vận chuyển/ngân hàng thật hoặc nghiệp vụ HRM/đền bù đã duyệt.
+Chưa có tích hợp hãng vận chuyển/ngân hàng thật hoặc nghiệp vụ HRM/đền bù đã duyệt.
 Các trang COA, Khách hàng & Điều phối, nhóm phụ Sales, lương/chi phí và cài đặt vẫn được đánh dấu chưa triển khai.
