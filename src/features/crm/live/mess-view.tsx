@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadImageSources } from "@/lib/upload-image";
 import type { Role } from "@/types/role";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
@@ -182,6 +183,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được mess"));
   }, [filters.applied, lane]);
 
+  const excel = useExcelImport({ kind: "messages", lane, allLanes: canPick, enabled: canWrite, onDone: load });
+
   useEffect(() => {
     load();
   }, [load]);
@@ -339,11 +342,13 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         actions={
           <>
             {canPick && <LaneSwitch lane={lane} onChange={setLane} />}
+            {excel.buttons}
             {canWrite && <Button onClick={openCreate}><Plus /> Tạo mess</Button>}
           </>
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}

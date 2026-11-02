@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
-import { updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,10 +13,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
-import { QuoteEditor } from "./quote-editor";
+import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { QuoteTracking } from "./quote-tracking";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
@@ -117,8 +118,10 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
   const [notice, setNotice] = useState<string>();
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
+  const [orderRevision, setOrderRevision] = useState(0);
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
+  const canPrice = canEditQuoteDesk(user.role, "logistics");
   const filters = useAppliedSearch({ q: "", from: "", to: "", source: "", potential: "", customerKind: "", customerType: "" });
 
   const load = useCallback(() => {
@@ -138,6 +141,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .then((body) => setRows(body.potentials))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"));
   }, [filters.applied, lane]);
+
+  const excel = useExcelImport({ kind: "potentials", lane, allLanes: canPick, enabled: canWrite, onDone: load });
 
   useEffect(() => {
     load();
@@ -185,7 +190,10 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
     setError(undefined);
     setNotice(undefined);
     setOrderError(undefined);
-    void api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+    const request = canWrite
+      ? api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+      : api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/logistics-quote`, lane));
+    void request
       .then((body) => setOrderQuote(body.quote))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được thông tin đơn hàng"));
   };
@@ -209,25 +217,43 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tạo được báo giá"));
   };
 
-  const saveLogisticsOrder = (input: UpdateQuoteInput, options?: { close?: boolean }) => {
+  const saveOrderPart = (input: UpdateQuoteInput, orderContent: boolean) => {
     if (!orderQuote) return Promise.resolve(false);
     setOrderPending(true);
     setOrderError(undefined);
-    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}?desk=logistics`, lane), {
+    const scope = orderContent ? "&orderContent=1" : "";
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}?desk=logistics${scope}`, lane), {
       method: "PATCH",
       body: JSON.stringify(input),
     })
       .then((body) => {
         setOrderQuote(body.quote);
-        if (options?.close !== false) setOrderQuote(null);
-        setNotice("Đã lưu thông tin đơn hàng");
+        setOrderRevision((value) => value + 1);
+        setNotice(orderContent && canPrice ? "Đã lưu báo giá" : orderContent ? "Đã lưu thông tin đơn hàng" : "Đã lưu chi phí logistics");
         return true;
       })
       .catch((err: unknown) => {
-        setOrderError(err instanceof ApiError ? err.message : "Không lưu được thông tin đơn hàng");
+        setOrderError(err instanceof ApiError ? err.message : orderContent ? "Không lưu được thông tin đơn hàng" : "Không lưu được giá logistics");
         return false;
       })
       .finally(() => setOrderPending(false));
+  };
+
+  const saveOrderLead = (input: UpdatePotentialInput) => {
+    if (!orderQuote) return Promise.resolve(null);
+    return api<{ potential: PotentialRecord }>(crmPath(`/api/crm/potentials/${orderQuote.potentialId}`, lane), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    })
+      .then((body) => {
+        const patch = quoteFieldsFromPotential(input, body.potential.requirementImages ?? input.requirementImages ?? []);
+        setOrderQuote((current) => (current ? { ...current, ...patch } : current));
+        return patch;
+      })
+      .catch((err: unknown) => {
+        setOrderError(err instanceof ApiError ? err.message : "Không lưu được thông tin khách");
+        return null;
+      });
   };
 
   const handoffLogistics = () => {
@@ -261,10 +287,16 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       <PageHeader
         title="Khách hàng tiềm năng"
         description={lane === "vn" ? "Khách tiềm năng tuyến Việt Nam, chuyển từ mess cùng tuyến." : "Khách tiềm năng tuyến Global, chuyển từ mess cùng tuyến."}
-        actions={canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : undefined}
+        actions={
+          <>
+            {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {excel.buttons}
+          </>
+        }
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}
@@ -341,6 +373,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                       { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => requestQuote(row) },
                       { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
                       { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+                    ] : canPrice && row.customerKind === "LOGISTICS" ? [
+                      { key: "prices", label: "Nhập giá", icon: <FileText />, onClick: () => openLogisticsOrder(row) },
                     ] : []}
                   />
                 </td>
@@ -475,9 +509,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDraft(null); setEditing(null); }}>Hủy</Button>
-            {editing?.customerKind === "LOGISTICS" && (
-              <Button type="button" variant="outline" onClick={() => openLogisticsOrder(editing)}>Chuyển logistics</Button>
-            )}
             <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -485,16 +516,18 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
 
       {orderQuote && (
         <QuoteEditor
-          key={orderQuote.id}
+          key={`${orderQuote.id}-${orderRevision}`}
           quote={orderQuote}
           templates={[]}
-          editMode="content"
+          editMode={canPrice ? "full" : canWrite ? "content" : "none"}
           desk="logistics"
+          saleOrder={canWrite}
           pending={orderPending}
           error={orderError}
           onClose={() => setOrderQuote(null)}
-          onSave={saveLogisticsOrder}
-          onHandoffLogistics={handoffLogistics}
+          onSave={(input) => saveOrderPart(input, canWrite)}
+          onSaveSale={canWrite ? saveOrderLead : undefined}
+          onHandoffLogistics={canWrite ? handoffLogistics : undefined}
         />
       )}
 

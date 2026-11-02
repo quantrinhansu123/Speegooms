@@ -61,6 +61,32 @@ function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
 
 type SaleFact = [string, string, boolean?];
 
+function WeightNoteField({
+  id,
+  value,
+  disabled,
+  onChange,
+  className,
+}: {
+  id: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <Field label="Ghi chú cân nặng / CBM" htmlFor={id} className={className}>
+      <Input
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế"
+      />
+    </Field>
+  );
+}
+
 function LogisticsFeesEditor({
   notes,
   setNotes,
@@ -103,15 +129,12 @@ function LogisticsFeesEditor({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
-        <Field label="Ghi chú cân nặng / CBM" htmlFor={fieldId("note-weight")}>
-          <Input
-            id={fieldId("note-weight")}
-            value={notes.weightNote}
-            disabled={!canEditOrderNotes}
-            onChange={(event) => setNotes({ ...notes, weightNote: event.target.value })}
-            placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế"
-          />
-        </Field>
+        <WeightNoteField
+          id={fieldId("note-weight")}
+          value={notes.weightNote}
+          disabled={!canEditOrderNotes}
+          onChange={(weightNote) => setNotes({ ...notes, weightNote })}
+        />
         <Field label="Tổng chi phí vận chuyển" htmlFor={fieldId("note-shipping")}>
           <Input
             id={fieldId("note-shipping")}
@@ -174,10 +197,12 @@ function OrderPackagesBlock({
   orders,
   canEdit,
   onChange,
+  emptyHint,
 }: {
   orders: QuoteOrder[];
   canEdit: boolean;
   onChange: (orderId: string, lineIndex: number, packages: QuoteLine["packages"]) => void;
+  emptyHint?: string;
 }) {
   return (
     <div className="grid gap-3">
@@ -186,7 +211,7 @@ function OrderPackagesBlock({
         <p className="text-sm text-muted-foreground">Điền số kiện · D × R × C · kg/kiện cho từng dòng để tính cước và báo giá vận chuyển.</p>
       </div>
       {orders.length === 0 && (
-        <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">Chưa có thông tin đơn hàng — tạo ở tab Sourcing trước.</p>
+        <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">{emptyHint ?? "Chưa có thông tin đơn hàng — tạo ở tab Sourcing trước."}</p>
       )}
       {orders.map((order) => (
         <div key={order.id} className="grid gap-3 rounded-xl border p-3">
@@ -994,6 +1019,7 @@ export function QuoteEditor({
   desk,
   onContinueLogistics,
   onHandoffLogistics,
+  saleOrder = false,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
@@ -1018,16 +1044,22 @@ export function QuoteEditor({
   onContinueLogistics?: () => Promise<boolean>;
   /** Sale nhập đơn hàng thuần logistics rồi chuyển cho bàn Logistics. */
   onHandoffLogistics?: () => Promise<boolean>;
+  /** Sale được sửa thông tin đơn trên báo giá thuần logistics. */
+  saleOrder?: boolean;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
+  const pureLogistics = quote.customerKind === "LOGISTICS";
   const packagingRequired = desk !== "logistics" && !isCombinedSourcing(quote);
   const showPackaging = desk === "sourcing" || desk === "logistics" || !isCombinedSourcing(quote);
   const canSendQuote = mode === "full";
   const canEditLogisticsFees = mode === "full" && desk === "logistics";
-  const saleLogisticsOrder = Boolean(onHandoffLogistics);
-  const canEditContent = saleLogisticsOrder || (desk !== "logistics" && (mode === "content" || mode === "full"));
-  const canEditPricing = saleLogisticsOrder || (mode === "full" && desk !== "logistics");
-  const canEditPackaging = canEditContent && canEditPricing;
+  const saleLogisticsOrder = saleOrder || Boolean(onHandoffLogistics);
+  const canEditContent = pureLogistics
+    ? mode === "content" || (saleOrder && mode !== "none")
+    : (saleLogisticsOrder || desk !== "logistics") && (mode === "content" || mode === "full");
+  const canEditPricing = mode === "full" && desk !== "logistics";
+  const canEditPackaging = pureLogistics ? canEditContent : (saleLogisticsOrder && canEditContent) || (canEditContent && canEditPricing);
+  const canEditSaleNotes = pureLogistics ? canEditContent : canEditPricing;
   const [ratePending, setRatePending] = useState(false);
   const [lead, setLead] = useState(quote);
   const [editingSale, setEditingSale] = useState(false);
@@ -1063,7 +1095,7 @@ export function QuoteEditor({
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
 
-  const canSaveSale = desk !== "logistics" && Boolean(onSaveSale);
+  const canSaveSale = Boolean(onSaveSale) && (desk !== "logistics" || pureLogistics);
 
   useEffect(() => {
     setLead(quote);
@@ -1078,7 +1110,7 @@ export function QuoteEditor({
   }, [desk, quote.id, quote.orders.length, quote.sourcingContext]);
 
   useEffect(() => {
-    if (!canSaveSale) {
+    if (!canSaveSale || pureLogistics) {
       setEditingSale(false);
       setSaleDraft(null);
       return;
@@ -1088,7 +1120,7 @@ export function QuoteEditor({
     setSaleError(undefined);
     // Chỉ khởi tạo lại khi đổi báo giá / quyền sửa — tránh mất nội dung đang gõ khi parent re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: quote.id + canSaveSale
-  }, [quote.id, canSaveSale]);
+  }, [quote.id, canSaveSale, pureLogistics]);
 
   const resetSaleEdit = () => {
     setSaleDraft(saleDraftFromQuote(lead));
@@ -1286,11 +1318,6 @@ export function QuoteEditor({
     return ok ? next : null;
   };
 
-  const saveDraftAndTransfer = async () => {
-    const next = await saveDraft();
-    if (next) await transferLogistics(next);
-  };
-
   const toggle = (id: string, checked: boolean) => {
     if (!canEditPricing) return;
     const next = orders.map((order) => ({
@@ -1330,13 +1357,7 @@ export function QuoteEditor({
 
   const priceColumns = listPriceColumns(orders);
 
-  const actions = saleLogisticsOrder ? (
-    <>
-      {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
-      <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
-      <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferLogistics(); }}>Chuyển logistics</Button>
-    </>
-  ) : (
+  const actions = (
     <>
       <Button type="button" variant="outline" onClick={printSelected}><Printer />In</Button>
       <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
@@ -1358,7 +1379,9 @@ export function QuoteEditor({
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
     : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
-  const defaultTab = saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
+  const defaultTab = pureLogistics ? "sale" : saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
+  const [tab, setTab] = useState(defaultTab);
+  useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
   const brandLabel = brandOptions.find((item) => item[0] === lead.brand)?.[1] ?? lead.brand ?? "—";
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
@@ -1434,30 +1457,35 @@ export function QuoteEditor({
     <>
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
-      {mode === "content" && !saleLogisticsOrder && (
+      {mode === "content" && !saleLogisticsOrder && quote.customerKind !== "LOGISTICS" && (
         <InlineAlert>
           Sale điền ảnh, số lượng ở Sourcing. Sourcing nhập thông tin đơn hàng và đóng gói; Logistics chỉ nhập chi phí logistics. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
         </InlineAlert>
       )}
-      {saleLogisticsOrder && (
+      {onHandoffLogistics && !pureLogistics && (
         <InlineAlert>
-          Sale nhập toàn bộ thông tin đơn hàng (ảnh, số lượng, thông số, đóng gói, đơn giá). Luồng này không qua Sourcing. Logistics nhận đơn và chỉ nhập chi phí vận chuyển.
+          Sale nhập thông tin đơn hàng (ảnh, số lượng, thông số, đóng gói) ở phần Sale. Logistics nhập chi phí logistics. Nút chuyển logistics nằm ở phần thông tin đơn hàng của Sale.
         </InlineAlert>
       )}
-      <Tabs defaultValue={defaultTab} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${desk === "logistics" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
+        <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleLogisticsOrder ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {([
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
             ["logistics", "Logistics"],
-          ] as const).filter(([value]) => saleLogisticsOrder ? value === "sourcing" : desk !== "logistics" || value !== "sourcing").map(([value, label]) => (
+          ] as const).filter(([value]) => {
+            if (pureLogistics) return value === "sale" || value === "logistics";
+            if (saleLogisticsOrder) return value !== "logistics";
+            return desk !== "logistics" || value !== "sourcing";
+          }).map(([value, label]) => (
             <TabsTrigger key={value} value={value} className={tabTriggerClass}>
               {saleLogisticsOrder && value === "sourcing" ? "Thông tin đơn hàng" : label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <TabsContent value="sale" className={tabPanelClass}>
+        {(!pureLogistics || tab === "sale") && <div className={pureLogistics ? tabPanelClass : "contents"}>
+        <TabsContent value="sale" className={pureLogistics ? "space-y-4" : tabPanelClass}>
           {(opsNote.trim() || notes.opsExtra.trim()) && (
             <section className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
               <h3 className="font-semibold text-amber-950">Ghi chú vận hành</h3>
@@ -1486,6 +1514,10 @@ export function QuoteEditor({
                     {salePending ? "Đang lưu…" : "Lưu thông tin"}
                   </Button>
                 </div>
+              ) : canSaveSale && pureLogistics ? (
+                <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => { setSaleError(undefined); setSaleDraft(saleDraftFromQuote(lead)); setEditingSale(true); }}>
+                  Sửa thông tin khách
+                </Button>
               ) : null}
             </div>
 
@@ -1670,8 +1702,8 @@ export function QuoteEditor({
           </div>
         </TabsContent>
 
-        <TabsContent value="sourcing" className={tabPanelClass}>
-          {!saleLogisticsOrder && <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
+        <TabsContent value={pureLogistics ? "sale" : "sourcing"} className={pureLogistics ? "space-y-4" : tabPanelClass}>
+          {!pureLogistics && !saleLogisticsOrder && <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
             <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
             <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
             <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
@@ -1680,9 +1712,14 @@ export function QuoteEditor({
           </div>}
 
           <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-base font-medium">Thông tin đơn hàng</h3>
-              {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
+              <div className="flex flex-wrap gap-2">
+                {onHandoffLogistics && (
+                  <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferLogistics(); }}>Chuyển logistics</Button>
+                )}
+                {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
+              </div>
             </div>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-base">
@@ -1799,16 +1836,25 @@ export function QuoteEditor({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
+            {pureLogistics && (
+              <WeightNoteField
+                id={fieldId("sale-weight-note")}
+                className="sm:col-span-2"
+                value={notes.weightNote}
+                disabled={!canEditSaleNotes}
+                onChange={(weightNote) => setNotes({ ...notes, weightNote })}
+              />
+            )}
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
-              <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
+              <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditSaleNotes} onChange={(event) => setNotes({ ...notes, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
             </Field>
             <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-              <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
+              <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditSaleNotes} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
             </Field>
             <div className="grid gap-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">Thông tin đặt cọc</span>
-                {canEditPricing && (
+                {canEditSaleNotes && (
                   <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
                     <Plus />Thêm dòng
                   </Button>
@@ -1821,10 +1867,10 @@ export function QuoteEditor({
                     id={index === 0 ? fieldId("note-deposit") : undefined}
                     aria-label={`Thông tin đặt cọc ${index + 1}`}
                     value={line}
-                    disabled={!canEditPricing}
+                    disabled={!canEditSaleNotes}
                     onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
                   />
-                  {canEditPricing && (
+                  {canEditSaleNotes && (
                     <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
                       <Trash2 />
                     </Button>
@@ -1838,17 +1884,18 @@ export function QuoteEditor({
             orders={orders}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
+            emptyHint={pureLogistics ? "Chưa có thông tin đơn hàng — bấm Tạo thông tin đơn hàng." : undefined}
           />}
 
-          <LogisticsFeesEditor
+          {!pureLogistics && !saleLogisticsOrder && <LogisticsFeesEditor
             notes={notes}
             setNotes={setNotes}
             canEdit={canEditLogisticsFees}
             canEditOrderNotes={canEditPricing}
             pending={pending}
             fieldId={(name) => fieldId(`sourcing-${name}`)}
-          />
-          <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+          />}
+          {!pureLogistics && <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
             <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
               <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
                 <option value="">Chưa chọn</option>
@@ -1871,11 +1918,12 @@ export function QuoteEditor({
                 {contractStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </NativeSelect>
             </Field>
-          </section>
+          </section>}
         </TabsContent>
+        </div>}
 
         <TabsContent value="logistics" className={tabPanelClass}>
-          {desk === "logistics" && quote.sourcingContext && (
+          {!pureLogistics && desk === "logistics" && quote.sourcingContext && (
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
               {quote.sourcingContext.opsNote && <p className="whitespace-pre-wrap text-sm">{quote.sourcingContext.opsNote}</p>}
@@ -1899,7 +1947,7 @@ export function QuoteEditor({
               <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Sourcing cung cấp thông tin hàng và đóng gói. Logistics nhập chi phí logistics bên dưới.</p>
             </section>
           )}
-          <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
+          {!pureLogistics && <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
             <h3 className="font-semibold sm:col-span-2">Thông tin logistics từ tiềm năng</h3>
             {logisticsLeadFacts.map(([label, value]) => (
               <p key={label} className={label.startsWith("Quy cách") || label.startsWith("Địa chỉ") ? "sm:col-span-2" : undefined}>
@@ -1907,15 +1955,15 @@ export function QuoteEditor({
                 <span className="font-medium whitespace-pre-wrap">{value}</span>
               </p>
             ))}
-          </div>
+          </div>}
 
-          {showPackaging && <OrderPackagesBlock
+          {showPackaging && quote.customerKind !== "LOGISTICS" && <OrderPackagesBlock
             orders={orders}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
           />}
 
-          {mode === "full" && orders.length > 0 && (
+          {mode === "full" && orders.length > 0 && quote.customerKind !== "LOGISTICS" && (
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
               <p className="text-sm text-muted-foreground">Hàng hóa do Sale/Sourcing cung cấp. Chọn một tỷ giá để thêm cột đơn giá và thành tiền.</p>
@@ -1979,7 +2027,7 @@ export function QuoteEditor({
             notes={notes}
             setNotes={setNotes}
             canEdit={canEditLogisticsFees}
-            canEditOrderNotes={canEditPricing}
+            canEditOrderNotes={pureLogistics ? false : canEditPricing}
             pending={pending}
             fieldId={fieldId}
           />
@@ -2002,7 +2050,7 @@ export function QuoteEditor({
         <Dialog open onOpenChange={(open) => { if (!open && !draft) onClose(); }}>
           <DialogContent className="flex max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none">
             <DialogHeader>
-              <DialogTitle>{saleLogisticsOrder ? `Thông tin đơn hàng · ${quote.leadCode || quote.code}` : `Báo giá ${quote.code}`}</DialogTitle>
+              <DialogTitle>{pureLogistics ? `Báo giá ${quote.code}` : saleLogisticsOrder ? `Thông tin đơn hàng · ${quote.leadCode || quote.code}` : `Báo giá ${quote.code}`}</DialogTitle>
             </DialogHeader>
             {sheet}
           </DialogContent>
@@ -2034,8 +2082,8 @@ export function QuoteEditor({
               {orderError && <InlineAlert>{orderError}</InlineAlert>}
               {draft.mode !== "view" && (
                 <InlineAlert>
-                  {saleLogisticsOrder
-                    ? "Sale nhập đủ thông tin đơn hàng: ảnh, số lượng, thông số, đóng gói và đơn giá. Không qua Sourcing. Logistics chỉ nhập chi phí vận chuyển sau khi nhận đơn."
+                  {pureLogistics || saleLogisticsOrder
+                    ? "Sale nhập ảnh, số lượng, thông số và đóng gói. Logistics nhập chi phí logistics."
                     : "Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
                 </InlineAlert>
               )}
@@ -2100,9 +2148,6 @@ export function QuoteEditor({
               )}
               <Button type="button" variant="outline" onClick={() => setDraft(null)}>Đóng</Button>
               {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
-              {saleLogisticsOrder && draft.mode !== "view" && (
-                <Button type="button" variant="outline" disabled={pending} onClick={() => void saveDraftAndTransfer()}>Chuyển logistics</Button>
-              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

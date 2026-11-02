@@ -1986,7 +1986,7 @@ export class PostgresCrmRepository implements CrmRepository {
     return result.rows[0] ? toQuote(result.rows[0]) : null;
   }
 
-  private async findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null> {
+  async findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null> {
     const tables = quoteTables[lane];
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(

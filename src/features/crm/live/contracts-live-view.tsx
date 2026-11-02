@@ -27,6 +27,7 @@ import { uploadImageFiles } from "@/lib/upload-image";
 import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
@@ -350,6 +351,8 @@ export function ContractsLiveView({
     }
   }, [filters.applied, lane, mode, user.id]);
 
+  const excel = useExcelImport({ kind: "contracts", lane, allLanes: canPick, enabled: canSale, onDone: () => { void load(); } });
+
   useEffect(() => { load(); }, [load]);
   useNotificationRefresh(load);
 
@@ -427,10 +430,16 @@ export function ContractsLiveView({
             ? "Hợp đồng vận hành đã gửi sang kế toán."
             : lane === "vn" ? "Hợp đồng tuyến Việt Nam." : "Hợp đồng tuyến Global."
         }
-        actions={canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+        actions={
+          <>
+            {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {excel.buttons}
+          </>
+        }
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}

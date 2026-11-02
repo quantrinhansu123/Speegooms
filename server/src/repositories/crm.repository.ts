@@ -237,6 +237,7 @@ export interface CrmRepository {
   requestQuote(lane: CrmLane, potentialId: string): Promise<QuoteRequestResult>;
   requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<LogisticsQuoteRequestResult>;
   findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
+  findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null>;
   updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "template">;
   sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "empty" | "selection" | "template">;
   returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | "missing" | "state">;

@@ -1,6 +1,7 @@
 import type { CrmLane, PublicUser, QuoteDesk, Role } from "@speego/shared";
 import type { Request, Response } from "express";
-import { can } from "../config/permissions";
+import { can, type Permission } from "../config/permissions";
+import { isImportKind } from "../services/crm-import-sheets";
 import { AppError } from "../lib/errors";
 import type { ContractView } from "../repositories/crm.repository";
 import { readContractSearch, readMessageSearch, readPotentialSearch, readQuoteDeskFilter, readQuoteSearch } from "../search/parse-list-search";
@@ -12,6 +13,34 @@ function one(value: string | string[] | undefined): string {
   const id = Array.isArray(value) ? value[0] : value;
   if (!id || !UUID.test(id)) throw new AppError(404, "NOT_FOUND", "Không tìm thấy");
   return id;
+}
+
+const importPermissions = {
+  messages: "message.write",
+  potentials: "potential.write",
+  quotes: "quote.request",
+  contracts: "contract.create",
+} as const satisfies Record<string, Permission>;
+
+function importKindOf(value: string | string[] | undefined) {
+  const kind = Array.isArray(value) ? value[0] : value;
+  if (!kind || !isImportKind(kind)) throw new AppError(404, "NOT_FOUND", "Không có mẫu import này");
+  return kind;
+}
+
+function assertImport(req: Request, kind: keyof typeof importPermissions) {
+  const role = req.user?.role;
+  if (!role || !can(role, importPermissions[kind])) throw new AppError(403, "FORBIDDEN", "Bạn không có quyền thực hiện");
+}
+
+function importLanes(req: Request): CrmLane[] {
+  const role = req.user?.role;
+  if (role === "sale-vn") return ["vn"];
+  if (role === "sale-global") return ["global"];
+  const raw = req.query.lane;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value === "vn" || value === "global") return [value];
+  return ["vn", "global"];
 }
 
 function laneOf(req: Request): CrmLane {
@@ -106,6 +135,10 @@ export class CrmController {
     res.status(200).json(await this.crm.requestQuote(laneOf(req), one(req.params.id), req.user));
   };
 
+  potentialLogisticsQuote = async (req: Request, res: Response) => {
+    res.status(200).json({ quote: await this.crm.potentialLogisticsQuote(laneOf(req), one(req.params.id), roleOf(req)) });
+  };
+
   handoffLogisticsOrder = async (req: Request, res: Response) => {
     res.status(200).json({ quote: await this.crm.handoffLogisticsOrder(laneOf(req), one(req.params.id), actorOf(req)) });
   };
@@ -116,7 +149,8 @@ export class CrmController {
 
   updateQuote = async (req: Request, res: Response) => {
     const role = roleOf(req);
-    const contentOnly = can(role, "quote.content") && !can(role, "quote.ops");
+    const orderContent = req.query.orderContent === "1" && can(role, "quote.request");
+    const contentOnly = orderContent || (can(role, "quote.content") && !can(role, "quote.ops"));
     res.status(200).json({
       quote: await this.crm.updateQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, { contentOnly, role }),
     });
@@ -176,6 +210,22 @@ export class CrmController {
 
   resendContract = async (req: Request, res: Response) => {
     res.status(200).json({ contract: await this.crm.resendContract(laneOf(req), one(req.params.id), resendTarget(req), req.user) });
+  };
+
+  importTemplate = async (req: Request, res: Response) => {
+    const kind = importKindOf(req.params.kind);
+    assertImport(req, kind);
+    const file = await this.crm.importTemplate(kind);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${file.name}"`);
+    res.send(file.body);
+  };
+
+  importWorkbook = async (req: Request, res: Response) => {
+    const kind = importKindOf(req.params.kind);
+    assertImport(req, kind);
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new AppError(400, "VALIDATION_ERROR", "Chọn file Excel");
+    res.status(200).json(await this.crm.importWorkbook(kind, req.body, importLanes(req)));
   };
 }
 

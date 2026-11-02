@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
@@ -165,6 +166,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     loadPotentials();
   }, [loadQuotes, loadPotentials]);
 
+  const excel = useExcelImport({ kind: "quotes", lane, allLanes: canPick, enabled: canWrite, onDone: load });
+
   useEffect(() => {
     setRows([]);
     setDraft(null);
@@ -232,6 +235,21 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         load();
       })
       .catch((err: unknown) => setFormError(err instanceof ApiError ? err.message : "Không lưu được báo giá"))
+      .finally(() => setPending(false));
+  };
+
+  const handoffLogistics = (row: RfqQuoteRecord) => {
+    setPending(true);
+    setError(undefined);
+    return api(crmPath(`/api/crm/quotes/${row.id}/handoff-logistics`, lane), { method: "POST" })
+      .then(() => {
+        loadQuotes();
+        return true;
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : "Không chuyển được cho Logistics");
+        return false;
+      })
       .finally(() => setPending(false));
   };
 
@@ -334,11 +352,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {excel.buttons}
             {canWrite ? <Button type="button" onClick={openCreate}><Plus /> Thêm báo giá</Button> : null}
           </>
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}
@@ -566,6 +586,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           onClose={() => setViewing(null)}
           onSave={(input, options) => saveQuoteContent(viewing, input, options)}
           onSaveSale={canWrite ? (input) => saveSaleLead(viewing, input) : undefined}
+          onHandoffLogistics={canWrite && viewing.customerKind === "LOGISTICS" ? () => handoffLogistics(viewing) : undefined}
           onReturn={viewing.sentQuote ? () => returnQuote(viewing) : undefined}
         />
       )}

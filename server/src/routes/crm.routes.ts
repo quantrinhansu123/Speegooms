@@ -1,5 +1,5 @@
 import { exchangeRate } from "../services/exchange-rate.service";
-import { Router } from "express";
+import express, { Router } from "express";
 import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
@@ -24,6 +24,7 @@ export function crmRoutes(container: AppContainer) {
   router.delete("/potentials/:id", requirePermission("potential.write"), asyncHandler(crm.deletePotential));
   router.get("/potentials/:id/tracking", requireAnyPermission(["quote.read", "quote.rfq"]), asyncHandler(crm.getQuoteTracking));
   router.post("/potentials/:id/quotes", requirePermission("quote.request"), asyncHandler(crm.requestQuote));
+  router.get("/potentials/:id/logistics-quote", requirePermission("quote.read"), asyncHandler(crm.potentialLogisticsQuote));
   router.get("/quotes", requirePermission("quote.read"), asyncHandler(crm.listQuotes));
   router.get("/rfq-quotes", requirePermission("quote.rfq"), asyncHandler(crm.listRfqQuotes));
   router.patch("/rfq-quotes/:id", requirePermission("quote.request"), validate({ body: reassignQuoteSchema }), asyncHandler(crm.reassignRfqQuote));
@@ -44,5 +45,14 @@ export function crmRoutes(container: AppContainer) {
   router.patch("/contracts/:id/commercial", requirePermission("contract.create"), validate({ body: saleContractPaymentSchema }), asyncHandler(crm.updateCommercialContract));
   router.post("/contracts/:id/resend", requirePermission("contract.resend"), asyncHandler(crm.resendContract));
   router.delete("/contracts/:id", requirePermission("contract.delete"), asyncHandler(crm.deleteContract));
+  router.get("/import/:kind/template", asyncHandler(crm.importTemplate));
+  router.post(
+    "/import/:kind",
+    express.raw({
+      type: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream"],
+      limit: "20mb",
+    }),
+    asyncHandler(crm.importWorkbook),
+  );
   return router;
 }

@@ -4,6 +4,7 @@ import type { Env } from "../config/env";
 import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudinary/upload";
 import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
+import { PostgresCrmImportStore } from "../adapters/postgres/crm-import.store";
 import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
 import { AuthController } from "../controllers/auth.controller";
 import { CrmController } from "../controllers/crm.controller";
@@ -18,6 +19,7 @@ import { createCsrfGuard, type CsrfGuard } from "../middlewares/csrf";
 import { createRepositories } from "../repositories/create-repositories";
 import { AuthService } from "../services/auth.service";
 import { CrmService } from "../services/crm.service";
+import { CrmImportService } from "../services/crm-import.service";
 import { HealthService } from "../services/health.service";
 import { NotificationService } from "../services/notification.service";
 import { ScryptPasswordHasher } from "../services/password.service";
@@ -66,7 +68,11 @@ export async function createContainer(env: Env): Promise<AppContainer> {
     healthController: new HealthController(new HealthService(repositories.users)),
     securityController: new SecurityController(csrf.issue),
     userAdminController: new UserAdminController(new UserAdminService(repositories.users)),
-    crmController: new CrmController(new CrmService(crm, notificationService)),
+    crmController: new CrmController(new CrmService(
+      crm,
+      notificationService,
+      crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
+    )),
     notificationController: new NotificationController(notificationService),
     uploadController: new UploadController(cloudinary),
     authenticate: createAuthenticate(env, repositories.users, repositories.sessions),

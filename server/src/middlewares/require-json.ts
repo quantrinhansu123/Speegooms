@@ -18,6 +18,11 @@ export function requireJson(req: Request, _res: Response, next: NextFunction) {
     return;
   }
   const mime = type.split(";")[0]?.trim().toLowerCase();
+  const spreadsheet = mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || mime === "application/octet-stream";
+  if (spreadsheet && req.originalUrl.includes("/api/crm/import/")) {
+    next();
+    return;
+  }
   if (mime !== "application/json") {
     next(new AppError(415, "UNSUPPORTED_MEDIA_TYPE", "Content-Type phải là application/json"));
     return;
