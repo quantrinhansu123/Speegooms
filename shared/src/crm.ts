@@ -134,6 +134,29 @@ const quoteImage = z.string().max(100_000).refine(
   "Ảnh không hợp lệ",
 );
 
+/** Danh sách tiền tệ gợi ý. Cho phép thêm mã mới (3 chữ cái) khi báo giá. */
+export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
+export const quoteCurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái (ví dụ USD)")
+  .default("VND");
+export type QuoteCurrency = string;
+
+/** Đơn giá và thành tiền của một dòng theo một loại tiền. */
+export const quoteLinePriceSchema = z.object({
+  currency: quoteCurrencySchema,
+  pricePerSet: amount,
+  lineTotal: amount,
+});
+
+/** Cột đơn giá thêm trên đơn hàng. Tỷ giá là số VND cho 1 đơn vị ngoại tệ. */
+export const quotePriceColumnSchema = z.object({
+  currency: quoteCurrencySchema,
+  rate: z.number().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
+});
+
 export const quoteLineSchema = z.object({
   stt: text(20),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
@@ -155,6 +178,8 @@ export const quoteLineSchema = z.object({
   packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
   attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
+  /** Đơn giá theo loại tiền khác currency của đơn. Currency chính vẫn nằm ở pricePerSet. */
+  prices: z.array(quoteLinePriceSchema).max(8, "Tối đa 8 loại tiền mỗi dòng").default([]),
 });
 
 /** Danh sách ảnh dòng: ưu tiên images[], fallback image cũ. */
@@ -185,6 +210,8 @@ export const quoteNotesSchema = z.object({
   ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
   /** Chi phí logistics chi tiết (cảng, vận chuyển, thông quan…). */
   logisticsFees: z.array(logisticsFeeSchema).max(30, "Tối đa 30 dòng chi phí logistics").default([]),
+  /** Ghi chú thêm của vận hành (tách lô, dời lịch…) để Sale xem. */
+  opsExtra: text(2000).default(""),
 });
 
 export const quoteBankSchema = z.object({
@@ -194,16 +221,6 @@ export const quoteBankSchema = z.object({
   routingNumber: text(80),
 });
 
-/** Danh sách tiền tệ gợi ý. Cho phép thêm mã mới (3 chữ cái) khi báo giá. */
-export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
-export const quoteCurrencySchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái (ví dụ USD)")
-  .default("VND");
-export type QuoteCurrency = string;
-
 export const quoteOrderSchema = z.object({
   id: uuidText,
   name: z.string().trim().min(1, "Nhập tên thông tin đơn hàng").max(160),
@@ -211,6 +228,8 @@ export const quoteOrderSchema = z.object({
   currency: quoteCurrencySchema.default("VND"),
   /** Tỷ giá: số VND cho 1 đơn vị ngoại tệ, chỉ dùng khi currency khác VND (để hiện quy đổi) */
   rate: z.number().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
+  /** Các loại tiền thêm, ngoài currency chính. Mỗi loại thành một cặp cột đơn giá và thành tiền. */
+  priceColumns: z.array(quotePriceColumnSchema).max(8, "Tối đa 8 cột đơn giá").default([]),
   lines: z.array(quoteLineSchema).max(40, "Tối đa 40 dòng hàng"),
 });
 

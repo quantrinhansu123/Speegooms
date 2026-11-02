@@ -3,7 +3,7 @@
 import { api } from "@/lib/api";
 import { isCombinedSourcing, quoteMoneyValue } from "@speego/shared";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteCurrencies,
@@ -51,7 +51,7 @@ import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [] };
+  return { stt, image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [], prices: [] };
 }
 
 function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
@@ -499,18 +499,172 @@ function orderSpecText(lines: QuoteLine[]): string {
   return "";
 }
 
-/** Đơn giá từng dòng kèm đơn vị tính theo cách tính giá, vd "120.000 VND/set". */
-function orderPriceTexts(lines: QuoteLine[], currency: string): string[] {
-  return lines
-    .filter((line) => line.pricePerSet != null)
-    .map((line) => {
-      const unit = line.basis === "kg" ? "kg" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
-      return `${money(line.pricePerSet!)} ${currency}/${unit}`;
-    });
-}
-
 function orderNoteText(lines: QuoteLine[]): string {
   return lines.map((line) => line.note.trim()).filter(Boolean).join("\n");
+}
+
+type PriceColumn = { currency: string; rate: number | null };
+
+function currencyPairLabel(code: string): string {
+  return code === "VND" ? "VND" : `VND / 1 ${code}`;
+}
+
+function priceUnit(line: Pick<QuoteLine, "basis" | "unit">): string {
+  return line.basis === "kg" ? "kg" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
+}
+
+/** Cột giá của một đơn: loại tiền chính, rồi các cột đã thêm. VND đứng trước. */
+function columnsFor(order: QuoteOrder): PriceColumn[] {
+  const extras = (order.priceColumns ?? []).filter((column) => column.currency !== order.currency);
+  const cols = [{ currency: order.currency || "VND", rate: order.currency === "VND" ? null : order.rate }, ...extras];
+  const seen = new Set<string>();
+  const unique = cols.filter((column) => {
+    if (seen.has(column.currency)) return false;
+    seen.add(column.currency);
+    return true;
+  });
+  return [...unique.filter((column) => column.currency === "VND"), ...unique.filter((column) => column.currency !== "VND")];
+}
+
+function listPriceColumns(orders: QuoteOrder[]): PriceColumn[] {
+  const list: PriceColumn[] = [];
+  for (const order of orders) {
+    for (const column of columnsFor(order)) {
+      if (!list.some((item) => item.currency === column.currency)) list.push(column);
+    }
+  }
+  if (list.length === 0) list.push({ currency: "VND", rate: null });
+  return [...list.filter((column) => column.currency === "VND"), ...list.filter((column) => column.currency !== "VND")];
+}
+
+function lineCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string): { price: number | null; total: number | null } {
+  if (currency === orderCurrency) return { price: line.pricePerSet, total: line.lineTotal };
+  const found = (line.prices ?? []).find((item) => item.currency === currency);
+  return { price: found?.pricePerSet ?? null, total: found?.lineTotal ?? null };
+}
+
+function columnAmounts(order: QuoteOrder, currency: string): { texts: string[]; total: number | null } {
+  const rows = order.lines.map((line) => ({ line, ...lineCurrencyPrice(line, order.currency, currency) }));
+  const texts = rows
+    .filter((row) => row.price != null)
+    .map((row) => `${money(row.price!)} ${currency}/${priceUnit(row.line)}`);
+  const priced = rows.some((row) => row.total != null);
+  return { texts, total: priced ? rows.reduce((sum, row) => sum + (row.total ?? 0), 0) : null };
+}
+
+function withCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string, pricePerSet: number | null): QuoteLine {
+  const total = lineAmount({ basis: line.basis, quantity: line.quantity, price: pricePerSet, weightKg: line.weightKg, cbm: line.cbm });
+  if (currency === orderCurrency) return { ...line, pricePerSet, lineTotal: total };
+  const prices = [...(line.prices ?? []).filter((item) => item.currency !== currency), { currency, pricePerSet, lineTotal: total }];
+  return { ...line, prices };
+}
+
+function orderWithoutColumn(order: QuoteOrder, currency: string): QuoteOrder {
+  const remaining = columnsFor(order).filter((column) => column.currency !== currency);
+  if (remaining.length === 0) {
+    if (currency === "VND") return order;
+    const vndLines = order.lines.map((line) => {
+      const vnd = lineCurrencyPrice(line, order.currency, "VND");
+      return { ...line, pricePerSet: vnd.price, lineTotal: vnd.total, prices: [] };
+    });
+    return { ...order, currency: "VND", rate: null, priceColumns: [], lines: vndLines };
+  }
+  if (order.currency !== currency) {
+    return {
+      ...order,
+      priceColumns: (order.priceColumns ?? []).filter((column) => column.currency !== currency),
+      lines: order.lines.map((line) => ({ ...line, prices: (line.prices ?? []).filter((item) => item.currency !== currency) })),
+    };
+  }
+  const next = remaining.find((column) => column.currency === "VND") ?? remaining[0];
+  return {
+    ...order,
+    currency: next.currency,
+    rate: next.currency === "VND" ? null : next.rate,
+    priceColumns: remaining.filter((column) => column.currency !== next.currency).map((column) => ({ currency: column.currency, rate: column.rate })),
+    lines: order.lines.map((line) => {
+      const primary = lineCurrencyPrice(line, currency, next.currency);
+      const prices = remaining
+        .filter((column) => column.currency !== next.currency)
+        .map((column) => {
+          const amount = lineCurrencyPrice(line, currency, column.currency);
+          return { currency: column.currency, pricePerSet: amount.price, lineTotal: amount.total };
+        });
+      return { ...line, pricePerSet: primary.price, lineTotal: primary.total, prices };
+    }),
+  };
+}
+
+function roundUnitPrice(value: number, currency: string): number {
+  if (currency === "VND") return Math.round(value);
+  const digits = Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 6 : 2;
+  return Math.round(value * 10 ** digits) / 10 ** digits;
+}
+
+/** Điền đơn giá các loại tiền từ một mốc giá và tỷ giá VND / 1 ngoại tệ. */
+function applyAutoPrices(order: QuoteOrder, rates: Record<string, number>): QuoteOrder {
+  const columns = columnsFor(order).map((column) => (
+    column.currency === "VND" ? column : { ...column, rate: rates[column.currency] ?? column.rate }
+  ));
+  const rateOf = (code: string) => (code === "VND" ? 1 : rates[code] ?? columns.find((column) => column.currency === code)?.rate ?? null);
+  const lines = order.lines.map((line) => {
+    let vnd = lineCurrencyPrice(line, order.currency, "VND").price;
+    if (vnd == null) {
+      for (const column of columns) {
+        if (column.currency === "VND") continue;
+        const price = lineCurrencyPrice(line, order.currency, column.currency).price;
+        const rate = rateOf(column.currency);
+        if (price != null && rate) {
+          vnd = price * rate;
+          break;
+        }
+      }
+    }
+    if (vnd == null) return line;
+    return columns.reduce((next, column) => {
+      const rate = rateOf(column.currency);
+      if (!rate) return next;
+      const price = roundUnitPrice(column.currency === "VND" ? vnd : vnd / rate, column.currency);
+      return withCurrencyPrice(next, order.currency, column.currency, price);
+    }, line);
+  });
+  return {
+    ...order,
+    rate: order.currency === "VND" ? null : rates[order.currency] ?? order.rate,
+    priceColumns: columns.filter((column) => column.currency !== order.currency).map((column) => ({ currency: column.currency, rate: column.rate })),
+    lines,
+  };
+}
+
+/** Giữ VND và đúng một ngoại tệ đang chọn. Chọn VND thì bỏ các cột tỷ giá khác. */
+function selectRateColumn(order: QuoteOrder, currency: string): QuoteOrder {
+  const foreign = columnsFor(order).filter((column) => column.currency !== "VND" && column.currency !== currency);
+  const next = foreign.reduce<QuoteOrder>((current, column) => orderWithoutColumn(current, column.currency), order);
+  if (currency === "VND" || next.currency === currency || (next.priceColumns ?? []).some((column) => column.currency === currency)) return next;
+  return { ...next, priceColumns: [...(next.priceColumns ?? []), { currency, rate: null }] };
+}
+
+function PriceColumnPicker({
+  orders,
+  disabled,
+  onSelect,
+}: {
+  orders: QuoteOrder[];
+  disabled?: boolean;
+  onSelect: (currency: string) => void;
+}) {
+  const selected = listPriceColumns(orders).find((column) => column.currency !== "VND")?.currency ?? "VND";
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="font-medium">Tỷ giá</span>
+      <NativeSelect className="h-9 w-44" aria-label="Tỷ giá" disabled={disabled} value={selected} onChange={(event) => onSelect(event.target.value)}>
+        <option value="VND">VND</option>
+        {quoteCurrencies.filter((code) => code !== "VND").map((code) => (
+          <option key={code} value={code}>{currencyPairLabel(code)}</option>
+        ))}
+      </NativeSelect>
+    </label>
+  );
 }
 
 function safeImage(value: string): string {
@@ -521,6 +675,7 @@ function safeImage(value: string): string {
 function OrderLines({
   lines,
   currency,
+  columns,
   canEditContent,
   canEditPricing,
   packagingRequired,
@@ -530,6 +685,7 @@ function OrderLines({
 }: {
   lines: QuoteLine[];
   currency: QuoteCurrency;
+  columns: PriceColumn[];
   canEditContent: boolean;
   canEditPricing: boolean;
   packagingRequired: boolean;
@@ -537,10 +693,11 @@ function OrderLines({
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
 }) {
+  const priceColumns = columns.length > 0 ? columns : [{ currency, rate: null }];
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange(lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
-      let next = { ...line, ...patch };
+      let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
       if ("packages" in patch && next.packages.length > 0) {
         const m = packageMetrics(next.packages);
         next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
@@ -548,9 +705,26 @@ function OrderLines({
       if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm"].some((k) => k in patch)) {
         const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
         if (total != null) next = { ...next, lineTotal: total };
+        next = {
+          ...next,
+          prices: (next.prices ?? []).map((item) => {
+            const alt = lineAmount({ basis: next.basis, quantity: next.quantity, price: item.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
+            return alt == null ? item : { ...item, lineTotal: alt };
+          }),
+        };
       }
       return next;
     }));
+  };
+
+  const updateColumnPrice = (index: number, column: string, pricePerSet: number | null) => {
+    if (column === currency) {
+      updateLine(index, { pricePerSet });
+      return;
+    }
+    const line = lines[index];
+    if (!line) return;
+    updateLine(index, { prices: withCurrencyPrice(line, currency, column, pricePerSet).prices });
   };
 
   const addLine = () => {
@@ -578,8 +752,12 @@ function OrderLines({
               <th className="whitespace-nowrap px-2 py-3 font-medium">STT</th>
               <th className="min-w-[160px] whitespace-nowrap px-2 py-3 font-medium">Hình ảnh</th>
               <th className="whitespace-nowrap px-2 py-3 font-medium">SL / ĐV</th>
-              <th className="whitespace-nowrap px-2 py-3 font-medium">Đơn giá ({currency})</th>
-              <th className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền</th>
+              {priceColumns.map((column) => (
+                <th key={`price-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Đơn giá ({column.currency})</th>
+              ))}
+              {priceColumns.map((column) => (
+                <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
+              ))}
               <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Thông số</th>
               <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">Thuộc tính xưởng</th>
               <th className="min-w-[100px] whitespace-nowrap px-2 py-3 font-medium">Note</th>
@@ -687,28 +865,48 @@ function OrderLines({
                       <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} value={line.unit} disabled={!canEditContent} onChange={(event) => updateLine(index, { unit: event.target.value })} placeholder="ĐV" />
                     </div>
                   </td>
-                  <td className="px-2 py-2">
-                    <div className="grid w-36 gap-1">
-                      <MoneyInput className="h-8" aria-label={`Đơn giá dòng ${index + 1}`} value={line.pricePerSet} disabled={!canEditPricing} onValueChange={(pricePerSet) => updateLine(index, { pricePerSet })} />
-                      <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
-                        {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
-                      </NativeSelect>
-                      {showMetric && (
-                        <Input
-                          className="h-8"
-                          inputMode="decimal"
-                          aria-label={line.basis === "kg" ? `Cân nặng dòng ${index + 1}` : `CBM dòng ${index + 1}`}
-                          value={amountText(line.basis === "kg" ? line.weightKg : line.cbm)}
-                          disabled={!canEditContent}
-                          onChange={(event) => updateLine(index, line.basis === "kg" ? { weightKg: amountValue(event.target.value) } : { cbm: amountValue(event.target.value) })}
-                          placeholder={line.basis === "kg" ? "KG" : "CBM"}
-                        />
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2">
-                    <MoneyInput className="h-8 w-28" aria-label={`Thành tiền dòng ${index + 1}`} value={line.lineTotal} disabled={!canEditPricing} onValueChange={(lineTotal) => updateLine(index, { lineTotal })} />
-                  </td>
+                  {priceColumns.map((column, columnIndex) => {
+                    const amount = lineCurrencyPrice(line, currency, column.currency);
+                    return (
+                      <td key={`price-${column.currency}`} className="px-2 py-2">
+                        <div className="grid w-36 gap-1">
+                          <MoneyInput className="h-8" fractionDigits={6} aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`} value={amount.price} disabled={!canEditPricing} onValueChange={(pricePerSet) => updateColumnPrice(index, column.currency, pricePerSet)} />
+                          {columnIndex === 0 && (
+                            <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
+                              {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                            </NativeSelect>
+                          )}
+                          {columnIndex === 0 && showMetric && (
+                            <Input
+                              className="h-8"
+                              inputMode="decimal"
+                              aria-label={line.basis === "kg" ? `Cân nặng dòng ${index + 1}` : `CBM dòng ${index + 1}`}
+                              value={amountText(line.basis === "kg" ? line.weightKg : line.cbm)}
+                              disabled={!canEditContent}
+                              onChange={(event) => updateLine(index, line.basis === "kg" ? { weightKg: amountValue(event.target.value) } : { cbm: amountValue(event.target.value) })}
+                              placeholder={line.basis === "kg" ? "KG" : "CBM"}
+                            />
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  {priceColumns.map((column) => {
+                    const amount = lineCurrencyPrice(line, currency, column.currency);
+                    const primary = column.currency === currency;
+                    return (
+                      <td key={`total-${column.currency}`} className="px-2 py-2">
+                        <MoneyInput className="h-8 w-32" fractionDigits={6} aria-label={`Thành tiền ${column.currency} dòng ${index + 1}`} value={amount.total} disabled={!canEditPricing} onValueChange={(lineTotal) => {
+                          if (primary) {
+                            updateLine(index, { lineTotal });
+                            return;
+                          }
+                          const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal }];
+                          updateLine(index, { prices });
+                        }} />
+                      </td>
+                    );
+                  })}
                   <td className="px-2 py-2">
                     <Textarea className="min-h-16 w-36" aria-label={`Thông số dòng ${index + 1}`} value={line.spec} disabled={!canEditContent} onChange={(event) => updateLine(index, { spec: event.target.value })} placeholder="Thông số" />
                   </td>
@@ -795,6 +993,7 @@ export function QuoteEditor({
   onContractCreated,
   desk,
   onContinueLogistics,
+  onHandoffLogistics,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
@@ -817,17 +1016,19 @@ export function QuoteEditor({
   desk?: "sourcing" | "logistics";
   /** Sau khi gửi báo giá sourcing xong (KH sourcing+logistics), chuyển sang bàn logistics. */
   onContinueLogistics?: () => Promise<boolean>;
+  /** Sale nhập đơn hàng thuần logistics rồi chuyển cho bàn Logistics. */
+  onHandoffLogistics?: () => Promise<boolean>;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
   const packagingRequired = desk !== "logistics" && !isCombinedSourcing(quote);
   const showPackaging = desk === "sourcing" || desk === "logistics" || !isCombinedSourcing(quote);
   const canSendQuote = mode === "full";
   const canEditLogisticsFees = mode === "full" && desk === "logistics";
-  const canEditContent = desk !== "logistics" && (mode === "content" || mode === "full");
-  const canEditPricing = mode === "full" && desk !== "logistics";
+  const saleLogisticsOrder = Boolean(onHandoffLogistics);
+  const canEditContent = saleLogisticsOrder || (desk !== "logistics" && (mode === "content" || mode === "full"));
+  const canEditPricing = saleLogisticsOrder || (mode === "full" && desk !== "logistics");
   const canEditPackaging = canEditContent && canEditPricing;
   const [ratePending, setRatePending] = useState(false);
-  const [rateInfo, setRateInfo] = useState<{ currency: string; updatedAt: string | null } | null>(null);
   const [lead, setLead] = useState(quote);
   const [editingSale, setEditingSale] = useState(false);
   const [saleDraft, setSaleDraft] = useState<SaleLeadDraft | null>(null);
@@ -846,12 +1047,12 @@ export function QuoteEditor({
     ...quote.notes,
     shippingLabel: quote.notes.shippingLabel ?? "",
     logisticsFees: quote.notes.logisticsFees ?? [],
+    opsExtra: quote.notes.opsExtra ?? "",
   });
   const [bank, setBank] = useState<QuoteBank>(quote.bank);
   const [formError, setFormError] = useState<string>();
   const [draft, setDraft] = useState<{ mode: "create" | "edit" | "view"; order: QuoteOrder } | null>(null);
   const [orderError, setOrderError] = useState<string>();
-  const [extraCurrencies, setExtraCurrencies] = useState<string[]>([]);
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
@@ -867,6 +1068,14 @@ export function QuoteEditor({
   useEffect(() => {
     setLead(quote);
   }, [quote]);
+
+  const seededLogisticsOrder = useRef<string | null>(null);
+  useEffect(() => {
+    if (desk !== "logistics" || quote.orders.length > 0 || !quote.sourcingContext?.order) return;
+    if (seededLogisticsOrder.current === quote.id) return;
+    seededLogisticsOrder.current = quote.id;
+    setOrders([{ ...quote.sourcingContext.order, selected: true }]);
+  }, [desk, quote.id, quote.orders.length, quote.sourcingContext]);
 
   useEffect(() => {
     if (!canSaveSale) {
@@ -971,6 +1180,17 @@ export function QuoteEditor({
     void persist(orders, true);
   };
 
+  const transferLogistics = async (nextOrders: QuoteOrder[] = orders) => {
+    if (nextOrders.length === 0) {
+      setFormError("Nhập thông tin đơn hàng trước khi chuyển logistics");
+      return;
+    }
+    const ok = await persist(nextOrders, false);
+    if (!ok || !onHandoffLogistics) return;
+    const handed = await onHandoffLogistics();
+    if (handed) onClose();
+  };
+
   const sheetHtmlFor = (order: QuoteOrder) => quoteSheetHtml({
     customer: lead,
     lines: order.lines,
@@ -1034,6 +1254,7 @@ export function QuoteEditor({
         selected: orders.every((order) => !order.selected),
         currency: "VND",
         rate: null,
+        priceColumns: [],
         lines: [emptyLine("1")],
       },
     });
@@ -1053,7 +1274,7 @@ export function QuoteEditor({
       setOrderError("Nhập ít nhất một dòng hàng");
       return;
     }
-    if (packagingRequired && canEditPackaging && parsed.data.lines.some((line) => line.packages.length === 0)) {
+    if ((saleLogisticsOrder || (packagingRequired && canEditPackaging)) && parsed.data.lines.some((line) => line.packages.length === 0)) {
       setOrderError("Mỗi dòng hàng cần quy cách đóng gói (số kiện, kích thước, kg/kiện)");
       return;
     }
@@ -1062,6 +1283,12 @@ export function QuoteEditor({
       : orders.map((order) => (order.id === parsed.data.id ? parsed.data : order));
     const ok = await persist(next, false);
     if (ok) setDraft(null);
+    return ok ? next : null;
+  };
+
+  const saveDraftAndTransfer = async () => {
+    const next = await saveDraft();
+    if (next) await transferLogistics(next);
   };
 
   const toggle = (id: string, checked: boolean) => {
@@ -1078,7 +1305,38 @@ export function QuoteEditor({
     void persist(orders.filter((order) => order.id !== removing.id), false);
   };
 
-  const actions = (
+  const fillRates = async (target: QuoteOrder[]): Promise<QuoteOrder[] | null> => {
+    const codes = [...new Set(target.flatMap((order) => columnsFor(order).map((column) => column.currency)).filter((code) => code !== "VND"))];
+    if (codes.length === 0) {
+      setOrderError("Chọn thêm loại tiền trước khi lấy tỷ giá");
+      return null;
+    }
+    setRatePending(true);
+    setOrderError(undefined);
+    try {
+      const entries = await Promise.all(codes.map(async (code) => {
+        const result = await api<{ currency: string; rate: number; updatedAt: string | null }>(`/api/crm/exchange-rate?currency=${encodeURIComponent(code)}`);
+        return [code, result] as const;
+      }));
+      const rates = Object.fromEntries(entries.map(([code, result]) => [code, result.rate]));
+      return target.map((order) => applyAutoPrices(order, rates));
+    } catch (err) {
+      setOrderError(err instanceof Error ? err.message : "Không lấy được tỷ giá. Vui lòng nhập tay.");
+      return null;
+    } finally {
+      setRatePending(false);
+    }
+  };
+
+  const priceColumns = listPriceColumns(orders);
+
+  const actions = saleLogisticsOrder ? (
+    <>
+      {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
+      <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+      <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferLogistics(); }}>Chuyển logistics</Button>
+    </>
+  ) : (
     <>
       <Button type="button" variant="outline" onClick={printSelected}><Printer />In</Button>
       <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
@@ -1100,7 +1358,7 @@ export function QuoteEditor({
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
     : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
-  const defaultTab = desk === "logistics" ? "logistics" : desk === "sourcing" ? "sourcing" : "sale";
+  const defaultTab = saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
   const brandLabel = brandOptions.find((item) => item[0] === lead.brand)?.[1] ?? lead.brand ?? "—";
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
@@ -1162,28 +1420,28 @@ export function QuoteEditor({
 
   const loadExchangeRate = async () => {
     if (!draft || draft.mode === "view" || !canEditPricing) return;
-    const { id, currency } = draft.order;
-    setRatePending(true);
-    setOrderError(undefined);
-    try {
-      const result = await api<{ currency: string; rate: number; updatedAt: string | null }>(`/api/crm/exchange-rate?currency=${encodeURIComponent(currency)}`);
-      setDraft((current) => current && current.order.id === id && current.order.currency === currency
-        ? { ...current, order: { ...current.order, rate: result.rate } } : current);
-      setRateInfo({ currency, updatedAt: result.updatedAt });
-    } catch (error) {
-      setOrderError(error instanceof Error ? error.message : "Không lấy được tỷ giá. Vui lòng nhập tay.");
-    } finally {
-      setRatePending(false);
-    }
+    const next = await fillRates([draft.order]);
+    if (!next) return;
+    setDraft((current) => current && current.order.id === draft.order.id ? { ...current, order: next[0] } : current);
+  };
+
+  const fillListedRates = async () => {
+    const next = await fillRates(orders);
+    if (next) setOrders(next);
   };
 
   const sheet = (
     <>
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
-      {mode === "content" && (
+      {mode === "content" && !saleLogisticsOrder && (
         <InlineAlert>
           Sale điền ảnh, số lượng ở Sourcing. Sourcing nhập thông tin đơn hàng và đóng gói; Logistics chỉ nhập chi phí logistics. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
+        </InlineAlert>
+      )}
+      {saleLogisticsOrder && (
+        <InlineAlert>
+          Sale nhập toàn bộ thông tin đơn hàng (ảnh, số lượng, thông số, đóng gói, đơn giá). Luồng này không qua Sourcing. Logistics nhận đơn và chỉ nhập chi phí vận chuyển.
         </InlineAlert>
       )}
       <Tabs defaultValue={defaultTab} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
@@ -1192,14 +1450,21 @@ export function QuoteEditor({
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
             ["logistics", "Logistics"],
-          ] as const).filter(([value]) => desk !== "logistics" || value !== "sourcing").map(([value, label]) => (
+          ] as const).filter(([value]) => saleLogisticsOrder ? value === "sourcing" : desk !== "logistics" || value !== "sourcing").map(([value, label]) => (
             <TabsTrigger key={value} value={value} className={tabTriggerClass}>
-              {label}
+              {saleLogisticsOrder && value === "sourcing" ? "Thông tin đơn hàng" : label}
             </TabsTrigger>
           ))}
         </TabsList>
 
         <TabsContent value="sale" className={tabPanelClass}>
+          {(opsNote.trim() || notes.opsExtra.trim()) && (
+            <section className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+              <h3 className="font-semibold text-amber-950">Ghi chú vận hành</h3>
+              {opsNote.trim() && <p className="whitespace-pre-wrap">{opsNote}</p>}
+              {notes.opsExtra.trim() && <p className="whitespace-pre-wrap">{notes.opsExtra}</p>}
+            </section>
+          )}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3">
               <span className="rounded-md bg-background px-2.5 py-1 font-mono text-base font-semibold tracking-wide">{lead.leadCode || "—"}</span>
@@ -1406,13 +1671,13 @@ export function QuoteEditor({
         </TabsContent>
 
         <TabsContent value="sourcing" className={tabPanelClass}>
-          <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
+          {!saleLogisticsOrder && <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
             <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
             <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
             <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
             <p><span className="text-muted-foreground">SĐT: </span>{quote.phone || "—"}</p>
             <p className="sm:col-span-2"><span className="text-muted-foreground">Email: </span>{quote.email || "—"}</p>
-          </div>
+          </div>}
 
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-3">
@@ -1427,19 +1692,23 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Tên mẫu</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Số lượng</th>
-                    <th className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá</th>
+                    {priceColumns.map((column) => (
+                      <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({currencyPairLabel(column.currency)})</th>
+                    ))}
+                    {priceColumns.map((column) => (
+                      <th key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-3 text-right font-medium">Thành tiền ({column.currency})</th>
+                    ))}
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Số kiện</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">CBM</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Cân nặng (kg)</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Cân tính cước (kg)</th>
-                    <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Tổng tiền hàng</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Ghi chú</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={12} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                    <tr><td colSpan={10 + priceColumns.length * 2} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                   )}
                   {orders.map((order) => {
                     const totals = quoteTotals(order.lines);
@@ -1448,10 +1717,8 @@ export function QuoteEditor({
                       .slice(0, 6);
                     const quantityText = orderQuantityText(order.lines);
                     const specText = orderSpecText(order.lines);
-                    const priceTexts = orderPriceTexts(order.lines, order.currency);
                     const noteText = orderNoteText(order.lines);
                     const packed = packageMetrics(order.lines.flatMap((line) => line.packages));
-                    const vndTotal = totals.priced && order.currency !== "VND" && order.rate ? totals.goods * order.rate : null;
                     return (
                       <tr key={order.id} className="border-b last:border-0">
                         <td className="px-3 py-2">
@@ -1488,24 +1755,31 @@ export function QuoteEditor({
                           {specText && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-xs text-muted-foreground" title={specText}>{specText}</p>}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">{quantityText || "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2">
-                          {priceTexts.length === 0 ? <span className="text-muted-foreground">—</span> : (
-                            <div className="grid gap-0.5">
-                              {priceTexts.slice(0, 2).map((item, index) => <span key={index}>{item}</span>)}
-                              {priceTexts.length > 2 && <span className="text-xs text-muted-foreground">+{priceTexts.length - 2} dòng khác</span>}
-                            </div>
-                          )}
-                        </td>
+                        {priceColumns.map((column) => {
+                          const amounts = columnAmounts(order, column.currency);
+                          return (
+                            <td key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2">
+                              {amounts.texts.length === 0 ? <span className="text-muted-foreground">—</span> : (
+                                <div className="grid gap-0.5">
+                                  {amounts.texts.slice(0, 2).map((item, index) => <span key={index}>{item}</span>)}
+                                  {amounts.texts.length > 2 && <span className="text-xs text-muted-foreground">+{amounts.texts.length - 2} dòng khác</span>}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                        {priceColumns.map((column) => {
+                          const amounts = columnAmounts(order, column.currency);
+                          return (
+                            <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">
+                              {amounts.total == null ? <span className="text-muted-foreground">—</span> : <span className="font-medium">{money(amounts.total)} {column.currency}</span>}
+                            </td>
+                          );
+                        })}
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.packageCount > 0 ? money(totals.packageCount) : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.cbm > 0 ? totals.cbm : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.weighed ? money(totals.weight) : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{packed.count > 0 ? money(packed.chargeableKg) : "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right">
-                          {totals.priced ? <span className="font-medium">{money(totals.goods)} {order.currency}</span> : <span className="text-muted-foreground">—</span>}
-                          {vndTotal != null && (
-                            <p className="text-xs text-muted-foreground">≈ {money(Math.round(vndTotal))} VND (tỷ giá {money(order.rate!)})</p>
-                          )}
-                        </td>
                         <td className="min-w-40 max-w-xs px-3 py-2">
                           {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
                         </td>
@@ -1584,6 +1858,9 @@ export function QuoteEditor({
             <Field label="Ghi chú VH" htmlFor={fieldId("quote-note")}>
               <Input id={fieldId("quote-note")} value={opsNote} disabled={!canEditPricing} onChange={(event) => setOpsNote(event.target.value)} />
             </Field>
+            <Field label="Ghi chú thêm cho Sale" htmlFor={fieldId("ops-extra")} className="sm:col-span-2" hint="Ví dụ tách lô vận chuyển, dời lịch. Sale xem được ghi chú này.">
+              <Textarea id={fieldId("ops-extra")} rows={3} value={notes.opsExtra} disabled={!canEditPricing} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
+            </Field>
             <Field label="Trạng thái báo giá" htmlFor={fieldId("quote-status")}>
               <NativeSelect id={fieldId("quote-status")} value={quoteStatus} disabled={!canEditPricing} onChange={(event) => setQuoteStatus(event.target.value as (typeof quoteStatusOptions)[number][0])}>
                 {quoteStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -1638,6 +1915,66 @@ export function QuoteEditor({
             onChange={patchOrderLinePackages}
           />}
 
+          {mode === "full" && orders.length > 0 && (
+            <section className="grid gap-3 rounded-xl border p-4">
+              <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
+              <p className="text-sm text-muted-foreground">Hàng hóa do Sale/Sourcing cung cấp. Chọn một tỷ giá để thêm cột đơn giá và thành tiền.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))} />
+                <Button type="button" variant="outline" size="sm" disabled={pending || ratePending} onClick={() => void fillListedRates()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>
+              </div>
+              <div className="overflow-x-auto rounded-lg border bg-background">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-left">
+                      <th className="whitespace-nowrap px-3 py-2 font-medium">Đơn hàng</th>
+                      <th className="whitespace-nowrap px-3 py-2 font-medium">STT</th>
+                      {priceColumns.map((column) => (
+                        <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2 font-medium">Đơn giá ({currencyPairLabel(column.currency)})</th>
+                      ))}
+                      {priceColumns.map((column) => (
+                        <th key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right font-medium">Thành tiền ({column.currency})</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.flatMap((order) => order.lines.map((line, index) => (
+                      <tr key={`${order.id}-${index}`} className="border-b last:border-0">
+                        <td className="whitespace-nowrap px-3 py-2">{index === 0 ? order.name || "Đơn hàng" : ""}</td>
+                        <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
+                        {priceColumns.map((column) => {
+                          const amount = lineCurrencyPrice(line, order.currency, column.currency);
+                          return (
+                            <td key={`price-${column.currency}`} className="px-3 py-2">
+                              <MoneyInput
+                                className="h-8 w-32"
+                                aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`}
+                                value={amount.price}
+                                onValueChange={(pricePerSet) => setOrders((current) => current.map((item) => item.id === order.id
+                                  ? { ...item, lines: item.lines.map((row, lineIndex) => lineIndex === index ? withCurrencyPrice(row, item.currency, column.currency, pricePerSet) : row) }
+                                  : item))}
+                              />
+                            </td>
+                          );
+                        })}
+                        {priceColumns.map((column) => {
+                          const amount = lineCurrencyPrice(line, order.currency, column.currency);
+                          return (
+                            <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">{amount.total == null ? "—" : `${money(amount.total)} ${column.currency}`}</td>
+                          );
+                        })}
+                      </tr>
+                    )))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          <Field label="Ghi chú thêm cho Sale" htmlFor={fieldId("logistics-ops-extra")} hint="Ví dụ tách lô vận chuyển, dời lịch. Sale xem được ghi chú này.">
+            <Textarea id={fieldId("logistics-ops-extra")} rows={3} value={notes.opsExtra} disabled={mode !== "full"} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
+          </Field>
+
           <LogisticsFeesEditor
             notes={notes}
             setNotes={setNotes}
@@ -1665,7 +2002,7 @@ export function QuoteEditor({
         <Dialog open onOpenChange={(open) => { if (!open && !draft) onClose(); }}>
           <DialogContent className="flex max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none">
             <DialogHeader>
-              <DialogTitle>Báo giá {quote.code}</DialogTitle>
+              <DialogTitle>{saleLogisticsOrder ? `Thông tin đơn hàng · ${quote.leadCode || quote.code}` : `Báo giá ${quote.code}`}</DialogTitle>
             </DialogHeader>
             {sheet}
           </DialogContent>
@@ -1697,10 +2034,12 @@ export function QuoteEditor({
               {orderError && <InlineAlert>{orderError}</InlineAlert>}
               {draft.mode !== "view" && (
                 <InlineAlert>
-                  Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics.
+                  {saleLogisticsOrder
+                    ? "Sale nhập đủ thông tin đơn hàng: ảnh, số lượng, thông số, đóng gói và đơn giá. Không qua Sourcing. Logistics chỉ nhập chi phí vận chuyển sau khi nhận đơn."
+                    : "Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
                 </InlineAlert>
               )}
-              <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)_auto]">
+              <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4">
                 <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")}>
                   <Input
                     id={fieldId("order-name")}
@@ -1710,73 +2049,31 @@ export function QuoteEditor({
                     placeholder="VD: Mẫu A — 500 set"
                   />
                 </Field>
-                <Field label="Loại tiền" htmlFor={fieldId("order-currency")}>
-                  <NativeSelect
-                    id={fieldId("order-currency")}
-                    value={draft.order.currency}
-                    disabled={draft.mode === "view" || !canEditPricing}
-                    onChange={(event) => {
-                      const currency = event.target.value.toUpperCase();
-                      setDraft({ ...draft, order: { ...draft.order, currency, rate: currency === "VND" ? null : draft.order.rate } });
-                    }}
-                  >
-                    {Array.from(new Set<string>([...quoteCurrencies, draft.order.currency, ...extraCurrencies]))
-                      .filter(Boolean)
-                      .map((code) => (
-                        <option key={code} value={code}>{code}{code === "VND" ? " (nội tệ)" : ""}</option>
-                      ))}
-                  </NativeSelect>
-                </Field>
-                {draft.mode !== "view" && canEditPricing && (
-                  <div className="flex items-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => {
-                        const next = window.prompt("Nhập mã tiền tệ mới (3 chữ cái, ví dụ THB)")?.trim().toUpperCase() ?? "";
-                        if (!next) return;
-                        if (!/^[A-Z]{3}$/.test(next)) {
-                          setOrderError("Mã tiền tệ gồm đúng 3 chữ cái");
-                          return;
-                        }
-                        setExtraCurrencies((current) => current.includes(next) ? current : [...current, next]);
-                        setDraft({ ...draft, order: { ...draft.order, currency: next, rate: next === "VND" ? null : draft.order.rate } });
-                        setOrderError(undefined);
-                      }}
-                    >
-                      Thêm loại tiền
-                    </Button>
-                  </div>
-                )}
-                {draft.order.currency !== "VND" && (
-                  <Field label={`Tỷ giá (VND / 1 ${draft.order.currency})`} htmlFor={fieldId("order-rate")} hint="Không bắt buộc — có tỷ giá thì sheet in thêm dòng VND" className="sm:col-span-3">
-                    <div className="flex gap-2">
-                    <MoneyInput
-                      id={fieldId("order-rate")}
-                      value={draft.order.rate}
-                      disabled={draft.mode === "view" || !canEditPricing}
-                      onValueChange={(rate) => setDraft({ ...draft, order: { ...draft.order, rate } })}
-                    />
-                    {draft.mode !== "view" && canEditPricing && <Button type="button" variant="outline" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Tỷ giá tham khảo, cập nhật hằng ngày. Có thể chỉnh tay trước khi lưu. <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer" className="underline">Rates By Exchange Rate API</a>{rateInfo?.currency === draft.order.currency && rateInfo.updatedAt ? " · Cập nhật " + new Date(rateInfo.updatedAt).toLocaleDateString("vi-VN") : ""}</p>
-                  </Field>
-                )}
               </div>
               {draft.mode === "view" ? (
                 <QuoteSheetPreview html={sheetHtmlFor(draft.order)} title={`Xem trước ${draft.order.name || quote.code}`} />
               ) : (
+                <>
+                <div className="flex flex-wrap items-center gap-2">
+                <PriceColumnPicker
+                  orders={[draft.order]}
+                  disabled={!canEditPricing}
+                  onSelect={(currency) => setDraft({ ...draft, order: selectRateColumn(draft.order, currency) })}
+                />
+                {canEditPricing && <Button type="button" variant="outline" size="sm" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
+                </div>
                 <OrderLines
                   lines={draft.order.lines}
                   currency={draft.order.currency}
+                  columns={columnsFor(draft.order)}
                   canEditContent={canEditContent}
                   canEditPricing={canEditPricing}
-                  packagingRequired={showPackaging}
+                  packagingRequired={saleLogisticsOrder || showPackaging}
                   canEditPackaging={canEditPackaging}
                   onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
                   onError={setOrderError}
                 />
+                </>
               )}
             </div>
             <DialogFooter>
@@ -1803,6 +2100,9 @@ export function QuoteEditor({
               )}
               <Button type="button" variant="outline" onClick={() => setDraft(null)}>Đóng</Button>
               {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+              {saleLogisticsOrder && draft.mode !== "view" && (
+                <Button type="button" variant="outline" disabled={pending} onClick={() => void saveDraftAndTransfer()}>Chuyển logistics</Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1825,13 +2125,15 @@ export function QuoteEditor({
         confirmLabel="Gửi"
         onConfirm={() => {
           if (!onSend) return;
-          const missingPack = orders.some((order) => order.selected && order.lines.some((line) => line.packages.length === 0));
-          if (packagingRequired && missingPack) {
-            setFormError("Mỗi dòng hàng đã chọn cần quy cách đóng gói ở tab Logistics trước khi gửi báo giá");
-            setConfirmSend(false);
-            return;
-          }
-          const data = payloadFor(orders);
+          const priced = orders.length > 0
+            ? orders
+            : quote.sourcingContext
+              ? [{ ...quote.sourcingContext.order, selected: true }]
+              : orders;
+          const ready = priced.some((order) => order.selected)
+            ? priced
+            : priced.map((order, index) => ({ ...order, selected: index === 0 }));
+          const data = payloadFor(ready);
           if (!data) return;
           void onSend(data).then((status) => {
             if (status && quoteStatusOptions.some((item) => item[0] === status)) {

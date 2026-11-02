@@ -106,6 +106,10 @@ export class CrmController {
     res.status(200).json(await this.crm.requestQuote(laneOf(req), one(req.params.id), req.user));
   };
 
+  handoffLogisticsOrder = async (req: Request, res: Response) => {
+    res.status(200).json({ quote: await this.crm.handoffLogisticsOrder(laneOf(req), one(req.params.id), actorOf(req)) });
+  };
+
   requestLogisticsQuote = async (req: Request, res: Response) => {
     res.status(200).json(await this.crm.requestLogisticsQuote(laneOf(req), one(req.params.id), actorOf(req)));
   };

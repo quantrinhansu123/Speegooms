@@ -161,9 +161,12 @@ test("Logistics can change only costs, while Sourcing owns the order", () => {
   submitted.notes.shippingLabel = "500 VND";
   submitted.notes.logisticsFees = [{ label: "Vận chuyển", value: "500 VND" }];
   const costs = quoteDeskPatch("logistics", current, submitted);
-  assert.deepEqual(costs.orders, original.orders);
+  assert.equal(costs.orders[0].lines[0].quantity, 12);
+  assert.equal(costs.orders[0].lines[0].spec, "Kích thước sản phẩm");
+  assert.equal(costs.orders[0].lines[0].pricePerSet, 100000);
+  assert.equal(costs.orders[0].rate, 999);
   assert.deepEqual(costs.bank, original.bank);
-  assert.equal(costs.opsNote, original.opsNote);
+  assert.equal(costs.opsNote, "Changed");
   assert.equal(costs.notes.weightNote, original.notes.weightNote);
   assert.deepEqual(costs.notes.logisticsFees, submitted.notes.logisticsFees);
   assert.equal(costs.notes.shippingLabel, "500 VND");

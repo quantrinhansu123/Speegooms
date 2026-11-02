@@ -11,7 +11,6 @@ import {
   type CrmLane,
   type OpsContractInput,
   defaultQuoteBank,
-  quoteCurrencies,
   type QuoteBank,
   type QuoteDesk,
   type QuoteCurrency,
@@ -251,7 +250,7 @@ function emptyLogisticsSheet() {
     quoteStatus: "CHUA_CO_BAO_GIA",
     contractStatus: "CHUA_TAO",
     orders: [],
-    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [] },
+    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [], opsExtra: "" },
     bank: defaultQuoteBank,
     sentQuote: null,
   };
@@ -263,7 +262,8 @@ function optionalAmount(value: unknown): number | null {
 }
 
 function asCurrency(value: unknown): QuoteCurrency {
-  return quoteCurrencies.find((code) => code === value) ?? "VND";
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return /^[A-Z]{3}$/.test(code) ? code : "VND";
 }
 
 function textField(value: unknown): string {
@@ -287,13 +287,36 @@ function asOrders(value: unknown): QuoteOrder[] {
         selected: row.selected === true,
         currency: asCurrency(row.currency),
         rate: typeof row.rate === "number" && row.rate > 0 ? row.rate : null,
+        priceColumns: asPriceColumns(row.priceColumns),
         lines: asLines(row.lines),
       }];
     });
   }
   const lines = asLines(value);
   if (lines.length === 0) return [];
-  return [{ id: legacyOrderId, name: "Mẫu 1", selected: true, currency: "VND", rate: null, lines }];
+  return [{ id: legacyOrderId, name: "Mẫu 1", selected: true, currency: "VND", rate: null, priceColumns: [], lines }];
+}
+
+function asPriceColumns(value: unknown): QuoteOrder["priceColumns"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
+    if (!/^[A-Z]{3}$/.test(currency)) return [];
+    return [{ currency, rate: typeof row.rate === "number" && row.rate > 0 ? row.rate : null }];
+  }).slice(0, 8);
+}
+
+function asLinePrices(value: unknown): QuoteLine["prices"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
+    if (!/^[A-Z]{3}$/.test(currency)) return [];
+    return [{ currency, pricePerSet: optionalAmount(row.pricePerSet), lineTotal: optionalAmount(row.lineTotal) }];
+  }).slice(0, 8);
 }
 
 function asLines(value: unknown): QuoteLine[] {
@@ -317,6 +340,7 @@ function asLines(value: unknown): QuoteLine[] {
       cbm: optionalAmount(row.cbm),
       packages: asPackages(row.packages),
       attrs: asAttrs(row.attrs),
+      prices: asLinePrices(row.prices),
     }];
   });
 }
@@ -382,7 +406,7 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
 
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown; logisticsFees?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown; logisticsFees?: unknown; opsExtra?: unknown }
     : {};
   return {
     totalLabel: textField(row.totalLabel),
@@ -391,6 +415,7 @@ function asNotes(value: unknown): QuoteNotes {
     validityNote: textField(row.validityNote),
     deposit: asDeposit(row.deposit),
     logisticsFees: asLogisticsFees(row.logisticsFees),
+    opsExtra: textField(row.opsExtra),
   };
 }
 

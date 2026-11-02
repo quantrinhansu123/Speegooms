@@ -5,6 +5,6 @@ export function logisticsOrderFromSourcing(order: QuoteOrder): QuoteOrder {
   return {
     ...order,
     selected: true,
-    lines: order.lines.map((line) => ({ ...line, pricePerSet: null, lineTotal: null, basis: "unit" })),
+    lines: order.lines.map((line) => ({ ...line, pricePerSet: null, lineTotal: null, prices: [], basis: "unit" })),
   };
 }

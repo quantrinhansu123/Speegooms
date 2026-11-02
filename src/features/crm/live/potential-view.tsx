@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
-import { updatePotentialSchema, type CrmLane, type UpdatePotentialInput } from "@speego/shared";
+import { updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,11 +16,12 @@ import type { Role } from "@/types/role";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { QuoteEditor } from "./quote-editor";
 import { QuoteTracking } from "./quote-tracking";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
-import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, potentialOptions, type PotentialRecord } from "./types";
+import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const sourceOptions = [
@@ -115,6 +116,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
   const [notice, setNotice] = useState<string>();
+  const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
+  const [orderPending, setOrderPending] = useState(false);
+  const [orderError, setOrderError] = useState<string>();
   const filters = useAppliedSearch({ q: "", from: "", to: "", source: "", potential: "", customerKind: "", customerType: "" });
 
   const load = useCallback(() => {
@@ -177,7 +181,20 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .finally(() => setPending(false));
   };
 
+  const openLogisticsOrder = (row: PotentialRecord) => {
+    setError(undefined);
+    setNotice(undefined);
+    setOrderError(undefined);
+    void api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+      .then((body) => setOrderQuote(body.quote))
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được thông tin đơn hàng"));
+  };
+
   const requestQuote = (row: PotentialRecord) => {
+    if (row.customerKind === "LOGISTICS") {
+      openLogisticsOrder(row);
+      return;
+    }
     setError(undefined);
     setNotice(undefined);
     if (!row.customerKind) {
@@ -190,6 +207,44 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         setNotice(body.created ? `Đã tạo bản ghi cho ${desk}` : `Khách này đã có bản ghi ở ${desk}`);
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tạo được báo giá"));
+  };
+
+  const saveLogisticsOrder = (input: UpdateQuoteInput, options?: { close?: boolean }) => {
+    if (!orderQuote) return Promise.resolve(false);
+    setOrderPending(true);
+    setOrderError(undefined);
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}?desk=logistics`, lane), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    })
+      .then((body) => {
+        setOrderQuote(body.quote);
+        if (options?.close !== false) setOrderQuote(null);
+        setNotice("Đã lưu thông tin đơn hàng");
+        return true;
+      })
+      .catch((err: unknown) => {
+        setOrderError(err instanceof ApiError ? err.message : "Không lưu được thông tin đơn hàng");
+        return false;
+      })
+      .finally(() => setOrderPending(false));
+  };
+
+  const handoffLogistics = () => {
+    if (!orderQuote) return Promise.resolve(false);
+    setOrderPending(true);
+    setOrderError(undefined);
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}/handoff-logistics`, lane), { method: "POST" })
+      .then(() => {
+        setNotice("Đã chuyển thông tin đơn hàng cho Logistics");
+        setOrderQuote(null);
+        return true;
+      })
+      .catch((err: unknown) => {
+        setOrderError(err instanceof ApiError ? err.message : "Không chuyển được cho Logistics");
+        return false;
+      })
+      .finally(() => setOrderPending(false));
   };
 
   const remove = () => {
@@ -385,9 +440,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   </a>
                 </p>
               )}
-              <Field label="Quy cách đóng gói đã lưu (Logistics nhập tại báo giá)" htmlFor="pot-pack" className="sm:col-span-2">
-                <Textarea id="pot-pack" rows={3} value={draft.packSpec} readOnly />
-              </Field>
+              {draft.customerKind !== "LOGISTICS" && (
+                <Field label="Quy cách đóng gói đã lưu (Logistics nhập tại báo giá)" htmlFor="pot-pack" className="sm:col-span-2">
+                  <Textarea id="pot-pack" rows={3} value={draft.packSpec} readOnly />
+                </Field>
+              )}
               <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">
                 <Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />
               </Field>
@@ -418,10 +475,28 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDraft(null); setEditing(null); }}>Hủy</Button>
+            {editing?.customerKind === "LOGISTICS" && (
+              <Button type="button" variant="outline" onClick={() => openLogisticsOrder(editing)}>Chuyển logistics</Button>
+            )}
             <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {orderQuote && (
+        <QuoteEditor
+          key={orderQuote.id}
+          quote={orderQuote}
+          templates={[]}
+          editMode="content"
+          desk="logistics"
+          pending={orderPending}
+          error={orderError}
+          onClose={() => setOrderQuote(null)}
+          onSave={saveLogisticsOrder}
+          onHandoffLogistics={handoffLogistics}
+        />
+      )}
 
       <ConfirmDialog
         open={removing !== null}
