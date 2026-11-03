@@ -120,7 +120,7 @@ const amount = z.number().min(0, "Số không được âm").max(1_000_000_000).
 const dim = z.number().min(0, "Số không được âm").max(100_000);
 
 export const quotePackageSchema = z.object({
-  count: z.number().int().min(1).max(10_000),
+  count: z.number().int("Số kiện phải là số nguyên").min(1, "Số kiện tối thiểu là 1").max(10_000, "Số kiện quá lớn"),
   lengthCm: dim,
   widthCm: dim,
   heightCm: dim,

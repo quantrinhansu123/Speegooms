@@ -1,4 +1,4 @@
-import type { QuoteDesk, QuoteOrder, UpdateQuoteInput } from "@speego/shared";
+import { isCombinedSourcing, type QuoteDesk, type QuoteOrder, type UpdateQuoteInput } from "@speego/shared";
 import type { QuoteRecord } from "../repositories/crm.repository";
 
 /** Logistics giữ hàng hóa của Sale/Sourcing, chỉ nhận đơn giá và cột tiền vận hành nhập. */
@@ -41,7 +41,7 @@ export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInpu
       priceColumns: saleOwnsPrices ? order.priceColumns : previous?.priceColumns ?? order.priceColumns,
       lines: order.lines.map((line, index) => {
         const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
-        const packaging = current.quoteWorkflow === "COMBINED"
+        const packaging = isCombinedSourcing(current)
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
         if (!previousLine || saleOwnsPrices) return { ...line, ...packaging };

@@ -189,6 +189,26 @@ test("Sale order content on a pure logistics customer saves the order price and 
   await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "sale-vn" });
 });
 
+test("Pure logistics keeps packaging even when the lead workflow is combined", async () => {
+  const packages = [{ count: 2, lengthCm: 20, widthCm: 30, heightCm: 40, actualKg: 5 }];
+  const stored = handoffInput();
+  const submitted = structuredClone(stored);
+  submitted.orders[0].lines[0].packages = packages;
+  submitted.orders[0].lines[0].cbm = 0.048;
+  submitted.orders[0].lines[0].weightKg = 10;
+  const current = { ...stored, id: "quote", customerKind: "LOGISTICS", quoteWorkflow: "COMBINED" } as QuoteRecord;
+  const service = new CrmService({
+    findQuote: async () => current,
+    updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
+      assert.deepEqual(patch.orders[0].lines[0].packages, packages);
+      assert.equal(patch.orders[0].lines[0].cbm, 0.048);
+      assert.equal(patch.orders[0].lines[0].weightKg, 10);
+      return current;
+    },
+  } as unknown as CrmRepository);
+  await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "admin" });
+});
+
 test("Admin save on a pure logistics quote keeps the order and the logistics fees", async () => {
   const stored = handoffInput();
   stored.orders[0].lines[0].pricePerSet = 900;

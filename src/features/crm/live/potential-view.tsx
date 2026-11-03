@@ -118,7 +118,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
   const [notice, setNotice] = useState<string>();
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
-  const [orderRevision, setOrderRevision] = useState(0);
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
   const canPrice = canEditQuoteDesk(user.role, "logistics");
@@ -228,7 +227,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
     })
       .then((body) => {
         setOrderQuote(body.quote);
-        setOrderRevision((value) => value + 1);
         setNotice(orderContent && canPrice ? "Đã lưu báo giá" : orderContent ? "Đã lưu thông tin đơn hàng" : "Đã lưu chi phí logistics");
         return true;
       })
@@ -516,7 +514,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
 
       {orderQuote && (
         <QuoteEditor
-          key={`${orderQuote.id}-${orderRevision}`}
+          key={orderQuote.id}
           quote={orderQuote}
           templates={[]}
           editMode={canPrice ? "full" : canWrite ? "content" : "none"}
