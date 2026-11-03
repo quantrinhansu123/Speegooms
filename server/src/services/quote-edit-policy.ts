@@ -28,22 +28,23 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[]): QuoteOrder
   });
 }
 
-/** Sale sửa nội dung đơn nhưng không ghi đè đơn giá, mẫu, trạng thái và ngân hàng. */
+/** Sale sửa nội dung đơn. Khách thuần logistics được lưu đơn giá và tỷ giá; khách khác giữ giá vận hành đã nhập. */
 export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInput): UpdateQuoteInput {
+  const saleOwnsPrices = current.customerKind === "LOGISTICS";
   const orders = input.orders.map((order) => {
     const previous = current.orders.find((item) => item.id === order.id);
     return {
       ...order,
-      selected: previous?.selected ?? order.selected,
-      currency: previous?.currency ?? order.currency,
-      rate: previous?.rate ?? order.rate,
-      priceColumns: previous?.priceColumns ?? order.priceColumns,
+      selected: saleOwnsPrices ? order.selected : previous?.selected ?? order.selected,
+      currency: saleOwnsPrices ? order.currency : previous?.currency ?? order.currency,
+      rate: saleOwnsPrices ? order.rate : previous?.rate ?? order.rate,
+      priceColumns: saleOwnsPrices ? order.priceColumns : previous?.priceColumns ?? order.priceColumns,
       lines: order.lines.map((line, index) => {
         const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
         const packaging = current.quoteWorkflow === "COMBINED"
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
-        if (!previousLine) return { ...line, ...packaging };
+        if (!previousLine || saleOwnsPrices) return { ...line, ...packaging };
         return {
           ...line,
           ...packaging,

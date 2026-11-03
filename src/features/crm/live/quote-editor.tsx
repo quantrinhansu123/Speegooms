@@ -1058,6 +1058,7 @@ export function QuoteEditor({
     ? mode === "content" || (saleOrder && mode !== "none")
     : (saleLogisticsOrder || desk !== "logistics") && (mode === "content" || mode === "full");
   const canEditPricing = mode === "full" && desk !== "logistics";
+  const canEditOrderPrices = pureLogistics ? canEditContent : canEditPricing;
   const canEditPackaging = pureLogistics ? canEditContent : (saleLogisticsOrder && canEditContent) || (canEditContent && canEditPricing);
   const canEditSaleNotes = pureLogistics ? canEditContent : canEditPricing;
   const [ratePending, setRatePending] = useState(false);
@@ -1319,7 +1320,7 @@ export function QuoteEditor({
   };
 
   const toggle = (id: string, checked: boolean) => {
-    if (!canEditPricing) return;
+    if (!canEditOrderPrices) return;
     const next = orders.map((order) => ({
       ...order,
       selected: checked ? order.id === id : order.id === id ? false : order.selected,
@@ -1442,7 +1443,7 @@ export function QuoteEditor({
   };
 
   const loadExchangeRate = async () => {
-    if (!draft || draft.mode === "view" || !canEditPricing) return;
+    if (!draft || draft.mode === "view" || !canEditOrderPrices) return;
     const next = await fillRates([draft.order]);
     if (!next) return;
     setDraft((current) => current && current.order.id === draft.order.id ? { ...current, order: next[0] } : current);
@@ -1763,7 +1764,7 @@ export function QuoteEditor({
                             type="checkbox"
                             className="size-4 accent-primary"
                             checked={order.selected}
-                            disabled={!canEditPricing || pending}
+                            disabled={!canEditOrderPrices || pending}
                             aria-label={`Chọn ${order.name}`}
                             onChange={(event) => toggle(order.id, event.target.checked)}
                           />
@@ -2083,7 +2084,7 @@ export function QuoteEditor({
               {draft.mode !== "view" && (
                 <InlineAlert>
                   {pureLogistics || saleLogisticsOrder
-                    ? "Sale nhập ảnh, số lượng, thông số và đóng gói. Logistics nhập chi phí logistics."
+                    ? "Sale nhập ảnh, số lượng, thông số, đơn giá, tỷ giá và đóng gói. Logistics nhập chi phí logistics."
                     : "Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
                 </InlineAlert>
               )}
@@ -2105,17 +2106,40 @@ export function QuoteEditor({
                 <div className="flex flex-wrap items-center gap-2">
                 <PriceColumnPicker
                   orders={[draft.order]}
-                  disabled={!canEditPricing}
+                  disabled={!canEditOrderPrices}
                   onSelect={(currency) => setDraft({ ...draft, order: selectRateColumn(draft.order, currency) })}
                 />
-                {canEditPricing && <Button type="button" variant="outline" size="sm" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
+                {columnsFor(draft.order).filter((column) => column.currency !== "VND").map((column) => (
+                  <label key={column.currency} className="flex items-center gap-2 text-sm" htmlFor={fieldId(`order-rate-${column.currency}`)}>
+                    <span className="font-medium">{currencyPairLabel(column.currency)}</span>
+                    <MoneyInput
+                      id={fieldId(`order-rate-${column.currency}`)}
+                      className="h-9 w-40"
+                      fractionDigits={4}
+                      value={column.rate}
+                      disabled={!canEditOrderPrices}
+                      placeholder="Nhập tỷ giá"
+                      aria-label={`Tỷ giá ${currencyPairLabel(column.currency)}`}
+                      onValueChange={(rate) => setDraft({
+                        ...draft,
+                        order: draft.order.currency === column.currency
+                          ? { ...draft.order, rate }
+                          : {
+                            ...draft.order,
+                            priceColumns: (draft.order.priceColumns ?? []).map((item) => item.currency === column.currency ? { ...item, rate } : item),
+                          },
+                      })}
+                    />
+                  </label>
+                ))}
+                {canEditOrderPrices && <Button type="button" variant="outline" size="sm" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
                 </div>
                 <OrderLines
                   lines={draft.order.lines}
                   currency={draft.order.currency}
                   columns={columnsFor(draft.order)}
                   canEditContent={canEditContent}
-                  canEditPricing={canEditPricing}
+                  canEditPricing={canEditOrderPrices}
                   packagingRequired={saleLogisticsOrder || showPackaging}
                   canEditPackaging={canEditPackaging}
                   onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}

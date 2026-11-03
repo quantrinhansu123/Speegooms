@@ -148,16 +148,18 @@ const handoffInput = () => updateQuoteSchema.parse({
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
-test("Sale order content on a pure logistics customer keeps prices Logistics entered", async () => {
+test("Sale order content on a pure logistics customer saves the order price and keeps logistics fees", async () => {
   const packages = [{ count: 2, lengthCm: 20, widthCm: 30, heightCm: 40, actualKg: 5 }];
   const stored = handoffInput();
   stored.orders[0].lines[0].pricePerSet = 900;
   stored.orders[0].lines[0].lineTotal = 10800;
   stored.notes.logisticsFees = [{ label: "Vận chuyển", value: "500.000" }];
   const submitted = structuredClone(stored);
+  submitted.orders[0].currency = "USD";
+  submitted.orders[0].rate = 25000;
   submitted.orders[0].lines[0].quantity = 8;
-  submitted.orders[0].lines[0].pricePerSet = 1;
-  submitted.orders[0].lines[0].lineTotal = 8;
+  submitted.orders[0].lines[0].pricePerSet = 12;
+  submitted.orders[0].lines[0].lineTotal = 96;
   submitted.orders[0].lines[0].spec = "Sale cập nhật thông số";
   submitted.orders[0].lines[0].packages = packages;
   submitted.notes.logisticsFees = [{ label: "Vận chuyển", value: "1" }];
@@ -172,8 +174,10 @@ test("Sale order content on a pure logistics customer keeps prices Logistics ent
       assert.equal(patch.orders[0].lines[0].quantity, 8);
       assert.equal(patch.orders[0].lines[0].spec, "Sale cập nhật thông số");
       assert.deepEqual(patch.orders[0].lines[0].packages, packages);
-      assert.equal(patch.orders[0].lines[0].pricePerSet, 900);
-      assert.equal(patch.orders[0].lines[0].lineTotal, 10800);
+      assert.equal(patch.orders[0].currency, "USD");
+      assert.equal(patch.orders[0].rate, 25000);
+      assert.equal(patch.orders[0].lines[0].pricePerSet, 12);
+      assert.equal(patch.orders[0].lines[0].lineTotal, 96);
       assert.deepEqual(patch.notes.logisticsFees, stored.notes.logisticsFees);
       assert.equal(patch.notes.totalLabel, "1.000.000");
       assert.equal(patch.notes.validityNote, "30 ngày");
@@ -202,7 +206,7 @@ test("Admin save on a pure logistics quote keeps the order and the logistics fee
     updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
       assert.equal(patch.orders[0].lines[0].quantity, 8);
       assert.equal(patch.orders[0].lines[0].spec, "Sale cập nhật thông số");
-      assert.equal(patch.orders[0].lines[0].pricePerSet, 900);
+      assert.equal(patch.orders[0].lines[0].pricePerSet, 1);
       assert.deepEqual(patch.notes.logisticsFees, submitted.notes.logisticsFees);
       assert.equal(patch.notes.shippingLabel, "700.000");
       return current;
