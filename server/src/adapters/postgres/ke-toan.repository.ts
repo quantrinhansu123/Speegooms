@@ -200,7 +200,7 @@ export class PostgresKeToanRepository implements KeToanRepository {
 
   async listPaymentEmployees(): Promise<PaymentEmployeeOption[]> {
     const result = await this.query<{ code: string; name: string }>(
-      `select id as code, name from users order by name`,
+      `select ma_nguoi_dung as code, ho_ten as name from nguoi_dung order by ho_ten`,
     );
     return result.rows;
   }
@@ -229,7 +229,10 @@ export class PostgresKeToanRepository implements KeToanRepository {
       let payeeCode = input.payeeCode ?? null;
       let payeeName = input.payeeName;
       if (input.payeeKind === "NHAN_VIEN") {
-        const employee = await client.query<{ name: string }>(`select name from users where id = $1`, [payeeCode]);
+        const employee = await client.query<{ name: string }>(
+          `select ho_ten as name from nguoi_dung where ma_nguoi_dung = $1`,
+          [payeeCode],
+        );
         if (!employee.rows[0]) return { result: "employee_missing" } as const;
         payeeName = employee.rows[0].name;
       } else {

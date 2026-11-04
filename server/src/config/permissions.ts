@@ -29,7 +29,7 @@ export const permissions = {
   "expense.read": ["admin", "ban-gd", "ke-toan"],
   "expense.write": ["admin", "ke-toan"],
   "ledger.read": ["admin", "ban-gd", "ke-toan"],
-  "ledger.write": ["ke-toan"],
+  "ledger.write": ["admin", "ke-toan"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof permissions;
