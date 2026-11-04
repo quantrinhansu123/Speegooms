@@ -21,6 +21,7 @@ import {
   type UpdateMessageInput,
   type UpdatePotentialInput,
   type UpdateQuoteInput,
+  type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -241,6 +242,18 @@ export class CrmService {
     const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
+    return result;
+  }
+
+  async updateQuoteOutcome(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    input: UpdateQuoteOutcomeInput,
+  ): Promise<QuoteRecord> {
+    const result = await this.ready().updateQuoteOutcome(lane, desk, id, input);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (result === "locked") throw new AppError(409, "CONFLICT", "Không thể sửa lý do sau khi đã tạo hợp đồng");
     return result;
   }
 
