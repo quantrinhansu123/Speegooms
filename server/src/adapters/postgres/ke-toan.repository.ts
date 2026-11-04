@@ -6,6 +6,7 @@ import type {
   InternalExpenseRecord,
   KeToanRepository,
   PaymentOrderOption,
+  PaymentEmployeeOption,
   PaymentRequestRecord,
   PayrollRecord,
 } from "../../repositories/ke-toan.repository";
@@ -24,6 +25,7 @@ const DEPOSIT_CONFIRMED = ["DA_HOAN_THANH_COC", "DA_HOAN_THANH_THANH_TOAN"] as c
 const paymentSelect = `select d.id::text as id, d.ma_hien_thi as code, d.ma_don_hang as order_code,
   d.ten_khach_hang as customer_name, d.doi_tuong_nhan::text as payee_kind, d.muc_dich::text as purpose,
   d.ma_nguoi_nhan as payee_code, d.nguoi_nhan as payee_name, d.ma_tham_chieu as ref_code,
+  d.ma_tham_chieu_chi_tiet as references,
   d.noi_dung_thanh_toan as content, d.so_tien::text as amount, d.tien_te as currency, d.ghi_chu as note,
   d.trang_thai::text as status, d.nguoi_nhap as entered_by, d.nhap_luc as entered_at,
   d.nguoi_duyet as approved_by, d.duyet_luc as approved_at, d.nguoi_chi as paid_by, d.chi_luc as paid_at
@@ -50,6 +52,7 @@ type PaymentRow = {
   payee_code: string | null;
   payee_name: string | null;
   ref_code: string | null;
+  references: { source: string; code: string }[];
   content: string;
   amount: string;
   currency: string;
@@ -112,6 +115,7 @@ function toPayment(row: PaymentRow): PaymentRequestRecord {
     payeeCode: row.payee_code,
     payeeName: row.payee_name,
     refCode: row.ref_code,
+    references: row.references,
     content: row.content,
     amount: money(row.amount),
     currency: row.currency.trim(),
@@ -181,6 +185,13 @@ export class PostgresKeToanRepository implements KeToanRepository {
     return result.rows.map((row) => ({ code: row.code, customerName: row.customer_name, accountingStatus: row.accounting_status }));
   }
 
+  async listPaymentEmployees(): Promise<PaymentEmployeeOption[]> {
+    const result = await this.query<{ code: string; name: string }>(
+      `select id as code, name from users order by name`,
+    );
+    return result.rows;
+  }
+
   async listPayments(search: PaymentListSearch): Promise<PaymentRequestRecord[]> {
     const compiled = paymentSearch(search).build();
     const result = await this.query<PaymentRow>(
@@ -202,21 +213,41 @@ export class PostgresKeToanRepository implements KeToanRepository {
       if (!row.accounting_status || !(DEPOSIT_CONFIRMED as readonly string[]).includes(row.accounting_status)) {
         return { result: "deposit_missing" } as const;
       }
+      let payeeCode = input.payeeCode ?? null;
+      let payeeName = input.payeeName;
+      if (input.payeeKind === "NHAN_VIEN") {
+        const employee = await client.query<{ name: string }>(`select name from users where id = $1`, [payeeCode]);
+        if (!employee.rows[0]) return { result: "employee_missing" } as const;
+        payeeName = employee.rows[0].name;
+      } else {
+        const generated = await client.query<{ code: string }>(
+          `insert into ke_toan.danh_ba_nguoi_nhan (doi_tuong_nhan, ten)
+           values ($1::ke_toan.doi_tuong_nhan, $2)
+           on conflict (doi_tuong_nhan, (lower(btrim(ten)))) do update set ten = excluded.ten
+           returning ma as code`,
+          [input.payeeKind, payeeName],
+        );
+        payeeCode = generated.rows[0]?.code ?? null;
+      }
+      const references = input.references.length > 0
+        ? input.references
+        : input.refCode ? [{ source: "Khác", code: input.refCode }] : [];
       const inserted = await client.query<{ id: string }>(
         `insert into ke_toan.de_nghi_thanh_toan (
            ma_don_hang, ten_khach_hang, doi_tuong_nhan, muc_dich, ma_nguoi_nhan, nguoi_nhan,
-           ma_tham_chieu, noi_dung_thanh_toan, so_tien, tien_te, ghi_chu, nguoi_nhap
+           ma_tham_chieu, ma_tham_chieu_chi_tiet, noi_dung_thanh_toan, so_tien, tien_te, ghi_chu, nguoi_nhap
          )
-         values ($1, $2, $3::ke_toan.doi_tuong_nhan, $4::ke_toan.muc_dich_thanh_toan, $5, $6, $7, $8, $9, $10, $11, $12)
+         values ($1, $2, $3::ke_toan.doi_tuong_nhan, $4::ke_toan.muc_dich_thanh_toan, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13)
          returning id::text as id`,
         [
           input.orderCode,
           row.customer_name,
           input.payeeKind,
           input.purpose,
-          input.payeeCode ?? null,
-          input.payeeName,
-          input.refCode ?? null,
+          payeeCode,
+          payeeName,
+          references[0]?.code ?? null,
+          JSON.stringify(references),
           input.content,
           input.amount,
           input.currency,

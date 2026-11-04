@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Khớp enum ke_toan.* trong migration 031. */
-export const paymentPayeeKinds = ["NHA_CUNG_CAP", "DOI_TAC_VAN_CHUYEN"] as const;
+export const paymentPayeeKinds = ["NHA_CUNG_CAP", "DOI_TAC_VAN_CHUYEN", "NHAN_VIEN"] as const;
 export const paymentPurposes = ["DAT_COC_XUONG", "THANH_TOAN_XUONG", "CUOC_VAN_CHUYEN", "KHAC"] as const;
 export const paymentStatuses = ["NHAP", "CHO_DUYET", "DA_DUYET", "DA_CHI", "TU_CHOI", "HUY"] as const;
 export const expenseStatuses = ["CHO_DUYET", "DA_CHI"] as const;
@@ -14,6 +14,7 @@ export const expenseStatusSchema = z.enum(expenseStatuses);
 export const paymentPayeeKindLabels: Record<(typeof paymentPayeeKinds)[number], string> = {
   NHA_CUNG_CAP: "Nhà cung cấp",
   DOI_TAC_VAN_CHUYEN: "Đối tác vận chuyển",
+  NHAN_VIEN: "Nhân viên công ty",
 };
 
 export const paymentPurposeLabels: Record<(typeof paymentPurposes)[number], string> = {
@@ -51,10 +52,18 @@ export const createPaymentRequestSchema = z.object({
   payeeName: z.string().trim().min(1, "Nhập người nhận").max(200),
   payeeCode: optionalText(64),
   refCode: optionalText(64),
+  references: z.array(z.object({
+    source: z.string().trim().min(1, "Nhập nguồn tham chiếu").max(100),
+    code: z.string().trim().min(1, "Nhập mã tham chiếu").max(100),
+  })).max(20, "Tối đa 20 mã tham chiếu").default([]),
   content: z.string().trim().min(1, "Nhập nội dung thanh toán").max(500),
   amount: money.positive("Số tiền phải lớn hơn 0"),
   currency: z.string().trim().length(3).toUpperCase().default("VND"),
   note: optionalText(1000),
+}).superRefine((value, ctx) => {
+  if (value.payeeKind === "NHAN_VIEN" && !value.payeeCode) {
+    ctx.addIssue({ code: "custom", message: "Chọn nhân viên công ty", path: ["payeeCode"] });
+  }
 });
 
 export type CreatePaymentRequestInput = z.infer<typeof createPaymentRequestSchema>;

@@ -56,6 +56,10 @@ test("đề nghị thanh toán bắt buộc có nội dung thanh toán và số 
   assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, content: "   " }).success, false);
   assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, amount: 0 }).success, false);
   assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, payeeKind: "KHAC" }).success, false);
+  assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, payeeKind: "NHAN_VIEN" }).success, false);
+  assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, payeeKind: "NHAN_VIEN", payeeCode: "u-hr" }).success, true);
+  assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, references: [{ source: "Shopee", code: "SP-123" }] }).success, true);
+  assert.equal(createPaymentRequestSchema.safeParse({ ...validPayment, references: [{ source: "Shopee", code: "" }] }).success, false);
   const parsed = createPaymentRequestSchema.parse({ ...validPayment, content: "  Cọc  " });
   assert.equal(parsed.content, "Cọc");
   assert.equal(parsed.currency, "VND");
