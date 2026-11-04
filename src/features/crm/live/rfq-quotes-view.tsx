@@ -1,28 +1,34 @@
 "use client";
 
+import { quoteAmount } from "@speego/shared";
+
 import { isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
-import { reassignQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, Eye, FilePlus, Pencil, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
+import { industryCategoryOptions, reassignQuoteSchema, updateQuoteOutcomeSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
+import { TableHScroll } from "./table-h-scroll";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
 import { contractStatusOptions, customerKindOptions, deskLabels, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
@@ -112,6 +118,11 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const canCreateContract = contractRoles.includes(user.role);
   const contentEditMode = canContent ? "content" as const : "none" as const;
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
+  const rowsWithTotals = useMemo(() => rows.map((row) => ({
+    row,
+    sourcingTotal: quoteAmount(row, "sourcing"),
+    logisticsTotal: quoteAmount(row.logisticsSheet, "logistics"),
+  })), [rows]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -120,6 +131,10 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<RfqQuoteRecord | null>(null);
   const [viewing, setViewing] = useState<RfqQuoteRecord | null>(null);
   const [contractQuote, setContractQuote] = useState<RfqQuoteRecord | null>(null);
+  const [outcomeQuote, setOutcomeQuote] = useState<RfqQuoteRecord | null>(null);
+  const [outcomeDraft, setOutcomeDraft] = useState("");
+  const [outcomeError, setOutcomeError] = useState<string>();
+  const [outcomePending, setOutcomePending] = useState(false);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const quoteRequest = useRef(0);
   const potentialRequest = useRef(0);
@@ -157,10 +172,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     loadPotentials();
   }, [loadQuotes, loadPotentials]);
 
+  const excel = useExcelImport({ kind: "quotes", lane, allLanes: canPick, enabled: canWrite, onDone: load });
+
   useEffect(() => {
     setRows([]);
     setDraft(null);
     setRemoving(null);
+    setOutcomeQuote(null);
     setError(undefined);
     loadQuotes();
   }, [loadQuotes]);
@@ -227,6 +245,21 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       .finally(() => setPending(false));
   };
 
+  const handoffLogistics = (row: RfqQuoteRecord) => {
+    setPending(true);
+    setError(undefined);
+    return api(crmPath(`/api/crm/quotes/${row.id}/handoff-logistics`, lane), { method: "POST" })
+      .then(() => {
+        loadQuotes();
+        return true;
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : "Không chuyển được cho Logistics");
+        return false;
+      })
+      .finally(() => setPending(false));
+  };
+
   const sentToSale = (status: string) => status === "DA_CO_BAO_GIA" || status === "DA_CO_BAO_GIA_LAI";
 
   const saveQuoteContent = (row: RfqQuoteRecord, input: UpdateQuoteInput, options?: { close?: boolean }) => {
@@ -287,6 +320,33 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       });
   };
 
+  const openOutcomeEditor = (row: RfqQuoteRecord) => {
+    setOutcomeError(undefined);
+    setOutcomeDraft(row.nonCloseReason ?? "");
+    setOutcomeQuote(row);
+  };
+
+  const saveOutcome = () => {
+    if (!outcomeQuote) return;
+    const parsed = updateQuoteOutcomeSchema.safeParse({ nonCloseReason: outcomeDraft });
+    if (!parsed.success) {
+      setOutcomeError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+      return;
+    }
+    setOutcomePending(true);
+    setOutcomeError(undefined);
+    void api<{ quote: RfqQuoteRecord }>(
+      crmPath(`/api/crm/quotes/${outcomeQuote.id}/outcome?desk=${outcomeQuote.desk}`, lane),
+      { method: "PATCH", body: JSON.stringify(parsed.data) },
+    )
+      .then(() => {
+        setOutcomeQuote(null);
+        loadQuotes();
+      })
+      .catch((err: unknown) => setOutcomeError(err instanceof ApiError ? err.message : "Không lưu được lý do"))
+      .finally(() => setOutcomePending(false));
+  };
+
   const returnQuote = (row: RfqQuoteRecord) => {
     setPending(true);
     setError(undefined);
@@ -326,11 +386,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {excel.buttons}
             {canWrite ? <Button type="button" onClick={openCreate}><Plus /> Thêm báo giá</Button> : null}
           </>
         }
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}
@@ -347,26 +409,30 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
-        <table className="w-full min-w-[1080px] text-sm">
+      <TableHScroll>
+        <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Bàn</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Sourcing</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Logistics</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Lý do không/chưa chốt</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
+              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
-            {rows.map((row) => {
+            {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
               const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
               return (
@@ -382,6 +448,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 </td>
                 <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="max-w-56 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
+                <td className="max-w-56 truncate px-3 py-3" title={labelOf(industryCategoryOptions, row.industry)}>{labelOf(industryCategoryOptions, row.industry)}</td>
                 <td className="px-3 py-3">{isCombinedSourcing(row) ? "Sourcing" : deskLabels[row.desk]}</td>
                 <td className="px-3 py-3">
                   {isCombinedSourcing(row) ? (
@@ -397,7 +464,21 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   ) : <QuoteStatusBadge value={row.quoteStatus} />}
                 </td>
+                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>
                 <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
+                <td className="max-w-72 px-3 py-3">
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 truncate" title={row.contractStatus === "DA_TAO" ? undefined : row.nonCloseReason ?? undefined}>
+                      {row.contractStatus === "DA_TAO" ? "—" : row.nonCloseReason || "—"}
+                    </span>
+                    {canWrite && row.contractStatus !== "DA_TAO" && (
+                      <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => openOutcomeEditor(row)} aria-label={`Sửa lý do chưa chốt ${row.code}`}>
+                        <Pencil /> Sửa
+                      </Button>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
                 <td className="px-3 py-3">
                   <RowMenu
@@ -454,7 +535,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-lg">
@@ -489,6 +570,31 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDraft(null)}>Hủy</Button>
             <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={outcomeQuote !== null} onOpenChange={(open) => { if (!open && !outcomePending) setOutcomeQuote(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Lý do không/chưa chốt{outcomeQuote ? ` · ${outcomeQuote.code}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {outcomeError && <InlineAlert>{outcomeError}</InlineAlert>}
+            <Field label="Lý do" htmlFor="quote-non-close-reason" hint="Tối đa 2.000 ký tự">
+              <Textarea
+                id="quote-non-close-reason"
+                rows={5}
+                maxLength={2000}
+                value={outcomeDraft}
+                placeholder="Ví dụ: khách đang cân nhắc giá hoặc chưa xác nhận nhu cầu…"
+                onChange={(event) => setOutcomeDraft(event.target.value)}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={outcomePending} onClick={() => setOutcomeQuote(null)}>Hủy</Button>
+            <Button type="button" disabled={outcomePending} onClick={saveOutcome}>{outcomePending ? "Đang lưu…" : "Lưu"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -554,6 +660,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           onClose={() => setViewing(null)}
           onSave={(input, options) => saveQuoteContent(viewing, input, options)}
           onSaveSale={canWrite ? (input) => saveSaleLead(viewing, input) : undefined}
+          onHandoffLogistics={canWrite && viewing.customerKind === "LOGISTICS" ? () => handoffLogistics(viewing) : undefined}
           onReturn={viewing.sentQuote ? () => returnQuote(viewing) : undefined}
         />
       )}

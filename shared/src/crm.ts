@@ -21,6 +21,36 @@ export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
 export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
 export const careChannelSchema = z.enum(["FACEBOOK", "ZALO", "WHATSAPP", "VIBER"]);
+export const industryCategoryValues = {
+  NAIL_SPA_SUPPLIES: "NAIL_SPA_SUPPLIES",
+  NAIL_SPA_EQUIPMENT: "NAIL_SPA_EQUIPMENT",
+  NAIL_SPA_FURNITURE: "NAIL_SPA_FURNITURE",
+  BATHROOM_MATERIALS: "BATHROOM_MATERIALS",
+  DECOR_SIGNAGE: "DECOR_SIGNAGE",
+  FNB_FURNITURE: "FNB_FURNITURE",
+  HOME_FURNITURE: "HOME_FURNITURE",
+  FNB_KITCHEN_EQUIPMENT: "FNB_KITCHEN_EQUIPMENT",
+  NAIL_DISPOSABLES_PACKAGING: "NAIL_DISPOSABLES_PACKAGING",
+  HOME_ELECTRONICS: "HOME_ELECTRONICS",
+  FASHION_ACCESSORIES: "FASHION_ACCESSORIES",
+  OTHER: "OTHER",
+} as const;
+export const industryCategorySchema = z.enum(industryCategoryValues);
+export type IndustryCategory = z.infer<typeof industryCategorySchema>;
+export const industryCategoryOptions = [
+  [industryCategoryValues.NAIL_SPA_SUPPLIES, "Vật tư & hóa mỹ phẩm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_EQUIPMENT, "Máy móc & thiết bị tiệm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_FURNITURE, "Ghế & nội thất tiệm Nail/Spa"],
+  [industryCategoryValues.BATHROOM_MATERIALS, "Vật liệu & thiết bị nhà tắm"],
+  [industryCategoryValues.DECOR_SIGNAGE, "Decor & bảng hiệu"],
+  [industryCategoryValues.FNB_FURNITURE, "Nội thất nhà hàng / quán F&B"],
+  [industryCategoryValues.HOME_FURNITURE, "Nội thất nhà ở"],
+  [industryCategoryValues.FNB_KITCHEN_EQUIPMENT, "Máy móc & dụng cụ bếp quán F&B"],
+  [industryCategoryValues.NAIL_DISPOSABLES_PACKAGING, "Đồ dùng một lần tiệm nail & bao bì"],
+  [industryCategoryValues.HOME_ELECTRONICS, "Đồ điện tử gia dụng"],
+  [industryCategoryValues.FASHION_ACCESSORIES, "Thời trang & phụ kiện"],
+  [industryCategoryValues.OTHER, "Khác"],
+] as const;
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -47,6 +77,7 @@ const messageFields = {
   phone: text(30),
   email: text(160),
   goods: text(500),
+  industry: industryCategorySchema.optional(),
   note: text(2000),
   demand: messageDemandSchema.optional(),
   customerType: customerTypeSchema.optional(),
@@ -120,7 +151,7 @@ const amount = z.number().min(0, "Số không được âm").max(1_000_000_000).
 const dim = z.number().min(0, "Số không được âm").max(100_000);
 
 export const quotePackageSchema = z.object({
-  count: z.number().int().min(1).max(10_000),
+  count: z.number().int("Số kiện phải là số nguyên").min(1, "Số kiện tối thiểu là 1").max(10_000, "Số kiện quá lớn"),
   lengthCm: dim,
   widthCm: dim,
   heightCm: dim,
@@ -134,8 +165,32 @@ const quoteImage = z.string().max(100_000).refine(
   "Ảnh không hợp lệ",
 );
 
+/** Danh sách tiền tệ gợi ý. Cho phép thêm mã mới (3 chữ cái) khi báo giá. */
+export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
+export const quoteCurrencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái (ví dụ USD)")
+  .default("VND");
+export type QuoteCurrency = string;
+
+/** Đơn giá và thành tiền của một dòng theo một loại tiền. */
+export const quoteLinePriceSchema = z.object({
+  currency: quoteCurrencySchema,
+  pricePerSet: amount,
+  lineTotal: amount,
+});
+
+/** Cột đơn giá thêm trên đơn hàng. Tỷ giá là số VND cho 1 đơn vị ngoại tệ. */
+export const quotePriceColumnSchema = z.object({
+  currency: quoteCurrencySchema,
+  rate: z.number().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
+});
+
 export const quoteLineSchema = z.object({
   stt: text(20),
+  productName: text(300).optional(),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
   image: quoteImage.default(""),
   /** Nhiều ảnh sản phẩm trên một dòng báo giá. */
@@ -143,18 +198,21 @@ export const quoteLineSchema = z.object({
   quantity: amount,
   pricePerSet: amount,
   lineTotal: amount,
+  /** Cân nặng mỗi đơn vị hàng; thành tiền kg = đơn giá × kg/đơn vị × số lượng. */
   weightKg: amount,
   spec: text(4000),
   note: text(4000),
   /** Đơn vị tính: set, ghế, kg, cbm, lô... */
   unit: text(20).default("set"),
-  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo CBM hoặc trọn gói */
+  /** Cách tính giá: theo đơn vị, theo kg/CBM mỗi đơn vị × số lượng, hoặc trọn gói. */
   basis: z.enum(["unit", "kg", "cbm", "lump"]).default("unit"),
   cbm: amount.default(null),
-  /** Quy cách đóng gói. Có kiện thì CBM và cân tính cước được suy ra từ đây */
+  /** Quy cách đóng gói. CBM và cân tổng từ kiện được chia theo số lượng để lưu theo đơn vị hàng. */
   packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
   attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
+  /** Đơn giá theo loại tiền khác currency của đơn. Currency chính vẫn nằm ở pricePerSet. */
+  prices: z.array(quoteLinePriceSchema).max(8, "Tối đa 8 loại tiền mỗi dòng").default([]),
 });
 
 /** Danh sách ảnh dòng: ưu tiên images[], fallback image cũ. */
@@ -185,6 +243,8 @@ export const quoteNotesSchema = z.object({
   ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
   /** Chi phí logistics chi tiết (cảng, vận chuyển, thông quan…). */
   logisticsFees: z.array(logisticsFeeSchema).max(30, "Tối đa 30 dòng chi phí logistics").default([]),
+  /** Ghi chú thêm của vận hành (tách lô, dời lịch…) để Sale xem. */
+  opsExtra: text(2000).default(""),
 });
 
 export const quoteBankSchema = z.object({
@@ -194,16 +254,6 @@ export const quoteBankSchema = z.object({
   routingNumber: text(80),
 });
 
-/** Danh sách tiền tệ gợi ý. Cho phép thêm mã mới (3 chữ cái) khi báo giá. */
-export const quoteCurrencies = ["VND", "USD", "AUD", "EUR", "GBP", "CAD", "SGD", "CNY", "JPY"] as const;
-export const quoteCurrencySchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái (ví dụ USD)")
-  .default("VND");
-export type QuoteCurrency = string;
-
 export const quoteOrderSchema = z.object({
   id: uuidText,
   name: z.string().trim().min(1, "Nhập tên thông tin đơn hàng").max(160),
@@ -211,6 +261,8 @@ export const quoteOrderSchema = z.object({
   currency: quoteCurrencySchema.default("VND"),
   /** Tỷ giá: số VND cho 1 đơn vị ngoại tệ, chỉ dùng khi currency khác VND (để hiện quy đổi) */
   rate: z.number().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
+  /** Các loại tiền thêm, ngoài currency chính. Mỗi loại thành một cặp cột đơn giá và thành tiền. */
+  priceColumns: z.array(quotePriceColumnSchema).max(8, "Tối đa 8 cột đơn giá").default([]),
   lines: z.array(quoteLineSchema).max(40, "Tối đa 40 dòng hàng"),
 });
 
@@ -230,6 +282,10 @@ export const updateQuoteSchema = z.object({
 
 export const reassignQuoteSchema = z.object({
   potentialId: uuidText,
+});
+
+export const updateQuoteOutcomeSchema = z.object({
+  nonCloseReason: text(2000),
 });
 
 export const quoteTemplateSchema = z.object({
@@ -266,7 +322,7 @@ export const createContractSchema = z.object({
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
   saleName: text(160),
   shipTo: z.union([z.literal(""), contractShipToSchema]),
-  product: text(300),
+  product: text(15_000),
   quantity: z.number().min(0).max(1_000_000_000).nullable(),
   productValue: money,
   shippingCost: money,
@@ -407,7 +463,7 @@ export const saleContractPaymentSchema = z.object({
 
 /** Một lần kế toán xác nhận số tiền (kèm ảnh về TK của lần đó). */
 export const accountingConfirmationLineSchema = z.object({
-  amount: money,
+  amount: money.positive("Nhập số tiền xác nhận lớn hơn 0"),
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần xác nhận").default([]),
 });
@@ -415,7 +471,7 @@ export const accountingConfirmationLineSchema = z.object({
 export const accountingContractSchema = z.object({
   accountingStatus: accountingStatusSchema,
   /** Nhiều lần xác nhận; tổng amount = số tiền kế toán xác nhận. */
-  confirmations: z.array(accountingConfirmationLineSchema).max(50, "Tối đa 50 lần xác nhận"),
+  confirmations: z.array(accountingConfirmationLineSchema).min(1, "Nhập ít nhất một số tiền xác nhận").max(50, "Tối đa 50 lần xác nhận"),
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
@@ -442,6 +498,7 @@ export type SentQuote = {
   bank: QuoteBank;
 };
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type UpdateQuoteOutcomeInput = z.infer<typeof updateQuoteOutcomeSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;

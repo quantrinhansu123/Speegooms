@@ -31,6 +31,7 @@ export function sanitizeUnknown(value: unknown, depth = 0): unknown {
     return value;
   }
   if (typeof value === "boolean" || value === null) return value;
+  if (Buffer.isBuffer(value)) return value;
   if (Array.isArray(value)) {
     if (value.length > MAX_ARRAY) throw new AppError(400, "PAYLOAD_REJECTED", "Danh sách quá dài");
     return value.map((item) => sanitizeUnknown(item, depth + 1));

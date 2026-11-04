@@ -8,6 +8,7 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { quoteDeskPatch } from "../services/quote-edit-policy";
+import { accountingContractSchema, createContractSchema, contractPaymentFlags, quoteAmount, shippingInCurrency } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -100,7 +101,7 @@ test("quote projection preserves both workflow and Sale requirement images after
   }
 });
 
-test("a new combined order notifies both desks once", async () => {
+test("new orders notify Sourcing; Logistics is notified by the explicit handoff", async () => {
   const desks: QuoteDesk[] = [];
   let created = true;
   const quote = { id: "quote", code: "BGS", customerKind: "SOURCING", quoteWorkflow: "COMBINED" } as QuoteRecord;
@@ -110,10 +111,10 @@ test("a new combined order notifies both desks once", async () => {
     notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { desks.push(desk); },
   } as unknown as NotificationService);
   await service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser);
-  assert.deepEqual(desks, ["sourcing", "logistics"]);
+  assert.deepEqual(desks, ["sourcing"]);
   created = false;
   await service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser);
-  assert.equal(desks.length, 2);
+  assert.equal(desks.length, 1);
 });
 
 test("Sale content updates preserve Logistics packaging for the new workflow", async () => {
@@ -147,6 +148,93 @@ const handoffInput = () => updateQuoteSchema.parse({
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
+test("Sale order content on a pure logistics customer saves the order price and keeps logistics fees", async () => {
+  const packages = [{ count: 2, lengthCm: 20, widthCm: 30, heightCm: 40, actualKg: 5 }];
+  const stored = handoffInput();
+  stored.orders[0].lines[0].pricePerSet = 900;
+  stored.orders[0].lines[0].lineTotal = 10800;
+  stored.notes.logisticsFees = [{ label: "Vận chuyển", value: "500.000" }];
+  const submitted = structuredClone(stored);
+  submitted.orders[0].currency = "USD";
+  submitted.orders[0].rate = 25000;
+  submitted.orders[0].lines[0].quantity = 8;
+  submitted.orders[0].lines[0].pricePerSet = 12;
+  submitted.orders[0].lines[0].lineTotal = 96;
+  submitted.orders[0].lines[0].spec = "Sale cập nhật thông số";
+  submitted.orders[0].lines[0].packages = packages;
+  submitted.notes.logisticsFees = [{ label: "Vận chuyển", value: "1" }];
+  submitted.notes.totalLabel = "1.000.000";
+  submitted.notes.validityNote = "30 ngày";
+  submitted.notes.deposit = ["30%"];
+  submitted.notes.weightNote = "120 kg / 2.4 CBM";
+  const current = { ...stored, id: "quote", customerKind: "LOGISTICS", quoteWorkflow: "LEGACY" } as QuoteRecord;
+  const service = new CrmService({
+    findQuote: async () => current,
+    updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
+      assert.equal(patch.orders[0].lines[0].quantity, 8);
+      assert.equal(patch.orders[0].lines[0].spec, "Sale cập nhật thông số");
+      assert.deepEqual(patch.orders[0].lines[0].packages, packages);
+      assert.equal(patch.orders[0].currency, "USD");
+      assert.equal(patch.orders[0].rate, 25000);
+      assert.equal(patch.orders[0].lines[0].pricePerSet, 12);
+      assert.equal(patch.orders[0].lines[0].lineTotal, 96);
+      assert.deepEqual(patch.notes.logisticsFees, stored.notes.logisticsFees);
+      assert.equal(patch.notes.totalLabel, "1.000.000");
+      assert.equal(patch.notes.validityNote, "30 ngày");
+      assert.deepEqual(patch.notes.deposit, ["30%"]);
+      assert.equal(patch.notes.weightNote, "120 kg / 2.4 CBM");
+      return current;
+    },
+  } as unknown as CrmRepository);
+  await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "sale-vn" });
+});
+
+test("Pure logistics keeps packaging even when the lead workflow is combined", async () => {
+  const packages = [{ count: 2, lengthCm: 20, widthCm: 30, heightCm: 40, actualKg: 5 }];
+  const stored = handoffInput();
+  const submitted = structuredClone(stored);
+  submitted.orders[0].lines[0].packages = packages;
+  submitted.orders[0].lines[0].cbm = 0.048;
+  submitted.orders[0].lines[0].weightKg = 10;
+  const current = { ...stored, id: "quote", customerKind: "LOGISTICS", quoteWorkflow: "COMBINED" } as QuoteRecord;
+  const service = new CrmService({
+    findQuote: async () => current,
+    updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
+      assert.deepEqual(patch.orders[0].lines[0].packages, packages);
+      assert.equal(patch.orders[0].lines[0].cbm, 0.048);
+      assert.equal(patch.orders[0].lines[0].weightKg, 10);
+      return current;
+    },
+  } as unknown as CrmRepository);
+  await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "admin" });
+});
+
+test("Admin save on a pure logistics quote keeps the order and the logistics fees", async () => {
+  const stored = handoffInput();
+  stored.orders[0].lines[0].pricePerSet = 900;
+  stored.orders[0].lines[0].lineTotal = 10800;
+  stored.notes.logisticsFees = [{ label: "Vận chuyển", value: "500.000" }];
+  const submitted = structuredClone(stored);
+  submitted.orders[0].lines[0].quantity = 8;
+  submitted.orders[0].lines[0].spec = "Sale cập nhật thông số";
+  submitted.orders[0].lines[0].pricePerSet = 1;
+  submitted.notes.logisticsFees = [{ label: "Cước biển", value: "700.000" }];
+  submitted.notes.shippingLabel = "700.000";
+  const current = { ...stored, id: "quote", customerKind: "LOGISTICS", quoteWorkflow: "LEGACY" } as QuoteRecord;
+  const service = new CrmService({
+    findQuote: async () => current,
+    updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
+      assert.equal(patch.orders[0].lines[0].quantity, 8);
+      assert.equal(patch.orders[0].lines[0].spec, "Sale cập nhật thông số");
+      assert.equal(patch.orders[0].lines[0].pricePerSet, 1);
+      assert.deepEqual(patch.notes.logisticsFees, submitted.notes.logisticsFees);
+      assert.equal(patch.notes.shippingLabel, "700.000");
+      return current;
+    },
+  } as unknown as CrmRepository);
+  await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "admin" });
+});
+
 test("Logistics can change only costs, while Sourcing owns the order", () => {
   const original = handoffInput();
   const current = { ...original, orders: original.orders } as QuoteRecord;
@@ -160,9 +248,12 @@ test("Logistics can change only costs, while Sourcing owns the order", () => {
   submitted.notes.shippingLabel = "500 VND";
   submitted.notes.logisticsFees = [{ label: "Vận chuyển", value: "500 VND" }];
   const costs = quoteDeskPatch("logistics", current, submitted);
-  assert.deepEqual(costs.orders, original.orders);
+  assert.equal(costs.orders[0].lines[0].quantity, 12);
+  assert.equal(costs.orders[0].lines[0].spec, "Kích thước sản phẩm");
+  assert.equal(costs.orders[0].lines[0].pricePerSet, 100000);
+  assert.equal(costs.orders[0].rate, 999);
   assert.deepEqual(costs.bank, original.bank);
-  assert.equal(costs.opsNote, original.opsNote);
+  assert.equal(costs.opsNote, "Changed");
   assert.equal(costs.notes.weightNote, original.notes.weightNote);
   assert.deepEqual(costs.notes.logisticsFees, submitted.notes.logisticsFees);
   assert.equal(costs.notes.shippingLabel, "500 VND");
@@ -233,5 +324,79 @@ test("Logistics receives the sent source context and existing shipping work is p
     assert.equal(quote?.orders[0].lines[0].quantity, 12);
     assert.equal(quote?.orders[0].lines[0].pricePerSet, existing ? 77 : null);
     assert.equal(quote?.orders[0].lines[0].packages.length, existing ? 1 : 0);
+  }
+});
+
+test("quote totals use costs, avoid double counting, and convert contract shipping explicitly", () => {
+  const input = handoffInput();
+  input.notes.logisticsFees = [{ label: "Cảng", value: "1.000.000" }, { label: "Vận chuyển", value: "500.000" }];
+  assert.equal(quoteAmount(input, "sourcing").amount, 6000);
+  assert.equal(quoteAmount(input, "logistics").amount, 1500000);
+  input.notes.shippingLabel = "2.000.000";
+  assert.equal(quoteAmount(input, "logistics").amount, 2000000);
+  assert.equal(shippingInCurrency(input, { currency: "USD", rate: 25000 }), 80);
+  assert.equal(shippingInCurrency(input, { currency: "USD", rate: null }), null);
+  input.notes.shippingLabel = "";
+  input.notes.logisticsFees[0].value = "Chưa chốt";
+  assert.equal(quoteAmount(input, "logistics").amount, null);
+});
+
+test("accounting must enter a positive amount for every confirmation", () => {
+  for (const amount of [undefined, null, 0, -1, Number.NaN]) {
+    assert.equal(accountingContractSchema.safeParse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [{ amount, note: "", images: [] }] }).success, false);
+  }
+  assert.equal(accountingContractSchema.safeParse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [] }).success, false);
+  assert.equal(accountingContractSchema.safeParse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [{ amount: 500, note: "", images: [] }] }).success, true);
+});
+
+test("both lanes show each payment and matching payment reminders across all contract desks", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const raw = {
+      id: "contract", lane, customer_name: "Khách", currency: "VND", total_value: 1000, paid_amount: 500, balance: 500,
+      confirmed_amount: 500, accounting_status: "DA_HOAN_THANH_COC", ops_status: "Đang vận chuyển", delivery_on: "2026-11-03",
+      payments: [{ amount: 200, paidOn: "2026-10-30", note: "Lần 1", images: [] }, { amount: 300, paidOn: "2026-10-31", note: "Lần 2", images: [] }],
+      sent_ops_body: { totalValue: 1000, paidAmount: 200, currency: "VND" },
+      sent_accounting_body: { totalValue: 1000, paidAmount: 200, currency: "VND", deliveryOn: "2026-12-20" },
+      sent_parties_body: { deliveryOn: "2026-12-20" },
+      created_at: new Date(), updated_at: new Date(),
+    };
+    const repository = new PostgresCrmRepository({ query: async () => ({ rowCount: 1, rows: [raw] }) } as unknown as pg.Pool);
+    for (const view of ["sale", "ops", "accounting"] as const) {
+      const [contract] = await repository.listContracts(lane, false, view, { q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
+      assert.deepEqual(contract.payments.map((line) => line.amount), [200, 300]);
+      assert.equal(contract.paidAmount, 500);
+      assert.equal(contract.deliveryOn, "2026-11-03");
+      assert.equal(contractPaymentFlags({ ...contract, today: "2026-10-31" }).urgePayment, true);
+    }
+  }
+});
+
+test("explicit handoff notifies Logistics even when its draft already exists", async () => {
+  let notified = false;
+  const service = new CrmService({ requestLogisticsQuote: async () => ({ created: false, quote: { id: "quote", code: "BGS", customerKind: "SOURCING", quoteWorkflow: "COMBINED" } }) } as unknown as CrmRepository,
+    { notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { notified = desk === "logistics"; } } as unknown as NotificationService);
+  await service.requestLogisticsQuote("vn", "quote", { role: "sourcing" } as PublicUser);
+  assert.equal(notified, true);
+});
+
+test("creating a contract uses persisted Logistics costs instead of a submitted shipping override", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    let inserted: unknown[] | undefined;
+    const shipping = handoffInput();
+    shipping.notes.shippingLabel = "1.250";
+    const repository = new PostgresCrmRepository({
+      query: async (sql: string, values: unknown[]) => {
+        if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGS" }] };
+        if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: shipping, created_at: new Date() }] };
+        if (sql.includes("insert into crm.hop_dong (")) inserted = values;
+        return { rowCount: 0, rows: [] };
+      },
+    } as unknown as pg.Pool);
+    await repository.createContract(lane, "quote", createContractSchema.parse({
+      currency: "VND", customerName: "Khách", saleName: "Sale", shipTo: "", product: "Hàng", quantity: 1,
+      productValue: 10000, shippingCost: 999, totalValue: 10999, paidAmount: 0, signedOn: "",
+    }));
+    assert.equal(inserted?.[9], 1250);
+    assert.equal(inserted?.[10], 11250);
   }
 });

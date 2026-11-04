@@ -33,9 +33,9 @@ export function quoteTotals(lines: QuoteLine[]) {
   const packaged = lines.flatMap((line) => line.packages);
   return {
     packageCount: packaged.reduce((sum, p) => sum + p.count, 0),
-    cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0), 0) * 1000) / 1000,
+    cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0) * (line.quantity ?? 1), 0) * 1000) / 1000,
     goods: lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0),
-    weight: lines.reduce((sum, line) => sum + (line.weightKg ?? 0), 0),
+    weight: lines.reduce((sum, line) => sum + (line.weightKg ?? 0) * (line.quantity ?? 1), 0),
     priced,
     weighed,
   };
@@ -108,6 +108,7 @@ function cell(value: string, className = ""): string {
 function filledLine(line: QuoteLine): boolean {
   return Boolean(
     line.stt.trim()
+    || line.productName?.trim()
     || quoteLineImages(line).length > 0
     || line.quantity != null
     || line.pricePerSet != null
@@ -141,12 +142,13 @@ function numCell(amount: string, unit = "", className = "num"): string {
 
 type SummaryCells = { total?: string; cbm?: string };
 
-/** Dòng tổng kết: nhãn (STT→Đơn giá) | Tổng tiền | CBM | Thông số | Note — thẳng cột mẫu. */
+/** Dòng tổng kết: nhãn | Kg/CBM | đơn giá trống | thành tiền | thông số | note. */
 function summaryRow(label: string, cells: SummaryCells = {}, note = ""): string {
   return `<tr>
     <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
-    <td class="sum-value">${cells.total ?? ""}</td>
     <td class="sum-value">${cells.cbm ?? ""}</td>
+    <td></td>
+    <td class="sum-value">${cells.total ?? ""}</td>
     <td class="sum-spec"></td>
     <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
   </tr>`;
@@ -184,16 +186,19 @@ export function quoteSheetHtml(input: {
       ? ""
       : `/${{ kg: "kg", cbm: "cbm", lump: "gói" }[line.basis]}`;
     const totalAmount = line.lineTotal == null ? "" : formatAmount(line.lineTotal);
-    const volume = line.cbm != null && line.cbm > 0 ? formatAmount(line.cbm, 3) : "";
+    const metric = line.basis === "kg" ? line.weightKg : line.basis === "cbm" ? line.cbm : null;
+    const metricAmount = metric != null && metric > 0 ? formatAmount(metric, line.basis === "cbm" ? 3 : 2) : "";
+    const metricUnit = metricAmount && line.basis === "kg" ? "kg/set" : metricAmount && line.basis === "cbm" ? "CBM/set" : "";
     const specText = line.spec.trim();
     const noteText = lineNote(line);
     return `<tr>
       ${cell(line.stt, "stt")}
+      ${cell(line.productName ?? "", "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(qtyAmount, "")}
+      ${numCell(qtyAmount, line.unit || "set")}
+      ${numCell(metricAmount, metricUnit)}
       ${numCell(priceAmount, priceUnit)}
       ${numCell(totalAmount, "", "num money")}
-      ${volume ? numCell(volume, "") : `<td class="num"></td>`}
       ${cell(specText, "wrap info")}
       ${cell(noteText, "wrap info")}
     </tr>`;
@@ -266,8 +271,9 @@ export function quoteSheetHtml(input: {
 
   const depositRows = depositLines.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
-    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), "") : ""}</td>
     <td class="dep-value"></td>
+    <td></td>
+    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), "") : ""}</td>
     <td></td>
     <td></td>
   </tr>`).join("");
@@ -309,39 +315,40 @@ export function quoteSheetHtml(input: {
 
   <table class="items">
     <colgroup>
-      <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
+      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
     </colgroup>
     <thead>
       <tr>
         <th>STT</th>
+        <th>Mặt hàng</th>
         <th>Hình ảnh</th>
-        <th>Số lượng<br><span class="th-sub">(set)</span></th>
+        <th>Số lượng</th>
+        <th>Kg/CBM</th>
         <th>Đơn giá<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
         <th>Tổng tiền hàng<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
-        <th>(CBM)</th>
         <th>Thông số kỹ thuật và tính năng của sản phẩm</th>
         <th>Note</th>
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="8" class="empty">Chưa có dòng hàng</td></tr>`}
+      ${rows || `<tr><td colspan="9" class="empty">Chưa có dòng hàng</td></tr>`}
     </tbody>
   </table>
 
   ${summaryRows ? `<table class="summary"><colgroup>
-      <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
+      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${summaryRows}</tbody></table>` : ""}
 
   ${depositRows ? `<table class="summary deposit"><colgroup>
-      <col class="c-stt"><col class="c-image"><col class="c-qty"><col class="c-price">
-      <col class="c-total"><col class="c-cbm"><col class="c-spec"><col class="c-info">
+      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
+      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
     </colgroup><tbody>${depositRows}</tbody></table>` : ""}
 
-  ${input.compact ? "" : bankBlock}
-
   ${input.compact ? "" : `
+  <section class="payment-signatures">
+  ${bankBlock}
   <section class="sign">
     <div>
       <p>ĐẠI DIỆN BÊN A</p>
@@ -351,6 +358,7 @@ export function quoteSheetHtml(input: {
       <p>ĐẠI DIỆN BÊN B</p>
       <span>(Ký, đóng dấu)</span>
     </div>
+  </section>
   </section>
   `}
 </article>`;
@@ -501,14 +509,15 @@ export const quotePrintCss = `
     table-layout: fixed;
     font-size: 9pt;
   }
-  .c-stt { width: 3.5%; }
-  .c-image { width: 24%; }
+  .c-stt { width: 3%; }
+  .c-product { width: 15%; }
+  .c-image { width: 16%; }
   .c-qty { width: 7%; }
+  .c-metric { width: 8%; }
   .c-price { width: 9%; }
   .c-total { width: 11%; }
-  .c-cbm { width: 7%; }
-  .c-spec { width: 20%; }
-  .c-info { width: 18.5%; }
+  .c-spec { width: 16%; }
+  .c-info { width: 15%; }
   table.items th,
   table.items td {
     border: 1px solid #c5d0de;
@@ -673,6 +682,11 @@ export const quotePrintCss = `
     vertical-align: middle;
   }
 
+  .payment-signatures {
+    display: flow-root;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   .bank {
     margin-top: 12px;
     padding: 8px 10px 8px 12px;
@@ -706,7 +720,6 @@ export const quotePrintCss = `
     page-break-inside: avoid;
   }
   .sign div {
-    min-height: 96px;
     text-align: center;
     padding-top: 8px;
     border-top: 2px solid #082A59;
@@ -715,6 +728,11 @@ export const quotePrintCss = `
     margin: 0;
     font-weight: 700;
     color: #082A59;
+  }
+  .sign div::after {
+    content: "";
+    display: block;
+    height: 75mm;
   }
   .sign span {
     display: block;
@@ -765,6 +783,7 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
   </style></head><body>${body}</body></html>`);
   doc.close();
   await waitForImages(doc);
+  await doc.fonts.ready;
   win.focus();
   win.print();
   win.addEventListener("afterprint", () => frame.remove());
@@ -827,13 +846,14 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
   host.style.left = "-12000px";
   host.style.top = "0";
   // Nội dung trong vùng A4 ngang trừ lề trái/phải ~12mm.
-  host.style.width = `${1123 - 90}px`;
+  host.style.width = "273mm";
   host.style.background = "#fff";
   host.innerHTML = `<style>${quotePrintCss}</style><div class="sheet-wrap">${html}</div>`;
   document.body.appendChild(host);
 
   try {
     await waitForImages(host);
+    await document.fonts.ready;
     const canvas = await html2canvas(host, {
       scale: 2,
       useCORS: true,
@@ -843,23 +863,38 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
       windowWidth: host.scrollWidth,
       windowHeight: host.scrollHeight,
     });
-    const image = canvas.toDataURL("image/jpeg", 0.95);
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const sideMargin = 12;
     const contentWidth = pageWidth - sideMargin * 2;
-    const imgHeight = (canvas.height * contentWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(image, "JPEG", sideMargin, position, contentWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(image, "JPEG", sideMargin, position, contentWidth, imgHeight);
-      heightLeft -= pageHeight;
+    const topMargin = 10;
+    const pixelsPerMm = canvas.width / contentWidth;
+    const pagePixels = Math.floor((pageHeight - topMargin * 2) * pixelsPerMm);
+    const hostTop = host.getBoundingClientRect().top;
+    const scale = canvas.width / host.getBoundingClientRect().width;
+    // Keep rows and the complete bank/signature block together where they fit a page.
+    const protectedBlocks = Array.from(host.querySelectorAll("tr, .payment-signatures")).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((rect.bottom - hostTop) * scale) };
+    });
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = canvas.width;
+    let start = 0;
+    while (start < canvas.height) {
+      let end = Math.min(start + pagePixels, canvas.height);
+      // Moving a boundary may expose another crossing block (e.g. a nested bank row).
+      let crossing;
+      while ((crossing = protectedBlocks.find((block) => block.top > start && block.top < end && block.bottom > end && block.bottom - block.top <= pagePixels))) {
+        end = crossing.top;
+      }
+      pageCanvas.height = end - start;
+      const context = pageCanvas.getContext("2d");
+      if (!context) throw new Error("Không thể tạo trang PDF");
+      context.drawImage(canvas, 0, start, canvas.width, end - start, 0, 0, canvas.width, end - start);
+      if (start > 0) pdf.addPage();
+      pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.95), "JPEG", sideMargin, topMargin, contentWidth, (end - start) / pixelsPerMm);
+      start = end;
     }
 
     pdf.save(`${safePdfFilename(filename)}.pdf`);

@@ -1,11 +1,15 @@
 import {
   customerKindSchema,
   customerTypeSchema,
+  expenseStatuses,
   leadSourceSchema,
   listSearchSchema,
   messageClassificationSchema,
   messageDemandSchema,
   opsStatusOptions,
+  paymentPayeeKinds,
+  paymentPurposes,
+  paymentStatuses,
   potentialStatusSchema,
   quoteStatusSchema,
   contractQuoteStatusSchema,
@@ -14,6 +18,7 @@ import {
 import type { Request } from "express";
 import { AppError } from "../lib/errors";
 import type { ContractListSearch, MessageListSearch, PotentialListSearch, QuoteListSearch } from "./crm-list-search";
+import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "./ke-toan-list-search";
 
 const messageStatuses = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "LOST", "DORMANT"] as const;
 const accountingStatuses = ["DA_HOAN_THANH_COC", "DA_HOAN_THANH_THANH_TOAN", "CHUA_HOAN_THANH_COC", "CHUA_HOAN_THANH_THANH_TOAN"] as const;
@@ -51,6 +56,7 @@ export function readMessageSearch(req: Request): MessageListSearch {
     classification: oneOf(req, "classification", messageClassificationSchema.options),
     demand: oneOf(req, "demand", messageDemandSchema.options),
     customerType: oneOf(req, "customerType", customerTypeSchema.options),
+    market: queryText(req, "market").trim(),
   };
 }
 
@@ -76,6 +82,27 @@ export function readQuoteSearch(req: Request): QuoteListSearch {
 export function readQuoteDeskFilter(req: Request): "" | "sourcing" | "logistics" {
   const value = oneOf(req, "deskFilter", quoteDesks);
   return value === "sourcing" || value === "logistics" ? value : "";
+}
+
+export function readPaymentSearch(req: Request): PaymentListSearch {
+  return {
+    ...readListSearch(req),
+    status: oneOf(req, "status", paymentStatuses),
+    payeeKind: oneOf(req, "payeeKind", paymentPayeeKinds),
+    purpose: oneOf(req, "purpose", paymentPurposes),
+  };
+}
+
+export function readPayrollSearch(req: Request): PayrollListSearch {
+  return { ...readListSearch(req), department: queryText(req, "department").trim().slice(0, 120) };
+}
+
+export function readExpenseSearch(req: Request): ExpenseListSearch {
+  return {
+    ...readListSearch(req),
+    department: queryText(req, "department").trim().slice(0, 120),
+    status: oneOf(req, "status", expenseStatuses),
+  };
 }
 
 export function readContractSearch(req: Request): ContractListSearch {

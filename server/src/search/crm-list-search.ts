@@ -11,6 +11,7 @@ export interface MessageListSearch extends ListSearch {
   classification: string;
   demand: string;
   customerType: string;
+  market: string;
 }
 
 export interface PotentialListSearch extends ListSearch {
@@ -66,7 +67,8 @@ export function messageSearch(input: MessageListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("m.trang_thai::text"), input.status))
     .add(new ExactMatchCriterion(sql("m.phan_loai::text"), input.classification))
     .add(new ExactMatchCriterion(sql("m.nhu_cau::text"), input.demand))
-    .add(new ExactMatchCriterion(sql("m.loai_khach_hang::text"), input.customerType));
+    .add(new ExactMatchCriterion(sql("m.loai_khach_hang::text"), input.customerType))
+    .add(new ExactMatchCriterion(sql("m.thi_truong"), input.market));
 }
 
 export function potentialSearch(input: PotentialListSearch): SearchBuilder {

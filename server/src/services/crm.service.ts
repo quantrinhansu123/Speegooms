@@ -1,4 +1,4 @@
-import { quoteDeskPatch } from "./quote-edit-policy";
+import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
 import { isCombinedSourcing, quoteAccessKind } from "@speego/shared";
 import {
   canAccessQuoteDesk,
@@ -21,6 +21,7 @@ import {
   type UpdateMessageInput,
   type UpdatePotentialInput,
   type UpdateQuoteInput,
+  type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -42,6 +43,8 @@ import type {
   RfqQuoteRecord,
 } from "../repositories/crm.repository";
 import type { NotificationService } from "./notification.service";
+import type { CrmImportService, ImportResult } from "./crm-import.service";
+import type { ImportKind } from "./crm-import-sheets";
 
 export interface QuoteTracking {
   potential: PotentialRecord | null;
@@ -53,7 +56,16 @@ export class CrmService {
   constructor(
     private readonly crm: CrmRepository | null,
     private readonly notifications: NotificationService | null = null,
+    private readonly imports: CrmImportService | null = null,
   ) {}
+
+  importTemplate(kind: ImportKind): Promise<{ name: string; body: Buffer }> {
+    return this.importer().template(kind);
+  }
+
+  importWorkbook(kind: ImportKind, file: Buffer, lanes: readonly CrmLane[]): Promise<ImportResult> {
+    return this.importer().importWorkbook(kind, file, lanes);
+  }
 
   listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
     return this.ready().listMessages(lane, search);
@@ -149,7 +161,8 @@ export class CrmService {
     const result = await this.ready().requestQuote(lane, potentialId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
-    if (actor && result.created) {
+    // Thuần logistics: Sale nhập đơn hàng rồi mới bấm Chuyển logistics, chưa báo vận hành lúc tạo.
+    if (actor && result.created && result.desk !== "logistics") {
       await this.notifications?.notifyQuoteRequested(
         actor,
         lane,
@@ -159,10 +172,32 @@ export class CrmService {
         quoteAccessKind(result.quote),
       );
     }
-    if (actor && result.created && isCombinedSourcing(result.quote)) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.quote.code, result.quote.id, quoteAccessKind(result.quote));
-    }
     return result;
+  }
+
+  /** Logistics mở đơn thuần logistics đã có để nhập giá, không tạo báo giá mới. */
+  async potentialLogisticsQuote(lane: CrmLane, potentialId: string, role: Role): Promise<QuoteRecord> {
+    this.assertDeskView(role, "logistics");
+    const quote = await this.ready().findQuoteByPotential(lane, "logistics", potentialId);
+    if (!quote || quote.customerKind !== "LOGISTICS") {
+      throw new AppError(404, "NOT_FOUND", "Sale chưa tạo thông tin đơn hàng");
+    }
+    if (!canViewQuote(role, "logistics", quoteAccessKind(quote))) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
+    }
+    return quote;
+  }
+
+  /** Sale đã nhập đơn hàng thuần logistics và chuyển cho bàn Logistics lập báo giá. */
+  async handoffLogisticsOrder(lane: CrmLane, quoteId: string, actor: PublicUser): Promise<QuoteRecord> {
+    const quote = await this.ready().findQuote(lane, "logistics", quoteId);
+    if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (quote.customerKind !== "LOGISTICS") throw new AppError(409, "CONFLICT", "Chỉ khách thuần logistics mới chuyển theo luồng này");
+    if (quote.orders.length === 0 || quote.orders.some((order) => order.lines.length === 0 || order.lines.some((line) => line.packages.length === 0))) {
+      throw new AppError(400, "RULE", "Nhập đủ thông tin đơn hàng, gồm quy cách đóng gói từng dòng, trước khi chuyển logistics");
+    }
+    await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", quote.code, quote.id, quote.customerKind);
+    return quote;
   }
 
   async requestLogisticsQuote(
@@ -174,16 +209,14 @@ export class CrmService {
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
-    if (result.created) {
-      await this.notifications?.notifyQuoteRequested(
-        actor,
-        lane,
-        "logistics",
-        result.quote.code,
-        result.quote.id,
-        quoteAccessKind(result.quote),
-      );
-    }
+    await this.notifications?.notifyQuoteRequested(
+      actor,
+      lane,
+      "logistics",
+      result.quote.code,
+      result.quote.id,
+      quoteAccessKind(result.quote),
+    );
     return result;
   }
 
@@ -197,53 +230,31 @@ export class CrmService {
     if (!options.contentOnly) await this.assertQuoteEdit(lane, desk, id, options.role);
     const current = await this.ready().findQuote(lane, desk, id);
     if (!current) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
-    const content = options.contentOnly ? await this.contentOnlyPatch(lane, desk, id, input) : input;
-    const patch = quoteDeskPatch(desk, current, content);
+    const content = options.contentOnly ? preserveQuotePrices(current, input) : input;
+    const deskPatch = quoteDeskPatch(desk, current, content);
+    const patch = desk === "logistics"
+      ? applyLogisticsDeskSave(current, input, content, deskPatch, {
+        contentOnly: options.contentOnly,
+        canOps: can(options.role, "quote.ops"),
+        canRequest: can(options.role, "quote.request"),
+      })
+      : deskPatch;
     const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     return result;
   }
 
-  /** Sale chỉ được cập nhật thông tin đơn hàng; giữ nguyên giá / mẫu / trạng thái / ngân hàng do VH quản lý. */
-  private async contentOnlyPatch(
+  async updateQuoteOutcome(
     lane: CrmLane,
     desk: QuoteDesk,
     id: string,
-    input: UpdateQuoteInput,
-  ): Promise<UpdateQuoteInput> {
-    const current = await this.ready().findQuote(lane, desk, id);
-    if (!current) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
-    const orders = input.orders.map((order) => {
-      const previous = current.orders.find((item) => item.id === order.id);
-      return {
-        ...order,
-        selected: previous?.selected ?? order.selected,
-        lines: order.lines.map((line, index) => {
-          const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
-          const packaging = current.quoteWorkflow === "COMBINED"
-            ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
-            : {};
-          if (!previousLine) return { ...line, ...packaging };
-          return {
-            ...line,
-            ...packaging,
-            pricePerSet: previousLine.pricePerSet,
-            basis: previousLine.basis,
-            lineTotal: previousLine.lineTotal,
-          };
-        }),
-      };
-    });
-    return {
-      templateId: current.templateId,
-      opsNote: current.opsNote ?? "",
-      quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
-      contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
-      orders,
-      notes: current.notes,
-      bank: current.bank,
-    };
+    input: UpdateQuoteOutcomeInput,
+  ): Promise<QuoteRecord> {
+    const result = await this.ready().updateQuoteOutcome(lane, desk, id, input);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (result === "locked") throw new AppError(409, "CONFLICT", "Không thể sửa lý do sau khi đã tạo hợp đồng");
+    return result;
   }
 
   async sendQuote(
@@ -254,15 +265,20 @@ export class CrmService {
     actor: PublicUser,
   ): Promise<QuoteRecord> {
     const current = await this.assertQuoteEdit(lane, desk, id, actor.role);
-    const result = await this.ready().sendQuote(lane, desk, id, quoteDeskPatch(desk, current, input));
+    const patched = quoteDeskPatch(desk, current, input);
+    let orders = patched.orders.length > 0 ? patched.orders : current.orders;
+    if (orders.length === 0 && current.sourcingContext?.order) {
+      orders = [{ ...current.sourcingContext.order, selected: true }];
+    }
+    if (orders.length > 0 && !orders.some((order) => order.selected)) {
+      orders = orders.map((order, index) => ({ ...order, selected: index === 0 }));
+    }
+    const result = await this.ready().sendQuote(lane, desk, id, { ...patched, orders });
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
-    if (desk === "sourcing" && isCombinedSourcing(result)) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", result.code, result.id, quoteAccessKind(result));
-    }
     return result;
   }
 
@@ -412,5 +428,10 @@ export class CrmService {
   private ready(): CrmRepository {
     if (!this.crm) throw new AppError(503, "UNAVAILABLE", "CRM cần kết nối Postgres");
     return this.crm;
+  }
+
+  private importer(): CrmImportService {
+    if (!this.imports) throw new AppError(503, "UNAVAILABLE", "Import cần kết nối Postgres");
+    return this.imports;
   }
 }

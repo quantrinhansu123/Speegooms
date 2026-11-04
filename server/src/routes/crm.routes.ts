@@ -1,6 +1,6 @@
 import { exchangeRate } from "../services/exchange-rate.service";
-import { Router } from "express";
-import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteSchema } from "@speego/shared";
+import express, { Router } from "express";
+import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteOutcomeSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
@@ -24,11 +24,14 @@ export function crmRoutes(container: AppContainer) {
   router.delete("/potentials/:id", requirePermission("potential.write"), asyncHandler(crm.deletePotential));
   router.get("/potentials/:id/tracking", requireAnyPermission(["quote.read", "quote.rfq"]), asyncHandler(crm.getQuoteTracking));
   router.post("/potentials/:id/quotes", requirePermission("quote.request"), asyncHandler(crm.requestQuote));
+  router.get("/potentials/:id/logistics-quote", requirePermission("quote.read"), asyncHandler(crm.potentialLogisticsQuote));
   router.get("/quotes", requirePermission("quote.read"), asyncHandler(crm.listQuotes));
   router.get("/rfq-quotes", requirePermission("quote.rfq"), asyncHandler(crm.listRfqQuotes));
   router.patch("/rfq-quotes/:id", requirePermission("quote.request"), validate({ body: reassignQuoteSchema }), asyncHandler(crm.reassignRfqQuote));
   router.delete("/rfq-quotes/:id", requirePermission("quote.request"), asyncHandler(crm.deleteRfqQuote));
   router.post("/quotes/:id/logistics", requirePermission("quote.logistics"), asyncHandler(crm.requestLogisticsQuote));
+  router.post("/quotes/:id/handoff-logistics", requirePermission("quote.request"), asyncHandler(crm.handoffLogisticsOrder));
+  router.patch("/quotes/:id/outcome", requirePermission("quote.request"), validate({ body: updateQuoteOutcomeSchema }), asyncHandler(crm.updateQuoteOutcome));
   router.patch("/quotes/:id", requireAnyPermission(["quote.ops", "quote.content"]), validate({ body: updateQuoteSchema }), asyncHandler(crm.updateQuote));
   router.post("/quotes/:id/send", requirePermission("quote.ops"), validate({ body: updateQuoteSchema }), asyncHandler(crm.sendQuote));
   router.post("/quotes/:id/return", requirePermission("quote.return"), asyncHandler(crm.returnQuote));
@@ -43,5 +46,14 @@ export function crmRoutes(container: AppContainer) {
   router.patch("/contracts/:id/commercial", requirePermission("contract.create"), validate({ body: saleContractPaymentSchema }), asyncHandler(crm.updateCommercialContract));
   router.post("/contracts/:id/resend", requirePermission("contract.resend"), asyncHandler(crm.resendContract));
   router.delete("/contracts/:id", requirePermission("contract.delete"), asyncHandler(crm.deleteContract));
+  router.get("/import/:kind/template", asyncHandler(crm.importTemplate));
+  router.post(
+    "/import/:kind",
+    express.raw({
+      type: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream"],
+      limit: "20mb",
+    }),
+    asyncHandler(crm.importWorkbook),
+  );
   return router;
 }

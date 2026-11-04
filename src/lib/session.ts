@@ -9,8 +9,10 @@ function first(value: string | null): string | null {
   return item || null;
 }
 
-/** Cùng deployment với route `/api`. Không gọi process Express ở cổng 4000. */
+/** SSR gọi BE đã cấu hình; trình duyệt dùng rewrite /api trên tên miền FE. */
 async function apiOrigin(): Promise<string> {
+  const backend = process.env.API_URL?.trim();
+  if (backend) return new URL(backend).origin;
   const headerList = await headers();
   const forwarded = first(headerList.get("x-forwarded-host"));
   const host = first(headerList.get("host"));

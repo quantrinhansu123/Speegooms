@@ -13,8 +13,7 @@ import { securityHeaders } from "./middlewares/security-headers";
 import { xssClean } from "./middlewares/xss";
 import { registerRoutes } from "./routes";
 
-export function createApp(env: Env, container: AppContainer): Express {
-  const app = express();
+export function createApp(env: Env, container: AppContainer, app: Express = express()): Express {
   app.disable("x-powered-by");
   app.set("etag", false);
   app.set("trust proxy", env.TRUST_PROXY ? 1 : "loopback");

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type IndustryCategory, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -27,9 +27,11 @@ import { uploadImageFiles } from "@/lib/upload-image";
 import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
+import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { TableHScroll } from "./table-h-scroll";
 import { labelOf } from "./types";
 
 export type ContractPaymentLine = {
@@ -55,6 +57,7 @@ export type ContractRecord = {
   saleName: string | null;
   shipTo: string | null;
   product: string | null;
+  industry: IndustryCategory | null;
   quantity: number | null;
   currency: QuoteCurrency;
   productValue: number;
@@ -350,6 +353,8 @@ export function ContractsLiveView({
     }
   }, [filters.applied, lane, mode, user.id]);
 
+  const excel = useExcelImport({ kind: "contracts", lane, allLanes: canPick, enabled: canSale, onDone: () => { void load(); } });
+
   useEffect(() => { load(); }, [load]);
   useNotificationRefresh(load);
 
@@ -427,10 +432,16 @@ export function ContractsLiveView({
             ? "Hợp đồng vận hành đã gửi sang kế toán."
             : lane === "vn" ? "Hợp đồng tuyến Việt Nam." : "Hợp đồng tuyến Global."
         }
-        actions={canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+        actions={
+          <>
+            {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {excel.buttons}
+          </>
+        }
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {excel.banner}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}
@@ -449,7 +460,7 @@ export function ContractsLiveView({
       {mode === "sale" && (
         <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
       )}
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -457,6 +468,7 @@ export function ContractsLiveView({
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Ngành hàng</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Đã thanh toán</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ảnh bill</th>
@@ -472,7 +484,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
               const flags = contractPaymentFlags({
@@ -498,6 +510,7 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
+                <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.paidAmount, row.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
@@ -582,7 +595,7 @@ export function ContractsLiveView({
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => { if (!open) setRemoving(null); }}
@@ -615,6 +628,7 @@ export function ContractsLiveView({
         <ContractDialog
           key={selected.id}
           contract={selected}
+          aggregatePayments={mode === "accounting"}
           canSale={canSale}
           canOps={canOps}
           canAccounting={canAccounting}
@@ -639,6 +653,7 @@ function numberValue(value: string): number | null {
 
 function ContractDialog({
   contract,
+  aggregatePayments,
   canSale,
   canOps,
   canAccounting,
@@ -648,6 +663,7 @@ function ContractDialog({
   onResend,
 }: {
   contract: ContractRecord;
+  aggregatePayments: boolean;
   canSale: boolean;
   canOps: boolean;
   canAccounting: boolean;
@@ -749,10 +765,14 @@ function ContractDialog({
   };
 
   const saveAccounting = async (resendAfter: boolean) => {
+    if (confirmations.length === 0 || confirmations.some((line) => !line.amount.trim() || (numberValue(line.amount) ?? 0) <= 0)) {
+      setError("Nhập số tiền xác nhận lớn hơn 0 cho từng lần thanh toán.");
+      return;
+    }
     const parsed = accountingContractSchema.safeParse({
       accountingStatus,
       confirmations: confirmations.map((line) => ({
-        amount: numberValue(line.amount) ?? 0,
+        amount: numberValue(line.amount) ?? Number.NaN,
         note: line.note,
         images: line.images,
       })),
@@ -999,7 +1019,15 @@ function ContractDialog({
               <section className="space-y-3 rounded-xl border p-4">
                 <h3 className="font-medium">Số tiền đã thanh toán</h3>
                 <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
-                {(contract.payments?.length ?? 0) > 0 ? (
+                {aggregatePayments ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {billImagesOf(contract).map((image, index) => (
+                      <a key={`accounting-bill-${index}`} href={image} target="_blank" rel="noreferrer">
+                        <img src={image} alt={`Ảnh bill ${index + 1}`} className="h-16 w-16 rounded border object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (contract.payments?.length ?? 0) > 0 ? (
                   <ul className="space-y-2 text-sm">
                     {contract.payments.map((line, index) => (
                       <li key={`view-pay-${index}`} className="space-y-2 rounded-lg border p-3 text-muted-foreground">
@@ -1090,9 +1118,10 @@ function ContractDialog({
                   {confirmations.map((line, index) => (
                     <div key={`acc-${index}`} className="space-y-3 rounded-lg border p-3">
                       <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
-                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`}>
+                        <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`} required>
                           <Input
                             id={`acc-amount-${index}`}
+                            required
                             inputMode="decimal"
                             value={line.amount}
                             disabled={!canAccounting}

@@ -7,18 +7,20 @@ import { formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/for
 type MoneyInputProps = Omit<ComponentProps<typeof Input>, "value" | "onChange" | "inputMode" | "type"> & {
   value: number | null;
   onValueChange: (value: number | null) => void;
+  /** Số chữ số thập phân khi hiển thị. Mặc định 2. */
+  fractionDigits?: number;
   /** Nếu có, gắn kèm input ẩn chứa số thuần để submit form (FormData). */
   name?: string;
 };
 
 /** Ô nhập tiền: dấu chấm phân cách hàng nghìn, phẩy thập phân (kiểu Việt). */
-export function MoneyInput({ value, onValueChange, onFocus, onBlur, name, ...props }: MoneyInputProps) {
+export function MoneyInput({ value, onValueChange, onFocus, onBlur, name, fractionDigits = 2, ...props }: MoneyInputProps) {
   const [focused, setFocused] = useState(false);
-  const [text, setText] = useState(() => (value == null ? "" : formatMoneyGrouped(value)));
+  const [text, setText] = useState(() => (value == null ? "" : formatMoneyGrouped(value, fractionDigits)));
 
   useEffect(() => {
-    if (!focused) setText(value == null ? "" : formatMoneyGrouped(value));
-  }, [value, focused]);
+    if (!focused) setText(value == null ? "" : formatMoneyGrouped(value, fractionDigits));
+  }, [value, focused, fractionDigits]);
 
   return (
     <>
@@ -26,17 +28,17 @@ export function MoneyInput({ value, onValueChange, onFocus, onBlur, name, ...pro
       <Input
         {...props}
         inputMode="decimal"
-        value={focused ? text : value == null ? "" : formatMoneyGrouped(value)}
+        value={focused ? text : value == null ? "" : formatMoneyGrouped(value, fractionDigits)}
         onFocus={(event) => {
           setFocused(true);
-          setText(value == null ? "" : formatMoneyGrouped(value));
+          setText(value == null ? "" : formatMoneyGrouped(value, fractionDigits));
           onFocus?.(event);
         }}
         onBlur={(event) => {
           setFocused(false);
           const next = text.trim() ? parseMoneyInput(text) : null;
           onValueChange(next);
-          setText(next == null ? "" : formatMoneyGrouped(next));
+          setText(next == null ? "" : formatMoneyGrouped(next, fractionDigits));
           onBlur?.(event);
         }}
         onChange={(event) => {

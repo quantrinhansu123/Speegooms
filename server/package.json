@@ -8,9 +8,10 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "build": "node scripts/build.mjs",
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts src/search/search-builder.test.ts src/config/quote-access.test.ts src/config/quote-workflow.test.ts src/services/exchange-rate.service.test.ts",
+    "test": "pnpm run build && tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts src/search/search-builder.test.ts src/search/ke-toan-list-search.test.tssrc/config/quote-access.test.ts src/config/quote-workflow.test.ts src/services/exchange-rate.service.test.ts src/services/crm-import-sheets.test.ts && node --test scripts/vercel-entry.test.mjs",
     "seed": "tsx src/scripts/seed-users.ts",
     "migrate": "tsx src/scripts/migrate.ts",
     "perf": "tsx src/scripts/perf-check.ts"
@@ -22,6 +23,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
@@ -37,6 +39,7 @@
     "@types/hpp": "^0.2.6",
     "@types/node": "^20.19.23",
     "@types/pg": "^8.15.5",
+    "esbuild": "0.28.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
