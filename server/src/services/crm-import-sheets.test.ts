@@ -40,6 +40,35 @@ test("mess row uses customer_pii and phan_phong", async () => {
   assert.equal(both.rows[0]?.painPoint, "Không ghi pain point");
 });
 
+test("mess import keeps the first phan_phong block and allows a missing contact", async () => {
+  const book = await workbook({
+    mess: [
+      ["mess_id", "ten_khach"],
+      ["M-1", "An"],
+      ["M-2", "Binh"],
+    ],
+    phan_phong: [
+      ["mess_id", "tuyen_goc", "phong_sale", "", "rfq_id", "mess_id", "phong_sale"],
+      ["M-1", "VN", "Sale Việt Nam", "", "RFQ-9", "M-1", "Sale Global"],
+      ["M-2", "", "Sale Global", "", "", "", ""],
+    ],
+    rfq: [
+      ["rfq_id", "mess_id", "ten_hang"],
+      ["RFQ-9", "M-1", "Ghe"],
+    ],
+  });
+  const messages = planMessages(book, ["vn", "global"]);
+  assert.equal(messages.errors.length, 0);
+  assert.deepEqual(messages.rows.map((row) => [row.externalRef, row.lane, row.phone]), [
+    ["M-1", "vn", ""],
+    ["M-2", "global", ""],
+  ]);
+
+  const potentials = planPotentials(book, ["vn", "global"]);
+  assert.equal(potentials.rows[0]?.lane, "global");
+  assert.equal(potentials.rows[0]?.messRef, "M-1");
+});
+
 test("potential and quote keep the rfq link", async () => {
   const book = await workbook({
     rfq: [

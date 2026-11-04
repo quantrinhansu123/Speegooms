@@ -1,3 +1,5 @@
+import { downloadBlob } from "./download";
+
 export type CsvValue = string | number | boolean | null | undefined;
 
 /** Quote every field and neutralize spreadsheet formulas in untrusted text. */
@@ -11,12 +13,9 @@ export function toCsv(headers: string[], rows: CsvValue[][]): string {
 }
 
 export function downloadCsv(filename: string, headers: string[], rows: CsvValue[][]) {
-  const url = URL.createObjectURL(new Blob([toCsv(headers, rows)], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(
+    filename.endsWith(".csv") ? filename : `${filename}.csv`,
+    new Blob([toCsv(headers, rows)], { type: "text/csv;charset=utf-8" }),
+    1000,
+  );
 }

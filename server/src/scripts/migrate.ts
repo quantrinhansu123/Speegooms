@@ -52,6 +52,7 @@ const files = [
   "029_vai_tro_sourcing_logistics.sql",
   "030_luong_bao_gia_sourcing.sql",
   "031_ke_toan.sql",
+  "031_thu_chi_doi_soat.sql",
   "032_nganh_hang_ly_do_chua_chot.sql",
   "033_quote_metrics_per_unit.sql",
 ];

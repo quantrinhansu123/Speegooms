@@ -116,7 +116,7 @@ export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; 
       <div className="space-y-6">{sheets.map((q) => <section id={`quote-${q.id}`} key={`${q.desk}-${q.id}`} className="scroll-mt-6 space-y-3 rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{q.code} · {deskLabel(q.desk)}</h3><QuoteStatusBadge value={q.quoteStatus} /></div>
         <Details rows={[["Ngày tạo", new Date(q.createdAt).toLocaleDateString("vi-VN")], ["Ghi chú vận hành", q.opsNote], ["Ghi chú thêm", q.notes.opsExtra]]} />
-        {q.sentQuote && <details open><summary className="cursor-pointer py-2 font-medium">Báo giá đã gửi</summary><QuoteSheetPreview title={`${q.code} đã gửi`} html={quoteSheetHtml({ customer: q, lines: q.sentQuote.order.lines, currency: q.sentQuote.order.currency, rate: q.sentQuote.order.rate, notes: q.sentQuote.notes, bank: q.sentQuote.bank, code: q.code, orderName: q.sentQuote.order.name, compact: true })} /></details>}
+        {q.sentQuote && <details open><summary className="cursor-pointer py-2 font-medium">Báo giá đã gửi</summary><QuoteSheetPreview title={`${q.code} đã gửi`} html={quoteSheetHtml({ customer: q, lines: q.sentQuote.order.lines, currency: q.sentQuote.order.currency, notes: q.sentQuote.notes, bank: q.sentQuote.bank, code: q.code, orderName: q.sentQuote.order.name, compact: true })} /></details>}
         {!q.sentQuote && <p className="text-sm text-muted-foreground">Chưa có bản báo giá đã gửi cho Sale.</p>}
       </section>)}</div>
     </SectionCard>
