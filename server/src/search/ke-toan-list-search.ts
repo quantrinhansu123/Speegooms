@@ -25,6 +25,7 @@ const paymentTextColumns = [
   sql("d.ma_hien_thi"),
   sql("d.ma_don_hang"),
   sql("d.ma_tham_chieu"),
+  sql("d.ma_tham_chieu_chi_tiet::text"),
   sql("d.ma_nguoi_nhan"),
   sql("d.nguoi_nhan"),
   sql("d.ten_khach_hang"),

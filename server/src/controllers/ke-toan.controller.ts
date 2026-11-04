@@ -16,6 +16,10 @@ export class KeToanController {
     res.status(200).json({ orders: await this.keToan.listPaymentOrders() });
   };
 
+  listPaymentEmployees = async (_req: Request, res: Response) => {
+    res.status(200).json({ employees: await this.keToan.listPaymentEmployees() });
+  };
+
   listPayments = async (req: Request, res: Response) => {
     res.status(200).json({ payments: await this.keToan.listPayments(readPaymentSearch(req)) });
   };
