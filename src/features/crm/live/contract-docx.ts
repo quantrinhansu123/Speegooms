@@ -67,9 +67,7 @@ export async function buildContractDoc(fields: ContractDocFields, sow: ContractD
   if (!res.ok) throw new Error("Không tải được mẫu hợp đồng");
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
   let xml = await zip.file("word/document.xml")!.async("string");
-  // Báo giá không có loại hình/bang: để trống thì giữ chỗ trống của mẫu cho Sale điền trong Word.
-  const entityType = fields.entityType.trim() || "[Corporation / LLC / Sole Proprietorship / Other]";
-  const values: Record<string, string> = { ...fields, entityType, entityLower: entityType.toLocaleLowerCase("en-US"), state: fields.state.trim() || "[State]" };
+  const values: Record<string, string> = { ...fields, entityLower: fields.entityType.toLocaleLowerCase("en-US") };
   xml = xml.replace(/\{\{(\w+)\}\}/g, (_, key: string) => esc(values[key] || "______"));
   xml = xml.replace(/<w:p(?: [^>]*)?>(?:(?!<w:p[ >])[\s\S])*?@@SOW@@[\s\S]*?<\/w:p>/, sowTable(sow));
   zip.file("word/document.xml", xml);
