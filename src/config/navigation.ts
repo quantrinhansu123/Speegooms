@@ -202,7 +202,8 @@ export function getBreadcrumbs(pathname: string): Crumb[] {
         return crumbs;
       }
       if (item.href === pathname || (!item.children && pathname.startsWith(`${item.href}/`))) {
-        if (pathname !== "/dashboard") crumbs.push({ title: item.title, href: item.href });
+        // "Trang chủ" đã trỏ tới /dashboard, không thêm lần nữa (trùng href gây trùng key ở breadcrumbs).
+        if (item.href !== "/dashboard") crumbs.push({ title: item.title, href: item.href });
         if (item.href !== pathname) crumbs.push({ title: "Chi tiết", href: pathname });
         return crumbs;
       }

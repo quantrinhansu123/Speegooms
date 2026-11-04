@@ -87,8 +87,8 @@ export type PlannedContract = {
 
 export type SheetPlan<T> = { rows: T[]; errors: ImportIssue[]; skipped: number };
 
-type GridRow = { row: number; cells: Record<string, string> };
-type WorkbookData = { sheets: Map<string, GridRow[]> };
+type GridRow = { row: number; cells: Record<string, string>; values: string[] };
+type WorkbookData = { sheets: Map<string, GridRow[]>; headers: Map<string, string[]> };
 
 const MAX_ROWS = 5000;
 const DATE_KEYS = new Set(["ngay_nhan", "ngay_ky"]);
@@ -108,6 +108,7 @@ export async function readWorkbook(buffer: Buffer): Promise<WorkbookData> {
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(buffer as unknown as Parameters<typeof book.xlsx.load>[0]);
   const sheets = new Map<string, GridRow[]>();
+  const headersBySheet = new Map<string, string[]>();
   for (const worksheet of book.worksheets) {
     const name = normalizeKey(worksheet.name);
     if (!name || name === "huong_dan") continue;
@@ -115,24 +116,29 @@ export async function readWorkbook(buffer: Buffer): Promise<WorkbookData> {
     const rows: GridRow[] = [];
     worksheet.eachRow({ includeEmpty: false }, (excelRow, rowNumber) => {
       if (headers.length === 0) {
-        headers = excelRow.values instanceof Array
-          ? excelRow.values.slice(1).map((value, index) => normalizeKey(cellText(value, false)) || `cot_${index + 1}`)
-          : [];
+        const raw = excelRow.values instanceof Array ? excelRow.values : [];
+        headers = [];
+        for (let index = 1; index < raw.length; index += 1) {
+          headers.push(normalizeKey(cellText(raw[index], false)));
+        }
         return;
       }
       const cells: Record<string, string> = {};
+      const values: string[] = [];
       headers.forEach((header, index) => {
         const text = cellText(excelRow.getCell(index + 1).value, DATE_KEYS.has(header));
-        if (text) cells[header] = text;
+        values.push(text);
+        if (header && text) cells[header] = text;
       });
-      if (Object.keys(cells).length > 0) rows.push({ row: rowNumber, cells });
+      if (values.some((value) => value)) rows.push({ row: rowNumber, cells, values });
     });
     if (rows.length > MAX_ROWS) {
       throw new Error(`Sheet ${worksheet.name} vượt ${MAX_ROWS} dòng`);
     }
     sheets.set(name, rows);
+    headersBySheet.set(name, headers);
   }
-  return { sheets };
+  return { sheets, headers: headersBySheet };
 }
 
 export async function buildTemplate(kind: ImportKind): Promise<{ name: string; body: Buffer }> {
@@ -187,7 +193,7 @@ export async function planImport(kind: ImportKind, buffer: Buffer, scope: readon
 export function planMessages(book: WorkbookData, scope: readonly CrmLane[]): SheetPlan<PlannedMessage> {
   const sheet = requireSheet(book, "mess");
   const people = indexBy(book.sheets.get("customer_pii") ?? [], ["customer_id", "ma_khach"]);
-  const lanes = laneIndex(book.sheets.get("phan_phong") ?? [], ["mess_id", "ma_mess"]);
+  const lanes = laneIndex(book, "phan_phong", ["mess_id", "ma_mess"]);
   const rows: PlannedMessage[] = [];
   const errors: ImportIssue[] = [];
   let skipped = 0;
@@ -211,10 +217,6 @@ export function planMessages(book: WorkbookData, scope: readonly CrmLane[]): She
     }
     const phone = digits(pick(cells, ["sdt", "so_dien_thoai", "phone"]));
     const email = mail(pick(cells, ["email", "thu_dien_tu"]));
-    if (!phone && !email) {
-      errors.push({ sheet: "mess", row: line.row, message: "Cần số điện thoại hoặc email" });
-      continue;
-    }
     rows.push({
       sheet: "mess",
       row: line.row,
@@ -241,7 +243,7 @@ export function planMessages(book: WorkbookData, scope: readonly CrmLane[]): She
 export function planPotentials(book: WorkbookData, scope: readonly CrmLane[]): SheetPlan<PlannedPotential> {
   const sheet = requireSheet(book, "rfq");
   const people = indexBy(book.sheets.get("rfq_pii") ?? [], ["rfq_id", "ma_rfq"]);
-  const lanes = laneIndex(book.sheets.get("phan_phong") ?? [], ["rfq_id", "ma_rfq"]);
+  const lanes = laneIndex(book, "phan_phong", ["rfq_id", "ma_rfq"]);
   const rows: PlannedPotential[] = [];
   const errors: ImportIssue[] = [];
   let skipped = 0;
@@ -300,7 +302,7 @@ export function planPotentials(book: WorkbookData, scope: readonly CrmLane[]): S
 export function planQuotes(book: WorkbookData, scope: readonly CrmLane[]): SheetPlan<PlannedQuote> {
   const sheet = requireSheet(book, "rfq");
   const prices = indexBy(book.sheets.get("rfq_price") ?? [], ["rfq_id", "ma_rfq"]);
-  const lanes = laneIndex(book.sheets.get("phan_phong") ?? [], ["rfq_id", "ma_rfq"]);
+  const lanes = laneIndex(book, "phan_phong", ["rfq_id", "ma_rfq"]);
   const rows: PlannedQuote[] = [];
   const errors: ImportIssue[] = [];
   let skipped = 0;
@@ -347,7 +349,7 @@ export function planContracts(book: WorkbookData, scope: readonly CrmLane[]): Sh
   const sheet = requireSheet(book, "order");
   const contracts = indexBy(book.sheets.get("contract") ?? [], ["order_id", "ma_don"]);
   const people = indexBy(book.sheets.get("customer_pii") ?? [], ["customer_id", "ma_khach"]);
-  const lanes = laneIndex(book.sheets.get("phan_phong") ?? [], ["order_id", "ma_don"]);
+  const lanes = laneIndex(book, "phan_phong", ["order_id", "ma_don"]);
   const rows: PlannedContract[] = [];
   const errors: ImportIssue[] = [];
   let skipped = 0;
@@ -435,14 +437,39 @@ function indexBy(rows: GridRow[], keys: string[]): Map<string, Record<string, st
   return map;
 }
 
-function laneIndex(rows: GridRow[], keys: string[]): Map<string, string> {
+function laneIndex(book: WorkbookData, sheetName: string, keys: string[]): Map<string, string> {
+  const rows = book.sheets.get(sheetName) ?? [];
+  const headers = book.headers.get(sheetName) ?? [];
+  const wanted = new Set(keys.map((key) => normalizeKey(key)));
   const map = new Map<string, string>();
-  for (const row of rows) {
-    const id = pick(row.cells, keys);
-    const lane = pick(row.cells, ["phong_sale"]);
-    if (id && lane && !isSample(id)) map.set(id, lane);
+  for (const block of headerBlocks(headers)) {
+    const idCol = block.find((index) => wanted.has(headers[index] ?? ""));
+    const roomCol = [...block].reverse().find((index) => headers[index] === "phong_sale");
+    if (idCol == null || roomCol == null) continue;
+    const header = headers[idCol] ?? "";
+    if (headers.findIndex((name) => name === header) !== idCol) continue;
+    for (const line of rows) {
+      const id = line.values[idCol] ?? "";
+      const lane = line.values[roomCol] ?? "";
+      if (id && lane && !isSample(id)) map.set(id, lane);
+    }
   }
   return map;
+}
+
+function headerBlocks(headers: string[]): number[][] {
+  const blocks: number[][] = [];
+  let current: number[] = [];
+  headers.forEach((header, index) => {
+    if (!header) {
+      if (current.length > 0) blocks.push(current);
+      current = [];
+      return;
+    }
+    current.push(index);
+  });
+  if (current.length > 0) blocks.push(current);
+  return blocks;
 }
 
 function overlay(base: Record<string, string>, extra: Record<string, string>): Record<string, string> {

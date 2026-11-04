@@ -1,9 +1,8 @@
 "use client";
 
-import { api } from "@/lib/api";
-import { isCombinedSourcing, quoteMoneyValue } from "@speego/shared";
+import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quoteSheetInputOf, type QuoteLang } from "@speego/shared";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteCurrencies,
@@ -46,14 +45,29 @@ import { formatMoneyGrouped, formatMoneyInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
 import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
+import { downloadQuoteExcel } from "./quote-excel";
+import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
+import { buildQuoteSheet, orderForQuotePdf } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [], prices: [] };
+  return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", specEn: "", noteEn: "", unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [] };
 }
+
+const PRINT_LANG_KEY = "speego_quote_print_lang";
+const ISSUED_DATE_FORMAT = new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" });
+
+/** Ngôn ngữ nhãn bản in/PDF/Excel, nhớ theo trình duyệt (không lưu DB). */
+function readPrintLang(): QuoteLang {
+  try {
+    const stored = window.localStorage.getItem(PRINT_LANG_KEY);
+    return isQuoteLang(stored) ? stored : "vi";
+  } catch {
+    return "vi";
+  }}
 
 function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
   const next = images.filter(Boolean).slice(0, 8);
@@ -64,17 +78,24 @@ type SaleFact = [string, string, boolean?];
 
 function WeightNoteField({
   id,
-  value,
+  notes,
+  setNotes,
+  lang,
   disabled,
-  onChange,
   className,
 }: {
   id: string;
-  value: string;
+  notes: QuoteNotes;
+  setNotes: (notes: QuoteNotes) => void;
+  /** Ngôn ngữ đang nhập: tiếng Anh sửa bản tiếng Anh và hiện bản tiếng Việt làm gợi ý. */
+  lang: QuoteLang;
   disabled: boolean;
-  onChange: (value: string) => void;
   className?: string;
 }) {
+  const english = lang === "en";
+  const value = english ? notes.weightNoteEn : notes.weightNote;
+  const placeholder = english ? notes.weightNote : undefined;
+  const onChange = (next: string) => setNotes(english ? { ...notes, weightNoteEn: next } : { ...notes, weightNote: next });
   return (
     <Field label="Ghi chú cân nặng / CBM" htmlFor={id} className={className}>
       <Input
@@ -82,9 +103,20 @@ function WeightNoteField({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Dự kiến số KG/CBM, có thể thay đổi theo thực tế"
+        placeholder={placeholder || "Dự kiến số KG/CBM, có thể thay đổi theo thực tế"}
       />
     </Field>
+  );
+}
+
+type LogisticsFee = QuoteNotes["logisticsFees"][number];
+
+function FeeCurrencySelect({ id, value, disabled, onChange }: { id: string; value: string; disabled: boolean; onChange: (value: string) => void }) {
+  const options = quoteCurrencies.includes(value as (typeof quoteCurrencies)[number]) ? [...quoteCurrencies] : [...quoteCurrencies, value];
+  return (
+    <NativeSelect id={id} className="h-11" aria-label="Loại tiền" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+      {options.map((code) => <option key={code} value={code}>{code}</option>)}
+    </NativeSelect>
   );
 }
 
@@ -95,6 +127,8 @@ function LogisticsFeesEditor({
   canEditOrderNotes = false,
   pending,
   fieldId,
+  order,
+  lang = "vi",
 }: {
   notes: QuoteNotes;
   setNotes: (notes: QuoteNotes) => void;
@@ -102,17 +136,34 @@ function LogisticsFeesEditor({
   canEditOrderNotes?: boolean;
   pending: boolean;
   fieldId: (name: string) => string;
+  /** Đơn đang báo giá: mỗi mặt hàng của đơn có một dòng chi phí riêng. */
+  order?: QuoteOrder;
+  /** Ngôn ngữ nội dung đang sửa. Tiếng Anh chỉ sửa chữ, thêm/xóa dòng làm ở tiếng Việt. */
+  lang?: QuoteLang;
 }) {
   const fees = notes.logisticsFees ?? [];
+  const currency = order?.currency || "VND";
+  const items = (order?.lines ?? []).map((line, index) => ({ stt: line.stt.trim() || String(index + 1), line }));
+  const itemKeys = new Set(items.map((item) => item.stt));
+  /** Phí chung, gồm cả phí của mặt hàng đã bị xóa để không mất dữ liệu. */
+  const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => !fee.itemStt || !itemKeys.has(fee.itemStt));
+  const emptyFee = (patch: Partial<LogisticsFee>): LogisticsFee => ({ label: "", labelEn: "", value: "", currency: "", itemStt: "", ...patch });
+
+  const patchFee = (index: number, patch: Partial<LogisticsFee>) => {
+    setNotes({ ...notes, logisticsFees: fees.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)) });
+  };
+  const patchItemFee = (stt: string, line: QuoteLine, patch: Partial<LogisticsFee>) => {
+    const index = fees.findIndex((fee) => fee.itemStt === stt);
+    if (index >= 0) {
+      patchFee(index, patch);
+      return;
+    }
+    if (fees.length >= 30) return;
+    setNotes({ ...notes, logisticsFees: [...fees, emptyFee({ label: quoteItemFeeLabel("vi", stt, line.spec), itemStt: stt, ...patch })] });
+  };
   const addFee = () => {
     if (fees.length >= 30) return;
-    setNotes({ ...notes, logisticsFees: [...fees, { label: "", value: "" }] });
-  };
-  const patchFee = (index: number, patch: Partial<(typeof fees)[number]>) => {
-    setNotes({
-      ...notes,
-      logisticsFees: fees.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
-    });
+    setNotes({ ...notes, logisticsFees: [...fees, emptyFee({})] });
   };
 
   return (
@@ -120,22 +171,17 @@ function LogisticsFeesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-base font-semibold">Chi phí logistics</h3>
-          <p className="text-sm text-muted-foreground">Thêm tên phí và số tiền theo từng đơn hàng.</p>
+          <p className="text-sm text-muted-foreground">Mỗi mặt hàng của đơn có một dòng chi phí, chọn loại tiền cho từng dòng. Có thể thêm phí chung.</p>
         </div>
-        {canEdit ? (
+        {canEdit && lang === "vi" ? (
           <Button type="button" variant="outline" size="sm" disabled={pending || fees.length >= 30} onClick={() => addFee()}>
-            <Plus />Thêm phí
+            <Plus />Thêm phí chung
           </Button>
         ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
-        <WeightNoteField
-          id={fieldId("note-weight")}
-          value={notes.weightNote}
-          disabled={!canEditOrderNotes}
-          onChange={(weightNote) => setNotes({ ...notes, weightNote })}
-        />
+        <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
         <Field label="Tổng chi phí vận chuyển" htmlFor={fieldId("note-shipping")}>
           <Input
             id={fieldId("note-shipping")}
@@ -147,21 +193,54 @@ function LogisticsFeesEditor({
         </Field>
       </div>
 
-      {fees.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-          Chưa có dòng chi phí chi tiết. Bấm Thêm phí để nhập.
-        </p>
-      ) : (
+      {items.length > 0 && (
         <div className="grid gap-3">
-          {fees.map((fee, index) => (
-            <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-end">
+          <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
+          {items.map(({ stt, line }) => {
+            const fee = fees.find((item) => item.itemStt === stt);
+            const label = fee?.label || quoteItemFeeLabel("vi", stt, line.spec);
+            return (
+              <div key={stt} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem] sm:items-end">
+                <p className="text-sm font-medium" title={label}>{label}</p>
+                <Field label="Số tiền / ghi chú" htmlFor={fieldId(`item-fee-value-${stt}`)}>
+                  <Input
+                    id={fieldId(`item-fee-value-${stt}`)}
+                    value={moneyText(fee?.value ?? "")}
+                    disabled={!canEdit}
+                    onChange={(event) => patchItemFee(stt, line, { value: formatMoneyInput(event.target.value) })}
+                    placeholder="Số tiền hoặc mô tả"
+                  />
+                </Field>
+                <Field label="Loại tiền" htmlFor={fieldId(`item-fee-currency-${stt}`)}>
+                  <FeeCurrencySelect
+                    id={fieldId(`item-fee-currency-${stt}`)}
+                    value={fee?.currency || currency}
+                    disabled={!canEdit}
+                    onChange={(code) => patchItemFee(stt, line, { currency: code })}
+                  />
+                </Field>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {generalFees.length === 0 && items.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+          Chưa có dòng chi phí chi tiết. Bấm Thêm phí chung để nhập.
+        </p>
+      ) : generalFees.length > 0 ? (
+        <div className="grid gap-3">
+          <h4 className="text-sm font-semibold">Phí chung</h4>
+          {generalFees.map(({ fee, index }) => (
+            <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem_auto] sm:items-end">
               <Field label="Tên chi phí" htmlFor={fieldId(`fee-label-${index}`)}>
                 <Input
                   id={fieldId(`fee-label-${index}`)}
-                  value={fee.label}
+                  value={lang === "en" ? fee.labelEn : fee.label}
                   disabled={!canEdit}
-                  onChange={(event) => patchFee(index, { label: event.target.value })}
-                  placeholder="Ví dụ: Chi phí cảng biển"
+                  onChange={(event) => patchFee(index, lang === "en" ? { labelEn: event.target.value } : { label: event.target.value })}
+                  placeholder={lang === "en" ? fee.label : "Ví dụ: Chi phí cảng biển"}
                 />
               </Field>
               <Field label="Số tiền / ghi chú" htmlFor={fieldId(`fee-value-${index}`)}>
@@ -173,7 +252,15 @@ function LogisticsFeesEditor({
                   placeholder="Số tiền hoặc mô tả"
                 />
               </Field>
-              {canEdit ? (
+              <Field label="Loại tiền" htmlFor={fieldId(`fee-currency-${index}`)}>
+                <FeeCurrencySelect
+                  id={fieldId(`fee-currency-${index}`)}
+                  value={fee.currency || currency}
+                  disabled={!canEdit}
+                  onChange={(code) => patchFee(index, { currency: code })}
+                />
+              </Field>
+              {canEdit && lang === "vi" ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -189,7 +276,7 @@ function LogisticsFeesEditor({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -417,17 +504,23 @@ function packagesSummary(packages: QuoteLine["packages"]): string {
 
 const factoryAttrKeys = ["Chất liệu", "MOQ", "Lead time", "Bảo hành"] as const;
 
-function attrValue(attrs: QuoteLine["attrs"], key: string): string {
-  return attrs.find((item) => item.key === key)?.value ?? "";
+function attrValue(attrs: QuoteLine["attrs"], key: string, lang: QuoteLang = "vi"): string {
+  const item = attrs.find((attr) => attr.key === key);
+  return (lang === "en" ? item?.valueEn : item?.value) ?? "";
 }
 
-function withAttr(attrs: QuoteLine["attrs"], key: string, value: string): QuoteLine["attrs"] {
+function withAttr(attrs: QuoteLine["attrs"], key: string, value: string, lang: QuoteLang = "vi"): QuoteLine["attrs"] {
   const known = new Set<string>(factoryAttrKeys);
-  const extras = attrs.filter((item) => !known.has(item.key) && (item.key.trim() || item.value.trim()));
+  const extras = attrs.filter((item) => !known.has(item.key) && (item.key.trim() || item.value.trim() || item.keyEn.trim() || item.valueEn.trim()));
   const next = factoryAttrKeys
     .map((itemKey) => {
-      const nextValue = itemKey === key ? value : attrValue(attrs, itemKey);
-      return nextValue.trim() ? { key: itemKey, value: nextValue.trim() } : null;
+      const current = attrs.find((item) => item.key === itemKey);
+      const item = { key: itemKey, value: current?.value ?? "", keyEn: current?.keyEn ?? "", valueEn: current?.valueEn ?? "" };
+      if (itemKey === key) {
+        if (lang === "en") item.valueEn = value;
+        else item.value = value;
+      }
+      return item.value.trim() || item.valueEn.trim() ? { ...item, value: item.value.trim(), valueEn: item.valueEn.trim() } : null;
     })
     .filter((item) => item != null);
   return [...next, ...extras];
@@ -547,20 +640,45 @@ function orderNoteText(lines: QuoteLine[]): string {
   return lines.map((line) => line.note.trim()).filter(Boolean).join("\n");
 }
 
-type PriceColumn = { currency: string; rate: number | null };
+type PriceColumn = { currency: string };
 
-function currencyPairLabel(code: string): string {
-  return code === "VND" ? "VND" : `VND / 1 ${code}`;
+/** Ô nhập số nhân của cách tính giá theo kg, m2 hoặc CBM: trường dữ liệu và nhãn. */
+const basisMetric = {
+  kg: { field: "weightKg", label: "kg / set", aria: "Kg mỗi set" },
+  m2: { field: "areaM2", label: "m2 / set", aria: "m2 mỗi set" },
+  cbm: { field: "cbm", label: "CBM / set", aria: "CBM mỗi set" },
+} as const;
+
+function BasisMetricInput({ line, index, disabled, className, onChange }: {
+  line: QuoteLine;
+  index: number;
+  disabled: boolean;
+  className?: string;
+  onChange: (patch: Partial<QuoteLine>) => void;
+}) {
+  const metric = basisMetric[line.basis as keyof typeof basisMetric];
+  if (!metric) return null;
+  return (
+    <Input
+      className={className}
+      inputMode="decimal"
+      aria-label={`${metric.aria} dòng ${index + 1}`}
+      value={amountText(line[metric.field])}
+      disabled={disabled}
+      placeholder={metric.label}
+      onChange={(event) => onChange({ [metric.field]: amountValue(event.target.value) })}
+    />
+  );
 }
 
 function priceUnit(line: Pick<QuoteLine, "basis" | "unit">): string {
-  return line.basis === "kg" ? "kg" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
+  return line.basis === "kg" ? "kg" : line.basis === "m2" ? "m2" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
 }
 
 /** Cột giá của một đơn: loại tiền chính, rồi các cột đã thêm. VND đứng trước. */
 function columnsFor(order: QuoteOrder): PriceColumn[] {
   const extras = (order.priceColumns ?? []).filter((column) => column.currency !== order.currency);
-  const cols = [{ currency: order.currency || "VND", rate: order.currency === "VND" ? null : order.rate }, ...extras];
+  const cols: PriceColumn[] = [{ currency: order.currency || "VND" }, ...extras];
   const seen = new Set<string>();
   const unique = cols.filter((column) => {
     if (seen.has(column.currency)) return false;
@@ -577,7 +695,7 @@ function listPriceColumns(orders: QuoteOrder[]): PriceColumn[] {
       if (!list.some((item) => item.currency === column.currency)) list.push(column);
     }
   }
-  if (list.length === 0) list.push({ currency: "VND", rate: null });
+  if (list.length === 0) list.push({ currency: "VND" });
   return [...list.filter((column) => column.currency === "VND"), ...list.filter((column) => column.currency !== "VND")];
 }
 
@@ -596,88 +714,25 @@ function columnAmounts(order: QuoteOrder, currency: string): { texts: string[]; 
   return { texts, total: priced ? rows.reduce((sum, row) => sum + (row.total ?? 0), 0) : null };
 }
 
-function withCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string, pricePerSet: number | null): QuoteLine {
-  const total = lineAmount({ basis: line.basis, quantity: line.quantity, price: pricePerSet, weightKg: line.weightKg, cbm: line.cbm });
-  if (currency === orderCurrency) return { ...line, pricePerSet, lineTotal: total };
-  const prices = [...(line.prices ?? []).filter((item) => item.currency !== currency), { currency, pricePerSet, lineTotal: total }];
-  return { ...line, prices };
-}
-
-function orderWithoutColumn(order: QuoteOrder, currency: string): QuoteOrder {
-  const remaining = columnsFor(order).filter((column) => column.currency !== currency);
-  if (remaining.length === 0) {
-    if (currency === "VND") return order;
-    const vndLines = order.lines.map((line) => {
-      const vnd = lineCurrencyPrice(line, order.currency, "VND");
-      return { ...line, pricePerSet: vnd.price, lineTotal: vnd.total, prices: [] };
-    });
-    return { ...order, currency: "VND", rate: null, priceColumns: [], lines: vndLines };
-  }
-  if (order.currency !== currency) {
-    return {
-      ...order,
-      priceColumns: (order.priceColumns ?? []).filter((column) => column.currency !== currency),
-      lines: order.lines.map((line) => ({ ...line, prices: (line.prices ?? []).filter((item) => item.currency !== currency) })),
-    };
-  }
-  const next = remaining.find((column) => column.currency === "VND") ?? remaining[0];
+/** Tính lại thành tiền (đơn giá chính và các loại tiền thêm) theo cách tính giá và số nhân của dòng. */
+function recalcLine(line: QuoteLine): QuoteLine {
+  const base = { basis: line.basis, quantity: line.quantity, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 };
+  const total = lineAmount({ ...base, price: line.pricePerSet });
   return {
-    ...order,
-    currency: next.currency,
-    rate: next.currency === "VND" ? null : next.rate,
-    priceColumns: remaining.filter((column) => column.currency !== next.currency).map((column) => ({ currency: column.currency, rate: column.rate })),
-    lines: order.lines.map((line) => {
-      const primary = lineCurrencyPrice(line, currency, next.currency);
-      const prices = remaining
-        .filter((column) => column.currency !== next.currency)
-        .map((column) => {
-          const amount = lineCurrencyPrice(line, currency, column.currency);
-          return { currency: column.currency, pricePerSet: amount.price, lineTotal: amount.total };
-        });
-      return { ...line, pricePerSet: primary.price, lineTotal: primary.total, prices };
+    ...line,
+    lineTotal: total != null ? total : line.lineTotal,
+    prices: (line.prices ?? []).map((item) => {
+      const alt = lineAmount({ ...base, price: item.pricePerSet });
+      return alt == null ? item : { ...item, lineTotal: alt };
     }),
   };
 }
 
-function roundUnitPrice(value: number, currency: string): number {
-  if (currency === "VND") return Math.round(value);
-  const digits = Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 6 : 2;
-  return Math.round(value * 10 ** digits) / 10 ** digits;
-}
-
-/** Điền đơn giá các loại tiền từ một mốc giá và tỷ giá VND / 1 ngoại tệ. */
-function applyAutoPrices(order: QuoteOrder, rates: Record<string, number>): QuoteOrder {
-  const columns = columnsFor(order).map((column) => (
-    column.currency === "VND" ? column : { ...column, rate: rates[column.currency] ?? column.rate }
-  ));
-  const rateOf = (code: string) => (code === "VND" ? 1 : rates[code] ?? columns.find((column) => column.currency === code)?.rate ?? null);
-  const lines = order.lines.map((line) => {
-    let vnd = lineCurrencyPrice(line, order.currency, "VND").price;
-    if (vnd == null) {
-      for (const column of columns) {
-        if (column.currency === "VND") continue;
-        const price = lineCurrencyPrice(line, order.currency, column.currency).price;
-        const rate = rateOf(column.currency);
-        if (price != null && rate) {
-          vnd = price * rate;
-          break;
-        }
-      }
-    }
-    if (vnd == null) return line;
-    return columns.reduce((next, column) => {
-      const rate = rateOf(column.currency);
-      if (!rate) return next;
-      const price = roundUnitPrice(column.currency === "VND" ? vnd : vnd / rate, column.currency);
-      return withCurrencyPrice(next, order.currency, column.currency, price);
-    }, line);
-  });
-  return {
-    ...order,
-    rate: order.currency === "VND" ? null : rates[order.currency] ?? order.rate,
-    priceColumns: columns.filter((column) => column.currency !== order.currency).map((column) => ({ currency: column.currency, rate: column.rate })),
-    lines,
-  };
+function withCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string, pricePerSet: number | null): QuoteLine {
+  const total = lineAmount({ basis: line.basis, quantity: line.quantity, price: pricePerSet, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
+  if (currency === orderCurrency) return { ...line, pricePerSet, lineTotal: total };
+  const prices = [...(line.prices ?? []).filter((item) => item.currency !== currency), { currency, pricePerSet, lineTotal: total }];
+  return { ...line, prices };
 }
 
 type OrderIssue = { path: PropertyKey[]; message: string };
@@ -756,7 +811,7 @@ function withoutOrderFields(current: Record<string, string>, prefixes: string[])
   return changed ? next : current;
 }
 
-function orderDraftSchema(options: { requirePackages: boolean; requireRate: boolean }) {
+function orderDraftSchema(options: { requirePackages: boolean }) {
   return quoteOrderSchema.superRefine((order, ctx) => {
     if (order.lines.filter(filledLine).length === 0) {
       ctx.addIssue({ code: "custom", message: "Nhập ít nhất một dòng hàng", path: ["lines"] });
@@ -771,16 +826,6 @@ function orderDraftSchema(options: { requirePackages: boolean; requireRate: bool
         });
       });
     }
-    if (!options.requireRate) return;
-    for (const column of columnsFor(order)) {
-      if (column.currency === "VND" || (column.rate != null && column.rate > 0)) continue;
-      const columnIndex = (order.priceColumns ?? []).findIndex((item) => item.currency === column.currency);
-      ctx.addIssue({
-        code: "custom",
-        message: column.rate == null ? "Nhập tỷ giá" : "Tỷ giá phải lớn hơn 0",
-        path: column.currency === order.currency || columnIndex < 0 ? ["rate"] : ["priceColumns", columnIndex, "rate"],
-      });
-    }
   });
 }
 
@@ -789,12 +834,16 @@ function InputError({ message }: { message?: string }) {
   return <p role="alert" className="max-w-44 text-xs text-danger">{message}</p>;
 }
 
-/** Giữ VND và đúng một ngoại tệ đang chọn. Chọn VND thì bỏ các cột tỷ giá khác. */
+/** Chọn tỷ giá = chọn loại tiền chính của đơn, áp dụng cho mọi dòng. Giá đã nhập giữ nguyên, không quy đổi. */
 function selectRateColumn(order: QuoteOrder, currency: string): QuoteOrder {
-  const foreign = columnsFor(order).filter((column) => column.currency !== "VND" && column.currency !== currency);
-  const next = foreign.reduce<QuoteOrder>((current, column) => orderWithoutColumn(current, column.currency), order);
-  if (currency === "VND" || next.currency === currency || (next.priceColumns ?? []).some((column) => column.currency === currency)) return next;
-  return { ...next, priceColumns: [...(next.priceColumns ?? []), { currency, rate: null }] };
+  if (order.currency === currency && (order.priceColumns ?? []).length === 0) return order;
+  return {
+    ...order,
+    currency,
+    rate: null,
+    priceColumns: (order.priceColumns ?? []).filter((column) => column.currency !== currency),
+    lines: order.lines.map((line) => ({ ...line, prices: (line.prices ?? []).filter((item) => item.currency !== currency) })),
+  };
 }
 
 function PriceColumnPicker({
@@ -806,14 +855,13 @@ function PriceColumnPicker({
   disabled?: boolean;
   onSelect: (currency: string) => void;
 }) {
-  const selected = listPriceColumns(orders).find((column) => column.currency !== "VND")?.currency ?? "VND";
+  const selected = orders[0]?.currency || "VND";
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="font-medium">Tỷ giá</span>
       <NativeSelect className="h-9 w-44" aria-label="Tỷ giá" disabled={disabled} value={selected} onChange={(event) => onSelect(event.target.value)}>
-        <option value="VND">VND</option>
-        {quoteCurrencies.filter((code) => code !== "VND").map((code) => (
-          <option key={code} value={code}>{currencyPairLabel(code)}</option>
+        {quoteCurrencies.map((code) => (
+          <option key={code} value={code}>{code}</option>
         ))}
       </NativeSelect>
     </label>
@@ -837,6 +885,8 @@ function OrderLines({
   onChange,
   onError,
   onClearError,
+  lang = "vi",
+  showPricing = true,
 }: {
   lines: QuoteLine[];
   currency: QuoteCurrency;
@@ -849,8 +899,12 @@ function OrderLines({
   onChange: (lines: QuoteLine[]) => void;
   onError: (message: string) => void;
   onClearError?: (key: string) => void;
+  /** Ngôn ngữ nội dung chữ đang sửa (quy cách, thuộc tính, ghi chú). */
+  lang?: QuoteLang;
+  /** Ẩn cột đơn giá và thành tiền khi người đang sửa không phải người định giá. */
+  showPricing?: boolean;
 }) {
-  const priceColumns = columns.length > 0 ? columns : [{ currency, rate: null }];
+  const priceColumns = !showPricing ? [] : columns.length > 0 ? columns : [{ currency }];
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange(lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
@@ -860,17 +914,7 @@ function OrderLines({
         const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
         next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
       }
-      if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm"].some((k) => k in patch)) {
-        const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
-        if (total != null) next = { ...next, lineTotal: total };
-        next = {
-          ...next,
-          prices: (next.prices ?? []).map((item) => {
-            const alt = lineAmount({ basis: next.basis, quantity: next.quantity, price: item.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
-            return alt == null ? item : { ...item, lineTotal: alt };
-          }),
-        };
-      }
+      if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm", "areaM2"].some((k) => k in patch)) next = recalcLine(next);
       return next;
     }));
   };
@@ -912,14 +956,14 @@ function OrderLines({
               <th className="min-w-[180px] whitespace-nowrap px-2 py-3 font-medium">Mặt hàng</th>
               <th className="min-w-[160px] whitespace-nowrap px-2 py-3 font-medium">Hình ảnh</th>
               <th className="whitespace-nowrap px-2 py-3 font-medium">Số lượng</th>
-              <th className="whitespace-nowrap px-2 py-3 font-medium">Kg/CBM</th>
+              {showPricing && <th className="whitespace-nowrap px-2 py-3 font-medium">Kg/CBM/m2</th>}
               {priceColumns.map((column) => (
                 <th key={`price-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Đơn giá ({column.currency})</th>
               ))}
               {priceColumns.map((column) => (
                 <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
               ))}
-              <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Thông số</th>
+              <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>
               <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">Thuộc tính xưởng</th>
               <th className="min-w-[100px] whitespace-nowrap px-2 py-3 font-medium">Note</th>
               <th className="px-2 py-3" />
@@ -928,7 +972,6 @@ function OrderLines({
           <tbody>
             {lines.map((line, index) => {
               const images = quoteLineImages(line);
-              const showMetric = line.basis === "kg" || line.basis === "cbm";
               return (
                 <tr key={index} className="border-b align-top last:border-0">
                   <td className="px-2 py-2">
@@ -1032,24 +1075,14 @@ function OrderLines({
                       <InputError message={errors[`line.${index}.unit`]} />
                     </div>
                   </td>
-                  <td className="px-2 py-2">
+                  {showPricing && <td className="px-2 py-2">
                     <div className="grid w-28 gap-1">
                       <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
                         {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                       </NativeSelect>
-                      {showMetric && (
-                        <Input
-                          className="h-8"
-                          inputMode="decimal"
-                          aria-label={line.basis === "kg" ? `Kg mỗi set dòng ${index + 1}` : `CBM mỗi set dòng ${index + 1}`}
-                          value={amountText(line.basis === "kg" ? line.weightKg : line.cbm)}
-                          disabled={!canEditContent}
-                          onChange={(event) => updateLine(index, line.basis === "kg" ? { weightKg: amountValue(event.target.value) } : { cbm: amountValue(event.target.value) })}
-                          placeholder={line.basis === "kg" ? "kg / set" : "CBM / set"}
-                        />
-                      )}
+                      <BasisMetricInput className="h-8" line={line} index={index} disabled={!canEditContent && !canEditPricing} onChange={(patch) => updateLine(index, patch)} />
                     </div>
-                  </td>
+                  </td>}
                   {priceColumns.map((column) => {
                     const amount = lineCurrencyPrice(line, currency, column.currency);
                     return (
@@ -1081,7 +1114,7 @@ function OrderLines({
                     );
                   })}
                   <td className="px-2 py-2">
-                    <Textarea className="min-h-16 w-36" aria-label={`Thông số dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={line.spec} disabled={!canEditContent} onChange={(event) => { updateLine(index, { spec: event.target.value }); onClearError?.(`line.${index}.spec`); }} placeholder="Thông số" />
+                    <Textarea className="min-h-16 w-36" aria-label={`Quy cách dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={lang === "en" ? line.specEn : line.spec} disabled={!canEditContent} onChange={(event) => { updateLine(index, lang === "en" ? { specEn: event.target.value } : { spec: event.target.value }); onClearError?.(`line.${index}.spec`); }} placeholder={lang === "en" ? line.spec || "Specification" : "Quy cách"} />
                     <InputError message={errors[`line.${index}.spec`]} />
                   </td>
                   <td className="px-2 py-2">
@@ -1091,16 +1124,16 @@ function OrderLines({
                           key={key}
                           className="h-8 text-xs"
                           aria-label={`${key} dòng ${index + 1}`}
-                          value={attrValue(line.attrs, key)}
+                          value={attrValue(line.attrs, key, lang)}
                           disabled={!canEditContent}
-                          onChange={(event) => updateLine(index, { attrs: withAttr(line.attrs, key, event.target.value) })}
-                          placeholder={key}
+                          onChange={(event) => updateLine(index, { attrs: withAttr(line.attrs, key, event.target.value, lang) })}
+                          placeholder={lang === "en" ? quoteAttrKeyEn[key] ?? key : key}
                         />
                       ))}
                     </div>
                   </td>
                   <td className="px-2 py-2">
-                    <Textarea className="min-h-16 w-32" aria-label={`Note dòng ${index + 1}`} aria-invalid={errors[`line.${index}.note`] ? true : undefined} value={line.note} disabled={!canEditContent} onChange={(event) => { updateLine(index, { note: event.target.value }); onClearError?.(`line.${index}.note`); }} placeholder="Note" />
+                    <Textarea className="min-h-16 w-32" aria-label={`Note dòng ${index + 1}`} aria-invalid={errors[`line.${index}.note`] ? true : undefined} value={lang === "en" ? line.noteEn : line.note} disabled={!canEditContent} onChange={(event) => { updateLine(index, lang === "en" ? { noteEn: event.target.value } : { note: event.target.value }); onClearError?.(`line.${index}.note`); }} placeholder={lang === "en" ? line.note || "Note" : "Note"} />
                     <InputError message={errors[`line.${index}.note`]} />
                   </td>
                   <td className="px-2 py-2">
@@ -1141,12 +1174,12 @@ function OrderLines({
             <p className="text-sm font-medium">Thuộc tính xưởng khác</p>
             {line.attrs.map((attr, attrIndex) => factoryAttrKeys.some((key) => key === attr.key) ? null : (
               <div key={attrIndex} className="flex items-center gap-1">
-                <Input aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={attr.key} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, key: event.target.value } : item) })} />
-                <Input aria-label={`Giá trị thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={attr.value} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, value: event.target.value } : item) })} />
+                <Input aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.keyEn : attr.key} placeholder={lang === "en" ? attr.key : undefined} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { keyEn: event.target.value } : { key: event.target.value }) } : item) })} />
+                <Input aria-label={`Giá trị thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.valueEn : attr.value} placeholder={lang === "en" ? attr.value : undefined} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { valueEn: event.target.value } : { value: event.target.value }) } : item) })} />
                 {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label="Xóa thuộc tính" onClick={() => updateLine(index, { attrs: line.attrs.filter((_, i) => i !== attrIndex) })}><Trash2 /></Button>}
               </div>
             ))}
-            {canEditContent && <Button type="button" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "" }] })}><Plus />Thêm thuộc tính</Button>}
+            {canEditContent && <Button type="button" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "", keyEn: "", valueEn: "" }] })}><Plus />Thêm thuộc tính</Button>}
           </div>
         </div>
       ))}
@@ -1220,10 +1253,11 @@ export function QuoteEditor({
     ? mode === "content" || (saleOrder && mode !== "none")
     : (saleLogisticsOrder || desk !== "logistics") && (mode === "content" || mode === "full");
   const canEditPricing = mode === "full" && desk !== "logistics";
-  const canEditOrderPrices = pureLogistics ? canEditContent : canEditPricing;
+  /** Khách thuần logistics: Logistics (bàn logistics, quyền đầy đủ) định giá; Sale chỉ nhập nội dung đơn. */
+  const canPriceAsLogistics = mode === "full" && desk === "logistics";
+  const canEditOrderPrices = pureLogistics ? canPriceAsLogistics : canEditPricing;
   const canEditPackaging = pureLogistics ? canEditContent : (saleLogisticsOrder && canEditContent) || (canEditContent && canEditPricing);
   const canEditSaleNotes = pureLogistics ? canEditContent : canEditPricing;
-  const [ratePending, setRatePending] = useState(false);
   const [lead, setLead] = useState(quote);
   const [editingSale, setEditingSale] = useState(false);
   const [saleDraft, setSaleDraft] = useState<SaleLeadDraft | null>(null);
@@ -1394,57 +1428,91 @@ export function QuoteEditor({
     if (handed) onClose();
   };
 
-  const sheetHtmlFor = (order: QuoteOrder) => quoteSheetHtml({
-    customer: lead,
-    lines: order.lines,
-    currency: order.currency,
-    rate: order.rate,
-    notes,
-    bank,
-    code: quote.code,
-    orderName: order.name,
-    issuedOn: quote.createdAt
-      ? new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(quote.createdAt))
-      : undefined,
-  });
-
-  const pdfNameFor = (order: QuoteOrder) => `${quote.code || "bao-gia"}${order.name ? `-${order.name}` : ""}`;
-
-  const printOrder = (order: QuoteOrder) => {
-    void printQuoteSheet(sheetHtmlFor(order));
+  const [printLang, setPrintLangState] = useState<QuoteLang>(() => (typeof window === "undefined" ? "vi" : readPrintLang()));
+  const setPrintLang = (lang: QuoteLang) => {
+    setPrintLangState(lang);
+    try { window.localStorage.setItem(PRINT_LANG_KEY, lang); } catch { /* bỏ qua khi trình duyệt chặn lưu */ }
   };
 
-  const downloadOrderPdf = async (order: QuoteOrder) => {
+  const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
+
+  const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
+    quoteSheetInputOf({ ...lead, code: quote.code, notes, bank }, order, lang, issuedOn);
+
+  const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
+
+  const selectedOrder = orderForQuotePdf(orders);
+
+  /** Các ô chữ đã có tiếng Việt nhưng chưa có tiếng Anh: để trống khi in bản tiếng Anh. */
+  const missingFor = (order: QuoteOrder | undefined, lang: QuoteLang): string[] =>
+    lang === "en" && order ? buildQuoteSheet(sheetInputFor(order, lang)).missing : [];
+  // Chỉ dựng lại mô hình khi nội dung báo giá đổi, không dựng lại ở mỗi lần gõ phím ở ô khác.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const enMissing = useMemo(() => (printLang === "en" ? missingFor(selectedOrder, "en") : []), [printLang, selectedOrder, lead, notes, bank, issuedOn, quote.code]);
+  /** Xem trước đơn hàng chỉ dựng khi đang mở chế độ xem. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const previewHtml = useMemo(() => (draft?.mode === "view" ? sheetHtmlFor(draft.order) : ""), [draft, printLang, lead, notes, bank, issuedOn, quote.code]);
+
+  /** In, PDF, Excel đều mở hộp thoại chọn ngôn ngữ trước khi chạy. */
+  const [outputPick, setOutputPick] = useState<{ action: QuoteOutputAction; order?: QuoteOrder } | null>(null);
+
+  const printOrder = (order: QuoteOrder, lang: QuoteLang) => {
+    void printQuoteSheet(sheetHtmlFor(order, lang));
+  };
+
+  /** Chạy một lần tải về, bật cờ đang tải và báo lỗi bằng `failure` nếu thất bại. */
+  const runDownload = async (failure: string, task: () => Promise<void>) => {
     setPdfPending(true);
     setFormError(undefined);
     try {
-      await downloadQuotePdf(sheetHtmlFor(order), pdfNameFor(order));
+      await task();
     } catch {
-      setFormError("Không tải được PDF báo giá");
+      setFormError(failure);
     } finally {
       setPdfPending(false);
     }
   };
 
-  const printSelected = () => {
+  const downloadOrderExcel = (order: QuoteOrder, lang: QuoteLang) =>
+    runDownload(quoteOutputText.excel.failed, () => downloadQuoteExcel(sheetInputFor(order, lang), quoteFileBase(quote.code, order.name, lang)));
+
+  const downloadOrderPdf = (order: QuoteOrder, lang: QuoteLang) =>
+    runDownload(quoteOutputText.pdf.failed, () => downloadQuotePdf(sheetHtmlFor(order, lang), quoteFileBase(quote.code, order.name, lang)));
+
+  const printSelected = (lang: QuoteLang) => {
     const selected = orders.filter((order) => order.selected);
     const targets = selected.length > 0 ? selected : orders;
     if (targets.length === 0) {
-      setFormError("Chưa có mẫu báo giá để in");
+      setFormError(quoteOutputText.print.noSheet);
       return;
     }
     setFormError(undefined);
-    void printQuoteSheet(targets.map((order) => sheetHtmlFor(order)));
+    void printQuoteSheet(targets.map((order) => sheetHtmlFor(order, lang)));
   };
 
-  const downloadSelectedPdf = () => {
-    const selected = orders.find((order) => order.selected) ?? orders[0];
-    if (!selected) {
-      setFormError("Chưa có mẫu báo giá để tải PDF");
+  /** Mở hộp thoại chọn ngôn ngữ cho nút In / Tải PDF / Tải Excel ở thanh công cụ. */
+  const askOutput = (action: QuoteOutputAction) => {
+    if (!selectedOrder) {
+      setFormError(quoteOutputText[action].noSheet);
       return;
     }
     setFormError(undefined);
-    void downloadOrderPdf(selected);
+    setOutputPick({ action });
+  };
+
+  const confirmOutput = (lang: QuoteLang) => {
+    const pick = outputPick;
+    setOutputPick(null);
+    if (!pick) return;
+    const target = pick.order ?? selectedOrder;
+    if (pick.action === "print") {
+      if (pick.order) printOrder(pick.order, lang);
+      else printSelected(lang);
+      return;
+    }
+    if (!target) return;
+    if (pick.action === "pdf") void downloadOrderPdf(target, lang);
+    else void downloadOrderExcel(target, lang);
   };
 
   const clearOrderField = (key: string) => {
@@ -1471,7 +1539,7 @@ export function QuoteEditor({
   const saveDraft = async () => {
     if (!draft || draft.mode === "view") return;
     const requirePackages = Boolean(saleLogisticsOrder || (packagingRequired && canEditPackaging));
-    const parsed = orderDraftSchema({ requirePackages, requireRate: canEditOrderPrices }).safeParse(draft.order);
+    const parsed = orderDraftSchema({ requirePackages }).safeParse(draft.order);
     if (!parsed.success) {
       const { fields, rest } = orderIssueFields(draft.order, parsed.error.issues);
       setOrderFields(fields);
@@ -1509,36 +1577,20 @@ export function QuoteEditor({
     void persist(orders.filter((order) => order.id !== removing.id), false);
   };
 
-  const fillRates = async (target: QuoteOrder[]): Promise<QuoteOrder[] | null> => {
-    const codes = [...new Set(target.flatMap((order) => columnsFor(order).map((column) => column.currency)).filter((code) => code !== "VND"))];
-    if (codes.length === 0) {
-      setOrderError("Chọn thêm loại tiền trước khi lấy tỷ giá");
-      return null;
-    }
-    setRatePending(true);
-    setOrderError(undefined);
-    try {
-      const entries = await Promise.all(codes.map(async (code) => {
-        const result = await api<{ currency: string; rate: number; updatedAt: string | null }>(`/api/crm/exchange-rate?currency=${encodeURIComponent(code)}`);
-        return [code, result] as const;
-      }));
-      const rates = Object.fromEntries(entries.map(([code, result]) => [code, result.rate]));
-      return target.map((order) => applyAutoPrices(order, rates));
-    } catch (err) {
-      setOrderError(err instanceof Error ? err.message : "Không lấy được tỷ giá. Vui lòng nhập tay.");
-      return null;
-    } finally {
-      setRatePending(false);
-    }
-  };
 
   const priceColumns = listPriceColumns(orders);
 
   const actions = (
     <>
-      <Button type="button" variant="outline" onClick={printSelected}><Printer />In</Button>
-      <Button type="button" variant="outline" disabled={pdfPending} onClick={downloadSelectedPdf}>
+      <NativeSelect className="h-9 w-36" aria-label="Ngôn ngữ nhập nội dung" title="Ngôn ngữ đang nhập nội dung chữ (quy cách, ghi chú...)" value={printLang} onChange={(event) => setPrintLang(event.target.value as QuoteLang)}>
+        {quoteLangs.map((lang) => <option key={lang} value={lang}>{`Nhập: ${quoteLangLabels[lang]}`}</option>)}
+      </NativeSelect>
+      <Button type="button" variant="outline" onClick={() => askOutput("print")}><Printer />In</Button>
+      <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("pdf")}>
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
+      </Button>
+      <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("excel")}>
+        <Download />Tải Excel
       </Button>
       {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
@@ -1556,10 +1608,9 @@ export function QuoteEditor({
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
     : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
-  const defaultTab = pureLogistics ? "sale" : saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
+  const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
   const [tab, setTab] = useState(defaultTab);
   useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
-  const brandLabel = brandOptions.find((item) => item[0] === lead.brand)?.[1] ?? lead.brand ?? "—";
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
     ["Kích thước kiện hàng", lead.packageDimensions || "—"],
@@ -1577,27 +1628,11 @@ export function QuoteEditor({
     ["Email", saleFact(lead.email)],
     ["Địa chỉ", saleFact(lead.address), true],
   ];
-  const saleProfileFacts: [string, string][] = [
-    ["Nguồn", brandLabel],
-    ["Giai đoạn", labelOf(potentialOptions, lead.potential)],
-    ["Loại khách", labelOf(customerKindOptions, lead.customerKind)],
-    ["Đối tượng", labelOf(customerTypeOptions, lead.customerType)],
-    ["Kênh chăm sóc", labelOf(careChannelOptions, lead.careChannel)],
-    ["Phân loại", labelOf(classificationOptions, lead.classification)],
-  ];
   const saleNeedFacts: [string, string, boolean?][] = [
     ["Hàng hóa", saleFact(lead.goods), true],
     ["Số lượng", saleFact(lead.quantityNote)],
     ["Yêu cầu của khách", saleFact(lead.requirements), true],
     ["Ghi chú sale", saleFact(lead.saleNote), true],
-  ];
-  const saleLogisticsFacts: [string, string, boolean?][] = [
-    ["Quy cách đóng gói", saleFact(lead.packSpec)],
-    ["Kích thước kiện hàng", saleFact(lead.packageDimensions)],
-    ["Trọng lượng", lead.weightKg || "—"],
-    ["Phân loại logistics", saleFact(lead.logisticsClass)],
-    ["Địa chỉ gửi", saleFact(lead.shipFromAddress), true],
-    ["Địa chỉ nhận", saleFact(lead.shipToAddress), true],
   ];
 
   const patchOrderLinePackages = (orderId: string, lineIndex: number, packages: QuoteLine["packages"]) => {
@@ -1613,36 +1648,29 @@ export function QuoteEditor({
             const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
             next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
           }
-          const total = lineAmount({ basis: next.basis, quantity: next.quantity, price: next.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
-          if (total != null) next = { ...next, lineTotal: total };
-          next = {
-            ...next,
-            prices: (next.prices ?? []).map((item) => {
-              const alt = lineAmount({ basis: next.basis, quantity: next.quantity, price: item.pricePerSet, weightKg: next.weightKg, cbm: next.cbm });
-              return alt == null ? item : { ...item, lineTotal: alt };
-            }),
-          };
-          return next;
-        }),
+          return recalcLine(next);        }),
       };
     }));
   };
 
-  const loadExchangeRate = async () => {
-    if (!draft || draft.mode === "view" || !canEditOrderPrices) return;
-    const next = await fillRates([draft.order]);
-    if (!next) return;
-    setDraft((current) => current && current.order.id === draft.order.id ? { ...current, order: next[0] } : current);
-  };
 
-  const fillListedRates = async () => {
-    const next = await fillRates(orders);
-    if (next) setOrders(next);
+  const patchOrderLine = (orderId: string, lineIndex: number, patch: Partial<QuoteLine>) => {
+    setOrders((current) => current.map((order) => (order.id !== orderId ? order : {
+      ...order,
+      lines: order.lines.map((row, index) => (index === lineIndex ? recalcLine({ ...row, ...patch }) : row)),
+    })));
   };
 
   const sheet = (
     <>
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
+      {printLang === "en" && (
+        <InlineAlert tone={enMissing.length > 0 ? "warning" : "info"}>
+          {enMissing.length > 0
+            ? `Đang sửa bản tiếng Anh. Còn ${enMissing.length} ô chưa có tiếng Anh, sẽ để trống khi in: ${enMissing.slice(0, 8).join("; ")}${enMissing.length > 8 ? "…" : ""}`
+            : "Đang sửa bản tiếng Anh. Các ô chữ không tự dịch, hãy điền tiếng Anh cho từng ô."}
+        </InlineAlert>
+      )}
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
       {mode === "content" && !saleLogisticsOrder && quote.customerKind !== "LOGISTICS" && (
         <InlineAlert>
@@ -1651,7 +1679,7 @@ export function QuoteEditor({
       )}
       {onHandoffLogistics && !pureLogistics && (
         <InlineAlert>
-          Sale nhập thông tin đơn hàng (ảnh, số lượng, thông số, đóng gói) ở phần Sale. Logistics nhập chi phí logistics. Nút chuyển logistics nằm ở phần thông tin đơn hàng của Sale.
+          Sale nhập thông tin đơn hàng (ảnh, số lượng, quy cách, đóng gói) ở phần Sale. Logistics nhập chi phí logistics. Nút chuyển logistics nằm ở phần thông tin đơn hàng của Sale.
         </InlineAlert>
       )}
       <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
@@ -1863,12 +1891,7 @@ export function QuoteEditor({
               </div>
             ) : (
               <>
-                <SaleFactsTable
-                  groups={[
-                    { title: "Liên hệ", rows: saleContactFacts },
-                    { title: "Phân loại khách", rows: saleProfileFacts },
-                  ]}
-                />
+                <SaleFactsTable groups={[{ title: "Liên hệ", rows: saleContactFacts }]} />
 
                 <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
                   <SaleFactsTable groups={[{ title: "Nhu cầu", rows: saleNeedFacts }]} />
@@ -1885,8 +1908,6 @@ export function QuoteEditor({
                     </div>
                   </div>
                 </div>
-
-                <SaleFactsTable groups={[{ title: "Logistics (từ tiềm năng)", rows: saleLogisticsFacts }]} />
               </>
             )}
           </div>
@@ -1919,8 +1940,9 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Tên mẫu</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Số lượng</th>
+                    <th className="whitespace-nowrap px-3 py-3 font-medium">Tỷ giá</th>
                     {priceColumns.map((column) => (
-                      <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({currencyPairLabel(column.currency)})</th>
+                      <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({column.currency})</th>
                     ))}
                     {priceColumns.map((column) => (
                       <th key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-3 text-right font-medium">Thành tiền ({column.currency})</th>
@@ -1991,6 +2013,7 @@ export function QuoteEditor({
                           })}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">{quantityText || "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 font-medium">{columnsFor(order).map((column) => column.currency).join(" · ")}</td>
                         {priceColumns.map((column) => {
                           const amounts = columnAmounts(order, column.currency);
                           return (
@@ -2045,24 +2068,18 @@ export function QuoteEditor({
 
           <div className="grid gap-3 sm:grid-cols-2">
             {pureLogistics && (
-              <WeightNoteField
-                id={fieldId("sale-weight-note")}
-                className="sm:col-span-2"
-                value={notes.weightNote}
-                disabled={!canEditSaleNotes}
-                onChange={(weightNote) => setNotes({ ...notes, weightNote })}
-              />
+              <WeightNoteField id={fieldId("sale-weight-note")} className="sm:col-span-2" notes={notes} setNotes={setNotes} lang={printLang} disabled={!canEditSaleNotes} />
             )}
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
               <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditSaleNotes} onChange={(event) => setNotes({ ...notes, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
             </Field>
             <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-              <Input id={fieldId("note-valid")} value={notes.validityNote} disabled={!canEditSaleNotes} onChange={(event) => setNotes({ ...notes, validityNote: event.target.value })} placeholder="Báo giá có hiệu lực kể từ ngày báo giá (...)" />
+              <Input id={fieldId("note-valid")} value={printLang === "en" ? notes.validityNoteEn : notes.validityNote} disabled={!canEditSaleNotes} onChange={(event) => setNotes(printLang === "en" ? { ...notes, validityNoteEn: event.target.value } : { ...notes, validityNote: event.target.value })} placeholder={printLang === "en" ? notes.validityNote || "Quotation validity" : "Báo giá có hiệu lực kể từ ngày báo giá (...)"} />
             </Field>
             <div className="grid gap-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">Thông tin đặt cọc</span>
-                {canEditSaleNotes && (
+                {canEditSaleNotes && printLang === "vi" && (
                   <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
                     <Plus />Thêm dòng
                   </Button>
@@ -2074,12 +2091,15 @@ export function QuoteEditor({
                   <Input
                     id={index === 0 ? fieldId("note-deposit") : undefined}
                     aria-label={`Thông tin đặt cọc ${index + 1}`}
-                    value={line}
+                    value={printLang === "en" ? notes.depositEn[index] ?? "" : line}
+                    placeholder={printLang === "en" ? line : undefined}
                     disabled={!canEditSaleNotes}
-                    onChange={(event) => setNotes({ ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
+                    onChange={(event) => setNotes(printLang === "en"
+                      ? { ...notes, depositEn: notes.deposit.map((_, itemIndex) => itemIndex === index ? event.target.value : notes.depositEn[itemIndex] ?? "") }
+                      : { ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
                   />
-                  {canEditSaleNotes && (
-                    <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index) })}>
+                  {canEditSaleNotes && printLang === "vi" && (
+                    <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index), depositEn: notes.depositEn.filter((_, itemIndex) => itemIndex !== index) })}>
                       <Trash2 />
                     </Button>
                   )}
@@ -2101,6 +2121,8 @@ export function QuoteEditor({
             canEditOrderNotes={canEditPricing}
             pending={pending}
             fieldId={(name) => fieldId(`sourcing-${name}`)}
+            order={selectedOrder}
+            lang={printLang}
           />}
           {!pureLogistics && <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
             <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
@@ -2137,7 +2159,7 @@ export function QuoteEditor({
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50 text-left">
-                    {["STT", "Mặt hàng", "Ảnh hàng", "Số lượng", "Kg/CBM", "Thông số / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
+                    {["STT", "Mặt hàng", "Ảnh hàng", "Số lượng", "Kg/CBM", "Quy cách / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
                   </tr></thead>
                   <tbody>{quote.sourcingContext.order.lines.map((line, index) => (
                     <tr key={index} className="border-b align-top last:border-0">
@@ -2172,13 +2194,14 @@ export function QuoteEditor({
             onChange={patchOrderLinePackages}
           />}
 
-          {mode === "full" && orders.length > 0 && quote.customerKind !== "LOGISTICS" && (
+          {mode === "full" && orders.length > 0 && (quote.customerKind !== "LOGISTICS" || canPriceAsLogistics) && (
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
-              <p className="text-sm text-muted-foreground">Hàng hóa do Sale/Sourcing cung cấp. Chọn một tỷ giá để thêm cột đơn giá và thành tiền.</p>
+              <p className="text-sm text-muted-foreground">
+                {pureLogistics ? "Sale chỉ nhập thông tin đơn hàng; Logistics nhập đơn giá và thành tiền." : "Hàng hóa do Sale/Sourcing cung cấp."} Chọn tỷ giá (loại tiền), áp dụng cho mọi dòng; chọn cách tính giá theo đơn vị, kg, m2, CBM hoặc trọn gói; đơn giá nhập thế nào thì dùng thế đó, không quy đổi.
+              </p>
               <div className="flex flex-wrap items-center gap-2">
                 <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))} />
-                <Button type="button" variant="outline" size="sm" disabled={pending || ratePending} onClick={() => void fillListedRates()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>
               </div>
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
@@ -2186,8 +2209,10 @@ export function QuoteEditor({
                     <tr className="border-b bg-muted/50 text-left">
                       <th className="whitespace-nowrap px-3 py-2 font-medium">Đơn hàng</th>
                       <th className="whitespace-nowrap px-3 py-2 font-medium">STT</th>
+                      <th className="whitespace-nowrap px-3 py-2 font-medium">Cách tính giá</th>
+                      <th className="whitespace-nowrap px-3 py-2 font-medium">Số tính giá</th>
                       {priceColumns.map((column) => (
-                        <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2 font-medium">Đơn giá ({currencyPairLabel(column.currency)})</th>
+                        <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2 font-medium">Đơn giá ({column.currency})</th>
                       ))}
                       {priceColumns.map((column) => (
                         <th key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right font-medium">Thành tiền ({column.currency})</th>
@@ -2199,6 +2224,18 @@ export function QuoteEditor({
                       <tr key={`${order.id}-${index}`} className="border-b last:border-0">
                         <td className="whitespace-nowrap px-3 py-2">{index === 0 ? order.name || "Đơn hàng" : ""}</td>
                         <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
+                        <td className="px-3 py-2">
+                          <NativeSelect className="h-8 w-36 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={pending} onChange={(event) => patchOrderLine(order.id, index, { basis: event.target.value as PricingBasis })}>
+                            {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                          </NativeSelect>
+                        </td>
+                        <td className="px-3 py-2">
+                          {line.basis in basisMetric ? (
+                            <BasisMetricInput className="h-8 w-24" line={line} index={index} disabled={pending} onChange={(patch) => patchOrderLine(order.id, index, patch)} />
+                          ) : (
+                            <span className="text-muted-foreground">{line.basis === "unit" ? (line.quantity ?? "—") : "—"}</span>
+                          )}
+                        </td>
                         {priceColumns.map((column) => {
                           const amount = lineCurrencyPrice(line, order.currency, column.currency);
                           return (
@@ -2239,6 +2276,8 @@ export function QuoteEditor({
             canEditOrderNotes={pureLogistics ? false : canEditPricing}
             pending={pending}
             fieldId={fieldId}
+            order={selectedOrder}
+            lang={printLang}
           />
         </TabsContent>
 
@@ -2264,6 +2303,16 @@ export function QuoteEditor({
             {sheet}
           </DialogContent>
         </Dialog>
+      )}
+
+      {outputPick && (
+        <QuoteLanguageDialog
+          action={outputPick.action}
+          initial={printLang}
+          getMissing={(lang) => missingFor(outputPick.order ?? selectedOrder, lang)}
+          onConfirm={confirmOutput}
+          onClose={() => setOutputPick(null)}
+        />
       )}
 
       {contractOpen && lane && (
@@ -2292,8 +2341,8 @@ export function QuoteEditor({
               {draft.mode !== "view" && (
                 <InlineAlert>
                   {pureLogistics || saleLogisticsOrder
-                    ? "Sale nhập ảnh, số lượng, thông số, đơn giá, tỷ giá và đóng gói. Logistics nhập chi phí logistics."
-                    : "Sourcing điền ảnh, số lượng, thông số, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
+                    ? "Sale nhập ảnh, số lượng, quy cách và đóng gói. Logistics nhập đơn giá và chi phí logistics."
+                    : "Sourcing điền ảnh, số lượng, quy cách, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
                 </InlineAlert>
               )}
               <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4">
@@ -2311,55 +2360,23 @@ export function QuoteEditor({
                 </Field>
               </div>
               {draft.mode === "view" ? (
-                <QuoteSheetPreview html={sheetHtmlFor(draft.order)} title={`Xem trước ${draft.order.name || quote.code}`} />
+                <QuoteSheetPreview html={previewHtml} title={`Xem trước ${draft.order.name || quote.code}`} />
               ) : (
                 <>
-                <div className="flex flex-wrap items-center gap-2">
-                <PriceColumnPicker
-                  orders={[draft.order]}
-                  disabled={!canEditOrderPrices}
-                  onSelect={(currency) => {
-                    setDraft({ ...draft, order: selectRateColumn(draft.order, currency) });
-                    setOrderFields((current) => withoutOrderFields(current, ["rate"]));
-                  }}
-                />
-                {columnsFor(draft.order).filter((column) => column.currency !== "VND").map((column) => {
-                  const rateError = orderFields[`rate.${column.currency}`];
-                  return (
-                  <div key={column.currency} className="grid gap-1">
-                  <label className="flex items-center gap-2 text-sm" htmlFor={fieldId(`order-rate-${column.currency}`)}>
-                    <span className="font-medium">{currencyPairLabel(column.currency)}</span>
-                    <MoneyInput
-                      id={fieldId(`order-rate-${column.currency}`)}
-                      className="h-9 w-40"
-                      fractionDigits={4}
-                      value={column.rate}
+                {!pureLogistics && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PriceColumnPicker
+                      orders={[draft.order]}
                       disabled={!canEditOrderPrices}
-                      placeholder="Nhập tỷ giá"
-                      aria-label={`Tỷ giá ${currencyPairLabel(column.currency)}`}
-                      aria-invalid={rateError ? true : undefined}
-                      aria-describedby={rateError ? fieldId(`order-rate-${column.currency}-error`) : undefined}
-                      onValueChange={(rate) => {
-                        setDraft({
-                          ...draft,
-                          order: draft.order.currency === column.currency
-                            ? { ...draft.order, rate }
-                            : {
-                              ...draft.order,
-                              priceColumns: (draft.order.priceColumns ?? []).map((item) => item.currency === column.currency ? { ...item, rate } : item),
-                            },
-                        });
-                        clearOrderField(`rate.${column.currency}`);
+                      onSelect={(currency) => {
+                        setDraft({ ...draft, order: selectRateColumn(draft.order, currency) });
                       }}
                     />
-                  </label>
-                  {rateError && <p id={fieldId(`order-rate-${column.currency}-error`)} role="alert" className="text-xs text-danger">{rateError}</p>}
                   </div>
-                  );
-                })}
-                {canEditOrderPrices && <Button type="button" variant="outline" size="sm" disabled={ratePending} onClick={() => void loadExchangeRate()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>}
-                </div>
+                )}
                 <OrderLines
+                  lang={printLang}
+                  showPricing={!pureLogistics}
                   lines={draft.order.lines}
                   currency={draft.order.currency}
                   columns={columnsFor(draft.order)}
@@ -2378,9 +2395,12 @@ export function QuoteEditor({
             <DialogFooter>
               {draft.mode === "view" && (
                 <>
-                  <Button type="button" variant="outline" onClick={() => printOrder(draft.order)}><Printer />In</Button>
-                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => void downloadOrderPdf(draft.order)}>
+                  <Button type="button" variant="outline" onClick={() => setOutputPick({ action: "print", order: draft.order })}><Printer />In</Button>
+                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => setOutputPick({ action: "pdf", order: draft.order })}>
                     <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
+                  </Button>
+                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => setOutputPick({ action: "excel", order: draft.order })}>
+                    <Download />Tải Excel
                   </Button>
                   {canEditContent && (
                     <Button

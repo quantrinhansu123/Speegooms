@@ -1,8 +1,11 @@
 import { isCombinedSourcing, type QuoteDesk, type QuoteOrder, type UpdateQuoteInput } from "@speego/shared";
 import type { QuoteRecord } from "../repositories/crm.repository";
 
-/** Logistics giữ hàng hóa của Sale/Sourcing, chỉ nhận đơn giá và cột tiền vận hành nhập. */
-function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[]): QuoteOrder[] {
+/**
+ * Logistics giữ hàng hóa của Sale/Sourcing, chỉ nhận đơn giá, cách tính giá và cột tiền vận hành nhập.
+ * Khách thuần logistics: Logistics định giá nên được chỉnh cả số kg/m2/CBM dùng để nhân với đơn giá.
+ */
+function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner = false): QuoteOrder[] {
   if (input.length === 0) return current;
   return input.map((order) => {
     const previous = current.find((item) => item.id === order.id);
@@ -22,29 +25,30 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[]): QuoteOrder
           lineTotal: next.lineTotal,
           prices: next.prices ?? [],
           basis: next.basis,
+          ...(pricesOwner ? { weightKg: next.weightKg, areaM2: next.areaM2, cbm: next.cbm } : {}),
         };
       }),
     };
   });
 }
 
-/** Sale sửa nội dung đơn. Khách thuần logistics được lưu đơn giá và tỷ giá; khách khác giữ giá vận hành đã nhập. */
+/** Sale chỉ sửa nội dung đơn. Đơn giá, thành tiền, cách tính và loại tiền do Logistics/vận hành định, kể cả khách thuần logistics. */
 export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInput): UpdateQuoteInput {
-  const saleOwnsPrices = current.customerKind === "LOGISTICS";
   const orders = input.orders.map((order) => {
     const previous = current.orders.find((item) => item.id === order.id);
     return {
       ...order,
-      selected: saleOwnsPrices ? order.selected : previous?.selected ?? order.selected,
-      currency: saleOwnsPrices ? order.currency : previous?.currency ?? order.currency,
-      rate: saleOwnsPrices ? order.rate : previous?.rate ?? order.rate,
-      priceColumns: saleOwnsPrices ? order.priceColumns : previous?.priceColumns ?? order.priceColumns,
+      selected: previous?.selected ?? order.selected,
+      currency: previous?.currency ?? order.currency,
+      rate: previous ? previous.rate : null,
+      priceColumns: previous ? previous.priceColumns : [],
       lines: order.lines.map((line, index) => {
         const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
         const packaging = isCombinedSourcing(current)
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
-        if (!previousLine || saleOwnsPrices) return { ...line, ...packaging };
+        /** Dòng mới do Sale thêm: không nhận đơn giá, thành tiền hay cách tính giá, Logistics sẽ định. */
+        if (!previousLine) return { ...line, ...packaging, pricePerSet: null, lineTotal: null, prices: [], basis: "unit" as const };
         return {
           ...line,
           ...packaging,
@@ -87,15 +91,18 @@ export function applyLogisticsDeskSave(
         ...patch.notes,
         totalLabel: input.notes.totalLabel,
         validityNote: input.notes.validityNote,
+        validityNoteEn: input.notes.validityNoteEn,
         deposit: input.notes.deposit,
+        depositEn: input.notes.depositEn,
         weightNote: input.notes.weightNote,
+        weightNoteEn: input.notes.weightNoteEn,
       },
     };
   }
   if (options.canOps && (options.contentOnly || options.canRequest)) {
     patch = {
       ...patch,
-      orders: (options.contentOnly ? content : preserveQuotePrices(current, input)).orders,
+      orders: options.contentOnly ? content.orders : input.orders,
       notes: {
         ...patch.notes,
         logisticsFees: input.notes.logisticsFees,
@@ -113,7 +120,7 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
     opsNote: input.opsNote,
     quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
     contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
-    orders: logisticsOrders(current.orders, input.orders),
+    orders: logisticsOrders(current.orders, input.orders, current.customerKind === "LOGISTICS"),
     bank: current.bank,
     notes: {
       ...current.notes,

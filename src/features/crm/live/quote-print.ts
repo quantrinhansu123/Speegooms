@@ -1,17 +1,23 @@
-import { packagesText } from "@/services/crm/quote-lines";
-import { quoteLineImages, type QuoteBank, type QuoteCurrency, type QuoteLine, type QuoteNotes, type QuoteOrder } from "@speego/shared";
+import {
+  formatQuoteNumber,
+  quoteCompany,
+  quoteCompanyLabels,
+  quoteFileBase,
+  quoteSheetInputOf,
+  safeQuoteFilename,
+  type QuoteLang,
+  type QuoteLine,
+  type QuoteSheetCustomer,
+  type QuoteSheetInput,
+  type QuoteSheetModel,
+} from "@speego/shared";
 import { SPEEGO_LOGO_DATA_URL } from "./quote-logo";
+import { buildQuoteSheet, orderForQuotePdf, type QuotePdfSource } from "./quote-sheet";
 
-export const companyName = "CÔNG TY TNHH SPEEGO LOGISTICS";
+export const companyName: string = quoteCompany.name;
 
-/** Tiêu đề bên trái — thông tin bên phải (letterhead). */
-export const companyFields: [string, string][] = [
-  ["Địa chỉ HN", "Tầng 24, Leadvisors Tower, 643 Phạm Văn Đồng, Phường Nghĩa Đô, HN"],
-  ["Địa chỉ HCM", "01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM"],
-  ["Địa chỉ Mỹ", "7303 Breen Dr, Houston, TX 77086, US"],
-  ["Điện thoại", "079.673.8695"],
-  ["Email", "sales@speegologistic.com"],
-];
+/** Tiêu đề bên trái — thông tin bên phải (letterhead). Nhãn tiếng Việt, dùng cho preview cũ. */
+export const companyFields: [string, string][] = quoteCompany.values.map((value, index) => [quoteCompanyLabels.vi[index] ?? "", value]);
 
 /** @deprecated Dùng companyName + companyFields. Giữ để tương thích preview cũ. */
 export const companyLines = [
@@ -19,13 +25,7 @@ export const companyLines = [
   ...companyFields.map(([label, value]) => `${label}: ${value}`),
 ];
 
-export interface QuoteCustomer {
-  customerName: string | null;
-  companyName: string | null;
-  address: string | null;
-  phone: string | null;
-  email: string | null;
-}
+export type QuoteCustomer = QuoteSheetCustomer;
 
 export function quoteTotals(lines: QuoteLine[]) {
   const priced = lines.some((line) => line.lineTotal != null);
@@ -49,17 +49,6 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-/** Bảng tiêu đề trái — thông tin phải, cột thẳng hàng. */
-function kvTable(rows: [string, string][], emptyFallback?: [string, string]): string {
-  const filled = rows.filter(([, value]) => Boolean(value?.trim()));
-  const list = filled.length > 0 ? filled : emptyFallback ? [emptyFallback] : [];
-  if (list.length === 0) return "";
-  const body = list
-    .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
-    .join("");
-  return `<table class="kv"><colgroup><col class="kv-label"><col class="kv-value"></colgroup><tbody>${body}</tbody></table>`;
-}
-
 /** Nhiều cột label|value trên cùng hàng — giảm số dòng, tăng số cột. */
 function kvTableWide(rows: [string, string][], columns = 2, emptyFallback?: [string, string]): string {
   const filled = rows.filter(([, value]) => Boolean(value?.trim()));
@@ -76,25 +65,6 @@ function kvTableWide(rows: [string, string][], columns = 2, emptyFallback?: [str
   return `<table class="kv kv-wide"><colgroup>${cols}</colgroup><tbody>${body.join("")}</tbody></table>`;
 }
 
-function formatAmount(value: number | null, digits = 2): string {
-  if (value == null) return "";
-  return new Intl.NumberFormat("vi-VN", {
-    minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(digits, 2),
-    maximumFractionDigits: digits,
-  }).format(value);
-}
-
-/** Giá ngoại tệ quy ra VND theo tỷ giá nhập trong mẫu; null nếu là VND hoặc chưa có tỷ giá. */
-export function vndEquivalent(amount: number, currency: QuoteCurrency, rate: number | null): number | null {
-  return currency === "VND" || !rate ? null : Math.round(amount * rate);
-}
-
-/** Cột Note: ghi chú tay + quy cách đóng gói + thuộc tính, theo cách các mẫu sheet đang trình bày. */
-function lineNote(line: QuoteLine): string {
-  const attrs = line.attrs.filter((a) => a.key.trim() || a.value.trim()).map((a) => (a.key.trim() ? `${a.key.trim()}: ${a.value.trim()}` : a.value.trim()));
-  return [packagesText(line.packages), ...attrs, line.note.trim()].filter(Boolean).join("\n");
-}
-
 function imageSrc(value: string): string {
   if (/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(value)) return value;
   if (/^https:\/\/[^\s"]+$/.test(value)) return escapeHtml(value);
@@ -103,28 +73,6 @@ function imageSrc(value: string): string {
 
 function cell(value: string, className = ""): string {
   return `<td class="${className}">${value ? escapeHtml(value).replaceAll("\n", "<br>") : ""}</td>`;
-}
-
-function filledLine(line: QuoteLine): boolean {
-  return Boolean(
-    line.stt.trim()
-    || line.productName?.trim()
-    || quoteLineImages(line).length > 0
-    || line.quantity != null
-    || line.pricePerSet != null
-    || line.lineTotal != null
-    || line.weightKg != null
-    || line.cbm != null
-    || line.spec.trim()
-    || line.note.trim()
-    || line.packages.length > 0
-    || line.attrs.some((item) => item.key.trim() || item.value.trim()),
-  );
-}
-
-function totalsConverted(lines: QuoteLine[], currency: QuoteCurrency, rate: number | null): number | null {
-  const totals = quoteTotals(lines);
-  return totals.priced ? vndEquivalent(totals.goods, currency, rate) : null;
 }
 
 /** Một dòng số + đơn vị (số thẳng số, đơn vị thẳng đơn vị). */
@@ -140,154 +88,145 @@ function numCell(amount: string, unit = "", className = "num"): string {
   return `<td class="${className}">${numRow(amount, unit)}</td>`;
 }
 
-type SummaryCells = { total?: string; cbm?: string };
-
-/** Dòng tổng kết: nhãn | Kg/CBM | đơn giá trống | thành tiền | thông số | note. */
-function summaryRow(label: string, cells: SummaryCells = {}, note = ""): string {
-  return `<tr>
-    <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
-    <td class="sum-value">${cells.cbm ?? ""}</td>
-    <td></td>
-    <td class="sum-value">${cells.total ?? ""}</td>
-    <td class="sum-spec"></td>
-    <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
-  </tr>`;
+/** Ngày ISO yyyy-mm-dd thành dd/mm/yyyy; chuỗi khác giữ nguyên. */
+function displayDate(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split("-").reverse().join("/") : value;
 }
 
-export function quoteSheetHtml(input: {
-  customer: QuoteCustomer;
-  lines: QuoteLine[];
-  currency?: QuoteCurrency;
-  rate?: number | null;
-  notes: QuoteNotes;
-  bank: QuoteBank;
+type Column = { key: string; width: number };
+
+/** Số cột cố định đứng trước cột Thành tiền chính: STT, Mặt hàng, Hình ảnh, Số lượng, Kg/CBM/m2, Đơn giá. */
+const COLUMNS_BEFORE_TOTAL = 6;
+
+/** Các cột bảng hàng: tiền thêm (đơn giá + thành tiền) chèn sau cột Thành tiền chính. */
+function sheetColumns(model: QuoteSheetModel): Column[] {
+  const cols: Column[] = [
+    { key: "stt", width: 3 },
+    { key: "product", width: 15 },
+    { key: "image", width: 16 },
+    { key: "qty", width: 7 },
+    { key: "metric", width: 8 },
+    { key: "price", width: 9 },
+    { key: "total", width: 11 },
+  ];
+  for (const code of model.extraCurrencies) {
+    cols.push({ key: `price-${code}`, width: 8 }, { key: `total-${code}`, width: 10 });
+  }
+  cols.push({ key: "spec", width: 16 }, { key: "info", width: 15 });
+  return cols;
+}
+
+/** Một colgroup dùng chung cho bảng hàng, tổng và đặt cọc để các cột luôn thẳng nhau. */
+function colgroupHtml(cols: Column[]): string {
+  const sum = cols.reduce((total, col) => total + col.width, 0);
+  return `<colgroup>${cols.map((col) => `<col style="width:${((col.width / sum) * 100).toFixed(2)}%">`).join("")}</colgroup>`;
+}
+
+export function quoteSheetHtml(input: QuoteSheetInput & {
   logoUrl?: string;
-  code?: string | null;
-  orderName?: string | null;
-  issuedOn?: string | null;
   /** Chỉ thông tin khách hàng và bảng chi tiết đơn hàng, dùng cho màn hình theo dõi. */
   compact?: boolean;
 }): string {
-  const currency = input.currency ?? "VND";
-  const lines = input.lines.filter(filledLine);
-  const converted = totalsConverted(lines, currency, input.rate ?? null);
-  const totals = quoteTotals(lines);
+  const model = buildQuoteSheet(input);
+  const { t, lang } = model;
+  const fmt = (value: number | null, digits = 2) => (value == null ? "" : formatQuoteNumber(value, lang, digits));
   const logoUrl = input.logoUrl?.trim() || SPEEGO_LOGO_DATA_URL;
+  const cols = sheetColumns(model);
+  const colgroup = colgroupHtml(cols);
+  const colCount = cols.length;
 
-  const rows = lines.map((line) => {
-    const images = quoteLineImages(line)
+  const rows = model.lines.map((line) => {
+    const images = line.images
       .map((item) => imageSrc(item))
       .filter(Boolean)
       .map((src) => `<img src="${src}" alt="">`)
       .join("");
-    const qtyAmount = line.quantity == null ? "" : formatAmount(line.quantity);
-    const priceAmount = line.pricePerSet == null ? "" : formatAmount(line.pricePerSet);
-    const priceUnit = line.pricePerSet == null || line.basis === "unit"
-      ? ""
-      : `/${{ kg: "kg", cbm: "cbm", lump: "gói" }[line.basis]}`;
-    const totalAmount = line.lineTotal == null ? "" : formatAmount(line.lineTotal);
-    const metric = line.basis === "kg" ? line.weightKg : line.basis === "cbm" ? line.cbm : null;
-    const metricAmount = metric != null && metric > 0 ? formatAmount(metric, line.basis === "cbm" ? 3 : 2) : "";
-    const metricUnit = metricAmount && line.basis === "kg" ? "kg/set" : metricAmount && line.basis === "cbm" ? "CBM/set" : "";
-    const specText = line.spec.trim();
-    const noteText = lineNote(line);
+    const extras = line.extra.map((item) => `${numCell(fmt(item.price), "")}${numCell(fmt(item.total), "", "num money")}`).join("");
     return `<tr>
       ${cell(line.stt, "stt")}
-      ${cell(line.productName ?? "", "wrap info")}
+      ${cell(line.productName, "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(qtyAmount, line.unit || "set")}
-      ${numCell(metricAmount, metricUnit)}
-      ${numCell(priceAmount, priceUnit)}
-      ${numCell(totalAmount, "", "num money")}
-      ${cell(specText, "wrap info")}
-      ${cell(noteText, "wrap info")}
+      ${numCell(fmt(line.quantity), line.unit)}
+      ${numCell(fmt(line.metric, 3), line.metricUnit)}
+      ${numCell(fmt(line.price), line.priceUnit)}
+      ${numCell(fmt(line.total), "", "num money")}
+      ${extras}
+      ${cell(line.spec, "wrap info")}
+      ${cell(line.note, "wrap info")}
     </tr>`;
   }).join("");
 
-  const hasText = (value: string | null | undefined) => Boolean(value?.trim());
-  const customerTable = kvTableWide(
-    [
-      ["Khách hàng", input.customer.customerName ?? ""],
-      ["Công ty", input.customer.companyName ?? ""],
-      ["Địa chỉ", input.customer.address ?? ""],
-      ["Điện thoại", input.customer.phone ?? ""],
-      ["Email", input.customer.email ?? ""],
-      ["Hiệu lực", input.notes.validityNote?.trim() ?? ""],
-    ],
-    3,
-    ["Khách hàng", "—"],
-  );
-  const companyTable = kvTableWide(companyFields, 2);
+  const metaRows: [string, string][] = [
+    [t.quoteNo, model.meta.code],
+    [t.issuedOn, displayDate(model.meta.issuedOn)],
+    [t.orderName, model.meta.orderName],
+  ];
+  const customerTable = kvTableWide([...metaRows, ...model.customerRows], 3, [t.customer, "—"]);
+  const companyTable = kvTableWide(model.company.rows, 2);
 
-  const totalLabel = input.notes.totalLabel?.trim() || "Tổng giá trị hàng hóa chưa bao gồm phí vận chuyển";
-  const shippingLabel = input.notes.shippingLabel?.trim() ?? "";
-  const weightNote = input.notes.weightNote?.trim() ?? "";
-  const validityNote = input.notes.validityNote?.trim() ?? "";
-  const depositLines = input.notes.deposit.map((line) => line.trim()).filter(Boolean);
-  const logisticsFees = (input.notes.logisticsFees ?? [])
-    .map((fee) => ({ label: fee.label.trim(), value: fee.value.trim() }))
-    .filter((fee) => fee.label || fee.value);
-
-  const cbmCell = totals.cbm > 0 ? numRow(formatAmount(totals.cbm, 3), "") : "";
-  const moneyOrText = (raw: string) => {
-    if (!raw) return "";
-    const parsed = Number(raw.replaceAll(/\s/g, "").replaceAll(".", "").replaceAll(",", "."));
-    if (Number.isFinite(parsed) && /^[\d\s.,]+$/.test(raw)) {
-      return numRow(formatAmount(parsed), "");
-    }
-    return escapeHtml(raw);
+  /** Ô tổng theo loại tiền: tiền chính ở cột Tổng tiền hàng, tiền thêm ở cột riêng, tiền lạ kèm mã tiền. */
+  const amountCells = (currency: string, amount: number) => {
+    const text = fmt(amount);
+    if (currency === model.currency) return { total: numRow(text), extra: {} };
+    if (model.extraCurrencies.includes(currency)) return { total: "", extra: { [currency]: numRow(text) } };
+    return { total: numRow(text, currency), extra: {} };
   };
-  const shippingAmount = moneyOrText(shippingLabel);
-  const feeRows = logisticsFees.map((fee) => summaryRow(
-    fee.label || "Chi phí logistics",
-    { total: moneyOrText(fee.value), cbm: "" },
-  )).join("");
-  const summaryRows = [
-    (totals.priced || weightNote)
-      ? summaryRow(
-          totalLabel,
-          {
-            total: totals.priced ? numRow(formatAmount(totals.goods), "") : "",
-            cbm: cbmCell,
-          },
-          weightNote,
-        )
-      : "",
-    feeRows,
-    shippingLabel
-      ? summaryRow(
-          "Tổng chi phí vận chuyển",
-          { total: shippingAmount, cbm: cbmCell },
-          validityNote,
-        )
-      : "",
-    converted != null
-      ? summaryRow(
-          `Quy đổi (1 ${currency} = ${formatAmount(input.rate ?? 0)} VND)`,
-          { total: numRow(formatAmount(converted), "") },
-        )
-      : "",
-  ].filter(Boolean).join("");
 
-  const depositRows = depositLines.map((line, index) => `<tr>
+  /** Dòng tổng: nhãn | tổng CBM (cột Kg/CBM/m2) | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
+  const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string }, note = "") => {
+    const extraCells = model.extraCurrencies.map((code) => `<td class="sum-gap"></td><td class="sum-value">${values.extra?.[code] ?? ""}</td>`).join("");
+    return `<tr>
+      <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
+      <td class="sum-value">${values.cbm ?? ""}</td>
+      <td></td>
+      <td class="sum-value">${values.total ?? ""}</td>
+      ${extraCells}
+      <td class="sum-spec"></td>
+      <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
+    </tr>`;
+  };
+
+  const cbmCell = model.totals.cbm > 0 ? numRow(fmt(model.totals.cbm, 3), "") : "";
+
+  const goodsRow = (model.totals.priced || model.weightNote)
+    ? summaryRow(model.totalLabel, {
+        total: model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : "",
+        extra: Object.fromEntries(model.extraCurrencies.map((code) => {
+          const total = model.totals.extra[code];
+          return [code, total != null ? numRow(fmt(total), "") : ""];
+        })),
+        cbm: cbmCell,
+      }, model.weightNote)
+    : "";
+  const feeRows = model.fees.map((fee) => {
+    const cells = fee.amount != null ? amountCells(fee.currency, fee.amount) : { total: escapeHtml(fee.text), extra: {} };
+    return summaryRow(fee.label || t.logisticsFee, cells);
+  }).join("");
+  const shippingRow = model.shippingText
+    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount)) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
+    : "";
+  const subtotalRows = model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)
+    ? model.feeSubtotals.map((sub) => summaryRow(
+        `${t.feeSubtotal} (${sub.currency})`,
+        amountCells(sub.currency, sub.amount),
+      )).join("")
+    : "";
+  const summaryRows = [goodsRow, feeRows, shippingRow, subtotalRows].filter(Boolean).join("");
+
+  const blankAfterTotal = colCount - COLUMNS_BEFORE_TOTAL - 1;
+  const depositRows = model.deposit.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
-    <td class="dep-value"></td>
-    <td></td>
-    <td class="dep-value">${index === 0 && totals.priced ? numRow(formatAmount(totals.goods), "") : ""}</td>
     <td></td>
     <td></td>
+    <td class="dep-value">${index === 0 && model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : ""}</td>
+    ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
 
-  const bankParts = [
-    hasText(input.bank.accountName) ? `<div><span>Account Name</span>${escapeHtml(input.bank.accountName)}</div>` : "",
-    hasText(input.bank.accountNumber) ? `<div><span>Account Number</span>${escapeHtml(input.bank.accountNumber)}</div>` : "",
-    hasText(input.bank.routingNumber) ? `<div><span>Routing Number</span>${escapeHtml(input.bank.routingNumber)}</div>` : "",
-  ].filter(Boolean).join("");
-
-  const bankBlock = bankParts || hasText(input.bank.title)
+  const bankRows = model.bank.rows.filter(([, value]) => value.trim());
+  const bankBlock = bankRows.length > 0
     ? `<section class="bank">
-        <h2>${escapeHtml(input.bank.title?.trim() || "Thông tin thanh toán")}</h2>
-        ${bankParts}
+        <h2>${escapeHtml(model.bank.title || t.paymentInfo)}</h2>
+        ${bankRows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("")}
       </section>`
     : "";
 
@@ -297,66 +236,59 @@ export function quoteSheetHtml(input: {
     <div class="brand">
       <img class="logo" src="${escapeHtml(logoUrl)}" alt="SpeeGo Logistics" width="168" height="50">
       <div class="company">
-        <strong>${escapeHtml(companyName)}</strong>
+        <strong>${escapeHtml(model.company.name)}</strong>
         ${companyTable}
       </div>
     </div>
   </header>
   <div class="accent-bar" aria-hidden="true"></div>
-  <h1 class="doc-title">BÁO GIÁ</h1>
+  <h1 class="doc-title">${escapeHtml(t.title)}</h1>
   `}
 
   <section class="party party-wide">
-    <h2>Thông tin khách hàng</h2>
+    <h2>${escapeHtml(t.customerInfo)}</h2>
     ${customerTable}
   </section>
 
-  <h2 class="banner">CHI TIẾT ĐƠN HÀNG</h2>
+  <h2 class="banner">${escapeHtml(t.orderDetails)}</h2>
 
   <table class="items">
-    <colgroup>
-      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
-      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
-    </colgroup>
+    ${colgroup}
     <thead>
       <tr>
-        <th>STT</th>
-        <th>Mặt hàng</th>
-        <th>Hình ảnh</th>
-        <th>Số lượng</th>
-        <th>Kg/CBM</th>
-        <th>Đơn giá<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
-        <th>Tổng tiền hàng<br><span class="th-sub">(${escapeHtml(currency)})</span></th>
-        <th>Thông số kỹ thuật và tính năng của sản phẩm</th>
-        <th>Note</th>
+        <th>${escapeHtml(t.stt)}</th>
+        <th>${escapeHtml(t.product)}</th>
+        <th>${escapeHtml(t.image)}</th>
+        <th>${escapeHtml(t.quantity)}</th>
+        <th>${escapeHtml(t.metric)}</th>
+        <th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
+        <th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
+        ${model.extraCurrencies.map((code) => `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(code)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(code)})</span></th>`).join("")}
+        <th>${escapeHtml(t.spec)}</th>
+        <th>${escapeHtml(t.note)}</th>
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="9" class="empty">Chưa có dòng hàng</td></tr>`}
+      ${rows || `<tr><td colspan="${colCount}" class="empty">${escapeHtml(t.empty)}</td></tr>`}
     </tbody>
   </table>
 
-  ${summaryRows ? `<table class="summary"><colgroup>
-      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
-      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
-    </colgroup><tbody>${summaryRows}</tbody></table>` : ""}
-
-  ${depositRows ? `<table class="summary deposit"><colgroup>
-      <col class="c-stt"><col class="c-product"><col class="c-image"><col class="c-qty">
-      <col class="c-metric"><col class="c-price"><col class="c-total"><col class="c-spec"><col class="c-info">
-    </colgroup><tbody>${depositRows}</tbody></table>` : ""}
+  ${summaryRows || depositRows ? `<section class="closing">
+  ${summaryRows ? `<table class="summary">${colgroup}<tbody>${summaryRows}</tbody></table>` : ""}
+  ${depositRows ? `<table class="summary deposit">${colgroup}<tbody>${depositRows}</tbody></table>` : ""}
+  </section>` : ""}
 
   ${input.compact ? "" : `
   <section class="payment-signatures">
   ${bankBlock}
   <section class="sign">
     <div>
-      <p>ĐẠI DIỆN BÊN A</p>
-      <span>(Ký, đóng dấu)</span>
+      <p>${escapeHtml(t.partyA)}</p>
+      <span>${escapeHtml(t.signStamp)}</span>
     </div>
     <div>
-      <p>ĐẠI DIỆN BÊN B</p>
-      <span>(Ký, đóng dấu)</span>
+      <p>${escapeHtml(t.partyB)}</p>
+      <span>${escapeHtml(t.signStamp)}</span>
     </div>
   </section>
   </section>
@@ -509,15 +441,14 @@ export const quotePrintCss = `
     table-layout: fixed;
     font-size: 9pt;
   }
-  .c-stt { width: 3%; }
-  .c-product { width: 15%; }
-  .c-image { width: 16%; }
+  .c-stt { width: 3.5%; }
+  .c-image { width: 24%; }
   .c-qty { width: 7%; }
-  .c-metric { width: 8%; }
   .c-price { width: 9%; }
   .c-total { width: 11%; }
-  .c-spec { width: 16%; }
-  .c-info { width: 15%; }
+  .c-cbm { width: 7%; }
+  .c-spec { width: 20%; }
+  .c-info { width: 18.5%; }
   table.items th,
   table.items td {
     border: 1px solid #c5d0de;
@@ -682,6 +613,18 @@ export const quotePrintCss = `
     vertical-align: middle;
   }
 
+  /* Ngắt trang: lặp tiêu đề cột, không cắt giữa hàng, giữ khối tổng/đặt cọc đi cùng nhau. */
+  table.items thead { display: table-header-group; }
+  table.items tr,
+  table.summary tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .closing {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  table.summary .sum-gap { border-right: 0; background: #fff; }
   .payment-signatures {
     display: flow-root;
     break-inside: avoid;
@@ -732,7 +675,7 @@ export const quotePrintCss = `
   .sign div::after {
     content: "";
     display: block;
-    height: 75mm;
+    height: 28mm;
   }
   .sign span {
     display: block;
@@ -789,48 +732,22 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
   win.addEventListener("afterprint", () => frame.remove());
 }
 
-function safePdfFilename(name: string): string {
-  const cleaned = name.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").replace(/\s+/g, " ").trim();
-  return cleaned || "bao-gia";
-}
-
-export type QuotePdfSource = QuoteCustomer & {
-  code: string;
-  orders: QuoteOrder[];
-  notes: QuoteNotes;
-  bank: QuoteBank;
-};
-
-export function orderForQuotePdf(orders: QuoteOrder[]): QuoteOrder | undefined {
-  return orders.find((order) => order.selected) ?? orders[0];
-}
-
-function sheetHtmlForRecord(quote: QuotePdfSource): string {
+function sheetHtmlForRecord(quote: QuotePdfSource, lang?: QuoteLang): string {
   const order = orderForQuotePdf(quote.orders);
   if (!order) throw new Error("Chưa có mẫu báo giá để in");
-  return quoteSheetHtml({
-    customer: quote,
-    lines: order.lines,
-    currency: order.currency,
-    rate: order.rate,
-    notes: quote.notes,
-    bank: quote.bank,
-    code: quote.code,
-    orderName: order.name,
-  });
+  return quoteSheetHtml(quoteSheetInputOf(quote, order, lang));
 }
 
 /** In báo giá từ bản ghi (ưu tiên mẫu đang chọn). */
-export async function printQuoteRecord(quote: QuotePdfSource): Promise<void> {
-  await printQuoteSheet(sheetHtmlForRecord(quote));
+export async function printQuoteRecord(quote: QuotePdfSource, lang?: QuoteLang): Promise<void> {
+  await printQuoteSheet(sheetHtmlForRecord(quote, lang));
 }
 
 /** Tải PDF từ bản ghi báo giá (ưu tiên mẫu đang chọn). */
-export async function downloadQuoteRecordPdf(quote: QuotePdfSource): Promise<void> {
+export async function downloadQuoteRecordPdf(quote: QuotePdfSource, lang?: QuoteLang): Promise<void> {
   const order = orderForQuotePdf(quote.orders);
   if (!order) throw new Error("Chưa có mẫu báo giá để tải PDF");
-  const filename = `${quote.code || "bao-gia"}${order.name ? `-${order.name}` : ""}`;
-  await downloadQuotePdf(sheetHtmlForRecord(quote), filename);
+  await downloadQuotePdf(sheetHtmlForRecord(quote, lang), quoteFileBase(quote.code, order.name, lang));
 }
 
 /** Xuất PDF A4 ngang từ cùng HTML sheet dùng cho in. */
@@ -897,7 +814,7 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
       start = end;
     }
 
-    pdf.save(`${safePdfFilename(filename)}.pdf`);
+    pdf.save(`${safeQuoteFilename(filename)}.pdf`);
   } finally {
     host.remove();
   }

@@ -175,6 +175,16 @@ export class CrmService {
     return result;
   }
 
+  /** Báo giá nguồn để Sale in file hợp đồng từ hợp đồng đã tạo. */
+  async contractSource(lane: CrmLane, quoteId: string, role: Role): Promise<QuoteRecord> {
+    const quote = await this.ready().findQuote(lane, "sourcing", quoteId);
+    if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (!canViewQuote(role, "sourcing", quoteAccessKind(quote))) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
+    }
+    return quote;
+  }
+
   /** Logistics mở đơn thuần logistics đã có để nhập giá, không tạo báo giá mới. */
   async potentialLogisticsQuote(lane: CrmLane, potentialId: string, role: Role): Promise<QuoteRecord> {
     this.assertDeskView(role, "logistics");
@@ -209,6 +219,7 @@ export class CrmService {
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
+    if (result === "empty") throw new AppError(400, "RULE", "Nhập thông tin đơn hàng ở Sourcing trước khi chuyển sang Logistics");
     await this.notifications?.notifyQuoteRequested(
       actor,
       lane,

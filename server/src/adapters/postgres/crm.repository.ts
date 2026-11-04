@@ -2,6 +2,8 @@ import {
   isCombinedSourcing,
   shippingInCurrency,
   logisticsOrderFromSourcing,
+  orderHasContent,
+  sourcingHandoffOrder,
   quoteAccessKind,
   type QuoteWorkflow,
   type AccountingContractInput,
@@ -28,6 +30,7 @@ import {
 } from "@speego/shared";
 import type pg from "pg";
 import { AppError, InfrastructureError } from "../../lib/errors";
+import { COMBINED_HANDED_OFF_SQL, isLogisticsHandedOff, LOGISTICS_SHEET_UNSEEDED_SQL, mergeHandoffSql } from "./logistics-handoff";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -265,6 +268,11 @@ function emptyLogisticsSheet() {
   };
 }
 
+/** Phiếu Logistics tạo khi Sourcing chuyển sang. Dấu handoffAt cho biết đã chuyển, kể cả khi chưa có đơn hàng. */
+function handoffSheetOf(orders: QuoteOrder[]) {
+  return { ...emptyLogisticsSheet(), handoffAt: new Date().toISOString(), orders };
+}
+
 function optionalAmount(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return value;
@@ -345,9 +353,12 @@ function asLines(value: unknown): QuoteLine[] {
       weightKg: optionalAmount(row.weightKg),
       spec: textField(row.spec),
       note: textField(row.note),
+      specEn: textField(row.specEn),
+      noteEn: textField(row.noteEn),
       unit: textField(row.unit) || "set",
       basis: asBasis(row.basis),
       cbm: optionalAmount(row.cbm),
+      areaM2: optionalAmount(row.areaM2),
       packages: asPackages(row.packages),
       attrs: asAttrs(row.attrs),
       prices: asLinePrices(row.prices),
@@ -365,7 +376,7 @@ function asImages(value: unknown, legacy: unknown): string[] {
 }
 
 function asBasis(value: unknown): QuoteLine["basis"] {
-  return value === "kg" || value === "cbm" || value === "lump" ? value : "unit";
+  return value === "kg" || value === "m2" || value === "cbm" || value === "lump" ? value : "unit";
 }
 
 function asPackages(value: unknown): QuoteLine["packages"] {
@@ -390,7 +401,7 @@ function asAttrs(value: unknown): QuoteLine["attrs"] {
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
-    return [{ key: textField(row.key), value: textField(row.value) }];
+    return [{ key: textField(row.key), value: textField(row.value), keyEn: textField(row.keyEn), valueEn: textField(row.valueEn) }];
   });
 }
 
@@ -405,25 +416,36 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
   return value
     .map((item) => {
       if (!item || typeof item !== "object") return null;
-      const row = item as { label?: unknown; value?: unknown };
+      const row = item as { label?: unknown; labelEn?: unknown; value?: unknown; currency?: unknown; itemStt?: unknown };
       const label = textField(row.label);
       if (!label) return null;
-      return { label, value: textField(row.value) };
+      const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
+      return {
+        label,
+        labelEn: textField(row.labelEn),
+        value: textField(row.value),
+        currency: /^[A-Z]{3}$/.test(currency) ? currency : "",
+        itemStt: textField(row.itemStt),
+      };
     })
-    .filter((item): item is { label: string; value: string } => item != null)
+    .filter((item): item is QuoteNotes["logisticsFees"][number] => item != null)
     .slice(0, 30);
 }
 
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; deposit?: unknown; logisticsFees?: unknown; opsExtra?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown }
     : {};
+  const deposit = asDeposit(row.deposit);
   return {
     totalLabel: textField(row.totalLabel),
     shippingLabel: textField(row.shippingLabel),
     weightNote: textField(row.weightNote),
     validityNote: textField(row.validityNote),
-    deposit: asDeposit(row.deposit),
+    weightNoteEn: textField(row.weightNoteEn),
+    validityNoteEn: textField(row.validityNoteEn),
+    deposit,
+    depositEn: asDeposit(row.depositEn).slice(0, deposit.length),
     logisticsFees: asLogisticsFees(row.logisticsFees),
     opsExtra: textField(row.opsExtra),
   };
@@ -510,7 +532,9 @@ function toQuote(row: QuoteRow): QuoteRecord {
     bank: asBank(row.bank_account),
     sentQuote: asSent(row.sent_copy),
     logisticsQuoteId: row.logistics_quote_id,
-    logisticsSheet: asSheet(row.logistics_sheet, row.logistics_template_name),
+    logisticsSheet: isLogisticsHandedOff(row.logistics_sheet, row.sent_copy)
+      ? asSheet(row.logistics_sheet, row.logistics_template_name)
+      : null,
     sourcingContext: null,
     requirements: row.requirements,
     requirementImages: imageList(row.requirement_images),
@@ -531,6 +555,8 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     bank: asBank(null),
     sentQuote: null,
   };
+  /** Thông tin đơn hàng Sourcing để Logistics luôn thấy dữ liệu đơn hàng, kể cả khi phiếu mới chuyển còn trống. */
+  const handoffOrder = sourcingHandoffOrder(base);
   return {
     ...base,
     templateId: sheet.templateId,
@@ -538,14 +564,14 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     opsNote: sheet.opsNote,
     quoteStatus: sheet.quoteStatus,
     contractStatus: sheet.contractStatus,
-    orders: sheet.orders.length === 0 && !sheet.sentQuote && base.sentQuote
-      ? [logisticsOrderFromSourcing(base.sentQuote.order)]
+    orders: sheet.orders.length === 0 && !sheet.sentQuote && handoffOrder
+      ? [logisticsOrderFromSourcing(handoffOrder)]
       : sheet.orders,
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,
     logisticsSheet: null,
-    sourcingContext: base.sentQuote ? { order: base.sentQuote.order, opsNote: base.opsNote } : null,
+    sourcingContext: handoffOrder ? { order: handoffOrder, opsNote: base.opsNote } : null,
   };
 }
 
@@ -1448,7 +1474,7 @@ export class PostgresCrmRepository implements CrmRepository {
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by q.tao_luc desc limit 200`,
             shared.values,
           )
         : noRows,
@@ -1537,14 +1563,7 @@ export class PostgresCrmRepository implements CrmRepository {
        on conflict (ma_khach_hang_tiem_nang) do nothing`,
       [potentialId],
     );
-    if (isCombinedSourcing({ customerKind: kind ?? null, quoteWorkflow: found.rows[0].quote_workflow })) {
-      await this.query(
-        `update ${tables.sourcing}
-         set bao_gia_logistics = $2::jsonb
-         where ma_khach_hang_tiem_nang = $1::uuid and bao_gia_logistics is null`,
-        [potentialId, JSON.stringify(emptyLogisticsSheet())],
-      );
-    }
+    // Khách Sourcing kết hợp: báo giá chỉ nằm ở bàn Sourcing. Phiếu Logistics tạo khi Sourcing chuyển sang.
     const quote = await this.findQuoteByPotential(lane, desk, potentialId);
     if (!quote) return "missing" as const;
     return { quote, created: (inserted.rowCount ?? 0) > 0, desk };
@@ -1554,17 +1573,17 @@ export class PostgresCrmRepository implements CrmRepository {
     const sourcing = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!sourcing) return "missing" as const;
     if (!isCombinedSourcing(sourcing)) return "kind" as const;
-    const handoffSheet = {
-      ...emptyLogisticsSheet(),
-      orders: sourcing.sentQuote ? [logisticsOrderFromSourcing(sourcing.sentQuote.order)] : [],
-    };
+    // Logistics phải nhận được thông tin đơn hàng, không nhận phiếu trống.
+    const order = sourcingHandoffOrder(sourcing);
+    if (!order) return "empty" as const;
+    const handoffSheet = handoffSheetOf([logisticsOrderFromSourcing(order)]);
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
-       set bao_gia_logistics = case when bao_gia_logistics is null then $2::jsonb
-         else jsonb_set(bao_gia_logistics, '{orders}', $2::jsonb->'orders') end
+       set bao_gia_logistics = ${mergeHandoffSql("$2")}
        where id = $1::uuid and (bao_gia_logistics is null
-         or ($3::boolean and coalesce(bao_gia_logistics->'orders', '[]'::jsonb) = '[]'::jsonb and bao_gia_logistics->>'sentQuote' is null))`,
-      [sourcingQuoteId, JSON.stringify(handoffSheet), Boolean(sourcing.sentQuote)],
+         or bao_gia_logistics->>'handoffAt' is null
+         or (${LOGISTICS_SHEET_UNSEEDED_SQL}))`,
+      [sourcingQuoteId, JSON.stringify(handoffSheet)],
     );
     const quote = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!quote) return "missing" as const;
@@ -1652,7 +1671,9 @@ export class PostgresCrmRepository implements CrmRepository {
       bank: input.bank,
     };
     const handoff = desk === "sourcing" && isCombinedSourcing(quote);
-    const handoffSheet = { ...emptyLogisticsSheet(), orders: [logisticsOrderFromSourcing(selected)] };
+    // Gửi báo giá Sourcing cũng chuyển sang Logistics: mẫu được chọn phải có thông tin đơn hàng.
+    if (handoff && !orderHasContent(selected)) return "empty" as const;
+    const handoffSheet = handoffSheetOf([logisticsOrderFromSourcing(selected)]);
     const updated = await this.query(
       `update ${quoteTables[lane][desk]}
        set ma_mau = $2::uuid,
@@ -1663,11 +1684,7 @@ export class PostgresCrmRepository implements CrmRepository {
            ghi_chu = $7::jsonb,
            tai_khoan_ngan_hang = $8::jsonb,
            ban_da_gui = $9::jsonb
-           ${handoff ? `, bao_gia_logistics = case
-             when bao_gia_logistics is null then $10::jsonb
-             when coalesce(bao_gia_logistics->'orders', '[]'::jsonb) = '[]'::jsonb and bao_gia_logistics->>'sentQuote' is null
-               then jsonb_set(bao_gia_logistics, '{orders}', $10::jsonb->'orders')
-             else bao_gia_logistics end` : ""}
+           ${handoff ? `, bao_gia_logistics = ${mergeHandoffSql("$10")}` : ""}
        where id = $1::uuid`,
       [
         id,
@@ -2039,7 +2056,7 @@ export class PostgresCrmRepository implements CrmRepository {
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.id = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.id = $1::uuid and ${COMBINED_HANDED_OFF_SQL}`,
         [id],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
@@ -2060,7 +2077,7 @@ export class PostgresCrmRepository implements CrmRepository {
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and (l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED')`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and ${COMBINED_HANDED_OFF_SQL}`,
         [potentialId],
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
@@ -2088,7 +2105,7 @@ export class PostgresCrmRepository implements CrmRepository {
   private async saveSharedLogistics(lane: CrmLane, id: string, sheet: ReturnType<typeof logisticsPayload>) {
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
-       set bao_gia_logistics = $2::jsonb
+       set bao_gia_logistics = $2::jsonb || jsonb_build_object('handoffAt', bao_gia_logistics->'handoffAt')
        where id = $1::uuid`,
       [id, JSON.stringify(sheet)],
     );
