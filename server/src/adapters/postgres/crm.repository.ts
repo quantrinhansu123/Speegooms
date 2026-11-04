@@ -1331,15 +1331,17 @@ export class PostgresCrmRepository implements CrmRepository {
         potential = loaded.rows[0];
         if (!potential) throw new InfrastructureError("lead missing after insert");
       } else {
+        const kind = message.demand === "SHIPPING" ? "LOGISTICS" : message.demand === "SOURCING" ? "SOURCING" : null;
         await client.query(
           `update ${potentialTable}
            set yeu_cau_khach = $2, anh_yeu_cau = $3::jsonb, ly_do_chuyen = $4,
                ghi_chu_so_luong = coalesce($5, ghi_chu_so_luong),
                kich_thuoc_kien_hang = coalesce($6, kich_thuoc_kien_hang),
                trong_luong_kg = coalesce($7, trong_luong_kg),
-               dia_chi_gui = coalesce($8, dia_chi_gui), dia_chi_nhan = coalesce($9, dia_chi_nhan)
+               dia_chi_gui = coalesce($8, dia_chi_gui), dia_chi_nhan = coalesce($9, dia_chi_nhan),
+               nhom_khach = coalesce($10::text::crm.customer_kind, nhom_khach)
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress)],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;

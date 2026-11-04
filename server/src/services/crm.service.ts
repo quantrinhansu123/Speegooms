@@ -156,22 +156,11 @@ export class CrmService {
   async requestQuote(
     lane: CrmLane,
     potentialId: string,
-    actor?: PublicUser,
+    _actor?: PublicUser,
   ): Promise<{ quote: QuoteRecord; created: boolean; desk: QuoteDesk }> {
     const result = await this.ready().requestQuote(lane, potentialId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
-    // Thuần logistics: Sale nhập đơn hàng rồi mới bấm Chuyển logistics, chưa báo vận hành lúc tạo.
-    if (actor && result.created && result.desk !== "logistics") {
-      await this.notifications?.notifyQuoteRequested(
-        actor,
-        lane,
-        result.desk,
-        result.quote.code,
-        result.quote.id,
-        quoteAccessKind(result.quote),
-      );
-    }
     return result;
   }
 
@@ -207,6 +196,17 @@ export class CrmService {
       throw new AppError(400, "RULE", "Nhập đủ thông tin đơn hàng, gồm quy cách đóng gói từng dòng, trước khi chuyển logistics");
     }
     await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", quote.code, quote.id, quote.customerKind);
+    return quote;
+  }
+
+  /** Sale đã nhập mặt hàng tìm hàng và chuyển cho bàn Sourcing lập báo giá. */
+  async handoffSourcingOrder(lane: CrmLane, quoteId: string, actor: PublicUser): Promise<QuoteRecord> {
+    const quote = await this.ready().findQuote(lane, "sourcing", quoteId);
+    if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    if (quote.customerKind !== "SOURCING") throw new AppError(409, "CONFLICT", "Chỉ khách Tìm hàng mới chuyển cho Sourcing");
+    const ready = quote.orders.some((order) => order.lines.some((line) => line.productName?.trim() && line.quantity != null && line.quantity > 0));
+    if (!ready) throw new AppError(400, "RULE", "Nhập mặt hàng và số lượng trước khi chuyển Sourcing");
+    await this.notifications?.notifyQuoteRequested(actor, lane, "sourcing", quote.code, quote.id, quote.customerKind);
     return quote;
   }
 

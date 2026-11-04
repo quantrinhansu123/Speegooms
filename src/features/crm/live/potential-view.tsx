@@ -120,6 +120,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<PotentialRecord | null>(null);
   const [notice, setNotice] = useState<string>();
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
+  const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
   const canPrice = canEditQuoteDesk(user.role, "logistics");
@@ -187,35 +188,28 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .finally(() => setPending(false));
   };
 
-  const openLogisticsOrder = (row: PotentialRecord) => {
+  const openOrderQuote = (row: PotentialRecord) => {
     setError(undefined);
     setNotice(undefined);
     setOrderError(undefined);
     const request = canWrite
-      ? api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+      ? api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
       : api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/logistics-quote`, lane));
     void request
-      .then((body) => setOrderQuote(body.quote))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được thông tin đơn hàng"));
+      .then((body) => {
+        const desk = "desk" in body && (body.desk === "sourcing" || body.desk === "logistics") ? body.desk : "logistics";
+        setOrderDesk(desk);
+        setOrderQuote(body.quote);
+      })
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được báo giá"));
   };
 
   const requestQuote = (row: PotentialRecord) => {
-    if (row.customerKind === "LOGISTICS") {
-      openLogisticsOrder(row);
-      return;
-    }
-    setError(undefined);
-    setNotice(undefined);
     if (!row.customerKind) {
       setError("Chọn loại khách trước khi báo giá");
       return;
     }
-    void api<{ created: boolean; desk: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
-      .then((body) => {
-        const desk = body.desk === "logistics" ? "Logistics – Báo giá" : "Sourcing – Báo giá";
-        setNotice(body.created ? `Đã tạo bản ghi cho ${desk}` : `Khách này đã có bản ghi ở ${desk}`);
-      })
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tạo được báo giá"));
+    openOrderQuote(row);
   };
 
   const saveOrderPart = (input: UpdateQuoteInput, orderContent: boolean) => {
@@ -223,7 +217,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
     setOrderPending(true);
     setOrderError(undefined);
     const scope = orderContent ? "&orderContent=1" : "";
-    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}?desk=logistics${scope}`, lane), {
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}?desk=${orderDesk}${scope}`, lane), {
       method: "PATCH",
       body: JSON.stringify(input),
     })
@@ -256,18 +250,21 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       });
   };
 
-  const handoffLogistics = () => {
+  const handoffOrder = (desk: "sourcing" | "logistics") => {
     if (!orderQuote) return Promise.resolve(false);
     setOrderPending(true);
     setOrderError(undefined);
-    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}/handoff-logistics`, lane), { method: "POST" })
+    const path = desk === "sourcing" ? "handoff-sourcing" : "handoff-logistics";
+    const done = desk === "sourcing" ? "Đã chuyển thông tin đơn hàng cho Sourcing" : "Đã chuyển thông tin đơn hàng cho Logistics";
+    const failed = desk === "sourcing" ? "Không chuyển được cho Sourcing" : "Không chuyển được cho Logistics";
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${orderQuote.id}/${path}`, lane), { method: "POST" })
       .then(() => {
-        setNotice("Đã chuyển thông tin đơn hàng cho Logistics");
+        setNotice(done);
         setOrderQuote(null);
         return true;
       })
       .catch((err: unknown) => {
-        setOrderError(err instanceof ApiError ? err.message : "Không chuyển được cho Logistics");
+        setOrderError(err instanceof ApiError ? err.message : failed);
         return false;
       })
       .finally(() => setOrderPending(false));
@@ -378,7 +375,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                       { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
                       { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
                     ] : canPrice && row.customerKind === "LOGISTICS" ? [
-                      { key: "prices", label: "Nhập giá", icon: <FileText />, onClick: () => openLogisticsOrder(row) },
+                      { key: "prices", label: "Nhập giá", icon: <FileText />, onClick: () => openOrderQuote(row) },
                     ] : []}
                   />
                 </td>
@@ -527,14 +524,15 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           quote={orderQuote}
           templates={[]}
           editMode={canPrice ? "full" : canWrite ? "content" : "none"}
-          desk="logistics"
+          desk={orderDesk}
           saleOrder={canWrite}
           pending={orderPending}
           error={orderError}
           onClose={() => setOrderQuote(null)}
           onSave={(input) => saveOrderPart(input, canWrite)}
           onSaveSale={canWrite ? saveOrderLead : undefined}
-          onHandoffLogistics={canWrite ? handoffLogistics : undefined}
+          onHandoffLogistics={canWrite && orderQuote.customerKind === "LOGISTICS" ? () => handoffOrder("logistics") : undefined}
+          onHandoffSourcing={canWrite && orderQuote.customerKind === "SOURCING" ? () => handoffOrder("sourcing") : undefined}
         />
       )}
 

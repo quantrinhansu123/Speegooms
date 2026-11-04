@@ -32,6 +32,7 @@ export function crmRoutes(container: AppContainer) {
   router.delete("/rfq-quotes/:id", requirePermission("quote.request"), asyncHandler(crm.deleteRfqQuote));
   router.post("/quotes/:id/logistics", requirePermission("quote.logistics"), asyncHandler(crm.requestLogisticsQuote));
   router.post("/quotes/:id/handoff-logistics", requirePermission("quote.request"), asyncHandler(crm.handoffLogisticsOrder));
+  router.post("/quotes/:id/handoff-sourcing", requirePermission("quote.request"), asyncHandler(crm.handoffSourcingOrder));
   router.patch("/quotes/:id/outcome", requirePermission("quote.request"), validate({ body: updateQuoteOutcomeSchema }), asyncHandler(crm.updateQuoteOutcome));
   router.patch("/quotes/:id", requireAnyPermission(["quote.ops", "quote.content"]), validate({ body: updateQuoteSchema }), asyncHandler(crm.updateQuote));
   router.post("/quotes/:id/send", requirePermission("quote.ops"), validate({ body: updateQuoteSchema }), asyncHandler(crm.sendQuote));
