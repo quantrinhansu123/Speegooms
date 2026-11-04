@@ -27,6 +27,13 @@ export class KeToanController {
   createLedger = async (req: Request, res: Response) => {
     res.status(201).json({ entry: await this.keToan.createLedger(req.body) });
   };
+  updateLedger = async (req: Request, res: Response) => {
+    res.status(200).json({ entry: await this.keToan.updateLedger(String(req.params.id), req.body) });
+  };
+  deleteLedger = async (req: Request, res: Response) => {
+    await this.keToan.deleteLedger(String(req.params.id));
+    res.status(204).end();
+  };
   reconcileLedger = async (req: Request, res: Response) => {
     res.status(200).json({ entry: await this.keToan.reconcileLedger(String(req.params.id), req.body.statementId) });
   };

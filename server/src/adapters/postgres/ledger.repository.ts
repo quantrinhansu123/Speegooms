@@ -139,6 +139,42 @@ export class PostgresLedgerRepository {
     });
   }
 
+  /** Khóa dòng thu chi để sửa/xóa; dòng đã đối soát thì không được đổi. */
+  private async lockEditable(client: pg.PoolClient, id: string): Promise<void> {
+    const found = await client.query<{ reconciled: boolean }>(
+      `select da_doi_soat as reconciled from ke_toan.so_thu_chi where id = $1::uuid for update`, [id],
+    );
+    if (!found.rows[0]) throw new AppError(404, "NOT_FOUND", "Không tìm thấy dòng thu chi");
+    if (found.rows[0].reconciled) throw new AppError(409, "CONFLICT", "Dòng đã đối soát, không thể sửa hoặc xóa");
+  }
+
+  async updateLedger(id: string, input: CreateLedgerEntryInput): Promise<LedgerRecord> {
+    return this.transaction(async (client) => {
+      await this.lockEditable(client, id);
+      if (input.orderCode) {
+        const order = await client.query(`select 1 from crm.hop_dong where ma_hien_thi = $1`, [input.orderCode]);
+        if (!order.rowCount) throw new AppError(404, "NOT_FOUND", "Không tìm thấy đơn hàng");
+      }
+      await client.query(
+        `update ke_toan.so_thu_chi
+         set ngay = $2::date, loai = $3::ke_toan.loai_thu_chi, khoan_muc = $4::ke_toan.khoan_muc_thu_chi,
+             doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, cap_nhat_luc = now()
+         where id = $1::uuid`,
+        [id, input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
+          input.amount, input.reference || null],
+      );
+      const updated = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [id]);
+      return toLedger(updated.rows[0]);
+    });
+  }
+
+  async deleteLedger(id: string): Promise<void> {
+    await this.transaction(async (client) => {
+      await this.lockEditable(client, id);
+      await client.query(`delete from ke_toan.so_thu_chi where id = $1::uuid`, [id]);
+    });
+  }
+
   async reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> {
     return this.transaction(async (client) => {
       const found = await client.query<{ kind: string; amount: string; order_code: string | null; reconciled: boolean }>(

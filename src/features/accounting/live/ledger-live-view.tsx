@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   createLedgerEntrySchema, createStatementSchema, ledgerCategories, ledgerCategoryLabels,
   type CreateLedgerEntryInput, type CreateStatementInput,
 } from "@speego/shared";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { MoneyInput } from "@/components/shared/money-input";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FilterSelect, ListSearchBar, useAppliedSearch } from "@/features/crm/live/list-search-bar";
+import { RowMenu } from "@/features/crm/live/row-menu";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { useSession } from "@/features/auth/session-provider";
 import { canPerform } from "@/config/permissions";
@@ -39,17 +42,17 @@ const categoriesFor = (kind: "THU" | "CHI") => ledgerCategories.filter((category
   kind === "THU" ? category === "COC_KHACH" || category === "THU_KHACH" : category.startsWith("CHI_"));
 
 function EntryDialog({
-  mode, orders, onClose, onSaved,
+  mode, orders, entry, onClose, onSaved,
 }: {
-  mode: Mode; orders: Order[]; onClose: () => void; onSaved: () => void;
+  mode: Mode; orders: Order[]; entry?: LedgerEntry; onClose: () => void; onSaved: () => void;
 }) {
-  const [date, setDate] = useState(today);
-  const [kind, setKind] = useState<"THU" | "CHI">("THU");
-  const [category, setCategory] = useState<LedgerEntry["category"]>("COC_KHACH");
-  const [counterparty, setCounterparty] = useState("");
-  const [orderCode, setOrderCode] = useState("");
-  const [amount, setAmount] = useState<number | null>(null);
-  const [reference, setReference] = useState("");
+  const [date, setDate] = useState(entry?.date ?? today());
+  const [kind, setKind] = useState<"THU" | "CHI">(entry?.kind ?? "THU");
+  const [category, setCategory] = useState<LedgerEntry["category"]>(entry?.category ?? "COC_KHACH");
+  const [counterparty, setCounterparty] = useState(entry?.counterparty ?? "");
+  const [orderCode, setOrderCode] = useState(entry?.orderCode ?? "");
+  const [amount, setAmount] = useState<number | null>(entry?.amount ?? null);
+  const [reference, setReference] = useState(entry?.reference ?? "");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -64,7 +67,7 @@ function EntryDialog({
     setError(undefined);
     try {
       const path = mode === "ledger" ? "/api/ke-toan/ledger" : "/api/ke-toan/statements";
-      await api(path, { method: "POST", body: JSON.stringify(parsed.data as CreateLedgerEntryInput | CreateStatementInput) });
+      await api(entry ? `${path}/${entry.id}` : path, { method: entry ? "PATCH" : "POST", body: JSON.stringify(parsed.data as CreateLedgerEntryInput | CreateStatementInput) });
       onSaved();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Không lưu được dữ liệu");
@@ -74,7 +77,7 @@ function EntryDialog({
 
   return <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
     <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
-      <DialogHeader><DialogTitle>{mode === "ledger" ? "Nhập mới thu chi" : "Nhập dòng sao kê"}</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{entry ? "Sửa thu chi" : mode === "ledger" ? "Nhập mới thu chi" : "Nhập dòng sao kê"}</DialogTitle></DialogHeader>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Ngày" htmlFor="ledger-date" required>
           <Input id="ledger-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
@@ -129,6 +132,9 @@ export function LedgerLiveView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [mode, setMode] = useState<Mode | null>(null);
   const [reconciling, setReconciling] = useState<LedgerEntry | null>(null);
+  const [viewing, setViewing] = useState<LedgerEntry | null>(null);
+  const [editing, setEditing] = useState<LedgerEntry | null>(null);
+  const [removing, setRemoving] = useState<LedgerEntry | null>(null);
   const [statementId, setStatementId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -152,6 +158,16 @@ export function LedgerLiveView() {
   const candidates = reconciling ? unmatched.filter((row) =>
     row.kind === reconciling.kind && row.amount === reconciling.amount &&
     (!row.orderCode || row.orderCode === reconciling.orderCode)) : [];
+  const remove = async () => {
+    if (!removing) return;
+    try {
+      await api(`/api/ke-toan/ledger/${removing.id}`, { method: "DELETE" });
+      setRemoving(null); reload();
+    } catch (cause) {
+      setRemoving(null);
+      setError(cause instanceof ApiError ? cause.message : "Không xóa được khoản thu chi");
+    }
+  };
   const reconcile = async () => {
     if (!reconciling || !statementId) return;
     setBusy(true); setError(undefined);
@@ -181,9 +197,9 @@ export function LedgerLiveView() {
     </ListSearchBar>
     <TableHScroll><table className="w-full min-w-[1050px] text-sm">
       <thead><tr className="border-b bg-muted/50 text-left text-muted-foreground">
-        {["Ngày", "Loại", "Khoản mục", "Đối tượng", "Đơn hàng", "Số tiền", "Tham chiếu", "Đối soát"].map((v) => <th key={v} className="px-3 py-2">{v}</th>)}
+        {["Ngày", "Loại", "Khoản mục", "Đối tượng", "Đơn hàng", "Số tiền", "Tham chiếu", "Đối soát", "Thao tác"].map((v) => <th key={v} className="px-3 py-2">{v}</th>)}
       </tr></thead>
-      <tbody>{rows.length === 0 ? <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">{ledger.loading ? "Đang tải…" : "Chưa có khoản thu chi."}</td></tr> :
+      <tbody>{rows.length === 0 ? <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">{ledger.loading ? "Đang tải…" : "Chưa có khoản thu chi."}</td></tr> :
         rows.map((row) => <tr key={row.id} className="border-b last:border-0">
           <td className="px-3 py-3">{row.date}</td><td className="px-3 py-3">{row.kind === "THU" ? "Thu" : "Chi"}</td>
           <td className="px-3 py-3">{ledgerCategoryLabels[row.category]}</td><td className="px-3 py-3">{row.counterparty}</td>
@@ -191,9 +207,41 @@ export function LedgerLiveView() {
           <td className="px-3 py-3 whitespace-nowrap">{row.kind === "THU" ? "+" : "−"}{formatMoney(row.amount, "VND")}</td>
           <td className="px-3 py-3">{row.reference || "—"}</td>
           <td className="px-3 py-3">{row.reconciled ? "Đã đối soát" : canWrite ? <Button size="sm" variant="outline" onClick={() => { setReconciling(row); setStatementId(""); setError(undefined); }}>Đối soát</Button> : "Chờ đối soát"}</td>
+          <td className="px-3 py-3"><RowMenu label={`Thao tác ${row.orderCode}`} items={[
+            { key: "view", label: "Xem chi tiết", icon: <Eye />, onClick: () => setViewing(row) },
+            ...(canWrite && !row.reconciled ? [
+              { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => { setError(undefined); setEditing(row); } },
+              { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
+            ] : []),
+          ]} /></td>
         </tr>)}
       </tbody>
     </table></TableHScroll>
+    {editing && <EntryDialog mode="ledger" orders={orders} entry={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
+    <ConfirmDialog open={removing !== null} onOpenChange={(open) => { if (!open) setRemoving(null); }} destructive
+      title="Xóa khoản thu chi?" description={removing ? `${removing.counterparty} · ${formatMoney(removing.amount, "VND")} sẽ bị xóa.` : ""}
+      confirmLabel="Xóa" onConfirm={() => void remove()} />
+    <Dialog open={viewing !== null} onOpenChange={(open) => { if (!open) setViewing(null); }}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader><DialogTitle>Chi tiết thu chi</DialogTitle></DialogHeader>
+        {viewing && <dl className="grid gap-x-6 gap-y-5 py-2 sm:grid-cols-2">
+          {([
+            ["Ngày", viewing.date],
+            ["Loại", <StatusBadge key="k" tone={viewing.kind === "THU" ? "success" : "danger"}>{viewing.kind === "THU" ? "Thu" : "Chi"}</StatusBadge>],
+            ["Khoản mục", ledgerCategoryLabels[viewing.category]],
+            ["Đối tượng", viewing.counterparty],
+            ["Đơn hàng", viewing.orderCode || "—"],
+            ["Số tiền", `${viewing.kind === "THU" ? "+" : "−"}${formatMoney(viewing.amount, "VND")}`],
+            ["Tham chiếu", viewing.reference || "—"],
+            ["Đối soát", <StatusBadge key="r" tone={viewing.reconciled ? "success" : "warning"}>{viewing.reconciled ? "Đã đối soát" : "Chờ đối soát"}</StatusBadge>],
+          ] as [string, React.ReactNode][]).map(([label, value]) => <div key={label} className="min-w-0">
+            <dt className="text-sm text-muted-foreground">{label}</dt>
+            <dd className="mt-1 break-words text-base font-semibold">{value}</dd>
+          </div>)}
+        </dl>}
+        <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Đóng</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
     {mode && <EntryDialog mode={mode} orders={orders} onClose={() => setMode(null)} onSaved={() => { setMode(null); reload(); }} />}
     <Dialog open={reconciling !== null} onOpenChange={(open) => { if (!open && !busy) setReconciling(null); }}>
       <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Đối soát dòng thu chi</DialogTitle></DialogHeader>

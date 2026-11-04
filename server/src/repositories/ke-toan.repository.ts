@@ -96,6 +96,8 @@ export interface KeToanRepository {
   createStatement(input: CreateStatementInput): Promise<StatementRecord>;
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord>;
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord>;
+  updateLedger(id: string, input: CreateLedgerEntryInput): Promise<LedgerRecord>;
+  deleteLedger(id: string): Promise<void>;
   listPaymentOrders(): Promise<PaymentOrderOption[]>;
   listPaymentEmployees(): Promise<PaymentEmployeeOption[]>;
   listPayments(search: PaymentListSearch): Promise<PaymentRequestRecord[]>;
