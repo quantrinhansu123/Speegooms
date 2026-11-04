@@ -1,5 +1,52 @@
 import { z } from "zod";
 
+export const ledgerKinds = ["THU", "CHI"] as const;
+export const ledgerCategories = ["COC_KHACH", "THU_KHACH", "CHI_XUONG", "CHI_VAN_CHUYEN", "CHI_KHAC"] as const;
+export const ledgerCategoryLabels: Record<(typeof ledgerCategories)[number], string> = {
+  COC_KHACH: "Cọc khách",
+  THU_KHACH: "Thu thanh toán khách",
+  CHI_XUONG: "Chi xưởng",
+  CHI_VAN_CHUYEN: "Chi vận chuyển",
+  CHI_KHAC: "Chi khác",
+};
+const ledgerMoney = z.number().finite().positive("Số tiền phải lớn hơn 0")
+  .max(9_999_999_999_999)
+  .refine((value) => Math.round(value * 100) / 100 === value, "Số tiền tối đa 2 chữ số thập phân");
+const ledgerDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày không đúng định dạng").refine((value) => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}, "Ngày không tồn tại");
+const orderCode = z.string().trim().max(64).optional().transform((value) => value || undefined);
+
+export const createStatementSchema = z.object({
+  date: ledgerDay,
+  kind: z.enum(ledgerKinds),
+  amount: ledgerMoney,
+  counterparty: z.string().trim().min(1, "Nhập đối tượng").max(200),
+  description: z.string().trim().max(1000).optional(),
+  orderCode,
+});
+export type CreateStatementInput = z.infer<typeof createStatementSchema>;
+
+export const createLedgerEntrySchema = z.object({
+  date: ledgerDay,
+  kind: z.enum(ledgerKinds),
+  category: z.enum(ledgerCategories),
+  counterparty: z.string().trim().min(1, "Nhập đối tượng").max(200),
+  orderCode,
+  amount: ledgerMoney,
+  reference: z.string().trim().max(120).optional(),
+}).superRefine((value, ctx) => {
+  const income = value.kind === "THU";
+  if (income !== (value.category === "COC_KHACH" || value.category === "THU_KHACH")) {
+    ctx.addIssue({ code: "custom", path: ["category"], message: "Khoản mục không khớp loại thu/chi" });
+  }
+});
+export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
+
+export const reconcileLedgerEntrySchema = z.object({ statementId: z.string().uuid() });
+export type ReconcileLedgerEntryInput = z.infer<typeof reconcileLedgerEntrySchema>;
+
 /** Khớp enum ke_toan.* trong migration 031. */
 export const paymentPayeeKinds = ["NHA_CUNG_CAP", "DOI_TAC_VAN_CHUYEN", "NHAN_VIEN"] as const;
 export const paymentPurposes = ["DAT_COC_XUONG", "THANH_TOAN_XUONG", "CUOC_VAN_CHUYEN", "KHAC"] as const;
