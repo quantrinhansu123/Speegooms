@@ -49,6 +49,13 @@ export interface QuotePrintText {
   pricingBasis: string;
   /** Đơn vị mặc định của số lượng. */
   defaultUnit: string;
+  freightTitle: string;
+  freightRate: string;
+  chargeableWeight: string;
+  chargeableVolume: string;
+  freightTotal: string;
+  /** Dòng lưu ý cố định dưới bảng cước. */
+  freightNote: string;
 }
 
 export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
@@ -91,7 +98,13 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     perCbm: "/cbm",
     perLump: "/gói",
     pricingBasis: "Cách tính giá",
-    defaultUnit: "set",
+    defaultUnit: "cái",
+    freightTitle: "Chi phí vận chuyển",
+    freightRate: "Giá cước",
+    chargeableWeight: "Cân nặng tính phí",
+    chargeableVolume: "Thể tích tính phí",
+    freightTotal: "Tổng chi phí",
+    freightNote: "Lưu ý: Dự kiến số KG, có thể thay đổi theo thực tế",
   },
   en: {
     title: "QUOTATION",
@@ -132,9 +145,24 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     perCbm: "/cbm",
     perLump: "/lot",
     pricingBasis: "Pricing basis",
-    defaultUnit: "set",
+    defaultUnit: "pcs",
+    freightTitle: "Shipping cost",
+    freightRate: "Freight rate",
+    chargeableWeight: "Chargeable weight",
+    chargeableVolume: "Chargeable volume",
+    freightTotal: "Total cost",
+    freightNote: "Note: Estimated KG, may change based on actual shipment.",
   },
 };
+
+const genericQuoteUnits = new Set(["", "set", "cái", "cai", "pcs", "pc", "piece", "pieces"]);
+
+/** Đơn vị số lượng trên file gửi khách: mặc định cái (vi) / pcs (en). Đơn vị tự nhập thì giữ nguyên. */
+export function quoteDisplayUnit(unit: string | null | undefined, lang: QuoteLang): string {
+  const trimmed = unit?.trim() ?? "";
+  if (!genericQuoteUnits.has(trimmed.toLowerCase())) return trimmed;
+  return quotePrintText[lang].defaultUnit;
+}
 
 /** Nhãn công ty cố định ở đầu thư: [vi, en]. */
 export const quoteCompanyLabels: Record<QuoteLang, readonly string[]> = {

@@ -1,8 +1,8 @@
 "use client";
 
-import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quoteSheetInputOf, type QuoteLang } from "@speego/shared";
+import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, type QuoteLang } from "@speego/shared";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteCurrencies,
@@ -41,7 +41,7 @@ import {
   type QuoteTemplateRecord,
 } from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
-import { formatMoneyGrouped, formatMoneyInput } from "@/lib/format";
+import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
 import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
@@ -54,7 +54,7 @@ import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", specEn: "", noteEn: "", unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [] };
+  return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, lineTotalManual: false, weightKg: null, spec: "", note: "", specEn: "", noteEn: "", unit: "cái", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [] };
 }
 
 const PRINT_LANG_KEY = "speego_quote_print_lang";
@@ -120,6 +120,78 @@ function FeeCurrencySelect({ id, value, disabled, onChange }: { id: string; valu
   );
 }
 
+function notesWithFreight(notes: QuoteNotes, orders: QuoteOrder[]): QuoteNotes {
+  const order = orders.find((item) => item.selected) ?? orders[0];
+  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages));
+  const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
+  if (freight.totalManual) return { ...notes, freight };
+  const total = freightAutoTotal(freight.rate, metrics.count > 0 ? metrics.chargeableKg : null);
+  if (total === freight.total && notes.freight) return notes;
+  return {
+    ...notes,
+    freight: { ...freight, total },
+    shippingLabel: syncShippingLabel(notes.shippingLabel ?? "", total),
+  };
+}
+
+function FreightCostEditor({
+  notes,
+  setNotes,
+  order,
+  canEdit,
+  lang,
+  fieldId,
+}: {
+  notes: QuoteNotes;
+  setNotes: (notes: QuoteNotes) => void;
+  order?: QuoteOrder;
+  canEdit: boolean;
+  lang: QuoteLang;
+  fieldId: (name: string) => string;
+}) {
+  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages));
+  const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
+  const chargeableKg = metrics.count > 0 ? metrics.chargeableKg : null;
+  const chargeableCbm = metrics.count > 0 ? metrics.cbm : null;
+  const autoTotal = freightAutoTotal(freight.rate, chargeableKg);
+  const total = freight.totalManual ? freight.total : autoTotal;
+  const note = (lang === "en" ? quotePrintText.en : quotePrintText.vi).freightNote;
+  const write = (next: QuoteNotes["freight"]) => {
+    const shown = next.totalManual ? next.total : freightAutoTotal(next.rate, chargeableKg);
+    setNotes({
+      ...notes,
+      freight: { ...next, total: shown },
+      shippingLabel: syncShippingLabel(notes.shippingLabel ?? "", shown),
+    });
+  };
+  return (
+    <div className="grid gap-2">
+      <div>
+        <h4 className="text-sm font-semibold">Chi phí vận chuyển</h4>
+        <p className="text-sm text-muted-foreground">Giá cước nhân với cân nặng tính phí của từng kiện đã cộng lại. Có thể ghi đè tổng chi phí.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <Field label="Giá cước" htmlFor={fieldId("freight-rate")}>
+          <MoneyInput id={fieldId("freight-rate")} fractionDigits={3} value={freight.rate} disabled={!canEdit} onValueChange={(rate) => write({ ...freight, rate })} aria-label="Giá cước" />
+        </Field>
+        <Field label="Cân nặng tính phí (kg)" htmlFor={fieldId("freight-kg")}>
+          <Input id={fieldId("freight-kg")} readOnly value={chargeableKg == null ? "" : formatMeasure(chargeableKg)} aria-label="Cân nặng tính phí" />
+        </Field>
+        <Field label="Thể tích tính phí (CBM)" htmlFor={fieldId("freight-cbm")}>
+          <Input id={fieldId("freight-cbm")} readOnly value={chargeableCbm == null ? "" : formatMeasure(chargeableCbm)} aria-label="Thể tích tính phí" />
+        </Field>
+        <Field label="Tổng chi phí" htmlFor={fieldId("freight-total")}>
+          <MoneyInput id={fieldId("freight-total")} fractionDigits={3} value={total} disabled={!canEdit} aria-label="Tổng chi phí vận chuyển" onValueChange={(value) => write({ ...freight, total: value, totalManual: value !== autoTotal })} />
+          {freight.totalManual && canEdit && (
+            <button type="button" className="text-left text-[11px] text-primary underline" onClick={() => write({ ...freight, total: autoTotal, totalManual: false })}>Tính lại</button>
+          )}
+        </Field>
+      </div>
+      <p className="text-sm italic text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
 function LogisticsFeesEditor({
   notes,
   setNotes,
@@ -179,6 +251,8 @@ function LogisticsFeesEditor({
           </Button>
         ) : null}
       </div>
+
+      <FreightCostEditor notes={notes} setNotes={setNotes} order={order} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
       <div className="grid gap-3 sm:grid-cols-2 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
         <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
@@ -526,6 +600,45 @@ function withAttr(attrs: QuoteLine["attrs"], key: string, value: string, lang: Q
   return [...next, ...extras];
 }
 
+function MeasureInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type" | "inputMode"> & {
+  value: number;
+  onValueChange: (value: number) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState(() => (value ? formatMeasure(value) : ""));
+  useEffect(() => {
+    if (!focused) setText(value ? formatMeasure(value) : "");
+  }, [value, focused]);
+  return (
+    <Input
+      {...props}
+      inputMode="decimal"
+      value={focused ? text : value ? formatMeasure(value) : ""}
+      onFocus={(event) => {
+        setFocused(true);
+        setText(value ? formatMeasure(value) : "");
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        const next = text.trim() ? parseMeasureInput(text) ?? 0 : 0;
+        onValueChange(next);
+        setText(next ? formatMeasure(next) : "");
+        props.onBlur?.(event);
+      }}
+      onChange={(event) => {
+        const next = formatMeasureInput(event.target.value);
+        setText(next);
+        onValueChange(next.trim() ? parseMeasureInput(next) ?? 0 : 0);
+      }}
+    />
+  );
+}
+
 function LinePackagesEditor({
   line,
   lineLabel,
@@ -565,23 +678,39 @@ function LinePackagesEditor({
           <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
         )}
       </div>
-      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm) · kg/kiện — dùng để báo giá và tính cước.</p>
+      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
       {line.packages.map((pkg, pi) => (
         <div key={pi} className="grid gap-1">
           <div className="flex flex-wrap items-center gap-1">
             {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => {
               const message = fieldError?.(pi, key);
+              const shared = {
+                className: "h-8 w-[4.5rem] border-amber-700/30 bg-white",
+                placeholder: { count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key],
+                "aria-label": `Kiện ${pi + 1} ${lineLabel}: ${key}`,
+                "aria-invalid": message ? true : undefined,
+                disabled: !canEdit,
+              } as const;
+              if (key === "count") {
+                return (
+                  <Input
+                    key={key}
+                    {...shared}
+                    inputMode="numeric"
+                    value={pkg.count ? String(pkg.count) : ""}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value.replace(/[^\d]/g, ""));
+                      onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, count: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 } : x)));
+                    }}
+                  />
+                );
+              }
               return (
-                <Input
+                <MeasureInput
                   key={key}
-                  className="h-8 w-[4.5rem] border-amber-700/30 bg-white"
-                  inputMode="decimal"
-                  placeholder={{ count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key]}
-                  aria-label={`Kiện ${pi + 1} ${lineLabel}: ${key}`}
-                  aria-invalid={message ? true : undefined}
-                  value={pkg[key] ? String(pkg[key]) : ""}
-                  disabled={!canEdit}
-                  onChange={(event) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: amountValue(event.target.value) ?? 0 } : x)))}
+                  {...shared}
+                  value={pkg[key]}
+                  onValueChange={(next) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: next } : x)))}
                 />
               );
             })}
@@ -611,7 +740,18 @@ function LinePackagesEditor({
 }
 
 function money(value: number): string {
-  return formatMoneyGrouped(value);
+  return formatMoneyGrouped(value, 3);
+}
+
+function syncShippingLabel(current: string, total: number | null): string {
+  const numeric = !current.trim() || quoteMoneyValue(current) != null;
+  if (!numeric) return current;
+  return total == null ? "" : formatMoneyGrouped(total, 3);
+}
+
+function freightAutoTotal(rate: number | null, chargeableKg: number | null): number | null {
+  if (rate == null || chargeableKg == null || chargeableKg <= 0) return null;
+  return Math.round(rate * chargeableKg * 1000) / 1000;
 }
 
 /** Tổng số lượng gom theo đơn vị tính, vd "120 set, 30 kg". */
@@ -619,7 +759,7 @@ function orderQuantityText(lines: QuoteLine[]): string {
   const byUnit = new Map<string, number>();
   for (const line of lines) {
     if (line.quantity == null) continue;
-    const unit = line.unit?.trim() || "set";
+    const unit = line.unit?.trim() || "cái";
     byUnit.set(unit, (byUnit.get(unit) ?? 0) + line.quantity);
   }
   return [...byUnit].map(([unit, total]) => `${money(total)} ${unit}`).join(", ");
@@ -644,9 +784,9 @@ type PriceColumn = { currency: string };
 
 /** Ô nhập số nhân của cách tính giá theo kg, m2 hoặc CBM: trường dữ liệu và nhãn. */
 const basisMetric = {
-  kg: { field: "weightKg", label: "kg / set", aria: "Kg mỗi set" },
-  m2: { field: "areaM2", label: "m2 / set", aria: "m2 mỗi set" },
-  cbm: { field: "cbm", label: "CBM / set", aria: "CBM mỗi set" },
+  kg: { field: "weightKg", label: "kg", aria: "Kg mỗi đơn vị" },
+  m2: { field: "areaM2", label: "m2", aria: "m2 mỗi đơn vị" },
+  cbm: { field: "cbm", label: "CBM", aria: "CBM mỗi đơn vị" },
 } as const;
 
 function BasisMetricInput({ line, index, disabled, className, onChange }: {
@@ -665,14 +805,14 @@ function BasisMetricInput({ line, index, disabled, className, onChange }: {
       aria-label={`${metric.aria} dòng ${index + 1}`}
       value={amountText(line[metric.field])}
       disabled={disabled}
-      placeholder={metric.label}
+      placeholder={`${metric.label} / ${line.unit?.trim() || "cái"}`}
       onChange={(event) => onChange({ [metric.field]: amountValue(event.target.value) })}
     />
   );
 }
 
 function priceUnit(line: Pick<QuoteLine, "basis" | "unit">): string {
-  return line.basis === "kg" ? "kg" : line.basis === "m2" ? "m2" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "set";
+  return line.basis === "kg" ? "kg" : line.basis === "m2" ? "m2" : line.basis === "cbm" ? "CBM" : line.basis === "lump" ? "trọn gói" : line.unit?.trim() || "cái";
 }
 
 /** Cột giá của một đơn: loại tiền chính, rồi các cột đã thêm. VND đứng trước. */
@@ -699,10 +839,10 @@ function listPriceColumns(orders: QuoteOrder[]): PriceColumn[] {
   return [...list.filter((column) => column.currency === "VND"), ...list.filter((column) => column.currency !== "VND")];
 }
 
-function lineCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string): { price: number | null; total: number | null } {
-  if (currency === orderCurrency) return { price: line.pricePerSet, total: line.lineTotal };
+function lineCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string): { price: number | null; total: number | null; totalManual: boolean } {
+  if (currency === orderCurrency) return { price: line.pricePerSet, total: line.lineTotal, totalManual: line.lineTotalManual === true };
   const found = (line.prices ?? []).find((item) => item.currency === currency);
-  return { price: found?.pricePerSet ?? null, total: found?.lineTotal ?? null };
+  return { price: found?.pricePerSet ?? null, total: found?.lineTotal ?? null, totalManual: found?.lineTotalManual === true };
 }
 
 function columnAmounts(order: QuoteOrder, currency: string): { texts: string[]; total: number | null } {
@@ -720,8 +860,9 @@ function recalcLine(line: QuoteLine): QuoteLine {
   const total = lineAmount({ ...base, price: line.pricePerSet });
   return {
     ...line,
-    lineTotal: total != null ? total : line.lineTotal,
+    lineTotal: line.lineTotalManual ? line.lineTotal : total != null ? total : line.lineTotal,
     prices: (line.prices ?? []).map((item) => {
+      if (item.lineTotalManual) return item;
       const alt = lineAmount({ ...base, price: item.pricePerSet });
       return alt == null ? item : { ...item, lineTotal: alt };
     }),
@@ -730,8 +871,10 @@ function recalcLine(line: QuoteLine): QuoteLine {
 
 function withCurrencyPrice(line: QuoteLine, orderCurrency: string, currency: string, pricePerSet: number | null): QuoteLine {
   const total = lineAmount({ basis: line.basis, quantity: line.quantity, price: pricePerSet, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
-  if (currency === orderCurrency) return { ...line, pricePerSet, lineTotal: total };
-  const prices = [...(line.prices ?? []).filter((item) => item.currency !== currency), { currency, pricePerSet, lineTotal: total }];
+  if (currency === orderCurrency) return line.lineTotalManual ? { ...line, pricePerSet } : { ...line, pricePerSet, lineTotal: total };
+  const existing = (line.prices ?? []).find((item) => item.currency === currency);
+  const keep = existing?.lineTotalManual === true;
+  const prices = [...(line.prices ?? []).filter((item) => item.currency !== currency), { currency, pricePerSet, lineTotal: keep ? existing?.lineTotal ?? total : total, lineTotalManual: keep }];
   return { ...line, prices };
 }
 
@@ -914,7 +1057,7 @@ function OrderLines({
         const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
         next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
       }
-      if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm", "areaM2"].some((k) => k in patch)) next = recalcLine(next);
+      if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm", "areaM2", "lineTotalManual"].some((k) => k in patch)) next = recalcLine(next);
       return next;
     }));
   };
@@ -1088,7 +1231,7 @@ function OrderLines({
                     return (
                       <td key={`price-${column.currency}`} className="px-2 py-2">
                         <div className="grid w-36 gap-1">
-                          <MoneyInput className="h-8" fractionDigits={6} aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`} aria-invalid={errors[`line.${index}.price.${column.currency}`] ? true : undefined} value={amount.price} disabled={!canEditPricing} onValueChange={(pricePerSet) => { updateColumnPrice(index, column.currency, pricePerSet); onClearError?.(`line.${index}.price.${column.currency}`); }} />
+                          <MoneyInput className="h-8" fractionDigits={3} aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`} aria-invalid={errors[`line.${index}.price.${column.currency}`] ? true : undefined} value={amount.price} disabled={!canEditPricing} onValueChange={(pricePerSet) => { updateColumnPrice(index, column.currency, pricePerSet); onClearError?.(`line.${index}.price.${column.currency}`); }} />
                           <InputError message={errors[`line.${index}.price.${column.currency}`]} />
                         </div>
                       </td>
@@ -1100,14 +1243,27 @@ function OrderLines({
                     return (
                       <td key={`total-${column.currency}`} className="px-2 py-2">
                         <div className="grid gap-1">
-                        <MoneyInput className="h-8 w-32" fractionDigits={6} aria-label={`Thành tiền ${column.currency} dòng ${index + 1}`} aria-invalid={errors[`line.${index}.total.${column.currency}`] ? true : undefined} value={amount.total} disabled={!canEditPricing} onValueChange={(lineTotal) => { onClearError?.(`line.${index}.total.${column.currency}`);
+                        <MoneyInput className="h-8 w-32" fractionDigits={3} aria-label={`Thành tiền ${column.currency} dòng ${index + 1}`} aria-invalid={errors[`line.${index}.total.${column.currency}`] ? true : undefined} value={amount.total} disabled={!canEditPricing} onValueChange={(lineTotal) => { onClearError?.(`line.${index}.total.${column.currency}`);
+                          const formula = lineAmount({ basis: line.basis, quantity: line.quantity, price: amount.price, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
+                          const manual = lineTotal !== formula;
                           if (primary) {
-                            updateLine(index, { lineTotal });
+                            updateLine(index, { lineTotal: manual ? lineTotal : formula, lineTotalManual: manual });
                             return;
                           }
-                          const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal }];
+                          const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal: manual ? lineTotal : formula, lineTotalManual: manual }];
                           updateLine(index, { prices });
                         }} />
+                        {amount.totalManual && canEditPricing && (
+                          <button type="button" className="text-left text-[11px] text-primary underline" onClick={() => {
+                            if (primary) {
+                              updateLine(index, { lineTotalManual: false });
+                              return;
+                            }
+                            const formula = lineAmount({ basis: line.basis, quantity: line.quantity, price: amount.price, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
+                            const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal: formula, lineTotalManual: false }];
+                            updateLine(index, { prices });
+                          }}>Tính lại</button>
+                        )}
                         <InputError message={errors[`line.${index}.total.${column.currency}`]} />
                         </div>
                       </td>
@@ -1388,7 +1544,7 @@ export function QuoteEditor({
       quoteStatus,
       contractStatus,
       orders: nextOrders,
-      notes,
+      notes: notesWithFreight(notes, nextOrders),
       bank,
     });
     if (!parsed.success) {
@@ -1437,7 +1593,7 @@ export function QuoteEditor({
   const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
 
   const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
-    quoteSheetInputOf({ ...lead, code: quote.code, notes, bank }, order, lang, issuedOn);
+    quoteSheetInputOf({ ...lead, code: quote.code, notes: notesWithFreight(notes, [order]), bank }, order, lang, issuedOn);
 
   const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
 
@@ -2242,6 +2398,7 @@ export function QuoteEditor({
                             <td key={`price-${column.currency}`} className="px-3 py-2">
                               <MoneyInput
                                 className="h-8 w-32"
+                                fractionDigits={3}
                                 aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`}
                                 value={amount.price}
                                 onValueChange={(pricePerSet) => setOrders((current) => current.map((item) => item.id === order.id
@@ -2254,7 +2411,35 @@ export function QuoteEditor({
                         {priceColumns.map((column) => {
                           const amount = lineCurrencyPrice(line, order.currency, column.currency);
                           return (
-                            <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">{amount.total == null ? "—" : `${money(amount.total)} ${column.currency}`}</td>
+                            <td key={`total-${column.currency}`} className="px-3 py-2">
+                              <MoneyInput
+                                className="h-8 w-32"
+                                fractionDigits={3}
+                                aria-label={`Thành tiền ${column.currency} dòng ${index + 1}`}
+                                value={amount.total}
+                                disabled={pending}
+                                onValueChange={(lineTotal) => {
+                                  const formula = lineAmount({ basis: line.basis, quantity: line.quantity, price: amount.price, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
+                                  const manual = lineTotal !== formula;
+                                  if (column.currency === order.currency) {
+                                    patchOrderLine(order.id, index, { lineTotal: manual ? lineTotal : formula, lineTotalManual: manual });
+                                    return;
+                                  }
+                                  const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal: manual ? lineTotal : formula, lineTotalManual: manual }];
+                                  patchOrderLine(order.id, index, { prices });
+                                }}
+                              />
+                              {amount.totalManual && (
+                                <button type="button" className="text-[11px] text-primary underline" onClick={() => {
+                                  if (column.currency === order.currency) patchOrderLine(order.id, index, { lineTotalManual: false });
+                                  else {
+                                    const formula = lineAmount({ basis: line.basis, quantity: line.quantity, price: amount.price, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
+                                    const prices = [...(line.prices ?? []).filter((item) => item.currency !== column.currency), { currency: column.currency, pricePerSet: amount.price, lineTotal: formula, lineTotalManual: false }];
+                                    patchOrderLine(order.id, index, { prices });
+                                  }
+                                }}>Tính lại</button>
+                              )}
+                            </td>
                           );
                         })}
                       </tr>

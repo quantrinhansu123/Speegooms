@@ -141,15 +141,15 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
       .filter(Boolean)
       .map((src) => `<img src="${src}" alt="">`)
       .join("");
-    const extras = line.extra.map((item) => `${numCell(fmt(item.price), "")}${numCell(fmt(item.total), "", "num money")}`).join("");
+    const extras = line.extra.map((item) => `${numCell(fmt(item.price, 3), "")}${numCell(fmt(item.total, 3), "", "num money")}`).join("");
     return `<tr>
       ${cell(line.stt, "stt")}
       ${cell(line.productName, "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
       ${numCell(fmt(line.quantity), line.unit)}
       ${numCell(fmt(line.metric, 3), line.metricUnit)}
-      ${numCell(fmt(line.price), line.priceUnit)}
-      ${numCell(fmt(line.total), "", "num money")}
+      ${numCell(fmt(line.price, 3), line.priceUnit)}
+      ${numCell(fmt(line.total, 3), "", "num money")}
       ${extras}
       ${cell(line.spec, "wrap info")}
       ${cell(line.note, "wrap info")}
@@ -202,7 +202,9 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     const cells = fee.amount != null ? amountCells(fee.currency, fee.amount) : { total: escapeHtml(fee.text), extra: {} };
     return summaryRow(fee.label || t.logisticsFee, cells);
   }).join("");
-  const shippingRow = model.shippingText
+  const freightTotal = model.freight.total;
+  const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
+  const shippingRow = model.shippingText && !shippingDuplicatesFreight
     ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount)) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
   const subtotalRows = model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)
@@ -212,6 +214,25 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
       )).join("")
     : "";
   const summaryRows = [goodsRow, feeRows, shippingRow, subtotalRows].filter(Boolean).join("");
+  const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
+  const freightTable = `<section class="freight">
+    <h2>${escapeHtml(t.freightTitle)}</h2>
+    <table class="freight-table">
+      <thead><tr>
+        <th>${escapeHtml(t.freightRate)}</th>
+        <th>${escapeHtml(t.chargeableWeight)}</th>
+        <th>${escapeHtml(t.chargeableVolume)}</th>
+        <th>${escapeHtml(t.freightTotal)}</th>
+      </tr></thead>
+      <tbody><tr>
+        ${freightCell(model.freight.rate == null ? "" : fmt(model.freight.rate, 3), model.freight.rate == null ? "" : model.currency)}
+        ${freightCell(model.freight.chargeableKg == null ? "" : fmt(model.freight.chargeableKg, 1), model.freight.chargeableKg == null ? "" : "kg")}
+        ${freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM")}
+        ${freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.currency)}
+      </tr></tbody>
+    </table>
+    <p class="freight-note">${escapeHtml(model.freight.note)}</p>
+  </section>`;
 
   const blankAfterTotal = colCount - COLUMNS_BEFORE_TOTAL - 1;
   const depositRows = model.deposit.map((line, index) => `<tr>
@@ -277,6 +298,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   ${summaryRows ? `<table class="summary">${colgroup}<tbody>${summaryRows}</tbody></table>` : ""}
   ${depositRows ? `<table class="summary deposit">${colgroup}<tbody>${depositRows}</tbody></table>` : ""}
   </section>` : ""}
+  ${freightTable}
 
   ${input.compact ? "" : `
   <section class="payment-signatures">
@@ -597,6 +619,45 @@ export const quotePrintCss = `
     text-align: right;
     vertical-align: middle;
   }
+  .freight { margin-top: 10px; }
+  .freight h2 {
+    margin: 0 0 4px;
+    color: #082A59;
+    font-size: 11pt;
+    font-weight: 700;
+  }
+  table.freight-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 9.5pt;
+  }
+  table.freight-table th,
+  table.freight-table td {
+    border: 1px solid #c5d0de;
+    padding: 6px 8px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  table.freight-table th {
+    background: #082A59;
+    color: #fff;
+    font-weight: 700;
+  }
+  table.freight-table td:not(:empty) {
+    background: #FFF200;
+    color: #082A59;
+    font-weight: 700;
+  }
+  table.freight-table .amt,
+  table.freight-table .unit { color: #082A59; }
+  .freight-note {
+    margin: 4px 0 0;
+    color: #334155;
+    font-size: 9pt;
+    font-style: italic;
+  }
+
   table.summary.deposit { margin-top: 10px; }
   table.summary.deposit td { padding: 4px 8px; }
   table.summary .dep-label {

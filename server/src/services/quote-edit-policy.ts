@@ -23,6 +23,7 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner
           ...line,
           pricePerSet: next.pricePerSet,
           lineTotal: next.lineTotal,
+          lineTotalManual: next.lineTotalManual === true,
           prices: next.prices ?? [],
           basis: next.basis,
           ...(pricesOwner ? { weightKg: next.weightKg, areaM2: next.areaM2, cbm: next.cbm } : {}),
@@ -48,13 +49,14 @@ export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInpu
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
         /** Dòng mới do Sale thêm: không nhận đơn giá, thành tiền hay cách tính giá, Logistics sẽ định. */
-        if (!previousLine) return { ...line, ...packaging, pricePerSet: null, lineTotal: null, prices: [], basis: "unit" as const };
+        if (!previousLine) return { ...line, ...packaging, pricePerSet: null, lineTotal: null, lineTotalManual: false, prices: [], basis: "unit" as const };
         return {
           ...line,
           ...packaging,
           pricePerSet: previousLine.pricePerSet,
           basis: previousLine.basis,
           lineTotal: previousLine.lineTotal,
+          lineTotalManual: previousLine.lineTotalManual === true,
           prices: previousLine.prices,
         };
       }),
@@ -108,6 +110,7 @@ export function applyLogisticsDeskSave(
         logisticsFees: input.notes.logisticsFees,
         shippingLabel: input.notes.shippingLabel,
         opsExtra: input.notes.opsExtra,
+        freight: input.notes.freight,
       },
     };
   }
@@ -127,10 +130,11 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
       logisticsFees: input.notes.logisticsFees,
       shippingLabel: input.notes.shippingLabel,
       opsExtra: input.notes.opsExtra,
+      freight: input.notes.freight,
     },
   };
   return {
     ...input,
-    notes: { ...input.notes, logisticsFees: current.notes.logisticsFees, shippingLabel: current.notes.shippingLabel },
+    notes: { ...input.notes, logisticsFees: current.notes.logisticsFees, shippingLabel: current.notes.shippingLabel, freight: current.notes.freight ?? input.notes.freight },
   };
 }

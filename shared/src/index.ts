@@ -106,6 +106,7 @@ export {
   formatQuoteNumber,
   isQuoteLang,
   quoteAttrKeyEn,
+  quoteDisplayUnit,
   quoteCompanyLabels,
   quoteLangLabels,
   quoteLangs,

@@ -217,7 +217,7 @@ function quoteOrder(name: string, currency: string, price: number | null, row: P
       weightKg: row.weightKg,
       spec: row.spec,
       note: row.requirements,
-      unit: basis === "lump" ? "lô" : "set",
+      unit: basis === "lump" ? "lô" : "cái",
       basis,
       cbm: null,
       packages: [],
@@ -234,7 +234,7 @@ function emptySheet() {
     quoteStatus: "CHUA_CO_BAO_GIA",
     contractStatus: "CHUA_TAO",
     orders: [],
-    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [], opsExtra: "" },
+    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [], opsExtra: "", freight: { rate: null, total: null, totalManual: false } },
     bank: defaultQuoteBank,
     sentQuote: null,
   };

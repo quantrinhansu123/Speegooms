@@ -1,4 +1,4 @@
-import { packagesText } from "@/services/crm/quote-lines";
+import { packageMetrics, packagesText } from "@/services/crm/quote-lines";
 import {
   buildQuoteSheetModel,
   quoteSheetInputOf,
@@ -11,7 +11,11 @@ import {
 
 /** Mô hình dữ liệu báo giá dùng chung cho bản in/PDF và Excel. Phần đóng gói cần công thức quy đổi kiện của frontend. */
 export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
-  return buildQuoteSheetModel(input, { packagesNote: (line, lang) => packagesText(line.packages, lang) });
+  const metrics = packageMetrics(input.lines.flatMap((line) => line.packages));
+  return buildQuoteSheetModel({
+    ...input,
+    freightMetrics: metrics.count > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,
+  }, { packagesNote: (line, lang) => packagesText(line.packages, lang) });
 }
 
 /** Bản ghi báo giá (danh sách, RFQ) đủ thông tin để in, tải PDF hoặc Excel. */

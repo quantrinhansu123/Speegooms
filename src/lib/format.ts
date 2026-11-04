@@ -56,27 +56,53 @@ export function parseMoneyInput(value: string): number | null {
 }
 
 /** Chuẩn hóa chuỗi đang gõ về dạng chỉ còn chữ số + tối đa một dấu phẩy thập phân. */
-function moneyDigitsAndComma(body: string): string {
+function moneyDigitsAndComma(body: string, maxFractionDigits: number): string {
+  const limit = Math.max(0, Math.min(6, maxFractionDigits));
   if (/^\d{1,3}(,\d{3})+(\.\d*)?$/.test(body)) return body.replace(/,/g, "").replace(".", ",");
   if (/^\d{1,3}(\.\d{3})+(,\d*)?$/.test(body)) return body.replace(/\./g, "");
-  if (/^\d+\.\d{0,2}$/.test(body)) return body.replace(".", ",");
+  if (new RegExp(`^\\d+\\.\\d{0,${limit}}$`).test(body)) return body.replace(".", ",");
   return body.replace(/\./g, "");
 }
 
 /** Format lại chuỗi đang gõ trong ô tiền (giữ dấu phẩy thập phân đang dở). */
-export function formatMoneyInput(raw: string): string {
+export function formatMoneyInput(raw: string, maxFractionDigits = 2): string {
   const compact = raw.replace(/\s/g, "");
   if (!compact) return "";
   const negative = compact.startsWith("-");
-  const cleaned = moneyDigitsAndComma(negative ? compact.slice(1) : compact).replace(/[^\d,]/g, "");
+  const cleaned = moneyDigitsAndComma(negative ? compact.slice(1) : compact, maxFractionDigits).replace(/[^\d,]/g, "");
   const trailingComma = cleaned.endsWith(",");
   const [intRaw = "", ...fracParts] = cleaned.split(",");
-  const frac = fracParts.join("").slice(0, 2);
+  const frac = fracParts.join("").slice(0, Math.max(0, maxFractionDigits));
   const intDigits = intRaw.replace(/^0+(?=\d)/, "");
   if (!intDigits && frac === "" && !trailingComma) return negative ? "-" : "";
   const intFormatted = (intDigits || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   const result = fracParts.length > 0 || trailingComma ? `${intFormatted},${frac}` : intFormatted;
   return negative ? `-${result}` : result;
+}
+
+/** Kích thước / kg: chấp nhận `35,8` và `35.8`. */
+export function parseMeasureInput(value: string): number | null {
+  const trimmed = value.trim().replace(/\s/g, "");
+  if (!trimmed || trimmed === ",") return null;
+  const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/** Giữ dấu phẩy thập phân khi đang gõ kích thước (tối đa 3 số lẻ). */
+export function formatMeasureInput(raw: string): string {
+  const compact = raw.replace(/\s/g, "").replace(/[^\d.,]/g, "");
+  if (!compact) return "";
+  const body = /^\d+\.\d*$/.test(compact) ? compact.replace(".", ",") : compact.replace(/\./g, "");
+  const comma = body.indexOf(",");
+  if (comma < 0) return body.replace(/^0+(?=\d)/, "");
+  const intDigits = body.slice(0, comma).replace(/^0+(?=\d)/, "");
+  const frac = body.slice(comma + 1).replace(/,/g, "").slice(0, 3);
+  return `${intDigits || "0"},${frac}`;
+}
+
+export function formatMeasure(value: number): string {
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3, minimumFractionDigits: 0 }).format(value);
 }
 
 /** 1.250.000.000 → "1,25 tỷ", 85.000.000 → "85 tr" */

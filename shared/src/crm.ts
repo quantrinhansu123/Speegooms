@@ -192,6 +192,8 @@ export const quoteLinePriceSchema = z.object({
   currency: quoteCurrencySchema,
   pricePerSet: amount,
   lineTotal: amount,
+  /** true khi thành tiền được ghi đè, không tính lại theo công thức. */
+  lineTotalManual: z.boolean().default(false),
 });
 
 /** Cột đơn giá thêm trên đơn hàng. Tỷ giá là số VND cho 1 đơn vị ngoại tệ. */
@@ -210,6 +212,8 @@ export const quoteLineSchema = z.object({
   quantity: amount,
   pricePerSet: amount,
   lineTotal: amount,
+  /** true khi thành tiền chính được ghi đè tay. */
+  lineTotalManual: z.boolean().default(false),
   /** Cân nặng mỗi đơn vị hàng; thành tiền kg = đơn giá × kg/đơn vị × số lượng. */
   weightKg: amount,
   spec: text(4000),
@@ -217,8 +221,8 @@ export const quoteLineSchema = z.object({
   /** Bản tiếng Anh của quy cách và ghi chú, do người dùng điền. */
   specEn: text(4000).default(""),
   noteEn: text(4000).default(""),
-  /** Đơn vị tính: set, ghế, kg, cbm, lô... */
-  unit: text(20).default("set"),
+  /** Đơn vị tính: cái, bộ, kg, cbm, lô... */
+  unit: text(20).default("cái"),
   /** Cách tính giá: theo đơn vị, theo kg/m2/CBM mỗi đơn vị × số lượng, hoặc trọn gói. */
   basis: z.enum(["unit", "kg", "m2", "cbm", "lump"]).default("unit"),
   cbm: amount.default(null),
@@ -241,6 +245,17 @@ export function quoteLineImages(line: { image?: string | null; images?: string[]
 }
 
 const depositLine = text(300);
+
+/** Cước vận chuyển: giá cước × cân nặng tính phí. Cân và thể tích lấy từ từng kiện khi in. */
+export const quoteFreightSchema = z.object({
+  /** Giá cước trên mỗi kg tính phí. */
+  rate: amount,
+  /** Tổng chi phí. Khi totalManual = false, in sẽ tính rate × cân nặng tính phí. */
+  total: amount,
+  totalManual: z.boolean().default(false),
+});
+
+export const emptyQuoteFreight = { rate: null, total: null, totalManual: false };
 
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({
@@ -270,6 +285,8 @@ export const quoteNotesSchema = z.object({
   ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
   /** Chi phí logistics chi tiết (cảng, vận chuyển, thông quan…). */
   logisticsFees: z.array(logisticsFeeSchema).max(30, "Tối đa 30 dòng chi phí logistics").default([]),
+  /** Bảng cước vận chuyển: giá cước, cân/thể tích tính phí và tổng. */
+  freight: quoteFreightSchema.default(emptyQuoteFreight),
   /** Ghi chú thêm của vận hành (tách lô, dời lịch…) để Sale xem. */
   opsExtra: text(2000).default(""),
 });

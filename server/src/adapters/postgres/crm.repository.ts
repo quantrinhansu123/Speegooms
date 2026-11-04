@@ -262,7 +262,7 @@ function emptyLogisticsSheet() {
     quoteStatus: "CHUA_CO_BAO_GIA",
     contractStatus: "CHUA_TAO",
     orders: [],
-    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [], opsExtra: "" },
+    notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", deposit: [], logisticsFees: [], opsExtra: "", freight: { rate: null, total: null, totalManual: false } },
     bank: defaultQuoteBank,
     sentQuote: null,
   };
@@ -332,7 +332,7 @@ function asLinePrices(value: unknown): QuoteLine["prices"] {
     const row = item as Record<string, unknown>;
     const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
     if (!/^[A-Z]{3}$/.test(currency)) return [];
-    return [{ currency, pricePerSet: optionalAmount(row.pricePerSet), lineTotal: optionalAmount(row.lineTotal) }];
+    return [{ currency, pricePerSet: optionalAmount(row.pricePerSet), lineTotal: optionalAmount(row.lineTotal), lineTotalManual: row.lineTotalManual === true }];
   }).slice(0, 8);
 }
 
@@ -350,12 +350,13 @@ function asLines(value: unknown): QuoteLine[] {
       quantity: optionalAmount(row.quantity),
       pricePerSet: optionalAmount(row.pricePerSet),
       lineTotal: optionalAmount(row.lineTotal),
+      lineTotalManual: row.lineTotalManual === true,
       weightKg: optionalAmount(row.weightKg),
       spec: textField(row.spec),
       note: textField(row.note),
       specEn: textField(row.specEn),
       noteEn: textField(row.noteEn),
-      unit: textField(row.unit) || "set",
+      unit: textField(row.unit) || "cái",
       basis: asBasis(row.basis),
       cbm: optionalAmount(row.cbm),
       areaM2: optionalAmount(row.areaM2),
@@ -432,9 +433,18 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
     .slice(0, 30);
 }
 
+function asFreight(value: unknown): QuoteNotes["freight"] {
+  const row = value && typeof value === "object" ? value as { rate?: unknown; total?: unknown; totalManual?: unknown } : {};
+  return {
+    rate: optionalAmount(row.rate),
+    total: optionalAmount(row.total),
+    totalManual: row.totalManual === true,
+  };
+}
+
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown }
     : {};
   const deposit = asDeposit(row.deposit);
   return {
@@ -448,6 +458,7 @@ function asNotes(value: unknown): QuoteNotes {
     depositEn: asDeposit(row.depositEn).slice(0, deposit.length),
     logisticsFees: asLogisticsFees(row.logisticsFees),
     opsExtra: textField(row.opsExtra),
+    freight: asFreight(row.freight),
   };
 }
 

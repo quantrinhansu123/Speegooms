@@ -466,7 +466,7 @@ test("Sale cannot set prices on new orders or new lines; Logistics prices them l
   newLine.pricePerSet = 5;
   newLine.lineTotal = 50;
   newLine.basis = "m2";
-  newLine.prices = [{ currency: "USD", pricePerSet: 1, lineTotal: 10 }];
+  newLine.prices = [{ currency: "USD", pricePerSet: 1, lineTotal: 10, lineTotalManual: false }];
   submitted.orders[0].lines.push(newLine);
   const newOrder = structuredClone(submitted.orders[0]);
   newOrder.id = "00000000-0000-4000-8000-0000000000aa";

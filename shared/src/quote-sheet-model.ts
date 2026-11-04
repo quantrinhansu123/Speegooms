@@ -1,6 +1,6 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
 import { quoteMoneyValue } from "./quote-amounts";
-import { quoteAttrKeyEn, quoteCompanyLabels, quotePrintText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
+import { quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
 export const quoteCompany = {
@@ -34,6 +34,8 @@ export interface QuoteSheetInput {
   orderName?: string | null;
   issuedOn?: string | null;
   lang?: QuoteLang;
+  /** Cân nặng tính phí và CBM của cả đơn, đã tính riêng từng kiện. */
+  freightMetrics?: { chargeableKg: number; cbm: number } | null;
 }
 
 export interface QuoteSheetLine {
@@ -52,7 +54,8 @@ export interface QuoteSheetLine {
   priceUnit: string;
   basis: QuoteLine["basis"];
   total: number | null;
-  extra: { currency: string; price: number | null; total: number | null }[];
+  extra: { currency: string; price: number | null; total: number | null; totalManual: boolean }[];
+  totalManual: boolean;
   spec: string;
   note: string;
 }
@@ -89,10 +92,20 @@ export interface QuoteSheetModel {
   fees: QuoteSheetFee[];
   /** Tổng phí logistics theo từng loại tiền, chỉ khi chưa có tổng nhập tay. */
   feeSubtotals: { currency: string; amount: number }[];
+  /** Bảng cước vận chuyển in cho khách. */
+  freight: QuoteSheetFreight;
   deposit: string[];
   bank: { title: string; rows: [string, string][] };
   /** Bản tiếng Anh: các ô tự điền đã có tiếng Việt nhưng chưa có tiếng Anh (để trống trên bản in). */
   missing: string[];
+}
+
+export interface QuoteSheetFreight {
+  rate: number | null;
+  chargeableKg: number | null;
+  chargeableCbm: number | null;
+  total: number | null;
+  note: string;
 }
 
 export interface QuoteSheetDeps {
@@ -150,6 +163,21 @@ function lineNoteOf(line: QuoteLine, lang: QuoteLang, deps: QuoteSheetDeps, pick
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
+function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"], note: string): QuoteSheetFreight {
+  const stored = notes.freight ?? { rate: null, total: null, totalManual: false };
+  const chargeableKg = metrics && metrics.chargeableKg > 0 ? metrics.chargeableKg : null;
+  const chargeableCbm = metrics && metrics.cbm > 0 ? metrics.cbm : null;
+  const auto = stored.rate != null && chargeableKg != null ? round3(stored.rate * chargeableKg) : null;
+  return {
+    rate: stored.rate,
+    chargeableKg,
+    chargeableCbm,
+    total: stored.totalManual ? stored.total : auto,
+    note,
+  };
+}
 
 /** Bank trống thì dùng tài khoản ACH mặc định để bản in luôn có thông tin thanh toán. */
 export function effectiveQuoteBank(bank: QuoteBank | null | undefined): QuoteBank {
@@ -181,7 +209,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   const filled = input.lines.filter(filledLine);
   const lines: QuoteSheetLine[] = filled.map((line, lineIndex) => {
     const metric = metricOf(line);
-    const unit = line.unit?.trim() || t.defaultUnit;
+    const unit = quoteDisplayUnit(line.unit, lang);
     return {
     stt: line.stt,
     productName: line.productName?.trim() ?? "",
@@ -194,9 +222,10 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     priceUnit: line.pricePerSet == null ? "" : priceUnitOf(line.basis, t),
     basis: line.basis,
     total: line.lineTotal,
+    totalManual: line.lineTotalManual === true,
     extra: extraCurrencies.map((code) => {
       const price = line.prices.find((item) => item.currency.toUpperCase() === code);
-      return { currency: code, price: price?.pricePerSet ?? null, total: price?.lineTotal ?? null };
+      return { currency: code, price: price?.pricePerSet ?? null, total: price?.lineTotal ?? null, totalManual: price?.lineTotalManual === true };
     }),
     spec: pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`),
     note: lineNoteOf(line, lang, deps, pick, `dòng ${lineIndex + 1}`),
@@ -206,7 +235,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   const extraTotals: Record<string, number | null> = {};
   for (const code of extraCurrencies) {
     const values = lines.map((line) => line.extra.find((item) => item.currency === code)?.total).filter((v): v is number => v != null);
-    extraTotals[code] = values.length > 0 ? round2(values.reduce((sum, v) => sum + v, 0)) : null;
+    extraTotals[code] = values.length > 0 ? round3(values.reduce((sum, v) => sum + v, 0)) : null;
   }
   const notes = input.notes;
   const shippingText = notes.shippingLabel?.trim() ?? "";
@@ -252,7 +281,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     customerRows,
     lines,
     totals: {
-      goods: priced ? round2(lines.reduce((sum, line) => sum + (line.total ?? 0), 0)) : null,
+      goods: priced ? round3(lines.reduce((sum, line) => sum + (line.total ?? 0), 0)) : null,
       extra: extraTotals,
       cbm: Math.round(filled.reduce((sum, line) => sum + (line.cbm ?? 0) * (line.quantity ?? 1), 0) * 1000) / 1000,
       priced,
@@ -264,6 +293,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     shippingAmount: quoteMoneyValue(shippingText),
     fees,
     feeSubtotals: shippingText ? [] : [...subtotalByCurrency].map(([code, amount]) => ({ currency: code, amount })),
+    freight: freightOf(notes, input.freightMetrics, t.freightNote),
     deposit: notes.deposit
       .map((line, index) => pick(line, notes.depositEn?.[index], `Đặt cọc (dòng ${index + 1})`))
       .filter(Boolean),

@@ -8,7 +8,7 @@ const NAVY = "FF082A59";
 const ORANGE = "FFF26522";
 const PALE = "FFF6F8FC";
 const BORDER = { style: "thin", color: { argb: "FFC5D0DE" } } as const;
-const NUMBER_FORMAT = "#,##0.##";
+const NUMBER_FORMAT = "#,##0.###";
 
 type ImagePayload = { base64: string; extension: "png" | "jpeg" } | null;
 type Row = ReturnType<Worksheet["getRow"]>;
@@ -186,10 +186,14 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     row.getCell(colOf("basis")).value = line.basis === "unit" ? line.unit : line.priceUnit.replace("/", "") || line.basis;
     row.getCell(colOf("metric")).value = line.metric ?? undefined;
     row.getCell(colOf("price")).value = line.price ?? undefined;
-    row.getCell(colOf("total")).value = { formula: formulaFor("price"), result: line.total ?? undefined };
+    row.getCell(colOf("total")).value = line.totalManual
+      ? (line.total ?? undefined)
+      : { formula: formulaFor("price"), result: line.total ?? undefined };
     for (const extra of line.extra) {
       row.getCell(colOf(`price-${extra.currency}`)).value = extra.price ?? undefined;
-      row.getCell(colOf(`total-${extra.currency}`)).value = { formula: formulaFor(`price-${extra.currency}`), result: extra.total ?? undefined };
+      row.getCell(colOf(`total-${extra.currency}`)).value = extra.totalManual
+        ? (extra.total ?? undefined)
+        : { formula: formulaFor(`price-${extra.currency}`), result: extra.total ?? undefined };
     }
     row.getCell(colOf("spec")).value = line.spec;
     row.getCell(colOf("note")).value = line.note;
@@ -253,13 +257,46 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     }
     r += 1;
   }
-  if (model.shippingText) {
+  const freightTotal = model.freight.total;
+  const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
+  if (model.shippingText && !shippingDuplicatesFreight) {
     const row = sumRow(t.shippingTotal);
     if (model.shippingAmount != null) put(row, "total", model.shippingAmount);
     else row.getCell(colOf("total")).value = model.shippingText;
     if (model.validityNote) row.getCell(colOf("note")).value = model.validityNote;
     r += 1;
   }
+  r += 1;
+  text(r, 1, t.freightTitle, { bold: true, color: "FFFFFFFF", merge: 4, align: "center" });
+  ws.getCell(r, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+  r += 1;
+  const freightHeads = [t.freightRate, t.chargeableWeight, t.chargeableVolume, t.freightTotal];
+  freightHeads.forEach((label, index) => {
+    const cell = ws.getRow(r).getCell(index + 1);
+    cell.value = label;
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  });
+  boxRow(ws.getRow(r), 1, 4);
+  r += 1;
+  const freightValues: Array<number | string | undefined> = [
+    model.freight.rate ?? undefined,
+    model.freight.chargeableKg ?? undefined,
+    model.freight.chargeableCbm ?? undefined,
+    model.freight.total ?? undefined,
+  ];
+  freightValues.forEach((value, index) => {
+    const cell = ws.getRow(r).getCell(index + 1);
+    cell.value = value;
+    if (typeof value === "number") cell.numFmt = NUMBER_FORMAT;
+    cell.font = { bold: true, color: { argb: NAVY } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+  });
+  boxRow(ws.getRow(r), 1, 4);
+  r += 1;
+  text(r, 1, model.freight.note, { merge: last, color: "FF334155" });
+  r += 1;
   if (model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)) {
     for (const sub of model.feeSubtotals) {
       put(sumRow(`${t.feeSubtotal} (${sub.currency})`), feeKey(sub.currency), sub.amount);

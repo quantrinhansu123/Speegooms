@@ -42,7 +42,7 @@ export function MoneyInput({ value, onValueChange, onFocus, onBlur, name, fracti
           onBlur?.(event);
         }}
         onChange={(event) => {
-          const next = formatMoneyInput(event.target.value);
+          const next = formatMoneyInput(event.target.value, fractionDigits);
           setText(next);
           onValueChange(next.trim() ? parseMoneyInput(next) : null);
         }}

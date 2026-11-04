@@ -13,11 +13,11 @@ import {
 
 const line = (patch: Partial<QuoteLine> = {}): QuoteLine => ({
   stt: "1", image: "", images: [], quantity: 2, pricePerSet: 10, lineTotal: 20, weightKg: null, spec: "Ghế gỗ sồi", note: "", specEn: "", noteEn: "",
-  unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [], ...patch,
+  unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [], lineTotalManual: false, ...patch,
 });
 
 const notes = (patch: Partial<QuoteNotes> = {}): QuoteNotes => ({
-  totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", weightNoteEn: "", validityNoteEn: "", depositEn: [], deposit: [], logisticsFees: [], opsExtra: "", ...patch,
+  totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", weightNoteEn: "", validityNoteEn: "", depositEn: [], deposit: [], logisticsFees: [], opsExtra: "", freight: { rate: null, total: null, totalManual: false }, ...patch,
 });
 
 const customer = { customerName: "An", companyName: "ABC", address: "HN", phone: "090", email: "a@b.c" };
@@ -46,8 +46,8 @@ test("cột tiền thêm lấy giá và tổng theo từng loại tiền", () =>
   const model = buildQuoteSheetModel(input({
     priceColumns: [{ currency: "CNY", rate: 3500 }],
     lines: [
-      line({ prices: [{ currency: "CNY", pricePerSet: 70, lineTotal: 140 }] }),
-      line({ stt: "2", prices: [{ currency: "CNY", pricePerSet: 30, lineTotal: 60 }] }),
+      line({ prices: [{ currency: "CNY", pricePerSet: 70, lineTotal: 140, lineTotalManual: false }] }),
+      line({ stt: "2", prices: [{ currency: "CNY", pricePerSet: 30, lineTotal: 60, lineTotalManual: false }] }),
     ],
   }), deps);
   assert.equal(model.lines[0]?.extra[0]?.total, 140);
@@ -57,7 +57,7 @@ test("cột tiền thêm lấy giá và tổng theo từng loại tiền", () =>
 test("tính giá theo m2: định mức mỗi đơn vị hàng, hiện ở cột Kg/CBM/m2 kèm đơn vị", () => {
   const model = buildQuoteSheetModel(input({ lines: [line({ basis: "m2", areaM2: 8, pricePerSet: 12.5, lineTotal: 300, quantity: 3, productName: "Thảm" })] }), deps);
   assert.equal(model.lines[0]?.metric, 8);
-  assert.equal(model.lines[0]?.metricUnit, "m2/set");
+  assert.equal(model.lines[0]?.metricUnit, "m2/cái");
   assert.equal(model.lines[0]?.priceUnit, "/m2");
   assert.equal(model.lines[0]?.productName, "Thảm");
   // Tính theo đơn vị thì không có định mức.
@@ -129,6 +129,36 @@ test("nhãn cột Quy cách và ngôn ngữ Anh/Việt", () => {
   assert.equal(formatQuoteNumber(1234.5, "en"), "1,234.50");
   assert.equal(formatQuoteNumber(1234.5, "vi"), "1.234,50");
   assert.equal(formatQuoteNumber(1234, "en"), "1,234");
+  assert.equal(formatQuoteNumber(0.035, "vi", 3), "0,035");
+  assert.equal(formatQuoteNumber(0.035, "en", 3), "0.035");
+});
+
+test("đơn vị mặc định trên file khách là cái, tiếng Anh là pcs, đơn vị tự nhập thì giữ", () => {
+  const shown = (unit: string, lang: "vi" | "en") => buildQuoteSheetModel(input({ lang, lines: [line({ unit })] }), deps).lines[0]?.unit;
+  assert.equal(shown("set", "vi"), "cái");
+  assert.equal(shown("", "vi"), "cái");
+  assert.equal(shown("cái", "en"), "pcs");
+  assert.equal(shown("bộ", "vi"), "bộ");
+  assert.equal(shown("bộ", "en"), "bộ");
+});
+
+test("cước vận chuyển = giá cước × cân tính phí, ghi đè thì giữ số tay, và có lưu ý mặc định", () => {
+  const model = buildQuoteSheetModel(input({
+    notes: notes({ freight: { rate: 2.5, total: null, totalManual: false } }),
+    freightMetrics: { chargeableKg: 148, cbm: 1.25 },
+  }), deps);
+  assert.equal(model.freight.total, 370);
+  assert.equal(model.freight.chargeableKg, 148);
+  assert.equal(model.freight.chargeableCbm, 1.25);
+  assert.equal(model.freight.note, quotePrintText.vi.freightNote);
+  const manual = buildQuoteSheetModel(input({
+    lang: "en",
+    notes: notes({ freight: { rate: 2.5, total: 999, totalManual: true } }),
+    freightMetrics: { chargeableKg: 148, cbm: 1.25 },
+  }), deps);
+  assert.equal(manual.freight.total, 999);
+  assert.equal(manual.freight.note, quotePrintText.en.freightNote);
+  assert.equal(manual.lines[0]?.unit, "pcs");
 });
 
 test("dòng trống bị bỏ và mã báo giá, ngày được đưa vào mô hình", () => {

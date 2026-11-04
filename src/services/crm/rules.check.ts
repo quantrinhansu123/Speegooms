@@ -61,8 +61,16 @@ const hong = packageMetrics([{ count: 1, lengthCm: 105, widthCm: 81, heightCm: 1
 assert.equal(Math.round(hong.chargeableKg), 200);
 const my = packageMetrics([{ count: 5, lengthCm: 110, widthCm: 95, heightCm: 100, actualKg: 30 }]);
 assert.equal(my.cbm, 5.225);
+// Nhiều kiện khác nhau: mỗi kiện lấy max(cân thực, cân thể tích) rồi cộng, không lấy max của hai tổng.
+const mixed = packageMetrics([
+  { count: 1, lengthCm: 50, widthCm: 40, heightCm: 30, actualKg: 100 },
+  { count: 1, lengthCm: 60, widthCm: 80, heightCm: 50, actualKg: 5 },
+  { count: 1, lengthCm: 40, widthCm: 40, heightCm: 30, actualKg: 5 },
+]);
+assert.equal(mixed.chargeableKg, 148);
 assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 9520); // Võ Hải Triều
 assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
+assert.equal(lineAmount({ basis: "unit", quantity: 3, price: 0.035, weightKg: null, cbm: null }), 0.105);
 assert.equal(lineAmount({ basis: "unit", quantity: null, price: 1, weightKg: null, cbm: null }), null);
 assert.equal(lineAmount({ basis: "m2", quantity: 3, price: 12.5, weightKg: null, cbm: null, areaM2: 8 }), 300); // m2 mỗi đơn vị × số lượng × đơn giá
 assert.equal(lineAmount({ basis: "m2", quantity: 3, price: 12.5, weightKg: null, cbm: null }), null); // thiếu diện tích thì chưa tính

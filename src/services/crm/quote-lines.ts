@@ -18,26 +18,30 @@ export const VOLUMETRIC_DIVISOR = 6000;
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
 export function packageMetrics(packages: PackageSpec[]) {
-  let cbm = 0, volumetricKg = 0, actualKg = 0, count = 0;
+  let cbm = 0, volumetricKg = 0, actualKg = 0, chargeableKg = 0, count = 0;
   for (const p of packages) {
+    const pieces = p.count > 0 ? p.count : 0;
     const vol = p.lengthCm * p.widthCm * p.heightCm;
-    cbm += (vol / 1e6) * p.count;
-    volumetricKg += (vol / VOLUMETRIC_DIVISOR) * p.count;
-    actualKg += p.actualKg * p.count;
-    count += p.count;
+    const volKg = (vol / VOLUMETRIC_DIVISOR) * pieces;
+    const actKg = p.actualKg * pieces;
+    cbm += (vol / 1e6) * pieces;
+    volumetricKg += volKg;
+    actualKg += actKg;
+    // Mỗi kiện (hoặc nhóm kiện giống nhau) tự so cân thực với cân thể tích, rồi mới cộng dồn.
+    chargeableKg += Math.max(actKg, volKg);
+    count += pieces;
   }
-  // Cước tính theo số lớn hơn giữa cân thực và cân quy đổi
-  return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: round(Math.max(actualKg, volumetricKg), 1) };
+  return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: round(chargeableKg, 1) };
 }
 
 /** Thành tiền theo cách tính giá của dòng; kg/m2/CBM là định mức mỗi đơn vị hàng. */
 export function lineAmount(l: { basis: PricingBasis; quantity: number | null; price: number | null; weightKg: number | null; cbm: number | null; areaM2?: number | null }) {
   if (l.price == null) return null;
-  if (l.basis === "lump") return round(l.price);
+  if (l.basis === "lump") return round(l.price, 3);
   if (l.quantity == null) return null;
-  if (l.basis === "unit") return round(l.quantity * l.price);
+  if (l.basis === "unit") return round(l.quantity * l.price, 3);
   const metric = l.basis === "kg" ? l.weightKg : l.basis === "m2" ? l.areaM2 : l.cbm;
-  return metric == null ? null : round(l.quantity * metric * l.price);
+  return metric == null ? null : round(l.quantity * metric * l.price, 3);
 }
 
 export const pricingBasisLabels: Record<PricingBasis, string> = { unit: "theo đơn vị", kg: "theo kg", m2: "theo m2", cbm: "theo CBM", lump: "trọn gói" };
