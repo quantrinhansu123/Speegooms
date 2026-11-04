@@ -56,11 +56,8 @@ export function parseMoneyInput(value: string): number | null {
 }
 
 /** Chuẩn hóa chuỗi đang gõ về dạng chỉ còn chữ số + tối đa một dấu phẩy thập phân. */
-function moneyDigitsAndComma(body: string, maxFractionDigits: number): string {
-  const limit = Math.max(0, Math.min(6, maxFractionDigits));
-  if (/^\d{1,3}(,\d{3})+(\.\d*)?$/.test(body)) return body.replace(/,/g, "").replace(".", ",");
-  if (/^\d{1,3}(\.\d{3})+(,\d*)?$/.test(body)) return body.replace(/\./g, "");
-  if (new RegExp(`^\\d+\\.\\d{0,${limit}}$`).test(body)) return body.replace(".", ",");
+function moneyDigitsAndComma(body: string): string {
+  // Chỉ dấu "," là thập phân (người dùng tự gõ); "." là ngăn nghìn nên bị bỏ, không tự đổi thành ",".
   return body.replace(/\./g, "");
 }
 
@@ -69,7 +66,7 @@ export function formatMoneyInput(raw: string, maxFractionDigits = 2): string {
   const compact = raw.replace(/\s/g, "");
   if (!compact) return "";
   const negative = compact.startsWith("-");
-  const cleaned = moneyDigitsAndComma(negative ? compact.slice(1) : compact, maxFractionDigits).replace(/[^\d,]/g, "");
+  const cleaned = moneyDigitsAndComma(negative ? compact.slice(1) : compact).replace(/[^\d,]/g, "");
   const trailingComma = cleaned.endsWith(",");
   const [intRaw = "", ...fracParts] = cleaned.split(",");
   const frac = fracParts.join("").slice(0, Math.max(0, maxFractionDigits));
