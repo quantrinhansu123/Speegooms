@@ -190,6 +190,7 @@ export const quotePriceColumnSchema = z.object({
 
 export const quoteLineSchema = z.object({
   stt: text(20),
+  productName: text(300).optional(),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
   image: quoteImage.default(""),
   /** Nhiều ảnh sản phẩm trên một dòng báo giá. */
@@ -197,15 +198,16 @@ export const quoteLineSchema = z.object({
   quantity: amount,
   pricePerSet: amount,
   lineTotal: amount,
+  /** Cân nặng mỗi đơn vị hàng; thành tiền kg = đơn giá × kg/đơn vị × số lượng. */
   weightKg: amount,
   spec: text(4000),
   note: text(4000),
   /** Đơn vị tính: set, ghế, kg, cbm, lô... */
   unit: text(20).default("set"),
-  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo CBM hoặc trọn gói */
+  /** Cách tính giá: theo đơn vị, theo kg/CBM mỗi đơn vị × số lượng, hoặc trọn gói. */
   basis: z.enum(["unit", "kg", "cbm", "lump"]).default("unit"),
   cbm: amount.default(null),
-  /** Quy cách đóng gói. Có kiện thì CBM và cân tính cước được suy ra từ đây */
+  /** Quy cách đóng gói. CBM và cân tổng từ kiện được chia theo số lượng để lưu theo đơn vị hàng. */
   packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
   attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
@@ -320,7 +322,7 @@ export const createContractSchema = z.object({
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
   saleName: text(160),
   shipTo: z.union([z.literal(""), contractShipToSchema]),
-  product: text(300),
+  product: text(15_000),
   quantity: z.number().min(0).max(1_000_000_000).nullable(),
   productValue: money,
   shippingCost: money,
