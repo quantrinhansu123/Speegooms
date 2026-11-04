@@ -15,6 +15,8 @@ const hints: Partial<Record<keyof ContractDocFields, string>> = {
   sampleDays: "five (5)",
   longStopDays: "sixty (60)",
   inspectionDays: "three (3)",
+  quoteDays: "fourteen (14)",
+  noticeDays: "two (2)",
   delivery: "delivery shall be made on a Delivered Duty Paid (DDP) basis to the Client's designated U.S. delivery location",
 };
 
@@ -31,6 +33,8 @@ const labels: [keyof ContractDocFields, string][] = [
   ["sampleDays", "Duyệt mẫu trong (ngày làm việc)"],
   ["longStopDays", "Long-stop giao hàng trễ (ngày)"],
   ["inspectionDays", "Kiểm hàng trong (ngày làm việc)"],
+  ["noticeDays", "Báo lỗi ẩn trong (ngày lịch)"],
+  ["quoteDays", "Báo giá có hiệu lực (ngày lịch)"],
   ["delivery", "Điều khoản giao hàng"],
 ];
 
@@ -60,6 +64,8 @@ export function ContractDocDialog({
     delivery: "",
     longStopDays: "",
     inspectionDays: "",
+    quoteDays: "",
+    noticeDays: "",
   });
   // Ô đã có dữ liệu từ báo giá (xanh) thì khóa; ô trống và ô vàng Sale tự nhập.
   const [locked] = useState(() => new Set(labels.map(([key]) => key).filter((key) => !(key in hints) && doc[key])));
