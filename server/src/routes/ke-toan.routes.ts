@@ -18,6 +18,7 @@ export function keToanRoutes(container: AppContainer) {
   router.post("/statements", requirePermission("ledger.write"), validate({ body: createStatementSchema }), asyncHandler(keToan.createStatement));
 
   router.get("/payment-orders", requirePermission("payment.create"), asyncHandler(keToan.listPaymentOrders));
+  router.get("/payment-employees", requirePermission("payment.create"), asyncHandler(keToan.listPaymentEmployees));
   router.get("/payments", requirePermission("payment.read"), asyncHandler(keToan.listPayments));
   router.post("/payments", requirePermission("payment.create"), validate({ body: createPaymentRequestSchema }), asyncHandler(keToan.createPayment));
 

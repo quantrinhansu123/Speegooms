@@ -38,6 +38,7 @@ export type PaymentRecord = {
   payeeCode: string | null;
   payeeName: string | null;
   refCode: string | null;
+  references: { source: string; code: string }[];
   content: string;
   amount: number;
   currency: string;
@@ -52,6 +53,7 @@ export type PaymentRecord = {
 };
 
 type OrderOption = { code: string; customerName: string; accountingStatus: string };
+type EmployeeOption = { code: string; name: string };
 
 const statusTone: Record<PaymentRecord["status"], StatusTone> = {
   NHAP: "neutral",
@@ -70,13 +72,14 @@ const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("vi-
 
 function CreatePaymentDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (payment: PaymentRecord) => void }) {
   const [orders, setOrders] = useState<OrderOption[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [orderCode, setOrderCode] = useState("");
   const [payeeKind, setPayeeKind] = useState<PaymentRecord["payeeKind"]>("NHA_CUNG_CAP");
   const [purpose, setPurpose] = useState<PaymentRecord["purpose"]>("DAT_COC_XUONG");
   const [payeeName, setPayeeName] = useState("");
   const [payeeCode, setPayeeCode] = useState("");
-  const [refCode, setRefCode] = useState("");
+  const [references, setReferences] = useState([{ source: "", code: "" }]);
   const [content, setContent] = useState("");
   const [amount, setAmount] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -92,6 +95,14 @@ function CreatePaymentDialog({ onClose, onCreated }: { onClose: () => void; onCr
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    api<{ employees: EmployeeOption[] }>("/api/ke-toan/payment-employees")
+      .then((body) => { if (!cancelled) setEmployees(body.employees); })
+      .catch((cause) => { if (!cancelled) setError(cause instanceof ApiError ? cause.message : "Không tải được danh sách nhân viên"); });
+    return () => { cancelled = true; };
+  }, []);
+
   const submit = async () => {
     const parsed = createPaymentRequestSchema.safeParse({
       orderCode,
@@ -99,7 +110,7 @@ function CreatePaymentDialog({ onClose, onCreated }: { onClose: () => void; onCr
       purpose,
       payeeName,
       payeeCode,
-      refCode,
+      references: references.filter((reference) => reference.source.trim() || reference.code.trim()),
       content,
       amount: amount ?? 0,
       currency: "VND",
@@ -140,7 +151,9 @@ function CreatePaymentDialog({ onClose, onCreated }: { onClose: () => void; onCr
             <NativeSelect id="pay-kind" value={payeeKind} onChange={(event) => {
               const next = event.target.value as PaymentRecord["payeeKind"];
               setPayeeKind(next);
-              setPurpose(next === "NHA_CUNG_CAP" ? "DAT_COC_XUONG" : "CUOC_VAN_CHUYEN");
+              setPurpose(next === "NHA_CUNG_CAP" ? "DAT_COC_XUONG" : next === "NHAN_VIEN" ? "KHAC" : "CUOC_VAN_CHUYEN");
+              setPayeeCode("");
+              setPayeeName("");
             }}>
               {kindOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </NativeSelect>
@@ -151,14 +164,31 @@ function CreatePaymentDialog({ onClose, onCreated }: { onClose: () => void; onCr
             </NativeSelect>
           </Field>
           <Field label="Người nhận" htmlFor="pay-payee" required>
-            <Input id="pay-payee" value={payeeName} maxLength={200} onChange={(event) => setPayeeName(event.target.value)} placeholder={payeeKind === "NHA_CUNG_CAP" ? "Tên nhà cung cấp" : "Tên đối tác vận chuyển"} />
+            {payeeKind === "NHAN_VIEN" ? (
+              <NativeSelect id="pay-payee" value={payeeCode} onChange={(event) => {
+                const employee = employees.find((item) => item.code === event.target.value);
+                setPayeeCode(employee?.code ?? "");
+                setPayeeName(employee?.name ?? "");
+              }}>
+                <option value="">Chọn nhân viên</option>
+                {employees.map((employee) => <option key={employee.code} value={employee.code}>{employee.name} · {employee.code}</option>)}
+              </NativeSelect>
+            ) : <Input id="pay-payee" value={payeeName} maxLength={200} onChange={(event) => setPayeeName(event.target.value)} placeholder={payeeKind === "NHA_CUNG_CAP" ? "Tên nhà cung cấp" : "Tên đối tác vận chuyển"} />}
           </Field>
           <Field label="Mã người nhận" htmlFor="pay-payee-code">
-            <Input id="pay-payee-code" value={payeeCode} maxLength={64} onChange={(event) => setPayeeCode(event.target.value)} />
+            <Input id="pay-payee-code" value={payeeKind === "NHAN_VIEN" ? payeeCode : "Tự động tạo khi lưu"} readOnly disabled />
           </Field>
-          <Field label="Mã tham chiếu" htmlFor="pay-ref" className="sm:col-span-2" hint="Mã đơn mua hoặc mã lô hàng.">
-            <Input id="pay-ref" value={refCode} maxLength={64} onChange={(event) => setRefCode(event.target.value)} />
-          </Field>
+          <div className="space-y-2 sm:col-span-2">
+            <p className="text-sm font-medium">Mã tham chiếu theo nguồn</p>
+            {references.map((reference, index) => (
+              <div key={index} className="flex gap-2">
+                <Input aria-label={`Nguồn tham chiếu ${index + 1}`} placeholder="Nguồn, ví dụ Shopee" maxLength={100} value={reference.source} onChange={(event) => setReferences((current) => current.map((item, i) => i === index ? { ...item, source: event.target.value } : item))} />
+                <Input aria-label={`Mã tham chiếu ${index + 1}`} placeholder="Mã từ nguồn" maxLength={100} value={reference.code} onChange={(event) => setReferences((current) => current.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
+                {references.length > 1 && <Button type="button" variant="outline" size="icon" aria-label={`Xóa mã tham chiếu ${index + 1}`} onClick={() => setReferences((current) => current.filter((_, i) => i !== index))}><X aria-hidden /></Button>}
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" disabled={references.length >= 20} onClick={() => setReferences((current) => [...current, { source: "", code: "" }])}><Plus aria-hidden /> Thêm mã</Button>
+          </div>
           <Field label="Nội dung thanh toán" htmlFor="pay-content" required className="sm:col-span-2">
             <Textarea id="pay-content" value={content} maxLength={500} rows={3} onChange={(event) => setContent(event.target.value)} placeholder="Ví dụ: Đặt cọc đợt 1 cho xưởng, đơn HD-0001" />
           </Field>
@@ -192,7 +222,7 @@ export function PaymentsLiveView() {
     <>
       <PageHeader
         title="Đề nghị thanh toán"
-        description="Nhà cung cấp và đối tác vận chuyển. Ba bước tách nhau: nhập (Vận hành hoặc Kế toán), duyệt (theo cấp), chi (Kế toán). Chỉ ghi nhận trạng thái."
+        description="Nhà cung cấp, đối tác vận chuyển và nhân viên công ty. Ba bước: nhập, duyệt, ghi nhận chi."
         actions={canCreate && <Button size="lg" onClick={() => setCreating(true)}><Plus aria-hidden /> Tạo mới</Button>}
       />
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
@@ -245,7 +275,7 @@ export function PaymentsLiveView() {
                 <td className="px-3 py-3">
                   <p className="max-w-52 truncate font-medium" title={row.payeeName ?? undefined}>{row.payeeName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{paymentPayeeKindLabels[row.payeeKind]} · {paymentPurposeLabels[row.purpose]}</p>
-                  {row.refCode && <p className="font-mono text-xs text-muted-foreground">{row.refCode}</p>}
+                  {row.references?.map((reference, index) => <p key={index} className="font-mono text-xs text-muted-foreground">{reference.source}: {reference.code}</p>)}
                 </td>
                 <td className="min-w-56 max-w-80 px-3 py-3 whitespace-pre-line" title={row.content}>{row.content}</td>
                 <td className="px-3 py-3 text-right whitespace-nowrap">{formatMoney(row.amount, row.currency)}</td>

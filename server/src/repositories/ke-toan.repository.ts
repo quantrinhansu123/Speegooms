@@ -11,6 +11,7 @@ export interface PaymentRequestRecord {
   payeeCode: string | null;
   payeeName: string | null;
   refCode: string | null;
+  references: { source: string; code: string }[];
   content: string;
   amount: number;
   currency: string;
@@ -30,6 +31,8 @@ export interface PaymentOrderOption {
   customerName: string;
   accountingStatus: string;
 }
+
+export interface PaymentEmployeeOption { code: string; name: string }
 
 export interface PayrollRecord {
   id: string;
@@ -83,7 +86,8 @@ export interface StatementRecord {
 export type CreatePaymentResult =
   | { result: "ok"; payment: PaymentRequestRecord }
   | { result: "order_missing" }
-  | { result: "deposit_missing" };
+  | { result: "deposit_missing" }
+  | { result: "employee_missing" };
 
 export interface KeToanRepository {
   listLedger(): Promise<LedgerRecord[]>;
@@ -93,6 +97,7 @@ export interface KeToanRepository {
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord>;
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord>;
   listPaymentOrders(): Promise<PaymentOrderOption[]>;
+  listPaymentEmployees(): Promise<PaymentEmployeeOption[]>;
   listPayments(search: PaymentListSearch): Promise<PaymentRequestRecord[]>;
   createPayment(input: CreatePaymentRequestInput, actor: string): Promise<CreatePaymentResult>;
   listPayroll(search: PayrollListSearch): Promise<PayrollRecord[]>;

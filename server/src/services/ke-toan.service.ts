@@ -6,6 +6,7 @@ import type {
   StatementRecord,
   KeToanRepository,
   PaymentOrderOption,
+  PaymentEmployeeOption,
   PaymentRequestRecord,
   PayrollRecord,
 } from "../repositories/ke-toan.repository";
@@ -26,6 +27,10 @@ export class KeToanService {
     return this.repository().listPaymentOrders();
   }
 
+  listPaymentEmployees(): Promise<PaymentEmployeeOption[]> {
+    return this.repository().listPaymentEmployees();
+  }
+
   listPayments(search: PaymentListSearch): Promise<PaymentRequestRecord[]> {
     return this.repository().listPayments(search);
   }
@@ -36,6 +41,7 @@ export class KeToanService {
     if (created.result === "deposit_missing") {
       throw new AppError(409, "RULE", "Đơn chưa có xác nhận Đã cọc của Kế toán, chưa thể lập đề nghị chi");
     }
+    if (created.result === "employee_missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy nhân viên");
     return created.payment;
   }
 
