@@ -122,6 +122,33 @@ function colgroupHtml(cols: Column[]): string {
   return `<colgroup>${cols.map((col) => `<col style="width:${((col.width / sum) * 100).toFixed(2)}%">`).join("")}</colgroup>`;
 }
 
+/** Tài khoản nhận tiền cố định của Speego, in ở cuối phiếu báo giá. */
+function bankInfoBlock(lang: QuoteLang): string {
+  const vi = lang === "vi";
+  const group = (title: string, rows: [string, string][]) =>
+    `<h3>${title}</h3>${rows.map(([label, value]) => `<div><span>${label}</span>${escapeHtml(value)}</div>`).join("")}`;
+  return `<section class="bank">
+    <h2>${vi ? "TÀI KHOẢN NGÂN HÀNG" : "BANK INFORMATION"}</h2>
+    ${[
+      [vi ? "Tên công ty" : "Company", "SPEEGO LOGISTICS CORPORATION"],
+      [vi ? "Địa chỉ" : "Address", "7303 Breen Dr, Suite D2, Houston, TX 77086, US."],
+      [vi ? "Ngân hàng" : "Bank", "REGIONS BANK"],
+      [vi ? "Địa chỉ ngân hàng" : "Bank address", vi ? "2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ." : "2730 Gessner Rd, Houston, TX 77080, USA."],
+    ].map(([label, value]) => `<div><span>${label}</span>${escapeHtml(value!)}</div>`).join("")}
+    ${group(vi ? "CHUYỂN TIỀN NGÂN HÀNG WIRE TRANSFER" : "WIRE TRANSFER", [
+      [vi ? "Tên chủ tài khoản" : "Account name", "SPEEGO LOGISTICS CORPORATION"],
+      [vi ? "Số tài khoản" : "Account number", "0379414656"],
+      ["Routing Number", "062005690"],
+      [vi ? "Mã SWIFT" : "SWIFT code", "UPNBUS44"],
+    ])}
+    ${group(vi ? "CHUYỂN TIỀN ACH (ACH TRANSFER)" : "ACH TRANSFER", [
+      [vi ? "Tài khoản" : "Account", "SPEEGO LOGISTICS CORPORATION"],
+      [vi ? "Số tài khoản" : "Account number", "0379414656"],
+      ["Routing Number", "111900785"],
+    ])}
+  </section>`;
+}
+
 export function quoteSheetHtml(input: QuoteSheetInput & {
   logoUrl?: string;
   /** Chỉ thông tin khách hàng và bảng chi tiết đơn hàng, dùng cho màn hình theo dõi. */
@@ -243,13 +270,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
 
-  const bankRows = model.bank.rows.filter(([, value]) => value.trim());
-  const bankBlock = bankRows.length > 0
-    ? `<section class="bank">
-        <h2>${escapeHtml(model.bank.title || t.paymentInfo)}</h2>
-        ${bankRows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("")}
-      </section>`
-    : "";
+  const bankBlock = bankInfoBlock(lang);
 
   return `<article class="sheet ${input.compact ? "sheet-compact" : ""}">
   ${input.compact ? "" : `
@@ -674,13 +695,14 @@ export const quotePrintCss = `
     vertical-align: middle;
   }
 
-  /* Ngắt trang: lặp tiêu đề cột, không cắt giữa hàng, giữ khối tổng/đặt cọc đi cùng nhau. */
+  /* Ngắt trang: lặp tiêu đề cột, giữ khối tổng/đặt cọc đi cùng nhau. */
   table.items thead { display: table-header-group; }
-  table.items tr,
+  /* Hàng hàng hóa cao (nhiều ảnh, quy cách dài) được phép tách trang để không chừa khoảng trống lớn. */
   table.summary tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  table.items img { break-inside: avoid; page-break-inside: avoid; }
   .closing {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -714,6 +736,7 @@ export const quotePrintCss = `
     color: #1e293b;
   }
   .bank span { color: #082A59; font-weight: 600; }
+  .bank h3 { margin: 8px 0 2px; font-size: 9.5pt; color: #082A59; }
 
   .sign {
     display: grid;
@@ -778,11 +801,17 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
     frame.remove();
     return;
   }
+  // @page margin 0 để trình duyệt không in ngày giờ/URL; lề 10mm mỗi trang do hàng đệm thead/tfoot lặp lại.
+  const spacer = `<div style="height:10mm"></div>`;
   const body = pages
-    .map((page, index) => `<div class="sheet-wrap${index < pages.length - 1 ? " page-break" : ""}">${page}</div>`)
+    .map((page, index) => `<table class="frame${index < pages.length - 1 ? " page-break" : ""}"><thead><tr><td>${spacer}</td></tr></thead><tbody><tr><td><div class="sheet-wrap">${page}</div></td></tr></tbody><tfoot><tr><td>${spacer}</td></tr></tfoot></table>`)
     .join("");
   doc.open();
   doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Báo giá</title><style>${quotePrintCss}
+    @page { margin: 0; }
+    body { padding: 0 12mm; }
+    table.frame { width: 100%; border-collapse: collapse; }
+    table.frame > thead > tr > td, table.frame > tbody > tr > td, table.frame > tfoot > tr > td { padding: 0; }
     .page-break { page-break-after: always; break-after: page; }
   </style></head><body>${body}</body></html>`);
   doc.close();

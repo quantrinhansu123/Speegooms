@@ -22,6 +22,8 @@ export class KeToanService {
   createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.repository().createStatement(input); }
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.repository().createLedger(input); }
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.repository().reconcileLedger(id, statementId); }
+  updateLedger(id: string, input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.repository().updateLedger(id, input); }
+  deleteLedger(id: string): Promise<void> { return this.repository().deleteLedger(id); }
 
   listPaymentOrders(): Promise<PaymentOrderOption[]> {
     return this.repository().listPaymentOrders();

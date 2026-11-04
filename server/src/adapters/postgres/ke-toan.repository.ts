@@ -185,6 +185,8 @@ export class PostgresKeToanRepository implements KeToanRepository {
   createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.ledger.createStatement(input); }
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.ledger.createLedger(input); }
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.ledger.reconcileLedger(id, statementId); }
+  updateLedger(id: string, input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.ledger.updateLedger(id, input); }
+  deleteLedger(id: string): Promise<void> { return this.ledger.deleteLedger(id); }
 
   async listPaymentOrders(): Promise<PaymentOrderOption[]> {
     const result = await this.query<{ code: string; customer_name: string; accounting_status: string }>(

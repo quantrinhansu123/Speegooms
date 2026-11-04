@@ -12,6 +12,8 @@ export function keToanRoutes(container: AppContainer) {
 
   router.get("/ledger", requirePermission("ledger.read"), asyncHandler(keToan.listLedger));
   router.post("/ledger", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.createLedger));
+  router.patch("/ledger/:id", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.updateLedger));
+  router.delete("/ledger/:id", requirePermission("ledger.write"), asyncHandler(keToan.deleteLedger));
   router.post("/ledger/:id/reconcile", requirePermission("ledger.write"), validate({ body: reconcileLedgerEntrySchema }), asyncHandler(keToan.reconcileLedger));
   router.get("/ledger-orders", requirePermission("ledger.read"), asyncHandler(keToan.listLedgerOrders));
   router.get("/statements", requirePermission("ledger.read"), asyncHandler(keToan.listStatements));
