@@ -168,19 +168,6 @@ function seedSeenIfNeeded(userId: string, rows: ContractRecord[]): Record<string
   return next;
 }
 
-function activityAt(row: ContractRecord): string {
-  return [row.updatedAt, row.createdAt, row.confirmedBackAt, row.sentToOpsAt, row.sentToAccountingAt]
-    .filter((value): value is string => Boolean(value))
-    .sort()
-    .at(-1) ?? row.createdAt;
-}
-
-function isUnreadContract(row: ContractRecord, seen: Record<string, string>): boolean {
-  const last = seen[row.id];
-  if (!last) return true;
-  return activityAt(row) > last;
-}
-
 const accountingStatusOptions = [
   ["DA_HOAN_THANH_COC", "Đã hoàn thành cọc"],
   ["DA_HOAN_THANH_THANH_TOAN", "Đã hoàn thành thanh toán"],
@@ -292,7 +279,7 @@ export function ContractsLiveView({
     }
   };
   const [billPreview, setBillPreview] = useState<{ code: string; images: string[] } | null>(null);
-  const [seen, setSeen] = useState<Record<string, string>>(() => readSeenMap(user.id));
+  const [, setSeen] = useState<Record<string, string>>(() => readSeenMap(user.id));
   const [listLoading, setListLoading] = useState(true);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [focusLane, setFocusLane] = useState<CrmLane | null>(null);
@@ -467,9 +454,6 @@ export function ContractsLiveView({
         <FilterSelect id="contract-ops-status" label="Trạng thái vận hành" value={filters.draft.opsStatus} onChange={(value) => filters.set("opsStatus", value)} options={opsStatusFilterOptions} />
         <FilterSelect id="contract-accounting-status" label="Trạng thái kế toán" value={filters.draft.accountingStatus} onChange={(value) => filters.set("accountingStatus", value)} options={accountingStatusOptions} />
       </ListSearchBar>
-      {mode === "sale" && (
-        <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
-      )}
       <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
@@ -506,14 +490,13 @@ export function ContractsLiveView({
                 accountingStatus: row.accountingStatus,
                 opsStatus: row.opsStatus,
               });
-              const unread = mode === "sale" && isUnreadContract(row, seen);
               return (
               <tr
                 key={row.id}
                 data-row-id={row.id}
                 className={cn(
                   "border-b last:border-0 align-top",
-                  highlightId === row.id ? FOCUS_ROW_CLASS : unread && "bg-amber-50",
+                  highlightId === row.id && FOCUS_ROW_CLASS,
                 )}
               >
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
