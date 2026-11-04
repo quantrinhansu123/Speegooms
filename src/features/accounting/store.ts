@@ -57,7 +57,7 @@ export const actions = {
 
   // ---------- Chi: nhập → duyệt → chi ----------
   createPayment(actor: Actor, input: NewPaymentInput): Result {
-    if (!can(actor, "pay.create")) return fail("Chỉ Vận hành nhập đề nghị thanh toán (nhập, duyệt, chi tách nhau)");
+    if (!can(actor, "pay.create")) return fail("Chỉ Vận hành hoặc Kế toán nhập đề nghị thanh toán (nhập, duyệt, chi tách nhau)");
     const gate = canCreatePayment(contractOf(input.orderId));
     if (!gate.ok) return fail(gate.reason);
     if (!(input.amount > 0)) return fail("Số tiền phải lớn hơn 0");

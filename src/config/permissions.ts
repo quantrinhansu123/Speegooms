@@ -8,7 +8,8 @@ export const actionPermissions = {
   "quote.review": ["sale-vn", "sale-global", "ban-gd", "admin"],
   "ops.write": ["van-hanh", "admin"], "price.return": ["van-hanh", "admin"],
   "wh.write": ["van-hanh", "admin"], "inquiry.create": sales,
-  "pay.create": ["van-hanh", "admin"], "pay.pay": ["ke-toan"], "ledger.write": ["ke-toan"],
+  "pay.create": ["van-hanh", "ke-toan", "admin"], "pay.pay": ["ke-toan"], "ledger.write": ["ke-toan"],
+  "payroll.write": ["ke-toan", "admin"], "expense.write": ["ke-toan", "admin"],
   "marketing.write": ["marketing", "admin"], "feedback.write": sales,
   "complaints.write": ["van-hanh", "ban-gd", "admin"], "hrm.write": ["hcns", "admin"], "legal.write": ["phap-che", "admin"],
 } satisfies Record<string, Role[]>;

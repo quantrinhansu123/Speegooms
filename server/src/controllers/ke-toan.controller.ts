@@ -1,0 +1,42 @@
+import type { Request, Response } from "express";
+import { AppError } from "../lib/errors";
+import { readExpenseSearch, readPaymentSearch, readPayrollSearch } from "../search/parse-list-search";
+import type { KeToanService } from "../services/ke-toan.service";
+
+function actorName(req: Request): string {
+  const user = req.user;
+  if (!user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+  return user.name;
+}
+
+export class KeToanController {
+  constructor(private readonly keToan: KeToanService) {}
+
+  listPaymentOrders = async (_req: Request, res: Response) => {
+    res.status(200).json({ orders: await this.keToan.listPaymentOrders() });
+  };
+
+  listPayments = async (req: Request, res: Response) => {
+    res.status(200).json({ payments: await this.keToan.listPayments(readPaymentSearch(req)) });
+  };
+
+  createPayment = async (req: Request, res: Response) => {
+    res.status(201).json({ payment: await this.keToan.createPayment(req.body, actorName(req)) });
+  };
+
+  listPayroll = async (req: Request, res: Response) => {
+    res.status(200).json({ payroll: await this.keToan.listPayroll(readPayrollSearch(req)) });
+  };
+
+  createPayroll = async (req: Request, res: Response) => {
+    res.status(201).json({ payroll: await this.keToan.createPayroll(req.body) });
+  };
+
+  listExpenses = async (req: Request, res: Response) => {
+    res.status(200).json({ expenses: await this.keToan.listExpenses(readExpenseSearch(req)) });
+  };
+
+  createExpense = async (req: Request, res: Response) => {
+    res.status(201).json({ expense: await this.keToan.createExpense(req.body) });
+  };
+}
