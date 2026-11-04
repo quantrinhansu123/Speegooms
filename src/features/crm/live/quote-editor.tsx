@@ -49,6 +49,7 @@ import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, type Pric
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
+import { TableHScroll } from "./table-h-scroll";
 
 function emptyLine(stt: string): QuoteLine {
   return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", unit: "set", basis: "unit", cbm: null, packages: [], attrs: [], prices: [] };
@@ -900,7 +901,7 @@ function OrderLines({
   return (
     <div className="grid gap-3">
       <InputError message={errors.lines} />
-      <div className="overflow-x-auto rounded-lg border">
+      <TableHScroll className="rounded-lg">
         <table className="w-full min-w-[980px] text-base">
           <thead>
             <tr className="border-b bg-muted/50 text-left text-sm">
@@ -1111,7 +1112,7 @@ function OrderLines({
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {lines.map((line, index) => (
         <div key={index} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-2">
           {packagingRequired && (
@@ -1901,7 +1902,7 @@ export function QuoteEditor({
                 {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
               </div>
             </div>
-            <div className="overflow-x-auto rounded-lg border">
+            <TableHScroll className="rounded-lg">
               <table className="w-full text-base">
                 <thead>
                   <tr className="border-b bg-muted/50 text-left">
@@ -2021,7 +2022,7 @@ export function QuoteEditor({
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableHScroll>
           </div>
 
           {pureLogistics && showPackaging && (
@@ -2124,7 +2125,7 @@ export function QuoteEditor({
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
               {quote.sourcingContext.opsNote && <p className="whitespace-pre-wrap text-sm">{quote.sourcingContext.opsNote}</p>}
-              <div className="overflow-x-auto rounded-lg border">
+              <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50 text-left">
                     {["STT", "Mặt hàng", "Ảnh hàng", "Số lượng", "Kg/CBM", "Thông số / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
@@ -2142,7 +2143,7 @@ export function QuoteEditor({
                     </tr>
                   ))}</tbody>
                 </table>
-              </div>
+              </TableHScroll>
               <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Sourcing cung cấp thông tin hàng và đóng gói. Logistics nhập chi phí logistics bên dưới.</p>
             </section>
           )}
@@ -2170,7 +2171,7 @@ export function QuoteEditor({
                 <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))} />
                 <Button type="button" variant="outline" size="sm" disabled={pending || ratePending} onClick={() => void fillListedRates()}>{ratePending ? "Đang lấy…" : "Lấy tỷ giá tự động"}</Button>
               </div>
-              <div className="overflow-x-auto rounded-lg border bg-background">
+              <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-left">
@@ -2214,7 +2215,7 @@ export function QuoteEditor({
                     )))}
                   </tbody>
                 </table>
-              </div>
+              </TableHScroll>
             </section>
           )}
 

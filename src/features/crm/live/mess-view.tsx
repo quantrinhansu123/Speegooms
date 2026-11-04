@@ -20,6 +20,7 @@ import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
 import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
@@ -138,12 +139,13 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [converting, setConverting] = useState<MessageRecord | null>(null);
+  const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
   const [convertDraft, setConvertDraft] = useState({ requirements: "", reason: "", images: [] as ConvertImage[] });
   const [convertError, setConvertError] = useState<string>();
   const [convertPending, setConvertPending] = useState(false);
   const [confirmCloseConvert, setConfirmCloseConvert] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "" });
+  const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
 
   const convertDirty = Boolean(
     convertDraft.requirements.trim() || convertDraft.reason.trim() || convertDraft.images.length > 0,
@@ -184,9 +186,13 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       classification: filters.applied.classification,
       demand: filters.applied.demand,
       customerType: filters.applied.customerType,
+      market: filters.applied.market,
     });
     api<{ messages: MessageRecord[] }>(`${crmPath("/api/crm/messages", lane)}${query}`)
-      .then((body) => setRows(body.messages))
+      .then((body) => {
+        setRows(body.messages);
+        setKnownMarkets((current) => uniqueSuggestions([...current, ...body.messages.map((row) => row.market)]));
+      })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được mess"));
   }, [filters.applied, lane]);
 
@@ -196,7 +202,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     load();
   }, [load]);
 
-  const marketOptions = uniqueSuggestions(rows.map((row) => row.market), marketPresets);
+  useEffect(() => {
+    setKnownMarkets(marketPresets);
+  }, [lane]);
+
+  const marketOptions = uniqueSuggestions([...knownMarkets, ...rows.map((row) => row.market)], marketPresets)
+    .map((market) => [market, market] as const);
   const goodsOptions = uniqueSuggestions(rows.map((row) => row.goods));
 
   const openCreate = () => {
@@ -369,11 +380,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         dateLabel="Từ ngày"
       >
         <FilterSelect id="mess-classification" label="Phân loại" value={filters.draft.classification} onChange={(value) => filters.set("classification", value)} options={messageClassificationOptions} />
+        <FilterSelect id="mess-market" label="Thị trường" value={filters.draft.market} onChange={(value) => filters.set("market", value)} options={marketOptions} />
         <FilterSelect id="mess-demand" label="Nhu cầu" value={filters.draft.demand} onChange={(value) => filters.set("demand", value)} options={demandOptions} />
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
         <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll>
         <table className="w-full min-w-[1800px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -455,7 +467,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-2xl">

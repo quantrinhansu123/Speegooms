@@ -56,6 +56,7 @@ export function readMessageSearch(req: Request): MessageListSearch {
     classification: oneOf(req, "classification", messageClassificationSchema.options),
     demand: oneOf(req, "demand", messageDemandSchema.options),
     customerType: oneOf(req, "customerType", customerTypeSchema.options),
+    market: queryText(req, "market").trim(),
   };
 }
 
