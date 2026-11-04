@@ -156,6 +156,12 @@ export class CrmController {
     });
   };
 
+  updateQuoteOutcome = async (req: Request, res: Response) => {
+    res.status(200).json({
+      quote: await this.crm.updateQuoteOutcome(laneOf(req), deskOf(req), one(req.params.id), req.body),
+    });
+  };
+
   sendQuote = async (req: Request, res: Response) => {
     res.status(200).json({ quote: await this.crm.sendQuote(laneOf(req), deskOf(req), one(req.params.id), req.body, actorOf(req)) });
   };

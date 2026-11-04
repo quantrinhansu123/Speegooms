@@ -30,15 +30,14 @@ export function packageMetrics(packages: PackageSpec[]) {
   return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: round(Math.max(actualKg, volumetricKg), 1) };
 }
 
-/** Thành tiền theo cách tính giá của dòng; null nếu thiếu dữ liệu cần thiết. */
+/** Thành tiền theo cách tính giá của dòng; kg/m2/CBM là định mức mỗi đơn vị hàng. */
 export function lineAmount(l: { basis: PricingBasis; quantity: number | null; price: number | null; weightKg: number | null; cbm: number | null; areaM2?: number | null }) {
   if (l.price == null) return null;
-  const base = l.basis === "unit" ? l.quantity
-    : l.basis === "kg" ? l.weightKg
-    : l.basis === "m2" ? l.areaM2
-    : l.basis === "cbm" ? l.cbm
-    : 1;
-  return base == null ? null : round(base * l.price);
+  if (l.basis === "lump") return round(l.price);
+  if (l.quantity == null) return null;
+  if (l.basis === "unit") return round(l.quantity * l.price);
+  const metric = l.basis === "kg" ? l.weightKg : l.basis === "m2" ? l.areaM2 : l.cbm;
+  return metric == null ? null : round(l.quantity * metric * l.price);
 }
 
 export const pricingBasisLabels: Record<PricingBasis, string> = { unit: "theo đơn vị", kg: "theo kg", m2: "theo m2", cbm: "theo CBM", lump: "trọn gói" };

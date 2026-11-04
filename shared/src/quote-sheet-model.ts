@@ -38,18 +38,21 @@ export interface QuoteSheetInput {
 
 export interface QuoteSheetLine {
   stt: string;
+  productName: string;
   images: string[];
   quantity: number | null;
+  /** Đơn vị tính của số lượng, ví dụ "set". */
+  unit: string;
+  /** Kg, m2 hoặc CBM mỗi đơn vị hàng khi tính giá theo kg/m2/CBM; thành tiền = số lượng × định mức × đơn giá. */
+  metric: number | null;
+  /** Đơn vị của định mức, ví dụ "kg/set". Rỗng khi không tính theo kg/m2/CBM. */
+  metricUnit: string;
   price: number | null;
   /** Hậu tố đơn giá theo cách tính, ví dụ "/kg". Rỗng khi tính theo đơn vị. */
   priceUnit: string;
   basis: QuoteLine["basis"];
-  /** Số nhân với đơn giá: số lượng, kg, m2, CBM hoặc 1 (trọn gói). Null khi chưa nhập. */
-  pricingBase: number | null;
   total: number | null;
   extra: { currency: string; price: number | null; total: number | null }[];
-  area: number | null;
-  cbm: number | null;
   spec: string;
   note: string;
 }
@@ -71,12 +74,12 @@ export interface QuoteSheetModel {
   currency: string;
   /** Loại tiền thêm, theo thứ tự cột. */
   extraCurrencies: string[];
-  showArea: boolean;
   meta: { code: string; issuedOn: string; orderName: string };
   company: { name: string; rows: [string, string][] };
   customerRows: [string, string][];
   lines: QuoteSheetLine[];
-  totals: { goods: number | null; extra: Record<string, number | null>; cbm: number; area: number; priced: boolean };
+  /** cbm: tổng CBM của đơn = CBM mỗi đơn vị × số lượng. */
+  totals: { goods: number | null; extra: Record<string, number | null>; cbm: number; priced: boolean };
   totalLabel: string;
   weightNote: string;
   validityNote: string;
@@ -100,6 +103,7 @@ export interface QuoteSheetDeps {
 function filledLine(line: QuoteLine): boolean {
   return Boolean(
     line.stt.trim()
+    || line.productName?.trim()
     || quoteLineImages(line).length > 0
     || line.quantity != null
     || line.pricePerSet != null
@@ -118,15 +122,15 @@ function priceUnitOf(basis: QuoteLine["basis"], t: QuotePrintText): string {
   return { unit: "", kg: t.perKg, m2: t.perM2, cbm: t.perCbm, lump: t.perLump }[basis];
 }
 
-function pricingBaseOf(line: QuoteLine): number | null {
-  switch (line.basis) {
-    case "kg": return line.weightKg;
-    case "m2": return line.areaM2;
-    case "cbm": return line.cbm;
-    case "lump": return 1;
-    default: return line.quantity;
-  }
+/** Định mức mỗi đơn vị hàng theo cách tính giá; null khi tính theo đơn vị hoặc trọn gói. */
+function metricOf(line: QuoteLine): number | null {
+  if (line.basis === "kg") return line.weightKg;
+  if (line.basis === "m2") return line.areaM2;
+  if (line.basis === "cbm") return line.cbm;
+  return null;
 }
+
+const METRIC_LABEL = { kg: "kg", m2: "m2", cbm: "CBM" } as const;
 
 type PickText = (vi: string | undefined, en: string | undefined, label: string) => string;
 
@@ -174,24 +178,30 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   const extraCurrencies = [...new Set((input.priceColumns ?? []).map((column) => column.currency.toUpperCase()))]
     .filter((code) => code !== currency)
     .slice(0, 8);
-  const lines: QuoteSheetLine[] = input.lines.filter(filledLine).map((line, lineIndex) => ({
+  const filled = input.lines.filter(filledLine);
+  const lines: QuoteSheetLine[] = filled.map((line, lineIndex) => {
+    const metric = metricOf(line);
+    const unit = line.unit?.trim() || t.defaultUnit;
+    return {
     stt: line.stt,
+    productName: line.productName?.trim() ?? "",
     images: quoteLineImages(line),
     quantity: line.quantity,
+    unit,
+    metric: metric != null && metric > 0 ? metric : null,
+    metricUnit: metric != null && metric > 0 ? `${METRIC_LABEL[line.basis as keyof typeof METRIC_LABEL]}/${unit}` : "",
     price: line.pricePerSet,
     priceUnit: line.pricePerSet == null ? "" : priceUnitOf(line.basis, t),
     basis: line.basis,
-    pricingBase: pricingBaseOf(line),
     total: line.lineTotal,
     extra: extraCurrencies.map((code) => {
       const price = line.prices.find((item) => item.currency.toUpperCase() === code);
       return { currency: code, price: price?.pricePerSet ?? null, total: price?.lineTotal ?? null };
     }),
-    area: line.areaM2,
-    cbm: line.cbm != null && line.cbm > 0 ? line.cbm : null,
     spec: pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`),
     note: lineNoteOf(line, lang, deps, pick, `dòng ${lineIndex + 1}`),
-  }));
+    };
+  });
   const priced = lines.some((line) => line.total != null);
   const extraTotals: Record<string, number | null> = {};
   for (const code of extraCurrencies) {
@@ -237,7 +247,6 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     t,
     currency,
     extraCurrencies,
-    showArea: lines.some((line) => line.area != null),
     meta: { code: input.code?.trim() ?? "", issuedOn: input.issuedOn?.trim() ?? "", orderName: input.orderName?.trim() ?? "" },
     company: { name: quoteCompany.name, rows: quoteCompany.values.map((value, index) => [labels[index] ?? "", value] as [string, string]) },
     customerRows,
@@ -245,8 +254,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     totals: {
       goods: priced ? round2(lines.reduce((sum, line) => sum + (line.total ?? 0), 0)) : null,
       extra: extraTotals,
-      cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0), 0) * 1000) / 1000,
-      area: round2(lines.reduce((sum, line) => sum + (line.area ?? 0), 0)),
+      cbm: Math.round(filled.reduce((sum, line) => sum + (line.cbm ?? 0) * (line.quantity ?? 1), 0) * 1000) / 1000,
       priced,
     },
     totalLabel: notes.totalLabel?.trim() || t.defaultTotalLabel,

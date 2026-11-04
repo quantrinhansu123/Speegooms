@@ -23,8 +23,9 @@ export interface QuotePrintText {
   quantity: string;
   unitPrice: string;
   lineTotal: string;
-  area: string;
-  cbm: string;
+  product: string;
+  /** Tiêu đề cột kg, m2 hoặc CBM mỗi đơn vị hàng. */
+  metric: string;
   spec: string;
   note: string;
   empty: string;
@@ -46,7 +47,6 @@ export interface QuotePrintText {
   perLump: string;
   /** Tiêu đề hai cột chỉ có ở file Excel: cách tính giá và số nhân với đơn giá. */
   pricingBasis: string;
-  pricingQty: string;
   /** Đơn vị mặc định của số lượng. */
   defaultUnit: string;
 }
@@ -70,8 +70,8 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     quantity: "Số lượng",
     unitPrice: "Đơn giá",
     lineTotal: "Tổng tiền hàng",
-    area: "Diện tích (m2)",
-    cbm: "(CBM)",
+    product: "Mặt hàng",
+    metric: "Kg/CBM/m2",
     spec: "Quy cách",
     note: "Note",
     empty: "Chưa có dòng hàng",
@@ -91,7 +91,6 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     perCbm: "/cbm",
     perLump: "/gói",
     pricingBasis: "Cách tính giá",
-    pricingQty: "Số tính giá",
     defaultUnit: "set",
   },
   en: {
@@ -112,8 +111,8 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     quantity: "Quantity",
     unitPrice: "Unit price",
     lineTotal: "Amount",
-    area: "Area (m2)",
-    cbm: "(CBM)",
+    product: "Product",
+    metric: "Kg/CBM/m2",
     spec: "Specification",
     note: "Note",
     empty: "No items",
@@ -133,7 +132,6 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
     perCbm: "/cbm",
     perLump: "/lot",
     pricingBasis: "Pricing basis",
-    pricingQty: "Qty for pricing",
     defaultUnit: "set",
   },
 };

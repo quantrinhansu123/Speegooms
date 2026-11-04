@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type IndustryCategory, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -31,6 +31,7 @@ import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { TableHScroll } from "./table-h-scroll";
 import { labelOf } from "./types";
 
 export type ContractPaymentLine = {
@@ -56,6 +57,7 @@ export type ContractRecord = {
   saleName: string | null;
   shipTo: string | null;
   product: string | null;
+  industry: IndustryCategory | null;
   quantity: number | null;
   currency: QuoteCurrency;
   productValue: number;
@@ -458,7 +460,7 @@ export function ContractsLiveView({
       {mode === "sale" && (
         <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
       )}
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -466,6 +468,7 @@ export function ContractsLiveView({
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Ngành hàng</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Đã thanh toán</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ảnh bill</th>
@@ -481,7 +484,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
               const flags = contractPaymentFlags({
@@ -507,6 +510,7 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
+                <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.paidAmount, row.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
@@ -591,7 +595,7 @@ export function ContractsLiveView({
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => { if (!open) setRemoving(null); }}

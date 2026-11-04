@@ -11,6 +11,7 @@ import type {
   ConvertMessageInput,
   CreateMessageInput,
   CrmLane,
+  IndustryCategory,
   OpsContractInput,
   QuoteCurrency,
   QuoteBank,
@@ -23,6 +24,7 @@ import type {
   UpdateMessageInput,
   UpdatePotentialInput,
   UpdateQuoteInput,
+  UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 
 export type { CrmLane, QuoteDesk };
@@ -38,6 +40,7 @@ export interface MessageRecord {
   email: string | null;
   status: string;
   goods: string | null;
+  industry: IndustryCategory | null;
   demand: string | null;
   customerType: string | null;
   note: string | null;
@@ -62,6 +65,7 @@ export interface PotentialRecord {
   email: string | null;
   source: string;
   productInterest: string | null;
+  industry: IndustryCategory | null;
   quantityNote: string | null;
   address: string | null;
   saleNote: string | null;
@@ -103,6 +107,8 @@ export interface QuoteRecord {
   careChannel: string | null;
   classification: string | null;
   goods: string | null;
+  industry: IndustryCategory | null;
+  nonCloseReason: string | null;
   quantityNote: string | null;
   saleNote: string | null;
   packSpec: string | null;
@@ -188,6 +194,7 @@ export interface ContractRecord {
   saleName: string | null;
   shipTo: string | null;
   product: string | null;
+  industry: IndustryCategory | null;
   quantity: number | null;
   currency: QuoteCurrency;
   productValue: number;
@@ -240,6 +247,7 @@ export interface CrmRepository {
   findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
   findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null>;
   updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "template">;
+  updateQuoteOutcome(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteOutcomeInput): Promise<QuoteRecord | "missing" | "locked">;
   sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "empty" | "selection" | "template">;
   returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | "missing" | "state">;
   listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]>;

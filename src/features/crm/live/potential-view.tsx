@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
-import { canEditQuoteDesk, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, industryCategoryOptions, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -22,7 +22,7 @@ import { QuoteTracking } from "./quote-tracking";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
-import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
+import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 const sourceOptions = [
@@ -326,6 +326,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Số lượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Địa chỉ</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú sale</th>
@@ -340,7 +341,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={22} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
@@ -354,6 +355,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.productInterest} linkMess={row.linkMess} className="truncate" /></td>
+                <td className="max-w-56 truncate px-3 py-3" title={labelOf(industryCategoryOptions, row.industry)}>{labelOf(industryCategoryOptions, row.industry)}</td>
                 <td className="px-3 py-3">{row.quantityNote || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.address} linkMess={row.linkMess} className="truncate" /></td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.saleNote} linkMess={row.linkMess} className="truncate" /></td>

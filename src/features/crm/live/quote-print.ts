@@ -33,9 +33,9 @@ export function quoteTotals(lines: QuoteLine[]) {
   const packaged = lines.flatMap((line) => line.packages);
   return {
     packageCount: packaged.reduce((sum, p) => sum + p.count, 0),
-    cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0), 0) * 1000) / 1000,
+    cbm: Math.round(lines.reduce((sum, line) => sum + (line.cbm ?? 0) * (line.quantity ?? 1), 0) * 1000) / 1000,
     goods: lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0),
-    weight: lines.reduce((sum, line) => sum + (line.weightKg ?? 0), 0),
+    weight: lines.reduce((sum, line) => sum + (line.weightKg ?? 0) * (line.quantity ?? 1), 0),
     priced,
     weighed,
   };
@@ -95,20 +95,24 @@ function displayDate(value: string): string {
 
 type Column = { key: string; width: number };
 
-/** Các cột bảng hàng: tiền thêm chèn sau cột Tổng tiền hàng, diện tích trước CBM. */
+/** Số cột cố định đứng trước cột Thành tiền chính: STT, Mặt hàng, Hình ảnh, Số lượng, Kg/CBM/m2, Đơn giá. */
+const COLUMNS_BEFORE_TOTAL = 6;
+
+/** Các cột bảng hàng: tiền thêm (đơn giá + thành tiền) chèn sau cột Thành tiền chính. */
 function sheetColumns(model: QuoteSheetModel): Column[] {
   const cols: Column[] = [
-    { key: "stt", width: 3.5 },
-    { key: "image", width: 20 },
-    { key: "qty", width: 6.5 },
+    { key: "stt", width: 3 },
+    { key: "product", width: 15 },
+    { key: "image", width: 16 },
+    { key: "qty", width: 7 },
+    { key: "metric", width: 8 },
     { key: "price", width: 9 },
     { key: "total", width: 11 },
   ];
   for (const code of model.extraCurrencies) {
     cols.push({ key: `price-${code}`, width: 8 }, { key: `total-${code}`, width: 10 });
   }
-  if (model.showArea) cols.push({ key: "area", width: 6.5 });
-  cols.push({ key: "cbm", width: 6.5 }, { key: "spec", width: 18 }, { key: "info", width: 16 });
+  cols.push({ key: "spec", width: 16 }, { key: "info", width: 15 });
   return cols;
 }
 
@@ -140,13 +144,13 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     const extras = line.extra.map((item) => `${numCell(fmt(item.price), "")}${numCell(fmt(item.total), "", "num money")}`).join("");
     return `<tr>
       ${cell(line.stt, "stt")}
+      ${cell(line.productName, "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(fmt(line.quantity), "")}
+      ${numCell(fmt(line.quantity), line.unit)}
+      ${numCell(fmt(line.metric, 3), line.metricUnit)}
       ${numCell(fmt(line.price), line.priceUnit)}
       ${numCell(fmt(line.total), "", "num money")}
       ${extras}
-      ${model.showArea ? numCell(fmt(line.area, 3), "") : ""}
-      ${numCell(fmt(line.cbm, 3), "")}
       ${cell(line.spec, "wrap info")}
       ${cell(line.note, "wrap info")}
     </tr>`;
@@ -168,21 +172,21 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     return { total: numRow(text, currency), extra: {} };
   };
 
-  const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string; area?: string }, note = "") => {
+  /** Dòng tổng: nhãn | tổng CBM (cột Kg/CBM/m2) | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
+  const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string }, note = "") => {
     const extraCells = model.extraCurrencies.map((code) => `<td class="sum-gap"></td><td class="sum-value">${values.extra?.[code] ?? ""}</td>`).join("");
     return `<tr>
       <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
+      <td class="sum-value">${values.cbm ?? ""}</td>
+      <td></td>
       <td class="sum-value">${values.total ?? ""}</td>
       ${extraCells}
-      ${model.showArea ? `<td class="sum-value">${values.area ?? ""}</td>` : ""}
-      <td class="sum-value">${values.cbm ?? ""}</td>
       <td class="sum-spec"></td>
       <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
     </tr>`;
   };
 
   const cbmCell = model.totals.cbm > 0 ? numRow(fmt(model.totals.cbm, 3), "") : "";
-  const areaCell = model.totals.area > 0 ? numRow(fmt(model.totals.area, 3), "") : "";
 
   const goodsRow = (model.totals.priced || model.weightNote)
     ? summaryRow(model.totalLabel, {
@@ -192,7 +196,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
           return [code, total != null ? numRow(fmt(total), "") : ""];
         })),
         cbm: cbmCell,
-        area: areaCell,
       }, model.weightNote)
     : "";
   const feeRows = model.fees.map((fee) => {
@@ -200,7 +203,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     return summaryRow(fee.label || t.logisticsFee, cells);
   }).join("");
   const shippingRow = model.shippingText
-    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount)) : escapeHtml(model.shippingText), cbm: cbmCell, area: areaCell }, model.validityNote)
+    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount)) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
   const subtotalRows = model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)
     ? model.feeSubtotals.map((sub) => summaryRow(
@@ -210,9 +213,11 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     : "";
   const summaryRows = [goodsRow, feeRows, shippingRow, subtotalRows].filter(Boolean).join("");
 
-  const blankAfterTotal = colCount - 5;
+  const blankAfterTotal = colCount - COLUMNS_BEFORE_TOTAL - 1;
   const depositRows = model.deposit.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
+    <td></td>
+    <td></td>
     <td class="dep-value">${index === 0 && model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : ""}</td>
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
@@ -252,13 +257,13 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     <thead>
       <tr>
         <th>${escapeHtml(t.stt)}</th>
+        <th>${escapeHtml(t.product)}</th>
         <th>${escapeHtml(t.image)}</th>
-        <th>${escapeHtml(t.quantity)}<br><span class="th-sub">(${escapeHtml(t.defaultUnit)})</span></th>
+        <th>${escapeHtml(t.quantity)}</th>
+        <th>${escapeHtml(t.metric)}</th>
         <th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
         <th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
         ${model.extraCurrencies.map((code) => `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(code)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(code)})</span></th>`).join("")}
-        ${model.showArea ? `<th>${escapeHtml(t.area)}</th>` : ""}
-        <th>${escapeHtml(t.cbm)}</th>
         <th>${escapeHtml(t.spec)}</th>
         <th>${escapeHtml(t.note)}</th>
       </tr>

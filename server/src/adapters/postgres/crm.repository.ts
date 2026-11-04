@@ -11,6 +11,7 @@ import {
   type ConvertMessageInput,
   type CreateMessageInput,
   type CrmLane,
+  type IndustryCategory,
   type OpsContractInput,
   defaultQuoteBank,
   type QuoteBank,
@@ -25,6 +26,7 @@ import {
   type UpdateMessageInput,
   type UpdatePotentialInput,
   type UpdateQuoteInput,
+  type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import type pg from "pg";
 import { AppError, InfrastructureError } from "../../lib/errors";
@@ -59,6 +61,7 @@ type MessageRow = {
   email: string | null;
   status: string;
   goods: string | null;
+  industry: IndustryCategory | null;
   demand: string | null;
   customer_type: string | null;
   note: string | null;
@@ -83,6 +86,7 @@ type PotentialRow = {
   email: string | null;
   source: string;
   product_interest: string | null;
+  industry: IndustryCategory | null;
   quantity_note: string | null;
   address: string | null;
   sale_note: string | null;
@@ -144,6 +148,8 @@ type QuoteRow = {
   care_channel: string | null;
   classification: string | null;
   goods: string | null;
+  industry: IndustryCategory | null;
+  non_close_reason: string | null;
   quantity_note: string | null;
   sale_note: string | null;
   pack_spec: string | null;
@@ -224,7 +230,7 @@ function quoteSelect(
          l.loai_khach_hang::text as customer_type, l.thuong_hieu::text as brand,
          l.tiem_nang::text as potential, l.kenh_cham_soc as care_channel,
          l.phan_loai::text as classification,
-         l.san_pham_quan_tam as goods, l.ghi_chu_so_luong as quantity_note,
+         l.san_pham_quan_tam as goods, msg.nganh_hang as industry, l.ghi_chu_so_luong as quantity_note,
          l.ghi_chu_ban_hang as sale_note, l.quy_cach_dong_goi as pack_spec,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
@@ -232,7 +238,7 @@ function quoteSelect(
          msg.ma_hien_thi as mess_code, msg.link_mess as link_mess,
          q.ma_mau::text as template_id, m.ten as template_name,
          q.ghi_chu_vh as ops_note, q.trang_thai_bao_gia::text as quote_status,
-         q.trang_thai_hop_dong::text as contract_status,
+         q.trang_thai_hop_dong::text as contract_status, q.ly_do_khong_chot as non_close_reason,
          q.chi_tiet_don_hang as order_lines, q.ghi_chu as common_notes,
          q.tai_khoan_ngan_hang as bank_account, q.ban_da_gui as sent_copy,
          ${logisticsColumn} as logistics_quote_id, ${sheetColumns}, q.tao_luc as created_at
@@ -335,6 +341,7 @@ function asLines(value: unknown): QuoteLine[] {
     const images = asImages(row.images, row.image);
     return [{
       stt: textField(row.stt),
+      productName: textField(row.productName),
       image: images[0] ?? "",
       images,
       quantity: optionalAmount(row.quantity),
@@ -500,6 +507,8 @@ function toQuote(row: QuoteRow): QuoteRecord {
     careChannel: row.care_channel,
     classification: row.classification,
     goods: row.goods,
+    industry: row.industry,
+    nonCloseReason: row.non_close_reason,
     quantityNote: row.quantity_note,
     saleNote: row.sale_note,
     packSpec: row.pack_spec,
@@ -588,7 +597,7 @@ function messageSelect(message: string, potential: string): string {
   return `
   select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
          m.ten_khach_hang_tho as customer_name_raw, m.so_dien_thoai as phone, m.thu_dien_tu as email,
-         m.trang_thai::text as status, m.hang_hoa as goods, m.nhu_cau::text as demand,
+         m.trang_thai::text as status, m.hang_hoa as goods, m.nganh_hang as industry, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
@@ -606,6 +615,7 @@ function potentialSelect(message: string, potential: string): string {
          l.ho_ten as full_name, l.ten_cong_ty as company_name,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nguon::text as source,
          coalesce(nullif(l.san_pham_quan_tam, ''), m.hang_hoa) as product_interest,
+         m.nganh_hang as industry,
          l.ghi_chu_so_luong as quantity_note,
          l.dia_chi as address,
          coalesce(nullif(l.ghi_chu_ban_hang, ''), m.ghi_chu) as sale_note,
@@ -666,6 +676,7 @@ type ContractRow = {
   sale_name: string | null;
   ship_to: string | null;
   product: string | null;
+  industry: IndustryCategory | null;
   quantity: string | number | null;
   currency: string;
   product_value: string | number;
@@ -764,7 +775,7 @@ function contractSelect(): string {
   select h.id::text as id, h.ma_hien_thi as code, h.tuyen as lane,
          h.ma_bao_gia::text as quote_id, h.ma_bao_gia_hien_thi as quote_code,
          h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name,
-         h.van_chuyen_den as ship_to, h.san_pham as product, h.so_luong as quantity,
+         h.van_chuyen_den as ship_to, h.san_pham as product, h.nganh_hang as industry, h.so_luong as quantity,
          h.loai_tien as currency, h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
          h.tong_gia_tri as total_value, h.so_tien_thanh_toan as paid_amount, h.so_tien_con_lai as balance,
          coalesce(pays.payments, '[]'::jsonb) as payments,
@@ -877,6 +888,7 @@ function toContract(row: ContractRow): ContractRecord {
     saleName: row.sale_name,
     shipTo: row.ship_to,
     product: row.product,
+    industry: row.industry,
     quantity: row.quantity == null ? null : moneyValue(row.quantity),
     currency: asCurrency(row.currency),
     productValue: moneyValue(row.product_value),
@@ -1081,6 +1093,7 @@ function toMessage(row: MessageRow): MessageRecord {
     email: row.email,
     status: row.status,
     goods: row.goods,
+    industry: row.industry,
     demand: row.demand,
     customerType: row.customer_type,
     note: row.note,
@@ -1107,6 +1120,7 @@ function toPotential(row: PotentialRow): PotentialRecord {
     email: row.email,
     source: row.source,
     productInterest: row.product_interest,
+    industry: row.industry,
     quantityNote: row.quantity_note,
     address: row.address,
     saleNote: row.sale_note,
@@ -1162,11 +1176,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14
        )
        returning id::text as id`,
       [
@@ -1183,6 +1197,7 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.saleName),
         blank(input.painPoint),
         blank(input.linkMess),
+        input.industry ?? null,
       ],
     );
     const id = inserted.rows[0]?.id;
@@ -1208,7 +1223,8 @@ export class PostgresCrmRepository implements CrmRepository {
          phan_loai = $11::text::crm.message_classification,
          nhan_vien_ban = $12,
          ghi_chu_van_de = $13,
-         link_mess = $14
+         link_mess = $14,
+         nganh_hang = $15
        where id = $1::uuid
        returning id::text as id`,
       [
@@ -1226,6 +1242,7 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.saleName),
         blank(input.painPoint),
         blank(input.linkMess),
+        input.industry ?? null,
       ],
     );
     if (!updated.rows[0]) return null;
@@ -1599,6 +1616,29 @@ export class PostgresCrmRepository implements CrmRepository {
     return (await this.findQuote(lane, desk, id)) ?? "missing";
   }
 
+  async updateQuoteOutcome(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    id: string,
+    input: UpdateQuoteOutcomeInput,
+  ): Promise<QuoteRecord | "missing" | "locked"> {
+    const table = quoteTables[lane][desk];
+    const updated = await this.query(
+      `update ${table}
+       set ly_do_khong_chot = $2
+       where id = $1::uuid and trang_thai_hop_dong = 'CHUA_TAO'::crm.trang_thai_hop_dong_bao_gia`,
+      [id, blank(input.nonCloseReason)],
+    );
+    if (!updated.rowCount) {
+      const current = await this.query(
+        `select 1 from ${table} where id = $1::uuid`,
+        [id],
+      );
+      return current.rowCount ? "locked" : "missing";
+    }
+    return (await this.findQuote(lane, desk, id)) ?? "missing";
+  }
+
   async sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput) {
     if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.sendSharedLogistics(lane, id, input);
     const quote = await this.findQuote(lane, desk, id);
@@ -1758,6 +1798,22 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     const quote = found.rows[0];
     if (!quote) return "missing" as const;
+    const category = await this.query<{ industry: IndustryCategory | null }>(
+      `select m.nganh_hang as industry
+       from ${tables.sourcing} q
+       join ${tables.potential} p on p.id = q.ma_khach_hang_tiem_nang
+       left join ${tables.message} m on m.id = p.ma_tin_nhan
+       where q.id = $1::uuid
+       union all
+       select m.nganh_hang as industry
+       from ${tables.logistics} q
+       join ${tables.potential} p on p.id = q.ma_khach_hang_tiem_nang
+       left join ${tables.message} m on m.id = p.ma_tin_nhan
+       where q.id = $1::uuid
+       limit 1`,
+      [quoteId],
+    );
+    const industry = category.rows[0]?.industry ?? null;
     const source = await this.findQuote(lane, "sourcing", quoteId);
     if (source?.logisticsSheet) {
       const order = source.sentQuote?.order ?? source.orders.find((item) => item.selected) ?? source.orders[0];
@@ -1769,9 +1825,9 @@ export class PostgresCrmRepository implements CrmRepository {
     await this.query(
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,
-         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien
+         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien, nganh_hang
        ) values (
-         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14
+         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $15
        ) on conflict (tuyen, ma_bao_gia) do nothing`,
       [
         lane,
@@ -1788,6 +1844,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.paidAmount,
         input.signedOn || null,
         input.currency,
+        industry,
       ],
     );
     if (input.paidAmount > 0) {

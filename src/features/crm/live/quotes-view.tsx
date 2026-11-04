@@ -25,6 +25,7 @@ import { quoteOutputRunners } from "./quote-output";
 import { quoteRecordMissing } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
+import { TableHScroll } from "./table-h-scroll";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
 import {
   contractStatusOptions,
@@ -206,7 +207,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id={`${desk}-quote-kind`} label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll>
         <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -269,7 +270,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       {editing && (
         <QuoteEditor

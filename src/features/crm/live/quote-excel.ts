@@ -92,14 +92,13 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     ws.addImage(id, position);
   };
 
-  // Cột: STT | Hình ảnh | Số lượng | Cách tính | Số nhân | Đơn giá | Thành tiền | [giá+tiền theo tiền thêm]... | [m2] | CBM | Quy cách | Note
+  // Cột: STT | Mặt hàng | Hình ảnh | Số lượng | Cách tính | Kg/CBM/m2 mỗi đơn vị | Đơn giá | Thành tiền | [giá+tiền theo tiền thêm]... | Quy cách | Note
   const cols: ExcelColumn[] = [
-    { key: "stt", width: 7 }, { key: "image", width: 22 }, { key: "qty", width: 11 }, { key: "basis", width: 11 },
-    { key: "base", width: 13 }, { key: "price", width: 14 }, { key: "total", width: 16 },
+    { key: "stt", width: 7 }, { key: "product", width: 24 }, { key: "image", width: 22 }, { key: "qty", width: 11 },
+    { key: "basis", width: 14 }, { key: "metric", width: 14 }, { key: "price", width: 14 }, { key: "total", width: 16 },
   ];
   for (const code of model.extraCurrencies) cols.push({ key: `price-${code}`, width: 14 }, { key: `total-${code}`, width: 16 });
-  if (model.showArea) cols.push({ key: "area", width: 11 });
-  cols.push({ key: "cbm", width: 10 }, { key: "spec", width: 34 }, { key: "note", width: 34 });
+  cols.push({ key: "spec", width: 34 }, { key: "note", width: 34 });
   cols.forEach((col, index) => { ws.getColumn(index + 1).width = col.width; });
   const colOf = (key: string) => cols.findIndex((col) => col.key === key) + 1;
   const last = cols.length;
@@ -153,14 +152,13 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   const header = ws.getRow(r);
   const heads: Record<string, string> = {
     stt: t.stt,
+    product: t.product,
     image: t.image,
     qty: t.quantity,
     basis: t.pricingBasis,
-    base: t.pricingQty,
+    metric: t.metric,
     price: `${t.unitPrice} (${model.currency})`,
     total: `${t.lineTotal} (${model.currency})`,
-    area: t.area,
-    cbm: t.cbm,
     spec: t.spec,
     note: t.note,
   };
@@ -176,21 +174,23 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   const firstRow = r;
   for (const line of model.lines) {
     const row = ws.getRow(r);
+    /** Thành tiền = đơn giá × (số lượng × định mức kg/m2/CBM mỗi đơn vị | số lượng | 1 nếu trọn gói). */
+    const formulaFor = (priceKey: string) => {
+      const [qty, metric, price] = [letter("qty"), letter("metric"), letter(priceKey)].map((col) => `${col}${r}`);
+      if (line.basis === "lump") return price!;
+      return line.metric != null ? `${qty}*${metric}*${price}` : `${qty}*${price}`;
+    };
     row.getCell(colOf("stt")).value = line.stt;
+    row.getCell(colOf("product")).value = line.productName;
     row.getCell(colOf("qty")).value = line.quantity ?? undefined;
-    row.getCell(colOf("basis")).value = line.basis === "unit" ? t.defaultUnit : line.priceUnit.replace("/", "") || line.basis;
-    row.getCell(colOf("base")).value = line.pricingBase ?? undefined;
+    row.getCell(colOf("basis")).value = line.basis === "unit" ? line.unit : line.priceUnit.replace("/", "") || line.basis;
+    row.getCell(colOf("metric")).value = line.metric ?? undefined;
     row.getCell(colOf("price")).value = line.price ?? undefined;
-    row.getCell(colOf("total")).value = { formula: `${letter("base")}${r}*${letter("price")}${r}`, result: line.total ?? undefined };
+    row.getCell(colOf("total")).value = { formula: formulaFor("price"), result: line.total ?? undefined };
     for (const extra of line.extra) {
       row.getCell(colOf(`price-${extra.currency}`)).value = extra.price ?? undefined;
-      row.getCell(colOf(`total-${extra.currency}`)).value = {
-        formula: `${letter("base")}${r}*${letter(`price-${extra.currency}`)}${r}`,
-        result: extra.total ?? undefined,
-      };
+      row.getCell(colOf(`total-${extra.currency}`)).value = { formula: formulaFor(`price-${extra.currency}`), result: extra.total ?? undefined };
     }
-    if (model.showArea) row.getCell(colOf("area")).value = line.area ?? undefined;
-    row.getCell(colOf("cbm")).value = line.cbm ?? undefined;
     row.getCell(colOf("spec")).value = line.spec;
     row.getCell(colOf("note")).value = line.note;
     row.height = line.images.length > 0 ? 96 : Math.max(24, 15 * Math.max(line.spec.split("\n").length, line.note.split("\n").length));
@@ -237,8 +237,7 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     for (const code of model.extraCurrencies) {
       if (model.totals.extra[code] != null) put(row, `total-${code}`, { formula: `SUM(${dataRange(`total-${code}`)})`, result: model.totals.extra[code] ?? undefined });
     }
-    if (model.showArea && model.totals.area > 0) put(row, "area", { formula: `SUM(${dataRange("area")})`, result: model.totals.area });
-    if (model.totals.cbm > 0) put(row, "cbm", { formula: `SUM(${dataRange("cbm")})`, result: model.totals.cbm });
+    if (model.totals.cbm > 0) put(row, "metric", model.totals.cbm);
     if (model.weightNote) row.getCell(colOf("note")).value = model.weightNote;
     r += 1;
   }
@@ -248,7 +247,7 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     const row = sumRow(fee.label || t.logisticsFee);
     if (fee.amount != null) {
       put(row, feeKey(fee.currency), fee.amount);
-      if (feeKey(fee.currency) === "total" && fee.currency !== model.currency) row.getCell(colOf("base")).value = fee.currency;
+      if (feeKey(fee.currency) === "total" && fee.currency !== model.currency) row.getCell(colOf("price")).value = fee.currency;
     } else {
       row.getCell(colOf("total")).value = fee.text;
     }

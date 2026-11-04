@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { canPerform } from "@/config/permissions";
 import { useSession } from "@/features/auth/session-provider";
 import { FilterSelect, ListSearchBar, useAppliedSearch } from "@/features/crm/live/list-search-bar";
+import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { ApiError, api } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { StatusTone } from "@/types/status";
@@ -212,7 +213,7 @@ export function PaymentsLiveView() {
         <FilterSelect id="pay-filter-kind" label="Đối tượng nhận" value={filters.draft.payeeKind} onChange={(value) => filters.set("payeeKind", value)} options={kindOptions} />
         <FilterSelect id="pay-filter-purpose" label="Mục đích" value={filters.draft.purpose} onChange={(value) => filters.set("purpose", value)} options={purposeOptions} />
       </ListSearchBar>
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -256,7 +257,7 @@ export function PaymentsLiveView() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {creating && (
         <CreatePaymentDialog
           onClose={() => setCreating(false)}

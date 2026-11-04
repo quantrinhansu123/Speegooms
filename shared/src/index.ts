@@ -14,6 +14,9 @@ export {
   leadBrandSchema,
   leadClassificationSchema,
   leadSourceSchema,
+  industryCategoryOptions,
+  industryCategorySchema,
+  industryCategoryValues,
   messageClassificationSchema,
   messageDemandSchema,
   contractPaymentFlags,
@@ -35,6 +38,7 @@ export {
   updateMessageSchema,
   updatePotentialSchema,
   updateQuoteSchema,
+  updateQuoteOutcomeSchema,
   type AccountingConfirmationLineInput,
   type AccountingContractInput,
   type ContractPaymentLineInput,
@@ -56,6 +60,8 @@ export {
   type UpdatePotentialInput,
   type ReassignQuoteInput,
   type UpdateQuoteInput,
+  type IndustryCategory,
+  type UpdateQuoteOutcomeInput,
 } from "./crm";
 export {
   canAccessQuoteDesk,

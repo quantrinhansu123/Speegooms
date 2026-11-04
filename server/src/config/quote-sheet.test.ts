@@ -54,12 +54,19 @@ test("cột tiền thêm lấy giá và tổng theo từng loại tiền", () =>
   assert.equal(model.totals.extra.CNY, 200);
 });
 
-test("tính giá theo m2 dùng diện tích làm số nhân và hiện cột diện tích", () => {
-  const model = buildQuoteSheetModel(input({ lines: [line({ basis: "m2", areaM2: 8, pricePerSet: 12.5, lineTotal: 100, quantity: 3 })] }), deps);
-  assert.equal(model.lines[0]?.pricingBase, 8);
+test("tính giá theo m2: định mức mỗi đơn vị hàng, hiện ở cột Kg/CBM/m2 kèm đơn vị", () => {
+  const model = buildQuoteSheetModel(input({ lines: [line({ basis: "m2", areaM2: 8, pricePerSet: 12.5, lineTotal: 300, quantity: 3, productName: "Thảm" })] }), deps);
+  assert.equal(model.lines[0]?.metric, 8);
+  assert.equal(model.lines[0]?.metricUnit, "m2/set");
   assert.equal(model.lines[0]?.priceUnit, "/m2");
-  assert.equal(model.showArea, true);
-  assert.equal(buildQuoteSheetModel(input(), deps).showArea, false);
+  assert.equal(model.lines[0]?.productName, "Thảm");
+  // Tính theo đơn vị thì không có định mức.
+  assert.equal(buildQuoteSheetModel(input(), deps).lines[0]?.metric, null);
+});
+
+test("tổng CBM của đơn = CBM mỗi đơn vị × số lượng", () => {
+  const model = buildQuoteSheetModel(input({ lines: [line({ cbm: 0.5, quantity: 4 }), line({ stt: "2", cbm: 1, quantity: null })] }), deps);
+  assert.equal(model.totals.cbm, 3);
 });
 
 test("mỗi mặt hàng có một dòng chi phí riêng và tổng theo từng loại tiền", () => {

@@ -1,4 +1,4 @@
-import type { QuoteWorkflow } from "@speego/shared";
+import type { IndustryCategory, QuoteWorkflow } from "@speego/shared";
 import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
 
 export interface MessageRecord {
@@ -10,6 +10,7 @@ export interface MessageRecord {
   email: string | null;
   status: string;
   goods: string | null;
+  industry: IndustryCategory | null;
   demand: string | null;
   customerType: string | null;
   note: string | null;
@@ -34,6 +35,7 @@ export interface PotentialRecord {
   email: string | null;
   source: string;
   productInterest: string | null;
+  industry: IndustryCategory | null;
   quantityNote: string | null;
   address: string | null;
   saleNote: string | null;
@@ -125,6 +127,8 @@ export interface QuoteRecord {
   careChannel: string | null;
   classification: string | null;
   goods: string | null;
+  industry: IndustryCategory | null;
+  nonCloseReason: string | null;
   quantityNote: string | null;
   saleNote: string | null;
   packSpec: string | null;

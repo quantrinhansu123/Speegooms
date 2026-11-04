@@ -51,9 +51,10 @@ import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "
 import { buildQuoteSheet, orderForQuotePdf } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
+import { TableHScroll } from "./table-h-scroll";
 
 function emptyLine(stt: string): QuoteLine {
-  return { stt, image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", specEn: "", noteEn: "", unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [] };
+  return { stt, productName: "", image: "", images: [], quantity: null, pricePerSet: null, lineTotal: null, weightKg: null, spec: "", note: "", specEn: "", noteEn: "", unit: "set", basis: "unit", cbm: null, areaM2: null, packages: [], attrs: [], prices: [] };
 }
 
 const PRINT_LANG_KEY = "speego_quote_print_lang";
@@ -66,8 +67,7 @@ function readPrintLang(): QuoteLang {
     return isQuoteLang(stored) ? stored : "vi";
   } catch {
     return "vi";
-  }
-}
+  }}
 
 function withImages(images: string[]): Pick<QuoteLine, "image" | "images"> {
   const next = images.filter(Boolean).slice(0, 8);
@@ -491,7 +491,7 @@ function amountText(value: number | null): string {
 }
 
 function filledLine(line: QuoteLine): boolean {
-  return Boolean(line.stt || quoteLineImages(line).length > 0 || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
+  return Boolean(line.stt || line.productName || quoteLineImages(line).length > 0 || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
 }
 
 function packagesSummary(packages: QuoteLine["packages"]): string {
@@ -641,9 +641,9 @@ type PriceColumn = { currency: string };
 
 /** Ô nhập số nhân của cách tính giá theo kg, m2 hoặc CBM: trường dữ liệu và nhãn. */
 const basisMetric = {
-  kg: { field: "weightKg", label: "KG", aria: "Cân nặng" },
-  m2: { field: "areaM2", label: "m2", aria: "Diện tích m2" },
-  cbm: { field: "cbm", label: "CBM", aria: "CBM" },
+  kg: { field: "weightKg", label: "kg / set", aria: "Kg mỗi set" },
+  m2: { field: "areaM2", label: "m2 / set", aria: "m2 mỗi set" },
+  cbm: { field: "cbm", label: "CBM / set", aria: "CBM mỗi set" },
 } as const;
 
 function BasisMetricInput({ line, index, disabled, className, onChange }: {
@@ -908,7 +908,8 @@ function OrderLines({
       let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
       if ("packages" in patch && next.packages.length > 0) {
         const m = packageMetrics(next.packages);
-        next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
+        const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
+        next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
       }
       if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm", "areaM2"].some((k) => k in patch)) next = recalcLine(next);
       return next;
@@ -944,13 +945,15 @@ function OrderLines({
   return (
     <div className="grid gap-3">
       <InputError message={errors.lines} />
-      <div className="overflow-x-auto rounded-lg border">
+      <TableHScroll className="rounded-lg">
         <table className="w-full min-w-[980px] text-base">
           <thead>
             <tr className="border-b bg-muted/50 text-left text-sm">
               <th className="whitespace-nowrap px-2 py-3 font-medium">STT</th>
+              <th className="min-w-[180px] whitespace-nowrap px-2 py-3 font-medium">Mặt hàng</th>
               <th className="min-w-[160px] whitespace-nowrap px-2 py-3 font-medium">Hình ảnh</th>
-              <th className="whitespace-nowrap px-2 py-3 font-medium">SL / ĐV</th>
+              <th className="whitespace-nowrap px-2 py-3 font-medium">Số lượng</th>
+              {showPricing && <th className="whitespace-nowrap px-2 py-3 font-medium">Kg/CBM/m2</th>}
               {priceColumns.map((column) => (
                 <th key={`price-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Đơn giá ({column.currency})</th>
               ))}
@@ -970,6 +973,9 @@ function OrderLines({
                 <tr key={index} className="border-b align-top last:border-0">
                   <td className="px-2 py-2">
                     <Input className="h-8 w-12" aria-label={`STT dòng ${index + 1}`} value={line.stt} disabled={!canEditContent} onChange={(event) => updateLine(index, { stt: event.target.value })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input className="h-8 w-44" aria-label={`Mặt hàng dòng ${index + 1}`} value={line.productName ?? ""} disabled={!canEditContent} onChange={(event) => updateLine(index, { productName: event.target.value })} placeholder="Tên mặt hàng" />
                   </td>
                   <td className="px-2 py-2">
                     <div
@@ -1066,21 +1072,21 @@ function OrderLines({
                       <InputError message={errors[`line.${index}.unit`]} />
                     </div>
                   </td>
-                  {priceColumns.map((column, columnIndex) => {
+                  {showPricing && <td className="px-2 py-2">
+                    <div className="grid w-28 gap-1">
+                      <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
+                        {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                      </NativeSelect>
+                      <BasisMetricInput className="h-8" line={line} index={index} disabled={!canEditContent && !canEditPricing} onChange={(patch) => updateLine(index, patch)} />
+                    </div>
+                  </td>}
+                  {priceColumns.map((column) => {
                     const amount = lineCurrencyPrice(line, currency, column.currency);
                     return (
                       <td key={`price-${column.currency}`} className="px-2 py-2">
                         <div className="grid w-36 gap-1">
                           <MoneyInput className="h-8" fractionDigits={6} aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`} aria-invalid={errors[`line.${index}.price.${column.currency}`] ? true : undefined} value={amount.price} disabled={!canEditPricing} onValueChange={(pricePerSet) => { updateColumnPrice(index, column.currency, pricePerSet); onClearError?.(`line.${index}.price.${column.currency}`); }} />
                           <InputError message={errors[`line.${index}.price.${column.currency}`]} />
-                          {columnIndex === 0 && (
-                            <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
-                              {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
-                            </NativeSelect>
-                          )}
-                          {columnIndex === 0 && (
-                            <BasisMetricInput className="h-8" line={line} index={index} disabled={!canEditContent} onChange={(patch) => updateLine(index, patch)} />
-                          )}
                         </div>
                       </td>
                     );
@@ -1139,7 +1145,7 @@ function OrderLines({
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {lines.map((line, index) => (
         <div key={index} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-2">
           {packagingRequired && (
@@ -1401,6 +1407,12 @@ export function QuoteEditor({
     void persist(orders, true);
   };
 
+  const openContract = async () => {
+    if (pending) return;
+    if (mode !== "none" && !(await persist(orders, false))) return;
+    setContractOpen(true);
+  };
+
   const transferLogistics = async (nextOrders: QuoteOrder[] = orders) => {
     if (nextOrders.length === 0) {
       setFormError("Nhập thông tin đơn hàng trước khi chuyển logistics");
@@ -1580,7 +1592,7 @@ export function QuoteEditor({
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
       {!canSendQuote && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
-        <Button type="button" variant="outline" onClick={() => setContractOpen(true)}>Chuyển Hợp đồng</Button>
+        <Button type="button" variant="outline" disabled={pending} onClick={() => void openContract()}>Chuyển Hợp đồng</Button>
       )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
       {(canEditContent || canEditLogisticsFees) && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
@@ -1628,10 +1640,10 @@ export function QuoteEditor({
           let next: QuoteLine = { ...line, packages };
           if (packages.length > 0) {
             const m = packageMetrics(packages);
-            next = { ...next, cbm: m.cbm, weightKg: m.chargeableKg };
+            const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
+            next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
           }
-          return recalcLine(next);
-        }),
+          return recalcLine(next);        }),
       };
     }));
   };
@@ -1912,7 +1924,7 @@ export function QuoteEditor({
                 {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}
               </div>
             </div>
-            <div className="overflow-x-auto rounded-lg border">
+            <TableHScroll className="rounded-lg">
               <table className="w-full text-base">
                 <thead>
                   <tr className="border-b bg-muted/50 text-left">
@@ -2034,7 +2046,7 @@ export function QuoteEditor({
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableHScroll>
           </div>
 
           {pureLogistics && showPackaging && (
@@ -2136,23 +2148,25 @@ export function QuoteEditor({
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
               {quote.sourcingContext.opsNote && <p className="whitespace-pre-wrap text-sm">{quote.sourcingContext.opsNote}</p>}
-              <div className="overflow-x-auto rounded-lg border">
+              <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50 text-left">
-                    {["STT", "Ảnh hàng", "Số lượng", "Quy cách / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
+                    {["STT", "Mặt hàng", "Ảnh hàng", "Số lượng", "Kg/CBM", "Quy cách / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
                   </tr></thead>
                   <tbody>{quote.sourcingContext.order.lines.map((line, index) => (
                     <tr key={index} className="border-b align-top last:border-0">
                       <td className="px-3 py-2">{line.stt}</td>
+                      <td className="whitespace-pre-wrap px-3 py-2">{line.productName || "—"}</td>
                       <td className="min-w-36 px-3 py-2">{quoteLineImages(line).length > 0 ? <RequirementImageSlider images={quoteLineImages(line)} showTitle={false} /> : "—"}</td>
                       <td className="whitespace-nowrap px-3 py-2">{amountText(line.quantity)} {line.unit}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{line.basis === "kg" ? `${amountText(line.weightKg)} kg/set` : line.basis === "cbm" ? `${amountText(line.cbm)} CBM/set` : "—"}</td>
                       <td className="min-w-48 whitespace-pre-wrap px-3 py-2">{[line.spec, ...line.attrs.map((attr) => attr.key + ": " + attr.value)].filter(Boolean).join("\n") || "—"}</td>
                       <td className="whitespace-pre-wrap px-3 py-2">{line.note || "—"}</td>
                       <td className="whitespace-nowrap px-3 py-2">{line.pricePerSet == null ? "—" : money(line.pricePerSet) + " " + quote.sourcingContext!.order.currency + " / " + pricingBasisLabels[line.basis]}</td>
                     </tr>
                   ))}</tbody>
                 </table>
-              </div>
+              </TableHScroll>
               <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Sourcing cung cấp thông tin hàng và đóng gói. Logistics nhập chi phí logistics bên dưới.</p>
             </section>
           )}
@@ -2181,7 +2195,7 @@ export function QuoteEditor({
               <div className="flex flex-wrap items-center gap-2">
                 <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))} />
               </div>
-              <div className="overflow-x-auto rounded-lg border bg-background">
+              <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-left">
@@ -2239,7 +2253,7 @@ export function QuoteEditor({
                     )))}
                   </tbody>
                 </table>
-              </div>
+              </TableHScroll>
             </section>
           )}
 
@@ -2296,7 +2310,7 @@ export function QuoteEditor({
       {contractOpen && lane && (
         <ContractCreateDialog
           lane={lane}
-          quote={quote}
+          quote={{ ...quote, ...lead, orders, notes }}
           onClose={() => setContractOpen(false)}
           onCreated={() => {
             setContractStatus("DA_TAO");

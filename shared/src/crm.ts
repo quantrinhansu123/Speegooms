@@ -21,6 +21,36 @@ export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
 export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
 export const careChannelSchema = z.enum(["FACEBOOK", "ZALO", "WHATSAPP", "VIBER"]);
+export const industryCategoryValues = {
+  NAIL_SPA_SUPPLIES: "NAIL_SPA_SUPPLIES",
+  NAIL_SPA_EQUIPMENT: "NAIL_SPA_EQUIPMENT",
+  NAIL_SPA_FURNITURE: "NAIL_SPA_FURNITURE",
+  BATHROOM_MATERIALS: "BATHROOM_MATERIALS",
+  DECOR_SIGNAGE: "DECOR_SIGNAGE",
+  FNB_FURNITURE: "FNB_FURNITURE",
+  HOME_FURNITURE: "HOME_FURNITURE",
+  FNB_KITCHEN_EQUIPMENT: "FNB_KITCHEN_EQUIPMENT",
+  NAIL_DISPOSABLES_PACKAGING: "NAIL_DISPOSABLES_PACKAGING",
+  HOME_ELECTRONICS: "HOME_ELECTRONICS",
+  FASHION_ACCESSORIES: "FASHION_ACCESSORIES",
+  OTHER: "OTHER",
+} as const;
+export const industryCategorySchema = z.enum(industryCategoryValues);
+export type IndustryCategory = z.infer<typeof industryCategorySchema>;
+export const industryCategoryOptions = [
+  [industryCategoryValues.NAIL_SPA_SUPPLIES, "Vật tư & hóa mỹ phẩm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_EQUIPMENT, "Máy móc & thiết bị tiệm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_FURNITURE, "Ghế & nội thất tiệm Nail/Spa"],
+  [industryCategoryValues.BATHROOM_MATERIALS, "Vật liệu & thiết bị nhà tắm"],
+  [industryCategoryValues.DECOR_SIGNAGE, "Decor & bảng hiệu"],
+  [industryCategoryValues.FNB_FURNITURE, "Nội thất nhà hàng / quán F&B"],
+  [industryCategoryValues.HOME_FURNITURE, "Nội thất nhà ở"],
+  [industryCategoryValues.FNB_KITCHEN_EQUIPMENT, "Máy móc & dụng cụ bếp quán F&B"],
+  [industryCategoryValues.NAIL_DISPOSABLES_PACKAGING, "Đồ dùng một lần tiệm nail & bao bì"],
+  [industryCategoryValues.HOME_ELECTRONICS, "Đồ điện tử gia dụng"],
+  [industryCategoryValues.FASHION_ACCESSORIES, "Thời trang & phụ kiện"],
+  [industryCategoryValues.OTHER, "Khác"],
+] as const;
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -47,6 +77,7 @@ const messageFields = {
   phone: text(30),
   email: text(160),
   goods: text(500),
+  industry: industryCategorySchema.optional(),
   note: text(2000),
   demand: messageDemandSchema.optional(),
   customerType: customerTypeSchema.optional(),
@@ -165,6 +196,7 @@ export const quotePriceColumnSchema = z.object({
 
 export const quoteLineSchema = z.object({
   stt: text(20),
+  productName: text(300).optional(),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
   image: quoteImage.default(""),
   /** Nhiều ảnh sản phẩm trên một dòng báo giá. */
@@ -172,6 +204,7 @@ export const quoteLineSchema = z.object({
   quantity: amount,
   pricePerSet: amount,
   lineTotal: amount,
+  /** Cân nặng mỗi đơn vị hàng; thành tiền kg = đơn giá × kg/đơn vị × số lượng. */
   weightKg: amount,
   spec: text(4000),
   note: text(4000),
@@ -180,12 +213,12 @@ export const quoteLineSchema = z.object({
   noteEn: text(4000).default(""),
   /** Đơn vị tính: set, ghế, kg, cbm, lô... */
   unit: text(20).default("set"),
-  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo m2, theo CBM hoặc trọn gói */
+  /** Cách tính giá: theo đơn vị, theo kg/m2/CBM mỗi đơn vị × số lượng, hoặc trọn gói. */
   basis: z.enum(["unit", "kg", "m2", "cbm", "lump"]).default("unit"),
   cbm: amount.default(null),
-  /** Diện tích (m2) khi tính giá theo m2. */
+  /** Diện tích (m2) mỗi đơn vị hàng khi tính giá theo m2. */
   areaM2: amount.default(null),
-  /** Quy cách đóng gói. Có kiện thì CBM và cân tính cước được suy ra từ đây */
+  /** Quy cách đóng gói. CBM và cân tổng từ kiện được chia theo số lượng để lưu theo đơn vị hàng. */
   packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
   attrs: z.array(quoteAttrSchema).max(20, "Tối đa 20 thuộc tính mỗi dòng").default([]),
@@ -272,6 +305,10 @@ export const reassignQuoteSchema = z.object({
   potentialId: uuidText,
 });
 
+export const updateQuoteOutcomeSchema = z.object({
+  nonCloseReason: text(2000),
+});
+
 export const quoteTemplateSchema = z.object({
   name: z.string().trim().min(1, "Nhập tên mẫu").max(160),
   content: text(8000),
@@ -306,7 +343,7 @@ export const createContractSchema = z.object({
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
   saleName: text(160),
   shipTo: z.union([z.literal(""), contractShipToSchema]),
-  product: text(300),
+  product: text(15_000),
   quantity: z.number().min(0).max(1_000_000_000).nullable(),
   productValue: money,
   shippingCost: money,
@@ -482,6 +519,7 @@ export type SentQuote = {
   bank: QuoteBank;
 };
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type UpdateQuoteOutcomeInput = z.infer<typeof updateQuoteOutcomeSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;
