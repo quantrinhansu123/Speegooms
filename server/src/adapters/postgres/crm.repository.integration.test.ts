@@ -23,7 +23,7 @@ test("CRM queries match the deployed id primary keys without writing data", { sk
   } as unknown as pg.Pool);
   const id = randomUUID();
   const emptyList = { q: "", from: "", to: "" };
-  const messageSearch = { ...emptyList, status: "", classification: "", demand: "", customerType: "" };
+  const messageSearch = { ...emptyList, status: "", classification: "", demand: "", customerType: "", market: "" };
   const potentialSearch = { ...emptyList, source: "", potential: "", customerKind: "", customerType: "" };
   const quoteSearch = { ...emptyList, quoteStatus: "", contractStatus: "", customerKind: "" };
   const message = createMessageSchema.parse({ customerName: "Schema check", phone: "0900000000", email: "", goods: "", note: "", market: "", saleName: "", painPoint: "Khách cần tư vấn chi tiết", linkMess: "" });

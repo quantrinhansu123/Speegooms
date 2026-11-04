@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Eye, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type IndustryCategory, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -27,12 +27,13 @@ import { uploadImageFiles } from "@/lib/upload-image";
 import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
+import { ContractDocDialog } from "./contract-doc-dialog";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { TableHScroll } from "./table-h-scroll";
-import { labelOf } from "./types";
+import { labelOf, type QuoteRecord } from "./types";
 
 export type ContractPaymentLine = {
   amount: number;
@@ -281,6 +282,15 @@ export function ContractsLiveView({
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
   const [removing, setRemoving] = useState<ContractRecord | null>(null);
+  const [printing, setPrinting] = useState<{ row: ContractRecord; quote: QuoteRecord } | null>(null);
+  const printContract = async (row: ContractRecord) => {
+    try {
+      const body = await api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${row.quoteId}/contract-source`, lane));
+      setPrinting({ row, quote: body.quote });
+    } catch (cause) {
+      setNotice(cause instanceof ApiError ? cause.message : "Không tải được báo giá của hợp đồng");
+    }
+  };
   const [billPreview, setBillPreview] = useState<{ code: string; images: string[] } | null>(null);
   const [seen, setSeen] = useState<Record<string, string>>(() => readSeenMap(user.id));
   const [listLoading, setListLoading] = useState(true);
@@ -574,6 +584,12 @@ export function ContractsLiveView({
                           setSelected(row);
                         },
                       },
+                      ...(canSale ? [{
+                        key: "print",
+                        label: "In hợp đồng",
+                        icon: <FileText />,
+                        onClick: () => { void printContract(row); },
+                      }] : []),
                       ...(canResend ? [{
                         key: "resend",
                         label: "Gửi lại",
@@ -596,6 +612,14 @@ export function ContractsLiveView({
           </tbody>
         </table>
       </TableHScroll>
+      {printing && (
+        <ContractDocDialog
+          code={printing.row.code}
+          quote={printing.quote}
+          amounts={{ currency: printing.row.currency, productValue: printing.row.productValue, shippingCost: printing.row.shippingCost, totalValue: printing.row.totalValue }}
+          onClose={() => setPrinting(null)}
+        />
+      )}
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => { if (!open) setRemoving(null); }}

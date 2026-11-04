@@ -118,6 +118,10 @@ export class CrmController {
     res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), roleOf(req)) });
   };
 
+  contractSource = async (req: Request, res: Response) => {
+    res.status(200).json({ quote: await this.crm.contractSource(laneOf(req), one(req.params.id), roleOf(req)) });
+  };
+
   listRfqQuotes = async (req: Request, res: Response) => {
     res.status(200).json({ quotes: await this.crm.listRfqQuotes(laneOf(req), readQuoteSearch(req), readQuoteDeskFilter(req)) });
   };
