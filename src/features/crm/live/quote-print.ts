@@ -125,27 +125,28 @@ function colgroupHtml(cols: Column[]): string {
 /** Tài khoản nhận tiền cố định của Speego, in ở cuối phiếu báo giá. */
 function bankInfoBlock(lang: QuoteLang): string {
   const vi = lang === "vi";
-  const group = (title: string, rows: [string, string][]) =>
-    `<h3>${title}</h3>${rows.map(([label, value]) => `<div><span>${label}</span>${escapeHtml(value)}</div>`).join("")}`;
+  const rowsHtml = (rows: [string, string][]) => rows.map(([label, value]) => `<div class="r"><span>${label}</span>${escapeHtml(value)}</div>`).join("");
+  const group = (title: string, rows: [string, string][]) => `<h3>${title}</h3>${rowsHtml(rows)}`;
+  const company: [string, string][] = [
+    [vi ? "Tên công ty" : "Company", "SPEEGO LOGISTICS CORPORATION"],
+    [vi ? "Địa chỉ" : "Address", "7303 Breen Dr, Suite D2, Houston, TX 77086, US."],
+    [vi ? "Ngân hàng" : "Bank", "REGIONS BANK"],
+    [vi ? "Địa chỉ ngân hàng" : "Bank address", vi ? "2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ." : "2730 Gessner Rd, Houston, TX 77080, USA."],
+  ];
+  const wire = group(vi ? "CHUYỂN TIỀN NGÂN HÀNG WIRE TRANSFER" : "WIRE TRANSFER", [
+    [vi ? "Tên chủ tài khoản" : "Account name", "SPEEGO LOGISTICS CORPORATION"],
+    [vi ? "Số tài khoản" : "Account number", "0379414656"],
+    ["Routing Number", "062005690"],
+    [vi ? "Mã SWIFT" : "SWIFT code", "UPNBUS44"],
+  ]);
+  const ach = group(vi ? "CHUYỂN TIỀN ACH (ACH TRANSFER)" : "ACH TRANSFER", [
+    [vi ? "Tài khoản" : "Account", "SPEEGO LOGISTICS CORPORATION"],
+    [vi ? "Số tài khoản" : "Account number", "0379414656"],
+    ["Routing Number", "111900785"],
+  ]);
   return `<section class="bank">
     <h2>${vi ? "TÀI KHOẢN NGÂN HÀNG" : "BANK INFORMATION"}</h2>
-    ${[
-      [vi ? "Tên công ty" : "Company", "SPEEGO LOGISTICS CORPORATION"],
-      [vi ? "Địa chỉ" : "Address", "7303 Breen Dr, Suite D2, Houston, TX 77086, US."],
-      [vi ? "Ngân hàng" : "Bank", "REGIONS BANK"],
-      [vi ? "Địa chỉ ngân hàng" : "Bank address", vi ? "2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ." : "2730 Gessner Rd, Houston, TX 77080, USA."],
-    ].map(([label, value]) => `<div><span>${label}</span>${escapeHtml(value!)}</div>`).join("")}
-    ${group(vi ? "CHUYỂN TIỀN NGÂN HÀNG WIRE TRANSFER" : "WIRE TRANSFER", [
-      [vi ? "Tên chủ tài khoản" : "Account name", "SPEEGO LOGISTICS CORPORATION"],
-      [vi ? "Số tài khoản" : "Account number", "0379414656"],
-      ["Routing Number", "062005690"],
-      [vi ? "Mã SWIFT" : "SWIFT code", "UPNBUS44"],
-    ])}
-    ${group(vi ? "CHUYỂN TIỀN ACH (ACH TRANSFER)" : "ACH TRANSFER", [
-      [vi ? "Tài khoản" : "Account", "SPEEGO LOGISTICS CORPORATION"],
-      [vi ? "Số tài khoản" : "Account number", "0379414656"],
-      ["Routing Number", "111900785"],
-    ])}
+    <div class="bank-cols"><div>${rowsHtml(company)}${ach}</div><div>${wire}</div></div>
   </section>`;
 }
 
@@ -727,9 +728,11 @@ export const quotePrintCss = `
     font-size: 10pt;
     color: #082A59;
   }
-  .bank div {
+  .bank-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+  .bank-cols h3:first-child { margin-top: 0; }
+  .bank .r {
     display: grid;
-    grid-template-columns: 130px 1fr;
+    grid-template-columns: 105px 1fr;
     gap: 4px 10px;
     margin: 2px 0;
     font-size: 9.5pt;

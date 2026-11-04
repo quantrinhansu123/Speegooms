@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { quoteSheetInputOf } from "@speego/shared";
 import type { QuoteRecord } from "./types";
 import { InlineAlert } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { buildContractDoc, printContractPdf, type ContractDocFields } from "./contract-docx";
+import { buildQuoteSheet } from "./quote-sheet";
 
 /** Ví dụ theo mẫu cho các ô vàng (Sale tự điền). */
 const hints: Partial<Record<keyof ContractDocFields, string>> = {
@@ -73,7 +75,19 @@ export function ContractDocDialog({
   const download = async () => {
     try {
       const order = quote.sentQuote?.order ?? quote.orders.find((item) => item.selected) ?? quote.orders[0];
-      const blob = await buildContractDoc(doc, { lines: order?.lines ?? [], ...amounts });
+      // Bảng Exhibit A dựng từ cùng mô hình với phiếu báo giá tiếng Anh gửi khách.
+      const model = order ? buildQuoteSheet(quoteSheetInputOf({ ...quote, notes: quote.sentQuote?.notes ?? quote.notes }, order, "en")) : null;
+      const blob = await buildContractDoc(doc, {
+        title: `Proforma invoice - ${order?.name ?? ""}`,
+        currency: amounts.currency,
+        lines: (model?.lines ?? []).map((line) => ({ stt: line.stt, unit: line.unit, name: line.productName, price: line.price, quantity: line.quantity, total: line.total, note: line.note })),
+        total: amounts.productValue,
+        shipping: amounts.shippingCost,
+        grandTotal: amounts.totalValue,
+        deposits: model?.deposit ?? [],
+        volumeCbm: model && model.totals.cbm > 0 ? model.totals.cbm : null,
+        weightKg: model?.freight.chargeableKg ?? null,
+      });
       await printContractPdf(blob, code);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không tạo được file hợp đồng");
