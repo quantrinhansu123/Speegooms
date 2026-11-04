@@ -5,7 +5,7 @@ import { quoteAmount } from "@speego/shared";
 import { isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Eye, FilePlus, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
+import { Eye, FilePlus, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { reassignQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -24,7 +24,9 @@ import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
-import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
+import { QuoteLanguageDialog, quoteOutputActions, quoteOutputIcon, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
+import { quoteOutputRunners } from "./quote-output";
+import { orderForQuotePdf, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
@@ -128,6 +130,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<RfqQuoteRecord | null>(null);
   const [viewing, setViewing] = useState<RfqQuoteRecord | null>(null);
+  const [output, setOutput] = useState<{ action: QuoteOutputAction; source: QuotePdfSource } | null>(null);
   const [contractQuote, setContractQuote] = useState<RfqQuoteRecord | null>(null);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const quoteRequest = useRef(0);
@@ -436,34 +439,21 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     label={`Thao tác ${row.code}`}
                     items={[
                       { key: "view", label: canContent ? "Xem / điền thông tin đơn" : "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
-                      {
-                        key: "print",
-                        label: "In báo giá",
-                        icon: <Printer />,
-                        onClick: () => {
-                          if (!printSource) {
-                            setError("Chưa có mẫu báo giá để in");
-                            return;
-                          }
-                          void printQuoteRecord(printSource).catch((cause: unknown) => {
-                            setError(cause instanceof Error ? cause.message : "Không in được báo giá");
-                          });
-                        },
-                      },
-                      {
-                        key: "pdf",
-                        label: "Tải PDF",
-                        icon: <Download />,
-                        onClick: () => {
-                          if (!printSource) {
-                            setError("Chưa có mẫu báo giá để tải PDF");
-                            return;
-                          }
-                          void downloadQuoteRecordPdf(printSource).catch((cause: unknown) => {
-                            setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
-                          });
-                        },
-                      },
+                      ...quoteOutputActions.map((action) => {
+                        const Icon = quoteOutputIcon[action];
+                        return {
+                          key: action,
+                          label: quoteOutputText[action].menu,
+                          icon: <Icon />,
+                          onClick: () => {
+                            if (!printSource) {
+                              setError(quoteOutputText[action].noSheet);
+                              return;
+                            }
+                            setOutput({ action, source: printSource });
+                          },
+                        };
+                      }),
                       ...(canCreateContract && row.contractStatus !== "DA_TAO"
                         ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
                         : []),
@@ -604,6 +594,20 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         />
       )}
 
+      {output && (
+        <QuoteLanguageDialog
+          action={output.action}
+          getMissing={(lang) => quoteRecordMissing(output.source, lang)}
+          onClose={() => setOutput(null)}
+          onConfirm={(lang) => {
+            const { action, source } = output;
+            setOutput(null);
+            void quoteOutputRunners[action](source, lang).catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : quoteOutputText[action].failed);
+            });
+          }}
+        />
+      )}
       <ConfirmDialog
         open={returning !== null}
         onOpenChange={(open) => { if (!open) setReturning(null); }}

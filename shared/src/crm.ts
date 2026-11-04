@@ -127,7 +127,13 @@ export const quotePackageSchema = z.object({
   actualKg: dim,
 });
 
-export const quoteAttrSchema = z.object({ key: text(80), value: text(300) });
+/** key/value là tiếng Việt; keyEn/valueEn là bản tiếng Anh do người dùng điền (không tự dịch). */
+export const quoteAttrSchema = z.object({
+  key: text(80),
+  value: text(300),
+  keyEn: text(80).default(""),
+  valueEn: text(300).default(""),
+});
 
 const quoteImage = z.string().max(100_000).refine(
   (value) => value === "" || value.startsWith("data:image/") || /^https:\/\//.test(value),
@@ -169,11 +175,16 @@ export const quoteLineSchema = z.object({
   weightKg: amount,
   spec: text(4000),
   note: text(4000),
+  /** Bản tiếng Anh của quy cách và ghi chú, do người dùng điền. */
+  specEn: text(4000).default(""),
+  noteEn: text(4000).default(""),
   /** Đơn vị tính: set, ghế, kg, cbm, lô... */
   unit: text(20).default("set"),
-  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo CBM hoặc trọn gói */
-  basis: z.enum(["unit", "kg", "cbm", "lump"]).default("unit"),
+  /** Cách tính giá: theo đơn vị (SL × giá), theo kg, theo m2, theo CBM hoặc trọn gói */
+  basis: z.enum(["unit", "kg", "m2", "cbm", "lump"]).default("unit"),
   cbm: amount.default(null),
+  /** Diện tích (m2) khi tính giá theo m2. */
+  areaM2: amount.default(null),
   /** Quy cách đóng gói. Có kiện thì CBM và cân tính cước được suy ra từ đây */
   packages: z.array(quotePackageSchema).max(20, "Tối đa 20 kiện mỗi dòng").default([]),
   /** Thuộc tính tự do: chất liệu, bảo hành, thời gian sản xuất... */
@@ -195,7 +206,13 @@ const depositLine = text(300);
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({
   label: text(120),
+  /** Tên dòng phí bằng tiếng Anh. */
+  labelEn: text(120).default(""),
   value: text(300),
+  /** Loại tiền của dòng phí. Rỗng = dùng loại tiền chính của đơn. */
+  currency: z.string().trim().toUpperCase().regex(/^$|^[A-Z]{3}$/, "Mã tiền tệ gồm 3 chữ cái").default(""),
+  /** STT mặt hàng mà dòng phí này báo giá. Rỗng = phí chung của đơn. */
+  itemStt: text(20).default(""),
 });
 
 export const quoteNotesSchema = z.object({
@@ -204,6 +221,10 @@ export const quoteNotesSchema = z.object({
   shippingLabel: text(300).default(""),
   weightNote: text(500),
   validityNote: text(500),
+  /** Bản tiếng Anh của ghi chú cân nặng, hiệu lực và các dòng đặt cọc (depositEn[i] ứng với deposit[i]). */
+  weightNoteEn: text(500).default(""),
+  validityNoteEn: text(500).default(""),
+  depositEn: z.array(depositLine).max(20, "Tối đa 20 dòng đặt cọc").default([]),
   deposit: z.union([
     depositLine,
     z.array(depositLine).max(20, "Tối đa 20 dòng đặt cọc"),

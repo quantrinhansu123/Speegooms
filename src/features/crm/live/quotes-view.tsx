@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
-import { downloadQuoteRecordPdf } from "./quote-print";
+import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
+import { quoteOutputRunners } from "./quote-output";
+import { quoteRecordMissing } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
@@ -59,6 +61,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [templateError, setTemplateError] = useState<string>();
   const [removingTemplate, setRemovingTemplate] = useState<QuoteTemplateRecord | null>(null);
   const [editing, setEditing] = useState<QuoteRecord | null>(null);
+  const [output, setOutput] = useState<{ action: QuoteOutputAction; row: QuoteRecord } | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
@@ -227,16 +230,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             {rows.map((row) => {
               const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [
                 { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } },
-                {
-                  key: "pdf",
-                  label: "Tải PDF",
-                  icon: <Download />,
-                  onClick: () => {
-                    void downloadQuoteRecordPdf(row).catch((cause: unknown) => {
-                      setError(cause instanceof Error ? cause.message : "Không tải được PDF báo giá");
-                    });
-                  },
-                },
+                { key: "pdf", label: "Tải PDF", icon: <Download />, onClick: () => setOutput({ action: "pdf", row }) },
+                { key: "excel", label: "Tải Excel", icon: <Download />, onClick: () => setOutput({ action: "excel", row }) },
               ];
               return (
                 <tr
@@ -352,6 +347,20 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         </DialogContent>
       </Dialog>
 
+      {output && (
+        <QuoteLanguageDialog
+          action={output.action}
+          getMissing={(lang) => quoteRecordMissing(output.row, lang)}
+          onClose={() => setOutput(null)}
+          onConfirm={(lang) => {
+            const { action, row } = output;
+            setOutput(null);
+            void quoteOutputRunners[action](row, lang).catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : quoteOutputText[action].failed);
+            });
+          }}
+        />
+      )}
       <ConfirmDialog
         open={removingTemplate !== null}
         onOpenChange={(open) => { if (!open) setRemovingTemplate(null); }}

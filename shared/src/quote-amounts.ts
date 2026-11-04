@@ -19,9 +19,11 @@ export function quoteMoneyValue(text: string): number | null {
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
-function logisticsFeesTotal(fees: QuoteNotes["logisticsFees"]): number | null {
+/** Chỉ cộng phí cùng loại tiền của đơn. Có phí khác loại tiền thì không có tổng chung. */
+function logisticsFeesTotal(fees: QuoteNotes["logisticsFees"], currency: string): number | null {
   let total = 0;
   for (const fee of fees) {
+    if (fee.currency && fee.currency.toUpperCase() !== currency.toUpperCase()) return null;
     const amount = quoteMoneyValue(fee.value);
     if (amount == null) return null;
     total += amount;
@@ -36,7 +38,7 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
   let amount = quoteMoneyValue(desk === "sourcing" ? notes.totalLabel : notes.shippingLabel);
   if (amount == null && desk === "logistics" && notes.logisticsFees.length > 0) {
-    amount = logisticsFeesTotal(notes.logisticsFees);
+    amount = logisticsFeesTotal(notes.logisticsFees, currency);
   } else if (amount == null) amount = order?.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0) ?? 0;
   return { amount, currency, rate: order?.rate ?? null };
 }

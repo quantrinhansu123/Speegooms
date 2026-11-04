@@ -22,7 +22,7 @@ export function Breadcrumbs() {
         {crumbs.map((crumb, i) => {
           const last = i === crumbs.length - 1;
           return (
-            <Fragment key={crumb.href}>
+            <Fragment key={`${i}-${crumb.href}`}>
               <BreadcrumbItem>
                 {last ? (
                   <BreadcrumbPage>{crumb.title}</BreadcrumbPage>

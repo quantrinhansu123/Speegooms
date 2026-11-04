@@ -64,4 +64,6 @@ assert.equal(my.cbm, 5.225);
 assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 2380); // Võ Hải Triều
 assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
 assert.equal(lineAmount({ basis: "unit", quantity: null, price: 1, weightKg: null, cbm: null }), null);
+assert.equal(lineAmount({ basis: "m2", quantity: 3, price: 12.5, weightKg: null, cbm: null, areaM2: 8 }), 100); // theo m2 nhân diện tích, không nhân số lượng
+assert.equal(lineAmount({ basis: "m2", quantity: 3, price: 12.5, weightKg: null, cbm: null }), null); // thiếu diện tích thì chưa tính
 console.log("crm rules ok");

@@ -162,7 +162,8 @@ export type QuoteRequestResult =
 export type LogisticsQuoteRequestResult =
   | { quote: QuoteRecord; created: boolean }
   | "missing"
-  | "kind";
+  | "kind"
+  | "empty";
 
 export interface ContractPaymentLine {
   amount: number;

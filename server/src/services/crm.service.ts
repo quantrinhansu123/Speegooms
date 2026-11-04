@@ -208,6 +208,7 @@ export class CrmService {
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
+    if (result === "empty") throw new AppError(400, "RULE", "Nhập thông tin đơn hàng ở Sourcing trước khi chuyển sang Logistics");
     await this.notifications?.notifyQuoteRequested(
       actor,
       lane,
