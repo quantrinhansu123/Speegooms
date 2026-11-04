@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ImagePlus, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { convertMessageSchema, createMessageSchema, updateMessageSchema, type CrmLane } from "@speego/shared";
+import { convertMessageSchema, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane, type IndustryCategory } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -21,7 +21,7 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
-import { customerTypeOptions, demandOptions, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
+import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -64,6 +64,7 @@ type MessDraft = {
   customerType: "" | "INDIVIDUAL" | "PRINCIPAL" | "ENTERPRISE";
   demand: "" | "SHIPPING" | "SOURCING";
   goods: string;
+  industry: "" | IndustryCategory;
   saleName: string;
   painPoint: string;
   linkMess: string;
@@ -80,6 +81,7 @@ const emptyDraft: MessDraft = {
   customerType: "",
   demand: "",
   goods: "",
+  industry: "",
   saleName: "",
   painPoint: "",
   linkMess: "",
@@ -100,6 +102,10 @@ function isClassification(value: string | null): value is Exclude<Classification
   return messageClassificationOptions.some((item) => item[0] === value);
 }
 
+function isIndustryCategory(value: string | null): value is IndustryCategory {
+  return industryCategoryOptions.some(([option]) => option === value);
+}
+
 function draftFrom(row: MessageRecord): MessDraft {
   return {
     receivedOn: dateInputFromIso(row.receivedAt),
@@ -111,6 +117,7 @@ function draftFrom(row: MessageRecord): MessDraft {
     customerType: row.customerType === "INDIVIDUAL" || row.customerType === "PRINCIPAL" || row.customerType === "ENTERPRISE" ? row.customerType : "",
     demand: row.demand === "SHIPPING" || row.demand === "SOURCING" ? row.demand : "",
     goods: row.goods ?? "",
+    industry: isIndustryCategory(row.industry) ? row.industry : "",
     saleName: row.saleName ?? "",
     painPoint: row.painPoint ?? "",
     linkMess: row.linkMess ?? "",
@@ -205,6 +212,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       saleName: editingId ? draft.saleName : user.name,
       receivedOn: draft.receivedOn || undefined,
       demand: draft.demand || undefined,
+      industry: draft.industry || undefined,
       customerType: draft.customerType || undefined,
       classification: draft.classification || undefined,
     };
@@ -366,7 +374,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
       <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
-        <table className="w-full min-w-[1680px] text-sm">
+        <table className="w-full min-w-[1800px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
@@ -377,6 +385,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nhu cầu</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Sales - hot & warm</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Pain-Point của KH</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Link mess</th>
@@ -386,7 +395,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
@@ -397,6 +406,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="px-3 py-3"><DemandBadge value={row.demand} /></td>
                 <td className="px-3 py-3">{row.goods || "—"}</td>
+                <td className="max-w-56 truncate px-3 py-3" title={labelOf(industryCategoryOptions, row.industry)}>{labelOf(industryCategoryOptions, row.industry)}</td>
                 <td className="px-3 py-3">{row.saleName || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.painPoint ?? undefined}>{row.painPoint || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={row.linkMess ?? undefined}>
@@ -490,6 +500,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <datalist id="mess-goods-options">
                   {goodsOptions.map((item) => <option key={item} value={item} />)}
                 </datalist>
+              </Field>
+              <Field label="Ngành hàng" htmlFor="mess-industry" className="sm:col-span-2">
+                <NativeSelect id="mess-industry" value={draft.industry} onChange={(event) => setDraft({ ...draft, industry: event.target.value as MessDraft["industry"] })}>
+                  <option value="">Chưa chọn</option>
+                  {industryCategoryOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </NativeSelect>
               </Field>
               <Field label="Sales - hot & warm" htmlFor="mess-sale" className="sm:col-span-2" hint="Tự động theo tài khoản đăng nhập">
                 <Input id="mess-sale" value={draft.saleName} readOnly />

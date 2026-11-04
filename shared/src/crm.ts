@@ -21,6 +21,36 @@ export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
 export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
 export const careChannelSchema = z.enum(["FACEBOOK", "ZALO", "WHATSAPP", "VIBER"]);
+export const industryCategoryValues = {
+  NAIL_SPA_SUPPLIES: "NAIL_SPA_SUPPLIES",
+  NAIL_SPA_EQUIPMENT: "NAIL_SPA_EQUIPMENT",
+  NAIL_SPA_FURNITURE: "NAIL_SPA_FURNITURE",
+  BATHROOM_MATERIALS: "BATHROOM_MATERIALS",
+  DECOR_SIGNAGE: "DECOR_SIGNAGE",
+  FNB_FURNITURE: "FNB_FURNITURE",
+  HOME_FURNITURE: "HOME_FURNITURE",
+  FNB_KITCHEN_EQUIPMENT: "FNB_KITCHEN_EQUIPMENT",
+  NAIL_DISPOSABLES_PACKAGING: "NAIL_DISPOSABLES_PACKAGING",
+  HOME_ELECTRONICS: "HOME_ELECTRONICS",
+  FASHION_ACCESSORIES: "FASHION_ACCESSORIES",
+  OTHER: "OTHER",
+} as const;
+export const industryCategorySchema = z.enum(industryCategoryValues);
+export type IndustryCategory = z.infer<typeof industryCategorySchema>;
+export const industryCategoryOptions = [
+  [industryCategoryValues.NAIL_SPA_SUPPLIES, "Vật tư & hóa mỹ phẩm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_EQUIPMENT, "Máy móc & thiết bị tiệm Nail/Spa"],
+  [industryCategoryValues.NAIL_SPA_FURNITURE, "Ghế & nội thất tiệm Nail/Spa"],
+  [industryCategoryValues.BATHROOM_MATERIALS, "Vật liệu & thiết bị nhà tắm"],
+  [industryCategoryValues.DECOR_SIGNAGE, "Decor & bảng hiệu"],
+  [industryCategoryValues.FNB_FURNITURE, "Nội thất nhà hàng / quán F&B"],
+  [industryCategoryValues.HOME_FURNITURE, "Nội thất nhà ở"],
+  [industryCategoryValues.FNB_KITCHEN_EQUIPMENT, "Máy móc & dụng cụ bếp quán F&B"],
+  [industryCategoryValues.NAIL_DISPOSABLES_PACKAGING, "Đồ dùng một lần tiệm nail & bao bì"],
+  [industryCategoryValues.HOME_ELECTRONICS, "Đồ điện tử gia dụng"],
+  [industryCategoryValues.FASHION_ACCESSORIES, "Thời trang & phụ kiện"],
+  [industryCategoryValues.OTHER, "Khác"],
+] as const;
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -47,6 +77,7 @@ const messageFields = {
   phone: text(30),
   email: text(160),
   goods: text(500),
+  industry: industryCategorySchema.optional(),
   note: text(2000),
   demand: messageDemandSchema.optional(),
   customerType: customerTypeSchema.optional(),
@@ -249,6 +280,10 @@ export const updateQuoteSchema = z.object({
 
 export const reassignQuoteSchema = z.object({
   potentialId: uuidText,
+});
+
+export const updateQuoteOutcomeSchema = z.object({
+  nonCloseReason: text(2000),
 });
 
 export const quoteTemplateSchema = z.object({
@@ -461,6 +496,7 @@ export type SentQuote = {
   bank: QuoteBank;
 };
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type UpdateQuoteOutcomeInput = z.infer<typeof updateQuoteOutcomeSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;
