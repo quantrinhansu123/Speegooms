@@ -140,7 +140,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [converting, setConverting] = useState<MessageRecord | null>(null);
   const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
-  const [convertDraft, setConvertDraft] = useState({ requirements: "", reason: "", images: [] as ConvertImage[] });
+  const [convertDraft, setConvertDraft] = useState({ requirements: "", quantityNote: "", packageDimensions: "", weightKg: "", shipFromAddress: "", shipToAddress: "", reason: "", images: [] as ConvertImage[] });
   const [convertError, setConvertError] = useState<string>();
   const [convertPending, setConvertPending] = useState(false);
   const [confirmCloseConvert, setConfirmCloseConvert] = useState(false);
@@ -148,7 +148,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
 
   const convertDirty = Boolean(
-    convertDraft.requirements.trim() || convertDraft.reason.trim() || convertDraft.images.length > 0,
+    convertDraft.requirements.trim() || convertDraft.quantityNote.trim() || convertDraft.packageDimensions.trim() || convertDraft.weightKg.trim() || convertDraft.shipFromAddress.trim() || convertDraft.shipToAddress.trim() || convertDraft.reason.trim() || convertDraft.images.length > 0,
   );
 
   const requestCloseConvert = () => {
@@ -170,7 +170,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       for (const image of current.images) {
         if (image.preview.startsWith("blob:")) URL.revokeObjectURL(image.preview);
       }
-      return { requirements: "", reason: "", images: [] };
+      return { requirements: "", quantityNote: "", packageDimensions: "", weightKg: "", shipFromAddress: "", shipToAddress: "", reason: "", images: [] };
     });
   };
 
@@ -252,6 +252,11 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     setPreviewImage(null);
     setConvertDraft({
       requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"),
+      quantityNote: "",
+      packageDimensions: "",
+      weightKg: "",
+      shipFromAddress: "",
+      shipToAddress: "",
       reason: "",
       images: [],
     });
@@ -262,6 +267,11 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     if (!converting) return;
     const formParsed = convertMessageSchema.safeParse({
       requirements: convertDraft.requirements,
+      quantityNote: convertDraft.quantityNote,
+      packageDimensions: convertDraft.packageDimensions,
+      weightKg: convertDraft.weightKg,
+      shipFromAddress: convertDraft.shipFromAddress,
+      shipToAddress: convertDraft.shipToAddress,
       reason: convertDraft.reason,
       images: [],
     });
@@ -277,8 +287,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       try {
         const uploaded = await uploadImageSources(images.map((image) => image.source));
         const parsed = convertMessageSchema.safeParse({
-          requirements: formParsed.data.requirements,
-          reason: formParsed.data.reason,
+          ...formParsed.data,
           images: uploaded,
         });
         if (!parsed.success) {
@@ -564,6 +573,24 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </DialogHeader>
           <div className="grid max-h-[min(68vh,720px)] gap-3 overflow-y-auto pr-1">
             {convertError && <InlineAlert>{convertError}</InlineAlert>}
+            <section className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
+              <h3 className="font-medium sm:col-span-2">Thông tin đơn hàng</h3>
+              <Field label="Số lượng" htmlFor="convert-quantity">
+                <Input id="convert-quantity" value={convertDraft.quantityNote} placeholder="Ví dụ: 500 set" onChange={(event) => setConvertDraft({ ...convertDraft, quantityNote: event.target.value })} />
+              </Field>
+              <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions">
+                <Input id="convert-dimensions" value={convertDraft.packageDimensions} placeholder="Dài × rộng × cao, đơn vị cm" onChange={(event) => setConvertDraft({ ...convertDraft, packageDimensions: event.target.value })} />
+              </Field>
+              <Field label="Trọng lượng" htmlFor="convert-weight">
+                <Input id="convert-weight" value={convertDraft.weightKg} placeholder="Ví dụ: 20 kg/kiện" onChange={(event) => setConvertDraft({ ...convertDraft, weightKg: event.target.value })} />
+              </Field>
+              <Field label="Địa chỉ gửi hàng" htmlFor="convert-ship-from">
+                <Input id="convert-ship-from" value={convertDraft.shipFromAddress} onChange={(event) => setConvertDraft({ ...convertDraft, shipFromAddress: event.target.value })} />
+              </Field>
+              <Field label="Địa chỉ nhận hàng" htmlFor="convert-ship-to" className="sm:col-span-2">
+                <Input id="convert-ship-to" value={convertDraft.shipToAddress} onChange={(event) => setConvertDraft({ ...convertDraft, shipToAddress: event.target.value })} />
+              </Field>
+            </section>
             <Field label="Yêu cầu của khách" htmlFor="convert-requirements" required hint="Mô tả toàn bộ yêu cầu để vận hành / sourcing xử lý">
               <Textarea
                 id="convert-requirements"

@@ -69,6 +69,7 @@ type Draft = {
   careChannel: "" | NonNullable<UpdatePotentialInput["careChannel"]>;
   classification: "" | NonNullable<UpdatePotentialInput["classification"]>;
   packSpec: string;
+  packageDimensions: string;
   weightKg: string;
   logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
   shipFromAddress: string;
@@ -95,6 +96,7 @@ function draftFrom(row: PotentialRecord): Draft {
     careChannel: careChannelOptions.some((item) => item[0] === row.careChannel) ? row.careChannel as Draft["careChannel"] : "",
     classification: row.classification === "LCL" || row.classification === "FCL" ? row.classification : "",
     packSpec: row.packSpec ?? "",
+    packageDimensions: row.packageDimensions ?? "",
     weightKg: row.weightKg == null ? "" : String(row.weightKg),
     logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
     shipFromAddress: row.shipFromAddress ?? "",
@@ -162,7 +164,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       brand: draft.brand || undefined,
       careChannel: draft.careChannel || undefined,
       classification: draft.classification || undefined,
-      weightKg: draft.weightKg.trim() === "" ? undefined : Number(draft.weightKg),
+      weightKg: draft.weightKg,
       logisticsClass: draft.logisticsClass || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
       shipToAddress: draft.shipToAddress || undefined,
@@ -333,6 +335,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Kênh chăm sóc</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Quy cách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Kích thước kiện hàng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trọng lượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại logistics</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Địa chỉ gửi</th>
@@ -341,7 +344,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={23} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={24} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
@@ -362,7 +365,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3"><CareChannelBadge value={row.careChannel} /></td>
                 <td className="px-3 py-3"><LogisticsClassBadge value={row.classification} /></td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.weightKg == null ? undefined : String(row.weightKg)}>{row.weightKg == null ? "—" : `${row.weightKg} kg`}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.packageDimensions ?? undefined}>{row.packageDimensions || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3" title={row.weightKg ?? undefined}>{row.weightKg || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.logisticsClass ?? undefined}>{row.logisticsClass || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.shipFromAddress ?? undefined}>{row.shipFromAddress || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.shipToAddress ?? undefined}>{row.shipToAddress || "—"}</td>
@@ -479,8 +483,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <Textarea id="pot-pack" rows={3} value={draft.packSpec} readOnly />
                 </Field>
               )}
-              <Field label="Trọng lượng (kg) (KH logistics)" htmlFor="pot-weight">
-                <Input id="pot-weight" inputMode="decimal" value={draft.weightKg} onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />
+              <Field label="Kích thước kiện hàng (KH logistics)" htmlFor="pot-dimensions">
+                <Input id="pot-dimensions" value={draft.packageDimensions} placeholder="Dài × rộng × cao, đơn vị cm" onChange={(event) => setDraft({ ...draft, packageDimensions: event.target.value })} />
+              </Field>
+              <Field label="Trọng lượng (KH logistics)" htmlFor="pot-weight">
+                <Input id="pot-weight" value={draft.weightKg} placeholder="Ví dụ: khoảng 20 kg/kiện" onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />
               </Field>
               <Field label="Phân loại (KH logistics)" htmlFor="pot-logistics">
                 <NativeSelect id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value as Draft["logisticsClass"] })}>

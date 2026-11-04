@@ -48,7 +48,8 @@ export interface PotentialRecord {
   careChannel: string | null;
   classification: string | null;
   packSpec: string | null;
-  weightKg: number | null;
+  packageDimensions: string | null;
+  weightKg: string | null;
   logisticsClass: string | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;
@@ -132,7 +133,8 @@ export interface QuoteRecord {
   quantityNote: string | null;
   saleNote: string | null;
   packSpec: string | null;
-  weightKg: number | null;
+  packageDimensions: string | null;
+  weightKg: string | null;
   logisticsClass: string | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;

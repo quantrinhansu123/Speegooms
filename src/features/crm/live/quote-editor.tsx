@@ -336,6 +336,7 @@ type SaleLeadDraft = {
   careChannel: "" | NonNullable<UpdatePotentialInput["careChannel"]>;
   classification: "" | NonNullable<UpdatePotentialInput["classification"]>;
   packSpec: string;
+  packageDimensions: string;
   weightKg: string;
   logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
   shipFromAddress: string;
@@ -361,6 +362,7 @@ function saleDraftFromQuote(row: QuoteRecord): SaleLeadDraft {
     careChannel: careChannelOptions.some((item) => item[0] === row.careChannel) ? row.careChannel as SaleLeadDraft["careChannel"] : "",
     classification: row.classification === "LCL" || row.classification === "FCL" ? row.classification : "",
     packSpec: row.packSpec ?? "",
+    packageDimensions: row.packageDimensions ?? "",
     weightKg: row.weightKg == null ? "" : String(row.weightKg),
     logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
     shipFromAddress: row.shipFromAddress ?? "",
@@ -387,6 +389,7 @@ export function quoteFieldsFromPotential(input: UpdatePotentialInput, images: st
     quantityNote: input.quantityNote || null,
     saleNote: input.saleNote || null,
     packSpec: input.packSpec ?? null,
+    packageDimensions: input.packageDimensions ?? null,
     weightKg: input.weightKg ?? null,
     logisticsClass: input.logisticsClass ?? null,
     shipFromAddress: input.shipFromAddress ?? null,
@@ -1332,7 +1335,8 @@ export function QuoteEditor({
       careChannel: saleDraft.careChannel || undefined,
       classification: saleDraft.classification || undefined,
       packSpec: saleDraft.packSpec || undefined,
-      weightKg: saleDraft.weightKg.trim() === "" ? undefined : Number(saleDraft.weightKg),
+      packageDimensions: saleDraft.packageDimensions,
+      weightKg: saleDraft.weightKg,
       logisticsClass: saleDraft.logisticsClass || undefined,
       shipFromAddress: saleDraft.shipFromAddress || undefined,
       shipToAddress: saleDraft.shipToAddress || undefined,
@@ -1609,7 +1613,8 @@ export function QuoteEditor({
   useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
-    ["Trọng lượng (kg)", lead.weightKg == null ? "—" : String(lead.weightKg)],
+    ["Kích thước kiện hàng", lead.packageDimensions || "—"],
+    ["Trọng lượng", lead.weightKg || "—"],
     ["Phân loại logistics", lead.logisticsClass || "—"],
     ["Địa chỉ gửi", lead.shipFromAddress || "—"],
     ["Địa chỉ nhận", lead.shipToAddress || "—"],
@@ -1864,8 +1869,11 @@ export function QuoteEditor({
                   <Field label="Quy cách đóng gói đã lưu (Sourcing nhập tại đơn hàng)" htmlFor={fieldId("sale-pack")} className="sm:col-span-2">
                     <Textarea id={fieldId("sale-pack")} rows={2} value={saleDraft.packSpec} readOnly />
                   </Field>
-                  <Field label="Trọng lượng (kg)" htmlFor={fieldId("sale-weight")}>
-                    <Input id={fieldId("sale-weight")} inputMode="decimal" value={saleDraft.weightKg} onChange={(event) => setSaleDraft({ ...saleDraft, weightKg: event.target.value })} />
+                  <Field label="Kích thước kiện hàng" htmlFor={fieldId("sale-dimensions")}>
+                    <Input id={fieldId("sale-dimensions")} value={saleDraft.packageDimensions} onChange={(event) => setSaleDraft({ ...saleDraft, packageDimensions: event.target.value })} />
+                  </Field>
+                  <Field label="Trọng lượng" htmlFor={fieldId("sale-weight")}>
+                    <Input id={fieldId("sale-weight")} value={saleDraft.weightKg} onChange={(event) => setSaleDraft({ ...saleDraft, weightKg: event.target.value })} />
                   </Field>
                   <Field label="Phân loại logistics" htmlFor={fieldId("sale-logistics")}>
                     <NativeSelect id={fieldId("sale-logistics")} value={saleDraft.logisticsClass} onChange={(event) => setSaleDraft({ ...saleDraft, logisticsClass: event.target.value as SaleLeadDraft["logisticsClass"] })}>

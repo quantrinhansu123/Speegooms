@@ -151,13 +151,14 @@ export class PostgresCrmImportStore {
              kenh_cham_soc = coalesce($12, kenh_cham_soc),
              quy_cach_dong_goi = coalesce($13, quy_cach_dong_goi),
              trong_luong_kg = coalesce($14, trong_luong_kg),
+             kich_thuoc_kien_hang = coalesce($20, kich_thuoc_kien_hang),
              dia_chi_gui = coalesce($15, dia_chi_gui),
              dia_chi_nhan = coalesce($16, dia_chi_nhan),
              yeu_cau_khach = coalesce($17, yeu_cau_khach),
              ma_ngoai = $18,
              luong_bao_gia = case when $11::text = 'SOURCING' and $19 = 'LEGACY' then 'LEGACY' else luong_bao_gia end
            where id = $1::uuid`,
-          [current.id, ...params],
+          [current.id, ...params, row.packageDimensions || null],
         );
         return "updated";
       }
@@ -165,11 +166,11 @@ export class PostgresCrmImportStore {
         `insert into ${table.potential} (
            nguon, ho_ten, ten_cong_ty, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, ghi_chu_so_luong, dia_chi,
            ghi_chu_ban_hang, tiem_nang, trang_thai, ma_tin_nhan, nhom_khach, kenh_cham_soc, quy_cach_dong_goi,
-           trong_luong_kg, dia_chi_gui, dia_chi_nhan, yeu_cau_khach, ma_ngoai, luong_bao_gia
+           trong_luong_kg, dia_chi_gui, dia_chi_nhan, yeu_cau_khach, ma_ngoai, luong_bao_gia, kich_thuoc_kien_hang
          ) values (
            $1::crm.lead_source, $2, $3, $4, $5, $6, $7, $8,
            $9, $10::crm.potential_status, 'NEW', $11::uuid, $12::text::crm.customer_kind, $13, $14,
-           $15, $16, $17, $18, $19, $20
+           $15, $16, $17, $18, $19, $20, $21
          )`,
         [
           mess.source,
@@ -192,6 +193,7 @@ export class PostgresCrmImportStore {
           row.requirements || "Đã nhập từ Excel",
           row.externalRef,
           row.kind === "LOGISTICS" || row.kind === "BOTH" || row.kind == null ? "COMBINED" : "LEGACY",
+          row.packageDimensions || null,
         ],
       );
       await client.query(`update ${table.message} set trang_thai = 'CONVERTED' where id = $1::uuid and trang_thai <> 'CONVERTED'`, [mess.id]);

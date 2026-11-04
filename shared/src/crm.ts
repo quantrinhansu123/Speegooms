@@ -110,7 +110,8 @@ export const updatePotentialSchema = z
     careChannel: careChannelSchema.optional(),
     classification: leadClassificationSchema.optional(),
     packSpec: text(2000).optional(),
-    weightKg: z.number().positive("Trọng lượng phải lớn hơn 0").max(999999999).optional(),
+    packageDimensions: text(500).optional(),
+    weightKg: text(500).optional(),
     logisticsClass: leadClassificationSchema.optional(),
     shipFromAddress: text(2000).optional(),
     shipToAddress: text(2000).optional(),
@@ -125,6 +126,11 @@ export const updatePotentialSchema = z
 
 export const convertMessageSchema = z.object({
   requirements: z.string().trim().min(1, "Nhập yêu cầu của khách").max(8000),
+  quantityNote: text(500).optional(),
+  packageDimensions: text(500).optional(),
+  weightKg: text(500).optional(),
+  shipFromAddress: text(2000).optional(),
+  shipToAddress: text(2000).optional(),
   images: z.array(z.string().max(100_000).refine(
     (value) => value.startsWith("data:image/") || /^https:\/\//.test(value),
     "Ảnh không hợp lệ",
