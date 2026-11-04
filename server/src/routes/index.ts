@@ -3,6 +3,7 @@ import type { AppContainer } from "../container";
 import { authRoutes } from "./auth.routes";
 import { crmRoutes } from "./crm.routes";
 import { healthRoutes } from "./health.routes";
+import { keToanRoutes } from "./ke-toan.routes";
 import { notificationRoutes } from "./notification.routes";
 import { securityRoutes } from "./security.routes";
 import { uploadRoutes } from "./uploads.routes";
@@ -17,6 +18,7 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use("/auth", authRoutes(container));
   api.use("/users", userRoutes(container));
   api.use("/crm", crmRoutes(container));
+  api.use("/ke-toan", keToanRoutes(container));
   api.use("/notifications", notificationRoutes(container));
   api.use("/uploads", uploadRoutes(container));
   app.use("/api", api);
