@@ -1,4 +1,4 @@
-import type { CreateInternalExpenseInput, CreatePaymentRequestInput, CreatePayrollInput } from "@speego/shared";
+import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "../search/ke-toan-list-search";
 
 export interface PaymentRequestRecord {
@@ -56,12 +56,42 @@ export interface InternalExpenseRecord {
   status: string;
 }
 
+export interface LedgerRecord {
+  id: string;
+  date: string;
+  kind: "THU" | "CHI";
+  category: string;
+  counterparty: string;
+  orderCode: string | null;
+  amount: number;
+  reference: string | null;
+  reconciled: boolean;
+  statementId: string | null;
+}
+
+export interface StatementRecord {
+  id: string;
+  date: string;
+  kind: "THU" | "CHI";
+  amount: number;
+  counterparty: string;
+  description: string | null;
+  orderCode: string | null;
+  ledgerId: string | null;
+}
+
 export type CreatePaymentResult =
   | { result: "ok"; payment: PaymentRequestRecord }
   | { result: "order_missing" }
   | { result: "deposit_missing" };
 
 export interface KeToanRepository {
+  listLedger(): Promise<LedgerRecord[]>;
+  listStatements(): Promise<StatementRecord[]>;
+  listLedgerOrders(): Promise<{ code: string; customerName: string }[]>;
+  createStatement(input: CreateStatementInput): Promise<StatementRecord>;
+  createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord>;
+  reconcileLedger(id: string, statementId: string): Promise<LedgerRecord>;
   listPaymentOrders(): Promise<PaymentOrderOption[]>;
   listPayments(search: PaymentListSearch): Promise<PaymentRequestRecord[]>;
   createPayment(input: CreatePaymentRequestInput, actor: string): Promise<CreatePaymentResult>;

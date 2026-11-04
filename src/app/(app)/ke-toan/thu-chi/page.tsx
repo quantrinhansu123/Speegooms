@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { LedgerView } from "@/features/accounting/components/ledger-view";
+import { LedgerLiveView } from "@/features/accounting/live/ledger-live-view";
 
 export const metadata: Metadata = { title: "Thu chi và đối soát" };
 
 export const instant = false;
 
 export default function LedgerPage() {
-  return <LedgerView />;
+  return <LedgerLiveView />;
 }

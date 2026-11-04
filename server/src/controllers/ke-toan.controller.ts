@@ -12,6 +12,25 @@ function actorName(req: Request): string {
 export class KeToanController {
   constructor(private readonly keToan: KeToanService) {}
 
+  listLedger = async (_req: Request, res: Response) => {
+    res.status(200).json({ entries: await this.keToan.listLedger() });
+  };
+  listStatements = async (_req: Request, res: Response) => {
+    res.status(200).json({ statements: await this.keToan.listStatements() });
+  };
+  listLedgerOrders = async (_req: Request, res: Response) => {
+    res.status(200).json({ orders: await this.keToan.listLedgerOrders() });
+  };
+  createStatement = async (req: Request, res: Response) => {
+    res.status(201).json({ statement: await this.keToan.createStatement(req.body) });
+  };
+  createLedger = async (req: Request, res: Response) => {
+    res.status(201).json({ entry: await this.keToan.createLedger(req.body) });
+  };
+  reconcileLedger = async (req: Request, res: Response) => {
+    res.status(200).json({ entry: await this.keToan.reconcileLedger(String(req.params.id), req.body.statementId) });
+  };
+
   listPaymentOrders = async (_req: Request, res: Response) => {
     res.status(200).json({ orders: await this.keToan.listPaymentOrders() });
   };

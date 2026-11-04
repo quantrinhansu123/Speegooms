@@ -1,7 +1,9 @@
-import type { CreateInternalExpenseInput, CreatePaymentRequestInput, CreatePayrollInput } from "@speego/shared";
+import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import { AppError } from "../lib/errors";
 import type {
   InternalExpenseRecord,
+  LedgerRecord,
+  StatementRecord,
   KeToanRepository,
   PaymentOrderOption,
   PaymentRequestRecord,
@@ -12,6 +14,13 @@ import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "..
 /** Kế toán: đề nghị thanh toán, bảng lương, chi phí nội bộ. Quyền kiểm ở route. */
 export class KeToanService {
   constructor(private readonly repo: KeToanRepository | null) {}
+
+  listLedger(): Promise<LedgerRecord[]> { return this.repository().listLedger(); }
+  listStatements(): Promise<StatementRecord[]> { return this.repository().listStatements(); }
+  listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.repository().listLedgerOrders(); }
+  createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.repository().createStatement(input); }
+  createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.repository().createLedger(input); }
+  reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.repository().reconcileLedger(id, statementId); }
 
   listPaymentOrders(): Promise<PaymentOrderOption[]> {
     return this.repository().listPaymentOrders();

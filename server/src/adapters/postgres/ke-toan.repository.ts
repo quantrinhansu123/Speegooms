@@ -1,13 +1,16 @@
-import type { CreateInternalExpenseInput, CreatePaymentRequestInput, CreatePayrollInput } from "@speego/shared";
+import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import type pg from "pg";
 import { AppError, InfrastructureError } from "../../lib/errors";
+import { PostgresLedgerRepository } from "./ledger.repository";
 import type {
   CreatePaymentResult,
   InternalExpenseRecord,
+  LedgerRecord,
   KeToanRepository,
   PaymentOrderOption,
   PaymentRequestRecord,
   PayrollRecord,
+  StatementRecord,
 } from "../../repositories/ke-toan.repository";
 import {
   expenseSearch,
@@ -167,7 +170,17 @@ function raise(cause: unknown): never {
 }
 
 export class PostgresKeToanRepository implements KeToanRepository {
-  constructor(private readonly pool: pg.Pool) {}
+  private readonly ledger: PostgresLedgerRepository;
+  constructor(private readonly pool: pg.Pool) {
+    this.ledger = new PostgresLedgerRepository(pool);
+  }
+
+  listLedger(): Promise<LedgerRecord[]> { return this.ledger.listLedger(); }
+  listStatements(): Promise<StatementRecord[]> { return this.ledger.listStatements(); }
+  listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.ledger.listLedgerOrders(); }
+  createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.ledger.createStatement(input); }
+  createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.ledger.createLedger(input); }
+  reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.ledger.reconcileLedger(id, statementId); }
 
   async listPaymentOrders(): Promise<PaymentOrderOption[]> {
     const result = await this.query<{ code: string; customer_name: string; accounting_status: string }>(

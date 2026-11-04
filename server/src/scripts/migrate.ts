@@ -56,6 +56,7 @@ const files = [
   "032_nganh_hang_ly_do_chua_chot.sql",
   "033_quote_metrics_per_unit.sql",
   "034_tiem_nang_kich_thuoc_trong_luong_text.sql",
+  "036_so_thu_chi_lien_ket_sao_ke.sql",
 ];
 
 await client.connect();
