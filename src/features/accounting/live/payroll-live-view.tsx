@@ -16,6 +16,7 @@ import { departmentLabels, departmentOptions } from "@/config/departments";
 import { canPerform } from "@/config/permissions";
 import { useSession } from "@/features/auth/session-provider";
 import { FilterSelect, ListSearchBar, useAppliedSearch } from "@/features/crm/live/list-search-bar";
+import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { ApiError, api } from "@/lib/api";
 import { formatDate, formatNumber, formatVnd, formatVndCompact } from "@/lib/format";
 import type { StatusTone } from "@/types/status";
@@ -239,7 +240,7 @@ function PayrollSection({ canWrite }: { canWrite: boolean }) {
       >
         <FilterSelect id="pr-filter-dept" label="Phòng ban" value={filters.draft.department} onChange={(value) => filters.set("department", value)} options={departmentFilter} />
       </ListSearchBar>
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -274,7 +275,7 @@ function PayrollSection({ canWrite }: { canWrite: boolean }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {creating && (
         <CreatePayrollDialog
           onClose={() => setCreating(false)}
@@ -326,7 +327,7 @@ function ExpenseSection({ canWrite }: { canWrite: boolean }) {
         <FilterSelect id="ex-filter-dept" label="Phòng ban" value={filters.draft.department} onChange={(value) => filters.set("department", value)} options={departmentFilter} />
         <FilterSelect id="ex-filter-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={expenseStatusFilter} />
       </ListSearchBar>
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -357,7 +358,7 @@ function ExpenseSection({ canWrite }: { canWrite: boolean }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {creating && (
         <CreateExpenseDialog
           onClose={() => setCreating(false)}

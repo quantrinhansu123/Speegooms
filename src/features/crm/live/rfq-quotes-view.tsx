@@ -28,6 +28,7 @@ import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSe
 import { downloadQuoteRecordPdf, orderForQuotePdf, printQuoteRecord } from "./quote-print";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
+import { TableHScroll } from "./table-h-scroll";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
 import { contractStatusOptions, customerKindOptions, deskLabels, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
@@ -408,7 +409,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <div className="overflow-x-auto rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll>
         <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -534,7 +535,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-lg">

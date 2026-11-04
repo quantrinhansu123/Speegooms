@@ -31,6 +31,7 @@ import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
+import { TableHScroll } from "./table-h-scroll";
 import { labelOf } from "./types";
 
 export type ContractPaymentLine = {
@@ -459,7 +460,7 @@ export function ContractsLiveView({
       {mode === "sale" && (
         <p className="mb-3 text-xs text-muted-foreground">Dòng tô vàng: hợp đồng mới hoặc vừa có thông tin cập nhật — mở xem để bỏ tô.</p>
       )}
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border bg-card [&_th]:whitespace-nowrap">
+      <TableHScroll className="-mx-1 overscroll-x-contain">
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -594,7 +595,7 @@ export function ContractsLiveView({
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => { if (!open) setRemoving(null); }}
