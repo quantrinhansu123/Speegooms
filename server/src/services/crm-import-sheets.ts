@@ -44,7 +44,8 @@ export type PlannedPotential = {
   kind: "SOURCING" | "LOGISTICS" | "BOTH" | null;
   careChannel: string;
   packSpec: string;
-  weightKg: number | null;
+  packageDimensions: string;
+  weightKg: string | null;
   shipFrom: string;
   shipTo: string;
   requirements: string;
@@ -267,7 +268,7 @@ export function planPotentials(book: WorkbookData, scope: readonly CrmLane[]): S
       errors.push({ sheet: "rfq", row: line.row, message: lane.error });
       continue;
     }
-    const weight = numberOf(pick(cells, ["can_nang", "trong_luong_kg"]));
+    const weight = clip(pick(cells, ["can_nang", "trong_luong_kg"]), 500);
     rows.push({
       sheet: "rfq",
       row: line.row,
@@ -286,7 +287,8 @@ export function planPotentials(book: WorkbookData, scope: readonly CrmLane[]): S
       kind: kindOf(pick(cells, ["dich_vu", "loai_khach", "nhom_khach"])),
       careChannel: careOf(pick(cells, ["kenh_lien_he", "kenh_cham_soc"])),
       packSpec: clip(pick(cells, ["quy_cach", "quy_cach_dong_goi"]), 2000),
-      weightKg: weight != null && weight > 0 ? weight : null,
+      packageDimensions: clip(pick(cells, ["kich_thuoc_kien_hang", "kich_thuoc_kien"]), 500),
+      weightKg: weight || null,
       shipFrom: clip(pick(cells, ["diem_di", "dia_chi_lay", "dia_chi_gui"]), 2000),
       shipTo: clip(pick(cells, ["diem_den", "dia_chi_nhan"]), 2000),
       requirements: clip(pick(cells, ["yeu_cau_khach", "yeu_cau"]), 8000),

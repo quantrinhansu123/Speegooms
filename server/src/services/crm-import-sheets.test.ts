@@ -43,8 +43,8 @@ test("mess row uses customer_pii and phan_phong", async () => {
 test("potential and quote keep the rfq link", async () => {
   const book = await workbook({
     rfq: [
-      ["rfq_id", "mess_id", "ten_hang", "so_luong", "dich_vu", "phong_sale"],
-      ["RFQ-2", "M-2", "Ban", "4", "SOURCING", "Sale VN"],
+      ["rfq_id", "mess_id", "ten_hang", "so_luong", "dich_vu", "phong_sale", "kich_thuoc_kien_hang", "can_nang"],
+      ["RFQ-2", "M-2", "Ban", "4", "SOURCING", "Sale VN", "40 x 50 x 60 cm", "khoảng 20 kg/kiện"],
     ],
     rfq_pii: [
       ["rfq_id", "ten_khach", "sdt"],
@@ -60,6 +60,8 @@ test("potential and quote keep the rfq link", async () => {
   assert.equal(potential.rows[0]?.fullName, "Binh");
   assert.equal(potential.rows[0]?.kind, "SOURCING");
   assert.equal(potential.rows[0]?.quantityNote, "4");
+  assert.equal(potential.rows[0]?.packageDimensions, "40 x 50 x 60 cm");
+  assert.equal(potential.rows[0]?.weightKg, "khoảng 20 kg/kiện");
 
   const quote = planQuotes(book, ["vn"]);
   assert.equal(quote.rows[0]?.productPrice, 80);

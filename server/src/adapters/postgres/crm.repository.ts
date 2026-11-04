@@ -96,7 +96,8 @@ type PotentialRow = {
   care_channel: string | null;
   classification: string | null;
   pack_spec: string | null;
-  weight_kg: string | number | null;
+  package_dimensions: string | null;
+  weight_kg: string | null;
   logistics_class: string | null;
   ship_from_address: string | null;
   ship_to_address: string | null;
@@ -150,7 +151,8 @@ type QuoteRow = {
   quantity_note: string | null;
   sale_note: string | null;
   pack_spec: string | null;
-  weight_kg: number | string | null;
+  package_dimensions: string | null;
+  weight_kg: string | null;
   logistics_class: string | null;
   ship_from_address: string | null;
   ship_to_address: string | null;
@@ -229,6 +231,7 @@ function quoteSelect(
          l.phan_loai::text as classification,
          l.san_pham_quan_tam as goods, msg.nganh_hang as industry, l.ghi_chu_so_luong as quantity_note,
          l.ghi_chu_ban_hang as sale_note, l.quy_cach_dong_goi as pack_spec,
+         l.kich_thuoc_kien_hang as package_dimensions,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          l.yeu_cau_khach as requirements, l.anh_yeu_cau as requirement_images,
@@ -490,7 +493,8 @@ function toQuote(row: QuoteRow): QuoteRecord {
     quantityNote: row.quantity_note,
     saleNote: row.sale_note,
     packSpec: row.pack_spec,
-    weightKg: weight(row.weight_kg),
+    packageDimensions: row.package_dimensions,
+    weightKg: row.weight_kg,
     logisticsClass: row.logistics_class,
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
@@ -597,6 +601,7 @@ function potentialSelect(message: string, potential: string): string {
          l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow, l.loai_khach_hang::text as customer_type,
          l.thuong_hieu::text as brand, l.kenh_cham_soc as care_channel,
          l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
+         l.kich_thuoc_kien_hang as package_dimensions,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          m.link_mess as link_mess,
@@ -1107,7 +1112,8 @@ function toPotential(row: PotentialRow): PotentialRecord {
     careChannel: row.care_channel,
     classification: row.classification,
     packSpec: row.pack_spec,
-    weightKg: weight(row.weight_kg),
+    packageDimensions: row.package_dimensions,
+    weightKg: row.weight_kg,
     logisticsClass: row.logistics_class,
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
@@ -1342,7 +1348,8 @@ export class PostgresCrmRepository implements CrmRepository {
          dia_chi_nhan = $20,
          yeu_cau_khach = coalesce($21, yeu_cau_khach),
          anh_yeu_cau = coalesce($22::jsonb, anh_yeu_cau),
-         ly_do_chuyen = coalesce($23, ly_do_chuyen)
+         ly_do_chuyen = coalesce($23, ly_do_chuyen),
+         kich_thuoc_kien_hang = $24
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
        returning id::text as id`,
       [
@@ -1369,6 +1376,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.requirements === undefined ? null : blank(input.requirements),
         input.requirementImages === undefined ? null : JSON.stringify(input.requirementImages),
         input.convertReason === undefined ? null : blank(input.convertReason),
+        blank(input.packageDimensions),
       ],
     );
     if (!updated.rows[0]) return null;
