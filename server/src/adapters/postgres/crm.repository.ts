@@ -1303,14 +1303,16 @@ export class PostgresCrmRepository implements CrmRepository {
         const inserted = await client.query<{ id: string }>(
           `insert into ${potentialTable} (
              nguon, ho_ten, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, tiem_nang, trang_thai, ma_tin_nhan,
-             nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen
+             nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen,
+             ghi_chu_so_luong, kich_thuoc_kien_hang, trong_luong_kg, dia_chi_gui, dia_chi_nhan
            )
            values (
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
-             $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12
+             $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12,
+             $13, $14, $15, $16, $17
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason],
+          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress)],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
@@ -1320,9 +1322,13 @@ export class PostgresCrmRepository implements CrmRepository {
       } else {
         await client.query(
           `update ${potentialTable}
-           set yeu_cau_khach = $2, anh_yeu_cau = $3::jsonb, ly_do_chuyen = $4
+           set yeu_cau_khach = $2, anh_yeu_cau = $3::jsonb, ly_do_chuyen = $4,
+               ghi_chu_so_luong = coalesce($5, ghi_chu_so_luong),
+               kich_thuoc_kien_hang = coalesce($6, kich_thuoc_kien_hang),
+               trong_luong_kg = coalesce($7, trong_luong_kg),
+               dia_chi_gui = coalesce($8, dia_chi_gui), dia_chi_nhan = coalesce($9, dia_chi_nhan)
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress)],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
