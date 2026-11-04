@@ -101,20 +101,25 @@ test("quote projection preserves both workflow and Sale requirement images after
   }
 });
 
-test("new orders notify Sourcing; Logistics is notified by the explicit handoff", async () => {
+test("creating a quote does not notify; Sale hands a filled sourcing order to Sourcing", async () => {
   const desks: QuoteDesk[] = [];
-  let created = true;
-  const quote = { id: "quote", code: "BGS", customerKind: "SOURCING", quoteWorkflow: "COMBINED" } as QuoteRecord;
+  const quote = {
+    id: "quote",
+    code: "BGS",
+    customerKind: "SOURCING",
+    quoteWorkflow: "SOURCING",
+    orders: [{ lines: [{ productName: "Gạch", quantity: 2 }] }],
+  } as QuoteRecord;
   const service = new CrmService({
-    requestQuote: async () => ({ quote, created, desk: "sourcing" }),
+    requestQuote: async () => ({ quote, created: true, desk: "sourcing" }),
+    findQuote: async () => quote,
   } as unknown as CrmRepository, {
     notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { desks.push(desk); },
   } as unknown as NotificationService);
   await service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser);
+  assert.deepEqual(desks, []);
+  await service.handoffSourcingOrder("vn", "quote", { role: "sale-vn" } as PublicUser);
   assert.deepEqual(desks, ["sourcing"]);
-  created = false;
-  await service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser);
-  assert.equal(desks.length, 1);
 });
 
 test("Sale content updates preserve Logistics packaging for the new workflow", async () => {

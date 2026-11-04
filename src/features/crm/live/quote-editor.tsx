@@ -2,7 +2,7 @@
 
 import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, type QuoteLang } from "@speego/shared";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
 import {
   quoteCurrencies,
@@ -95,14 +95,13 @@ function WeightNoteField({
   const english = lang === "en";
   const value = english ? notes.weightNoteEn : notes.weightNote;
   const placeholder = english ? notes.weightNote : undefined;
-  const onChange = (next: string) => setNotes(english ? { ...notes, weightNoteEn: next } : { ...notes, weightNote: next });
   return (
     <Field label="Ghi chú cân nặng / CBM" htmlFor={id} className={className}>
-      <Input
+      <DraftText
         id={id}
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
+        onValueChange={(next) => setNotes(english ? { ...notes, weightNoteEn: next } : { ...notes, weightNote: next })}
         placeholder={placeholder || "Dự kiến số KG/CBM, có thể thay đổi theo thực tế"}
       />
     </Field>
@@ -1016,7 +1015,111 @@ function safeImage(value: string): string {
   return "";
 }
 
-function OrderLines({
+function useDraftString<T extends HTMLInputElement | HTMLTextAreaElement>(value: string, onValueChange: (value: string) => void) {
+  const [text, setText] = useState(value);
+  const textRef = useRef(value);
+  const externalRef = useRef(value);
+  const commitRef = useRef(onValueChange);
+  const fieldRef = useRef<T>(null);
+  externalRef.current = value;
+  commitRef.current = onValueChange;
+  const write = (next: string) => {
+    textRef.current = next;
+    setText(next);
+    if (next !== externalRef.current) commitRef.current(next);
+  };
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field) return;
+    const commit = () => {
+      if (textRef.current !== externalRef.current) commitRef.current(textRef.current);
+    };
+    field.addEventListener("blur", commit);
+    return () => field.removeEventListener("blur", commit);
+  }, []);
+  useEffect(() => {
+    if (fieldRef.current && document.activeElement !== fieldRef.current) write(value);
+    // Chỉ đồng bộ khi dữ liệu bên ngoài đổi, không ghi đè chữ đang gõ.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return {
+    ref: fieldRef,
+    value: text,
+    onValueChange: write,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => write(event.target.value),
+  };
+}
+
+function DraftText({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange"> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  const draft = useDraftString<HTMLInputElement>(value, onValueChange);
+  return <Input {...props} ref={draft.ref} value={draft.value} onChange={draft.onChange} {...({ onValueChange: draft.onValueChange } as Record<string, unknown>)} />;
+}
+
+function DraftArea({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Textarea>, "value" | "onChange"> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  const draft = useDraftString<HTMLTextAreaElement>(value, onValueChange);
+  return <Textarea {...props} ref={draft.ref} value={draft.value} onChange={draft.onChange} />;
+}
+
+function DraftQuantity({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "type" | "inputMode"> & {
+  value: number | null;
+  onValueChange: (value: number | null) => void;
+}) {
+  const shown = amountText(value);
+  const [text, setText] = useState(shown);
+  const textRef = useRef(shown);
+  const externalRef = useRef(shown);
+  const commitRef = useRef(onValueChange);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  externalRef.current = shown;
+  commitRef.current = onValueChange;
+  const write = (next: string) => {
+    textRef.current = next;
+    setText(next);
+    const parsed = amountValue(next);
+    if (parsed !== value) commitRef.current(parsed);
+  };
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field) return;
+    const commit = () => commitRef.current(amountValue(textRef.current));
+    field.addEventListener("blur", commit);
+    return () => field.removeEventListener("blur", commit);
+  }, []);
+  useEffect(() => {
+    if (fieldRef.current && document.activeElement !== fieldRef.current) write(shown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
+  return (
+    <Input
+      {...props}
+      ref={fieldRef}
+      inputMode="decimal"
+      value={text}
+      onChange={(event) => write(event.target.value)}
+      {...({ onValueChange: write } as Record<string, unknown>)}
+    />
+  );
+}
+
+const OrderLines = memo(function OrderLines({
   lines,
   currency,
   columns,
@@ -1030,6 +1133,7 @@ function OrderLines({
   onClearError,
   lang = "vi",
   showPricing = true,
+  brief = false,
 }: {
   lines: QuoteLine[];
   currency: QuoteCurrency;
@@ -1039,17 +1143,19 @@ function OrderLines({
   packagingRequired: boolean;
   canEditPackaging: boolean;
   errors?: Record<string, string>;
-  onChange: (lines: QuoteLine[]) => void;
+  onChange: (lines: QuoteLine[] | ((current: QuoteLine[]) => QuoteLine[])) => void;
   onError: (message: string) => void;
   onClearError?: (key: string) => void;
   /** Ngôn ngữ nội dung chữ đang sửa (quy cách, thuộc tính, ghi chú). */
   lang?: QuoteLang;
   /** Ẩn cột đơn giá và thành tiền khi người đang sửa không phải người định giá. */
   showPricing?: boolean;
+  /** Sale tìm hàng: chỉ mặt hàng, hình ảnh, số lượng, quy cách. */
+  brief?: boolean;
 }) {
   const priceColumns = !showPricing ? [] : columns.length > 0 ? columns : [{ currency }];
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
-    onChange(lines.map((line, lineIndex) => {
+    onChange((lines) => lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
       let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
       if ("packages" in patch && next.packages.length > 0) {
@@ -1073,9 +1179,11 @@ function OrderLines({
   };
 
   const addLine = () => {
-    const numbers = lines.map((line) => Number(line.stt)).filter((value) => Number.isFinite(value) && value > 0);
-    const next = numbers.length ? Math.max(...numbers) + 1 : lines.length + 1;
-    onChange([...lines, emptyLine(String(next))]);
+    onChange((lines) => {
+      const numbers = lines.map((line) => Number(line.stt)).filter((value) => Number.isFinite(value) && value > 0);
+      const next = numbers.length ? Math.max(...numbers) + 1 : lines.length + 1;
+      return [...lines, emptyLine(String(next))];
+    });
   };
 
   const addImages = (index: number, line: QuoteLine, incoming: string[]) => {
@@ -1095,7 +1203,7 @@ function OrderLines({
         <table className="w-full min-w-[980px] text-base">
           <thead>
             <tr className="border-b bg-muted/50 text-left text-sm">
-              <th className="whitespace-nowrap px-2 py-3 font-medium">STT</th>
+              {!brief && <th className="whitespace-nowrap px-2 py-3 font-medium">STT</th>}
               <th className="min-w-[180px] whitespace-nowrap px-2 py-3 font-medium">Mặt hàng</th>
               <th className="min-w-[160px] whitespace-nowrap px-2 py-3 font-medium">Hình ảnh</th>
               <th className="whitespace-nowrap px-2 py-3 font-medium">Số lượng</th>
@@ -1107,8 +1215,8 @@ function OrderLines({
                 <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
               ))}
               <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>
-              <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">Thuộc tính xưởng</th>
-              <th className="min-w-[100px] whitespace-nowrap px-2 py-3 font-medium">Note</th>
+              {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">Thuộc tính xưởng</th>}
+              <th className="min-w-[140px] whitespace-nowrap px-2 py-3 font-medium">{brief ? "Lưu ý" : "Note"}</th>
               <th className="px-2 py-3" />
             </tr>
           </thead>
@@ -1117,11 +1225,11 @@ function OrderLines({
               const images = quoteLineImages(line);
               return (
                 <tr key={index} className="border-b align-top last:border-0">
-                  <td className="px-2 py-2">
+                  {!brief && <td className="px-2 py-2">
                     <Input className="h-8 w-12" aria-label={`STT dòng ${index + 1}`} value={line.stt} disabled={!canEditContent} onChange={(event) => updateLine(index, { stt: event.target.value })} />
-                  </td>
+                  </td>}
                   <td className="px-2 py-2">
-                    <Input className="h-8 w-44" aria-label={`Mặt hàng dòng ${index + 1}`} value={line.productName ?? ""} disabled={!canEditContent} onChange={(event) => updateLine(index, { productName: event.target.value })} placeholder="Tên mặt hàng" />
+                    <DraftText className="h-8 w-44" aria-label={`Mặt hàng dòng ${index + 1}`} value={line.productName ?? ""} disabled={!canEditContent} onValueChange={(productName) => updateLine(index, { productName })} placeholder="Tên mặt hàng" />
                   </td>
                   <td className="px-2 py-2">
                     <div
@@ -1212,10 +1320,10 @@ function OrderLines({
                   </td>
                   <td className="px-2 py-2">
                     <div className="grid w-[5.5rem] gap-1">
-                      <Input className="h-8" inputMode="decimal" aria-label={`Số lượng dòng ${index + 1}`} aria-invalid={errors[`line.${index}.quantity`] ? true : undefined} value={amountText(line.quantity)} disabled={!canEditContent} onChange={(event) => { updateLine(index, { quantity: amountValue(event.target.value) }); onClearError?.(`line.${index}.quantity`); }} placeholder="SL" />
+                      <DraftQuantity className="h-8" aria-label={`Số lượng dòng ${index + 1}`} aria-invalid={errors[`line.${index}.quantity`] ? true : undefined} value={line.quantity} disabled={!canEditContent} onValueChange={(quantity) => { updateLine(index, { quantity }); onClearError?.(`line.${index}.quantity`); }} placeholder="SL" />
                       <InputError message={errors[`line.${index}.quantity`]} />
-                      <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} aria-invalid={errors[`line.${index}.unit`] ? true : undefined} value={line.unit} disabled={!canEditContent} onChange={(event) => { updateLine(index, { unit: event.target.value }); onClearError?.(`line.${index}.unit`); }} placeholder="ĐV" />
-                      <InputError message={errors[`line.${index}.unit`]} />
+                      {!brief && <Input className="h-8" aria-label={`Đơn vị dòng ${index + 1}`} aria-invalid={errors[`line.${index}.unit`] ? true : undefined} value={line.unit} disabled={!canEditContent} onChange={(event) => { updateLine(index, { unit: event.target.value }); onClearError?.(`line.${index}.unit`); }} placeholder="ĐV" />}
+                      {!brief && <InputError message={errors[`line.${index}.unit`]} />}
                     </div>
                   </td>
                   {showPricing && <td className="px-2 py-2">
@@ -1270,10 +1378,10 @@ function OrderLines({
                     );
                   })}
                   <td className="px-2 py-2">
-                    <Textarea className="min-h-16 w-36" aria-label={`Quy cách dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={lang === "en" ? line.specEn : line.spec} disabled={!canEditContent} onChange={(event) => { updateLine(index, lang === "en" ? { specEn: event.target.value } : { spec: event.target.value }); onClearError?.(`line.${index}.spec`); }} placeholder={lang === "en" ? line.spec || "Specification" : "Quy cách"} />
+                    <DraftArea className="min-h-16 w-36" aria-label={`Quy cách dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={lang === "en" ? line.specEn : line.spec} disabled={!canEditContent} onValueChange={(next) => { updateLine(index, lang === "en" ? { specEn: next } : { spec: next }); onClearError?.(`line.${index}.spec`); }} placeholder={lang === "en" ? line.spec || "Specification" : "Quy cách"} />
                     <InputError message={errors[`line.${index}.spec`]} />
                   </td>
-                  <td className="px-2 py-2">
+                  {!brief && <td className="px-2 py-2">
                     <div className="grid w-[14.5rem] grid-cols-2 gap-1.5">
                       {factoryAttrKeys.map((key) => (
                         <Input
@@ -1287,14 +1395,14 @@ function OrderLines({
                         />
                       ))}
                     </div>
-                  </td>
+                  </td>}
                   <td className="px-2 py-2">
-                    <Textarea className="min-h-16 w-32" aria-label={`Note dòng ${index + 1}`} aria-invalid={errors[`line.${index}.note`] ? true : undefined} value={lang === "en" ? line.noteEn : line.note} disabled={!canEditContent} onChange={(event) => { updateLine(index, lang === "en" ? { noteEn: event.target.value } : { note: event.target.value }); onClearError?.(`line.${index}.note`); }} placeholder={lang === "en" ? line.note || "Note" : "Note"} />
+                    <DraftArea className="min-h-16 w-40" aria-label={`Lưu ý dòng ${index + 1}`} aria-invalid={errors[`line.${index}.note`] ? true : undefined} value={lang === "en" ? line.noteEn : line.note} disabled={!canEditContent} onValueChange={(next) => { updateLine(index, lang === "en" ? { noteEn: next } : { note: next }); onClearError?.(`line.${index}.note`); }} placeholder={lang === "en" ? line.note || "Note" : "Lưu ý"} />
                     <InputError message={errors[`line.${index}.note`]} />
                   </td>
                   <td className="px-2 py-2">
                     {canEditContent && (
-                      <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa dòng ${index + 1}`} onClick={() => onChange(lines.filter((_, lineIndex) => lineIndex !== index))}>
+                      <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa dòng ${index + 1}`} onClick={() => onChange((lines) => lines.filter((_, lineIndex) => lineIndex !== index))}>
                         <Trash2 />
                       </Button>
                     )}
@@ -1305,7 +1413,7 @@ function OrderLines({
           </tbody>
         </table>
       </TableHScroll>
-      {lines.map((line, index) => (
+      {!brief && lines.map((line, index) => (
         <div key={index} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-2">
           {packagingRequired && (
             <LinePackagesEditor
@@ -1324,7 +1432,7 @@ function OrderLines({
           <div className="grid content-start gap-2">
             <label className="grid gap-2 text-sm">
               <span>{`Trọng lượng (kg) · STT ${line.stt || index + 1}`}</span>
-              <Input inputMode="decimal" aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={amountText(line.weightKg)} disabled={!canEditContent} onChange={(event) => { updateLine(index, { weightKg: amountValue(event.target.value) }); onClearError?.(`line.${index}.weight`); }} />
+              <DraftQuantity aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
               <InputError message={errors[`line.${index}.weight`]} />
             </label>
             <p className="text-sm font-medium">Thuộc tính xưởng khác</p>
@@ -1346,9 +1454,204 @@ function OrderLines({
       )}
     </div>
   );
-}
+});
 
 export type QuoteEditMode = "none" | "content" | "full";
+
+function QuoteStepNotes({
+  initial,
+  draftRef,
+  fieldId,
+}: {
+  initial: SaleLeadDraft;
+  draftRef: { current: SaleLeadDraft | null };
+  fieldId: (name: string) => string;
+}) {
+  const [local, setLocal] = useState(initial);
+  const write = (next: SaleLeadDraft) => {
+    draftRef.current = next;
+    setLocal(next);
+  };
+  return (
+    <section className="grid gap-3 rounded-lg border p-4">
+      <h3 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">Lưu ý</h3>
+      <Field label="Yêu cầu của khách" htmlFor={fieldId("quote-step-requirements")}>
+        <Textarea id={fieldId("quote-step-requirements")} rows={4} value={local.requirements} onChange={(event) => write({ ...local, requirements: event.target.value })} placeholder="Chi tiết hàng hóa, hạn giao, lưu ý…" />
+      </Field>
+      <Field label="Ghi chú sale" htmlFor={fieldId("quote-step-note")}>
+        <Textarea id={fieldId("quote-step-note")} rows={3} value={local.saleNote} onChange={(event) => write({ ...local, saleNote: event.target.value })} />
+      </Field>
+    </section>
+  );
+}
+
+function OrderDraftDialog({
+  mode: initialMode,
+  order: initialOrder,
+  pending,
+  sourcingSale,
+  pureLogistics,
+  saleLogisticsOrder,
+  showPackaging,
+  canEditContent,
+  canEditOrderPrices,
+  canEditPackaging,
+  printLang,
+  quoteCode,
+  fieldId,
+  pdfPending,
+  previewHtml,
+  onClose,
+  onPersist,
+  onOutput,
+}: {
+  mode: "create" | "edit" | "view";
+  order: QuoteOrder;
+  pending: boolean;
+  sourcingSale: boolean;
+  pureLogistics: boolean;
+  saleLogisticsOrder: boolean;
+  showPackaging: boolean;
+  canEditContent: boolean;
+  canEditOrderPrices: boolean;
+  canEditPackaging: boolean;
+  printLang: QuoteLang;
+  quoteCode: string;
+  fieldId: (name: string) => string;
+  pdfPending: boolean;
+  previewHtml: string;
+  onClose: () => void;
+  onPersist: (order: QuoteOrder) => Promise<boolean>;
+  onOutput: (action: "print" | "pdf" | "excel", order: QuoteOrder) => void;
+}) {
+  const [mode, setMode] = useState(initialMode);
+  const [order, setOrderState] = useState(initialOrder);
+  const orderRef = useRef(order);
+  const commitOrder = useCallback((next: QuoteOrder) => {
+    orderRef.current = next;
+    setOrderState(next);
+  }, []);
+  const commitLines = useCallback((update: QuoteLine[] | ((current: QuoteLine[]) => QuoteLine[])) => {
+    const lines = typeof update === "function" ? update(orderRef.current.lines) : update;
+    commitOrder({ ...orderRef.current, lines });
+  }, [commitOrder]);
+  const [orderError, setOrderError] = useState<string>();
+  const [orderFields, setOrderFields] = useState<Record<string, string>>({});
+  const clearOrderField = useCallback((key: string) => {
+    setOrderFields((current) => withoutOrderFields(current, [key]));
+  }, []);
+  const save = async () => {
+    if (mode === "view") return;
+    const current = orderRef.current;
+    const requirePackages = Boolean(!sourcingSale && (saleLogisticsOrder || showPackaging));
+    const named = sourcingSale && !current.name.trim()
+      ? { ...current, name: current.lines.find((line) => line.productName?.trim())?.productName?.trim() || "Đơn tìm hàng" }
+      : current;
+    const parsed = orderDraftSchema({ requirePackages }).safeParse(named);
+    if (!parsed.success) {
+      const { fields, rest } = orderIssueFields(named, parsed.error.issues);
+      setOrderFields(fields);
+      setOrderError(rest[0]);
+      queueMicrotask(() => {
+        document.querySelector('[role="dialog"] [aria-invalid="true"]')?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+      return;
+    }
+    const data = { ...parsed.data, lines: parsed.data.lines.filter(filledLine) };
+    if (await onPersist(data)) onClose();
+  };
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        className="z-[80] max-h-[96dvh] w-[min(96vw,90rem)] max-w-none flex-col sm:max-w-none"
+        style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
+        <DialogHeader className="shrink-0">
+          <DialogTitle>
+            {mode === "create" ? "Tạo thông tin đơn hàng" : mode === "edit" ? "Sửa thông tin đơn hàng" : "Xem thông tin đơn hàng"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1">
+          {orderError && <InlineAlert>{orderError}</InlineAlert>}
+          {mode !== "view" && (
+            <InlineAlert>
+              {sourcingSale
+                ? "Sale nhập mặt hàng, hình ảnh, số lượng, quy cách và lưu ý, rồi bấm Chuyển Sourcing."
+                : pureLogistics || saleLogisticsOrder
+                ? "Sale nhập ảnh, số lượng, quy cách và đóng gói. Logistics nhập đơn giá và chi phí logistics."
+                : "Sourcing điền ảnh, số lượng, quy cách, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
+            </InlineAlert>
+          )}
+          {!sourcingSale && <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4">
+            <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")} error={orderFields.name} required>
+              <DraftText
+                id={fieldId("order-name")}
+                value={order.name}
+                disabled={mode === "view"}
+                onValueChange={(name) => {
+                  commitOrder({ ...orderRef.current, name });
+                  clearOrderField("name");
+                }}
+                placeholder="VD: Mẫu A — 500 set"
+              />
+            </Field>
+          </div>}
+          {mode === "view" ? (
+            <QuoteSheetPreview html={previewHtml} title={`Xem trước ${order.name || quoteCode}`} />
+          ) : (
+            <>
+              {!pureLogistics && !sourcingSale && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <PriceColumnPicker
+                      orders={[order]}
+                      disabled={!canEditOrderPrices}
+                      onSelect={(currency) => commitOrder(selectRateColumn(orderRef.current, currency))}
+                    />
+                </div>
+              )}
+              <OrderLines
+                lang={printLang}
+                showPricing={!pureLogistics && !sourcingSale}
+                lines={order.lines}
+                currency={order.currency}
+                columns={columnsFor(order)}
+                canEditContent={canEditContent}
+                canEditPricing={canEditOrderPrices}
+                brief={sourcingSale}
+                packagingRequired={!sourcingSale && (saleLogisticsOrder || showPackaging)}
+                canEditPackaging={canEditPackaging}
+                errors={orderFields}
+                onChange={commitLines}
+                onError={setOrderError}
+                onClearError={clearOrderField}
+              />
+            </>
+          )}
+        </div>
+        <DialogFooter className="shrink-0">
+          {mode === "view" && (
+            <>
+              <Button type="button" variant="outline" onClick={() => onOutput("print", order)}><Printer />In</Button>
+              <Button type="button" variant="outline" disabled={pdfPending} onClick={() => onOutput("pdf", order)}>
+                <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
+              </Button>
+              <Button type="button" variant="outline" disabled={pdfPending} onClick={() => onOutput("excel", order)}>
+                <Download />Tải Excel
+              </Button>
+              {canEditContent && (
+                <Button type="button" variant="outline" disabled={pending} onClick={() => { setOrderError(undefined); setOrderFields({}); setMode("edit"); }}>
+                  <Pencil />Sửa
+                </Button>
+              )}
+            </>
+          )}
+          <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>
+          {mode !== "view" && <Button type="button" disabled={pending} onClick={() => void save()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function QuoteEditor({
   quote,
@@ -1370,7 +1673,9 @@ export function QuoteEditor({
   desk,
   onContinueLogistics,
   onHandoffLogistics,
+  onHandoffSourcing,
   saleOrder = false,
+  quoteStep = false,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
@@ -1395,25 +1700,30 @@ export function QuoteEditor({
   onContinueLogistics?: () => Promise<boolean>;
   /** Sale nhập đơn hàng thuần logistics rồi chuyển cho bàn Logistics. */
   onHandoffLogistics?: () => Promise<boolean>;
+  /** Sale nhập mặt hàng tìm hàng rồi chuyển cho bàn Sourcing. */
+  onHandoffSourcing?: () => Promise<boolean>;
   /** Sale được sửa thông tin đơn trên báo giá thuần logistics. */
   saleOrder?: boolean;
+  /** Bước báo giá ngay sau khi chuyển mess: chỉ điền đơn, không sửa hồ sơ khách. */
+  quoteStep?: boolean;
 }) {
   const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
   const pureLogistics = quote.customerKind === "LOGISTICS";
-  const packagingRequired = desk !== "logistics" && !isCombinedSourcing(quote);
   const showPackaging = desk === "sourcing" || desk === "logistics" || !isCombinedSourcing(quote);
   const canSendQuote = mode === "full";
   const canEditLogisticsFees = mode === "full" && desk === "logistics";
-  const saleLogisticsOrder = saleOrder || Boolean(onHandoffLogistics);
+  const sourcingSale = quote.customerKind === "SOURCING" && (saleOrder || Boolean(onHandoffSourcing));
+  const saleLogisticsOrder = quote.customerKind === "LOGISTICS" && (saleOrder || Boolean(onHandoffLogistics));
+  const saleFill = sourcingSale || saleLogisticsOrder;
   const canEditContent = pureLogistics
     ? mode === "content" || (saleOrder && mode !== "none")
-    : (saleLogisticsOrder || desk !== "logistics") && (mode === "content" || mode === "full");
+    : (saleFill || desk !== "logistics") && (mode === "content" || mode === "full");
   const canEditPricing = mode === "full" && desk !== "logistics";
   /** Khách thuần logistics: Logistics (bàn logistics, quyền đầy đủ) định giá; Sale chỉ nhập nội dung đơn. */
   const canPriceAsLogistics = mode === "full" && desk === "logistics";
   const canEditOrderPrices = pureLogistics ? canPriceAsLogistics : canEditPricing;
-  const canEditPackaging = pureLogistics ? canEditContent : (saleLogisticsOrder && canEditContent) || (canEditContent && canEditPricing);
-  const canEditSaleNotes = pureLogistics ? canEditContent : canEditPricing;
+  const canEditPackaging = sourcingSale ? false : pureLogistics ? canEditContent : (saleFill && canEditContent) || (canEditContent && canEditPricing);
+  const canEditSaleNotes = pureLogistics || saleFill ? canEditContent : canEditPricing;
   const [lead, setLead] = useState(quote);
   const [editingSale, setEditingSale] = useState(false);
   const [saleDraft, setSaleDraft] = useState<SaleLeadDraft | null>(null);
@@ -1434,11 +1744,16 @@ export function QuoteEditor({
     logisticsFees: quote.notes.logisticsFees ?? [],
     opsExtra: quote.notes.opsExtra ?? "",
   });
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const commitNotes = useCallback((next: QuoteNotes) => {
+    notesRef.current = next;
+    setNotes(next);
+  }, []);
   const [bank, setBank] = useState<QuoteBank>(quote.bank);
   const [formError, setFormError] = useState<string>();
   const [draft, setDraft] = useState<{ mode: "create" | "edit" | "view"; order: QuoteOrder } | null>(null);
-  const [orderError, setOrderError] = useState<string>();
-  const [orderFields, setOrderFields] = useState<Record<string, string>>({});
+  const saleDraftRef = useRef<SaleLeadDraft | null>(null);
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
@@ -1464,7 +1779,16 @@ export function QuoteEditor({
   }, [desk, quote.id, quote.orders.length, quote.sourcingContext]);
 
   useEffect(() => {
+    if (quoteStep && canSaveSale) {
+      const next = saleDraftFromQuote(quote);
+      saleDraftRef.current = next;
+      setEditingSale(true);
+      setSaleDraft(next);
+      setSaleError(undefined);
+      return;
+    }
     if (!canSaveSale || pureLogistics) {
+      saleDraftRef.current = null;
       setEditingSale(false);
       setSaleDraft(null);
       return;
@@ -1474,7 +1798,7 @@ export function QuoteEditor({
     setSaleError(undefined);
     // Chỉ khởi tạo lại khi đổi báo giá / quyền sửa — tránh mất nội dung đang gõ khi parent re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: quote.id + canSaveSale
-  }, [quote.id, canSaveSale, pureLogistics]);
+  }, [quote.id, canSaveSale, pureLogistics, quoteStep]);
 
   const resetSaleEdit = () => {
     setSaleDraft(saleDraftFromQuote(lead));
@@ -1482,26 +1806,27 @@ export function QuoteEditor({
   };
 
   const saveSaleEdit = async () => {
-    if (!saleDraft || !onSaveSale) return;
+    const current = (quoteStep ? saleDraftRef.current : null) ?? saleDraft;
+    if (!current || !onSaveSale) return true;
     const parsed = updatePotentialSchema.safeParse({
-      ...saleDraft,
-      customerKind: saleDraft.customerKind || undefined,
-      customerType: saleDraft.customerType || undefined,
-      brand: saleDraft.brand || undefined,
-      careChannel: saleDraft.careChannel || undefined,
-      classification: saleDraft.classification || undefined,
-      packSpec: saleDraft.packSpec || undefined,
-      packageDimensions: saleDraft.packageDimensions,
-      weightKg: saleDraft.weightKg,
-      logisticsClass: saleDraft.logisticsClass || undefined,
-      shipFromAddress: saleDraft.shipFromAddress || undefined,
-      shipToAddress: saleDraft.shipToAddress || undefined,
-      requirements: saleDraft.requirements || undefined,
-      requirementImages: saleDraft.requirementImages,
+      ...current,
+      customerKind: current.customerKind || undefined,
+      customerType: current.customerType || undefined,
+      brand: current.brand || undefined,
+      careChannel: current.careChannel || undefined,
+      classification: current.classification || undefined,
+      packSpec: current.packSpec || undefined,
+      packageDimensions: current.packageDimensions,
+      weightKg: current.weightKg,
+      logisticsClass: current.logisticsClass || undefined,
+      shipFromAddress: current.shipFromAddress || undefined,
+      shipToAddress: current.shipToAddress || undefined,
+      requirements: current.requirements || undefined,
+      requirementImages: current.requirementImages,
     });
     if (!parsed.success) {
       setSaleError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
-      return;
+      return false;
     }
     setSalePending(true);
     setSaleError(undefined);
@@ -1509,10 +1834,13 @@ export function QuoteEditor({
       const patch = await onSaveSale(parsed.data);
       if (!patch) {
         setSaleError("Không lưu được thông tin khách tiềm năng");
-        return;
+        return false;
       }
-      setLead((current) => ({ ...current, ...patch }));
-      setSaleDraft(saleDraftFromQuote({ ...lead, ...patch }));
+      setLead((row) => ({ ...row, ...patch }));
+      const saved = saleDraftFromQuote({ ...lead, ...patch });
+      saleDraftRef.current = saved;
+      setSaleDraft(saved);
+      return true;
     } finally {
       setSalePending(false);
     }
@@ -1544,7 +1872,7 @@ export function QuoteEditor({
       quoteStatus,
       contractStatus,
       orders: nextOrders,
-      notes: notesWithFreight(notes, nextOrders),
+      notes: notesWithFreight(notesRef.current, nextOrders),
       bank,
     });
     if (!parsed.success) {
@@ -1564,7 +1892,10 @@ export function QuoteEditor({
   };
 
   const save = () => {
-    void persist(orders, true);
+    void (async () => {
+      if (quoteStep && !(await saveSaleEdit())) return;
+      await persist(orders, true);
+    })();
   };
 
   const openContract = async () => {
@@ -1578,9 +1909,23 @@ export function QuoteEditor({
       setFormError("Nhập thông tin đơn hàng trước khi chuyển logistics");
       return;
     }
+    if (quoteStep && !(await saveSaleEdit())) return;
     const ok = await persist(nextOrders, false);
     if (!ok || !onHandoffLogistics) return;
     const handed = await onHandoffLogistics();
+    if (handed) onClose();
+  };
+
+  const transferSourcing = async (nextOrders: QuoteOrder[] = orders) => {
+    const ready = nextOrders.some((order) => order.lines.some((line) => line.productName?.trim() && line.quantity != null && line.quantity > 0));
+    if (!ready) {
+      setFormError("Nhập mặt hàng và số lượng trước khi chuyển Sourcing");
+      return;
+    }
+    if (quoteStep && !(await saveSaleEdit())) return;
+    const ok = await persist(nextOrders, false);
+    if (!ok || !onHandoffSourcing) return;
+    const handed = await onHandoffSourcing();
     if (handed) onClose();
   };
 
@@ -1671,13 +2016,7 @@ export function QuoteEditor({
     else void downloadOrderExcel(target, lang);
   };
 
-  const clearOrderField = (key: string) => {
-    setOrderFields((current) => withoutOrderFields(current, [key]));
-  };
-
   const openCreate = () => {
-    setOrderError(undefined);
-    setOrderFields({});
     setDraft({
       mode: "create",
       order: {
@@ -1692,31 +2031,10 @@ export function QuoteEditor({
     });
   };
 
-  const saveDraft = async () => {
-    if (!draft || draft.mode === "view") return;
-    const requirePackages = Boolean(saleLogisticsOrder || (packagingRequired && canEditPackaging));
-    const parsed = orderDraftSchema({ requirePackages }).safeParse(draft.order);
-    if (!parsed.success) {
-      const { fields, rest } = orderIssueFields(draft.order, parsed.error.issues);
-      setOrderFields(fields);
-      setOrderError(rest[0]);
-      queueMicrotask(() => {
-        document.querySelector('[role="dialog"] [aria-invalid="true"]')?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      });
-      return;
-    }
-    setOrderFields({});
-    setOrderError(undefined);
-    const data = { ...parsed.data, lines: parsed.data.lines.filter(filledLine) };
-    const next = draft.mode === "create"
-      ? [...orders, data]
-      : orders.map((order) => (order.id === data.id ? data : order));
-    const ok = await persist(next, false);
-    if (ok) {
-      setDraft(null);
-      setOrderFields({});
-    }
-    return ok ? next : null;
+  const persistDraft = async (order: QuoteOrder) => {
+    const exists = orders.some((item) => item.id === order.id);
+    const next = exists ? orders.map((item) => (item.id === order.id ? order : item)) : [...orders, order];
+    return persist(next, false);
   };
 
   const toggle = (id: string, checked: boolean) => {
@@ -1738,16 +2056,16 @@ export function QuoteEditor({
 
   const actions = (
     <>
-      <NativeSelect className="h-9 w-36" aria-label="Ngôn ngữ nhập nội dung" title="Ngôn ngữ đang nhập nội dung chữ (quy cách, ghi chú...)" value={printLang} onChange={(event) => setPrintLang(event.target.value as QuoteLang)}>
+      {!quoteStep && <NativeSelect className="h-9 w-36" aria-label="Ngôn ngữ nhập nội dung" title="Ngôn ngữ đang nhập nội dung chữ (quy cách, ghi chú...)" value={printLang} onChange={(event) => setPrintLang(event.target.value as QuoteLang)}>
         {quoteLangs.map((lang) => <option key={lang} value={lang}>{`Nhập: ${quoteLangLabels[lang]}`}</option>)}
-      </NativeSelect>
-      <Button type="button" variant="outline" onClick={() => askOutput("print")}><Printer />In</Button>
-      <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("pdf")}>
+      </NativeSelect>}
+      {!quoteStep && <Button type="button" variant="outline" onClick={() => askOutput("print")}><Printer />In</Button>}
+      {!quoteStep && <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("pdf")}>
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
-      </Button>
-      <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("excel")}>
+      </Button>}
+      {!quoteStep && <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("excel")}>
         <Download />Tải Excel
-      </Button>
+      </Button>}
       {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
       {!canSendQuote && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
@@ -1764,7 +2082,7 @@ export function QuoteEditor({
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
     : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
-  const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleLogisticsOrder || desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
+  const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleFill ? "sale" : desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
   const [tab, setTab] = useState(defaultTab);
   useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
   const logisticsLeadFacts: [string, string][] = [
@@ -1828,7 +2146,7 @@ export function QuoteEditor({
         </InlineAlert>
       )}
       {needsNewQuote && canEditPricing && <InlineAlert>Sale đã gửi lại báo giá. Hãy tạo mẫu mới rồi bấm Gửi báo giá.</InlineAlert>}
-      {mode === "content" && !saleLogisticsOrder && quote.customerKind !== "LOGISTICS" && (
+      {mode === "content" && !saleFill && quote.customerKind !== "LOGISTICS" && (
         <InlineAlert>
           Sale điền ảnh, số lượng ở Sourcing. Sourcing nhập thông tin đơn hàng và đóng gói; Logistics chỉ nhập chi phí logistics. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
         </InlineAlert>
@@ -1839,24 +2157,24 @@ export function QuoteEditor({
         </InlineAlert>
       )}
       <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleLogisticsOrder ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        {!quoteStep && <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleFill ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {([
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
             ["logistics", "Logistics"],
           ] as const).filter(([value]) => {
             if (pureLogistics) return value === "sale" || value === "logistics";
-            if (saleLogisticsOrder) return value !== "logistics";
+            if (saleFill) return value === "sale";
             return desk !== "logistics" || value !== "sourcing";
           }).map(([value, label]) => (
             <TabsTrigger key={value} value={value} className={tabTriggerClass}>
               {saleLogisticsOrder && value === "sourcing" ? "Thông tin đơn hàng" : label}
             </TabsTrigger>
           ))}
-        </TabsList>
+        </TabsList>}
 
         {(!pureLogistics || tab === "sale") && <div className={pureLogistics ? tabPanelClass : "contents"}>
-        <TabsContent value="sale" className={pureLogistics ? "space-y-4" : tabPanelClass}>
+        {!quoteStep && <TabsContent value="sale" className={pureLogistics ? "space-y-4" : tabPanelClass}>
           {(opsNote.trim() || notes.opsExtra.trim()) && (
             <section className="grid gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
               <h3 className="font-semibold text-amber-950">Ghi chú vận hành</h3>
@@ -1885,7 +2203,7 @@ export function QuoteEditor({
                     {salePending ? "Đang lưu…" : "Lưu thông tin"}
                   </Button>
                 </div>
-              ) : canSaveSale && pureLogistics ? (
+              ) : canSaveSale && (pureLogistics || saleFill) ? (
                 <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => { setSaleError(undefined); setSaleDraft(saleDraftFromQuote(lead)); setEditingSale(true); }}>
                   Sửa thông tin khách
                 </Button>
@@ -2067,10 +2385,16 @@ export function QuoteEditor({
               </>
             )}
           </div>
-        </TabsContent>
+        </TabsContent>}
 
-        <TabsContent value={pureLogistics ? "sale" : "sourcing"} className={pureLogistics ? "space-y-4" : tabPanelClass}>
-          {!pureLogistics && !saleLogisticsOrder && <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
+        <TabsContent value={pureLogistics || saleFill ? "sale" : "sourcing"} className={pureLogistics || saleFill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" : tabPanelClass}>
+          {quoteStep && saleDraft && (
+            <>
+              <QuoteStepNotes key={quote.id} initial={saleDraft} draftRef={saleDraftRef} fieldId={fieldId} />
+              {saleError ? <InlineAlert>{saleError}</InlineAlert> : null}
+            </>
+          )}
+          {!pureLogistics && !saleFill && <div className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-base sm:grid-cols-2">
             <p><span className="text-muted-foreground">Khách hàng: </span>{quote.customerName || "—"}</p>
             <p><span className="text-muted-foreground">Công ty: </span>{quote.companyName || "—"}</p>
             <p><span className="text-muted-foreground">Địa chỉ: </span>{quote.address || "—"}</p>
@@ -2082,6 +2406,9 @@ export function QuoteEditor({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-base font-medium">Thông tin đơn hàng</h3>
               <div className="flex flex-wrap gap-2">
+                {onHandoffSourcing && (
+                  <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferSourcing(); }}>Chuyển Sourcing</Button>
+                )}
                 {onHandoffLogistics && (
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferLogistics(); }}>Chuyển logistics</Button>
                 )}
@@ -2096,24 +2423,27 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Tên mẫu</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Số lượng</th>
-                    <th className="whitespace-nowrap px-3 py-3 font-medium">Tỷ giá</th>
-                    {priceColumns.map((column) => (
+                    {!sourcingSale && <th className="whitespace-nowrap px-3 py-3 font-medium">Tỷ giá</th>}
+                    {!sourcingSale && priceColumns.map((column) => (
                       <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({column.currency})</th>
                     ))}
-                    {priceColumns.map((column) => (
+                    {!sourcingSale && priceColumns.map((column) => (
                       <th key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-3 text-right font-medium">Thành tiền ({column.currency})</th>
                     ))}
+                    {!sourcingSale && <>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Số kiện</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">CBM</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Cân nặng (kg)</th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-medium">Cân tính cước (kg)</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Ghi chú</th>
+                    </>}
+                    {sourcingSale && <th className="whitespace-nowrap px-3 py-3 font-medium">Lưu ý</th>}
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={10 + priceColumns.length * 2} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                    <tr><td colSpan={sourcingSale ? 6 : 10 + priceColumns.length * 2} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                   )}
                   {orders.map((order) => {
                     const totals = quoteTotals(order.lines);
@@ -2169,8 +2499,8 @@ export function QuoteEditor({
                           })}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">{quantityText || "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2 font-medium">{columnsFor(order).map((column) => column.currency).join(" · ")}</td>
-                        {priceColumns.map((column) => {
+                        {!sourcingSale && <td className="whitespace-nowrap px-3 py-2 font-medium">{columnsFor(order).map((column) => column.currency).join(" · ")}</td>}
+                        {!sourcingSale && priceColumns.map((column) => {
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2">
@@ -2183,7 +2513,7 @@ export function QuoteEditor({
                             </td>
                           );
                         })}
-                        {priceColumns.map((column) => {
+                        {!sourcingSale && priceColumns.map((column) => {
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">
@@ -2191,6 +2521,7 @@ export function QuoteEditor({
                             </td>
                           );
                         })}
+                        {!sourcingSale && <>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.packageCount > 0 ? money(totals.packageCount) : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.cbm > 0 ? totals.cbm : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.weighed ? money(totals.weight) : "—"}</td>
@@ -2198,10 +2529,16 @@ export function QuoteEditor({
                         <td className="min-w-40 max-w-xs px-3 py-2">
                           {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
                         </td>
+                        </>}
+                        {sourcingSale && (
+                          <td className="min-w-40 max-w-xs px-3 py-2">
+                            {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
-                            <Button type="button" size="sm" variant="ghost" onClick={() => { setOrderError(undefined); setOrderFields({}); setDraft({ mode: "view", order }); }}><Eye />Xem</Button>
-                            {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setOrderError(undefined); setOrderFields({}); setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } }); }}><Pencil />Sửa</Button>}
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setDraft({ mode: "view", order })}><Eye />Xem</Button>
+                            {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } })}><Pencil />Sửa</Button>}
                             {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
                           </div>
                         </td>
@@ -2223,20 +2560,20 @@ export function QuoteEditor({
           )}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {pureLogistics && (
-              <WeightNoteField id={fieldId("sale-weight-note")} className="sm:col-span-2" notes={notes} setNotes={setNotes} lang={printLang} disabled={!canEditSaleNotes} />
+            {(pureLogistics || sourcingSale) && (
+              <WeightNoteField id={fieldId("sale-weight-note")} className="sm:col-span-2" notes={notes} setNotes={commitNotes} lang={printLang} disabled={!canEditSaleNotes} />
             )}
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
-              <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditSaleNotes} onChange={(event) => setNotes({ ...notes, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
+              <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditSaleNotes} onChange={(event) => commitNotes({ ...notesRef.current, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
             </Field>
             <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-              <Input id={fieldId("note-valid")} value={printLang === "en" ? notes.validityNoteEn : notes.validityNote} disabled={!canEditSaleNotes} onChange={(event) => setNotes(printLang === "en" ? { ...notes, validityNoteEn: event.target.value } : { ...notes, validityNote: event.target.value })} placeholder={printLang === "en" ? notes.validityNote || "Quotation validity" : "Báo giá có hiệu lực kể từ ngày báo giá (...)"} />
+              <DraftText id={fieldId("note-valid")} value={printLang === "en" ? notes.validityNoteEn : notes.validityNote} disabled={!canEditSaleNotes} onValueChange={(next) => commitNotes(printLang === "en" ? { ...notesRef.current, validityNoteEn: next } : { ...notesRef.current, validityNote: next })} placeholder={printLang === "en" ? notes.validityNote || "Quotation validity" : "Báo giá có hiệu lực kể từ ngày báo giá (...)"} />
             </Field>
             <div className="grid gap-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">Thông tin đặt cọc</span>
                 {canEditSaleNotes && printLang === "vi" && (
-                  <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => setNotes({ ...notes, deposit: [...notes.deposit, ""] })}>
+                  <Button type="button" variant="outline" size="sm" disabled={pending || notes.deposit.length >= 20} onClick={() => commitNotes({ ...notesRef.current, deposit: [...notesRef.current.deposit, ""] })}>
                     <Plus />Thêm dòng
                   </Button>
                 )}
@@ -2244,18 +2581,21 @@ export function QuoteEditor({
               {notes.deposit.length === 0 && <p className="text-sm text-muted-foreground">Chưa có dòng đặt cọc.</p>}
               {notes.deposit.map((line, index) => (
                 <div key={index} className="flex gap-2">
-                  <Input
+                  <DraftText
                     id={index === 0 ? fieldId("note-deposit") : undefined}
                     aria-label={`Thông tin đặt cọc ${index + 1}`}
                     value={printLang === "en" ? notes.depositEn[index] ?? "" : line}
                     placeholder={printLang === "en" ? line : undefined}
                     disabled={!canEditSaleNotes}
-                    onChange={(event) => setNotes(printLang === "en"
-                      ? { ...notes, depositEn: notes.deposit.map((_, itemIndex) => itemIndex === index ? event.target.value : notes.depositEn[itemIndex] ?? "") }
-                      : { ...notes, deposit: notes.deposit.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })}
+                    onValueChange={(next) => {
+                      const current = notesRef.current;
+                      commitNotes(printLang === "en"
+                        ? { ...current, depositEn: current.deposit.map((_, itemIndex) => itemIndex === index ? next : current.depositEn[itemIndex] ?? "") }
+                        : { ...current, deposit: current.deposit.map((item, itemIndex) => itemIndex === index ? next : item) });
+                    }}
                   />
                   {canEditSaleNotes && printLang === "vi" && (
-                    <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => setNotes({ ...notes, deposit: notes.deposit.filter((_, itemIndex) => itemIndex !== index), depositEn: notes.depositEn.filter((_, itemIndex) => itemIndex !== index) })}>
+                    <Button type="button" variant="ghost" size="icon" aria-label={`Xóa dòng đặt cọc ${index + 1}`} disabled={pending} onClick={() => { const current = notesRef.current; commitNotes({ ...current, deposit: current.deposit.filter((_, itemIndex) => itemIndex !== index), depositEn: current.depositEn.filter((_, itemIndex) => itemIndex !== index) }); }}>
                       <Trash2 />
                     </Button>
                   )}
@@ -2264,13 +2604,13 @@ export function QuoteEditor({
             </div>
           </div>
 
-          {!pureLogistics && showPackaging && <OrderPackagesBlock
+          {!pureLogistics && !sourcingSale && showPackaging && <OrderPackagesBlock
             orders={orders}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
           />}
 
-          {!pureLogistics && !saleLogisticsOrder && <LogisticsFeesEditor
+          {!pureLogistics && !saleFill && <LogisticsFeesEditor
             notes={notes}
             setNotes={setNotes}
             canEdit={canEditLogisticsFees}
@@ -2280,7 +2620,7 @@ export function QuoteEditor({
             order={selectedOrder}
             lang={printLang}
           />}
-          {!pureLogistics && <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+          {!pureLogistics && !quoteStep && <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
             <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
               <NativeSelect id={fieldId("quote-template")} value={templateId} disabled={!canEditPricing} onChange={(event) => setTemplateId(event.target.value)}>
                 <option value="">Chưa chọn</option>
@@ -2468,7 +2808,7 @@ export function QuoteEditor({
 
 
       </Tabs>
-      {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter>{actions}</DialogFooter>}
+      {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter className="shrink-0">{actions}</DialogFooter>}
     </>
   );
 
@@ -2481,9 +2821,12 @@ export function QuoteEditor({
         </section>
       ) : (
         <Dialog open onOpenChange={(open) => { if (!open && !draft) onClose(); }}>
-          <DialogContent className="flex max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none">
-            <DialogHeader>
-              <DialogTitle>{pureLogistics ? `Báo giá ${quote.code}` : saleLogisticsOrder ? `Thông tin đơn hàng · ${quote.leadCode || quote.code}` : `Báo giá ${quote.code}`}</DialogTitle>
+          <DialogContent
+            className="max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col gap-4 sm:max-w-none"
+            style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{quoteStep ? `Bước báo giá · ${quote.code}` : `Báo giá ${quote.code}`}</DialogTitle>
             </DialogHeader>
             {sheet}
           </DialogContent>
@@ -2514,100 +2857,27 @@ export function QuoteEditor({
       )}
 
       {draft && (
-        <Dialog open onOpenChange={(open) => { if (!open) { setDraft(null); setOrderFields({}); setOrderError(undefined); } }}>
-          <DialogContent className="z-[80] w-[min(96vw,90rem)] max-w-none sm:max-w-none">
-            <DialogHeader>
-              <DialogTitle>
-                {draft.mode === "create" ? "Tạo thông tin đơn hàng" : draft.mode === "edit" ? "Sửa thông tin đơn hàng" : "Xem thông tin đơn hàng"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="grid max-h-[68vh] gap-4 overflow-y-auto pr-1">
-              {orderError && <InlineAlert>{orderError}</InlineAlert>}
-              {draft.mode !== "view" && (
-                <InlineAlert>
-                  {pureLogistics || saleLogisticsOrder
-                    ? "Sale nhập ảnh, số lượng, quy cách và đóng gói. Logistics nhập đơn giá và chi phí logistics."
-                    : "Sourcing điền ảnh, số lượng, quy cách, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
-                </InlineAlert>
-              )}
-              <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4">
-                <Field label="Tên thông tin đơn hàng" htmlFor={fieldId("order-name")} error={orderFields.name} required>
-                  <Input
-                    id={fieldId("order-name")}
-                    value={draft.order.name}
-                    disabled={draft.mode === "view"}
-                    onChange={(event) => {
-                      setDraft({ ...draft, order: { ...draft.order, name: event.target.value } });
-                      clearOrderField("name");
-                    }}
-                    placeholder="VD: Mẫu A — 500 set"
-                  />
-                </Field>
-              </div>
-              {draft.mode === "view" ? (
-                <QuoteSheetPreview html={previewHtml} title={`Xem trước ${draft.order.name || quote.code}`} />
-              ) : (
-                <>
-                {!pureLogistics && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriceColumnPicker
-                      orders={[draft.order]}
-                      disabled={!canEditOrderPrices}
-                      onSelect={(currency) => {
-                        setDraft({ ...draft, order: selectRateColumn(draft.order, currency) });
-                      }}
-                    />
-                  </div>
-                )}
-                <OrderLines
-                  lang={printLang}
-                  showPricing={!pureLogistics}
-                  lines={draft.order.lines}
-                  currency={draft.order.currency}
-                  columns={columnsFor(draft.order)}
-                  canEditContent={canEditContent}
-                  canEditPricing={canEditOrderPrices}
-                  packagingRequired={saleLogisticsOrder || showPackaging}
-                  canEditPackaging={canEditPackaging}
-                  errors={orderFields}
-                  onChange={(lines) => setDraft({ ...draft, order: { ...draft.order, lines } })}
-                  onError={setOrderError}
-                  onClearError={clearOrderField}
-                />
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              {draft.mode === "view" && (
-                <>
-                  <Button type="button" variant="outline" onClick={() => setOutputPick({ action: "print", order: draft.order })}><Printer />In</Button>
-                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => setOutputPick({ action: "pdf", order: draft.order })}>
-                    <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
-                  </Button>
-                  <Button type="button" variant="outline" disabled={pdfPending} onClick={() => setOutputPick({ action: "excel", order: draft.order })}>
-                    <Download />Tải Excel
-                  </Button>
-                  {canEditContent && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() => {
-                        setOrderError(undefined);
-                        setOrderFields({});
-                        setDraft({ mode: "edit", order: { ...draft.order, lines: draft.order.lines.map((line) => ({ ...line })) } });
-                      }}
-                    >
-                      <Pencil />Sửa
-                    </Button>
-                  )}
-                </>
-              )}
-              <Button type="button" variant="outline" onClick={() => setDraft(null)}>Đóng</Button>
-              {draft.mode !== "view" && <Button type="button" disabled={pending} onClick={() => void saveDraft()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <OrderDraftDialog
+          key={`${draft.order.id}:${draft.mode}`}
+          mode={draft.mode}
+          order={draft.order}
+          pending={pending}
+          sourcingSale={sourcingSale}
+          pureLogistics={pureLogistics}
+          saleLogisticsOrder={saleLogisticsOrder}
+          showPackaging={showPackaging}
+          canEditContent={canEditContent}
+          canEditOrderPrices={canEditOrderPrices}
+          canEditPackaging={canEditPackaging}
+          printLang={printLang}
+          quoteCode={quote.code}
+          fieldId={fieldId}
+          pdfPending={pdfPending}
+          previewHtml={previewHtml}
+          onClose={() => setDraft(null)}
+          onPersist={persistDraft}
+          onOutput={(action, order) => setOutputPick({ action, order })}
+        />
       )}
 
       <ConfirmDialog
