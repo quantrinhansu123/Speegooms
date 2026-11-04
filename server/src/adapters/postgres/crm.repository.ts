@@ -333,6 +333,7 @@ function asLines(value: unknown): QuoteLine[] {
     const images = asImages(row.images, row.image);
     return [{
       stt: textField(row.stt),
+      productName: textField(row.productName),
       image: images[0] ?? "",
       images,
       quantity: optionalAmount(row.quantity),
