@@ -486,7 +486,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Thị trường" htmlFor="mess-market" hint="Chọn gợi ý hoặc gõ mới">
                 <Input id="mess-market" list="mess-market-options" value={draft.market} placeholder="Ví dụ: Mỹ, Úc, Canada" onChange={(event) => setDraft({ ...draft, market: event.target.value })} />
                 <datalist id="mess-market-options">
-                  {marketOptions.map((item) => <option key={item} value={item} />)}
+                  {marketOptions.map(([market]) => <option key={market} value={market} />)}
                 </datalist>
               </Field>
               <Field label="Phân loại" htmlFor="mess-class">
