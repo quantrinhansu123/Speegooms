@@ -23,7 +23,7 @@ export const paymentStatusMeta: Record<PaymentStatus, { label: string; tone: Sta
 
 /** Ba bước tách nhau của một đề nghị chi: nhập → duyệt → chi. */
 export const paymentSteps = [
-  { key: "enter", label: "Nhập", doneBy: "Vận hành" },
+  { key: "enter", label: "Nhập", doneBy: "Vận hành hoặc Kế toán" },
   { key: "approve", label: "Duyệt", doneBy: "Người duyệt theo cấp" },
   { key: "pay", label: "Chi", doneBy: "Kế toán" },
 ] as const;

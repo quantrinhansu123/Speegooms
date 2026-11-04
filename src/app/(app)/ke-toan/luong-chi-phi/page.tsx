@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { PayrollView } from "@/features/accounting/components/payroll-view";
+import { PayrollLiveView } from "@/features/accounting/live/payroll-live-view";
 
 export const metadata: Metadata = { title: "Lương & chi phí nội bộ" };
 
 export const instant = false;
 
 export default function Page() {
-  return <PayrollView />;
+  return <PayrollLiveView />;
 }

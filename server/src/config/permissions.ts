@@ -21,6 +21,13 @@ export const permissions = {
   "contract.accounting": ["admin", "ke-toan"],
   "contract.delete": ["ke-toan"],
   "contract.resend": ["admin", "sale-vn", "sale-global", "van-hanh", "ke-toan"],
+  /** Kế toán: nhập (Vận hành hoặc Kế toán), duyệt và chi tách người. */
+  "payment.read": ["admin", "ban-gd", "van-hanh", "ke-toan"],
+  "payment.create": ["admin", "van-hanh", "ke-toan"],
+  "payroll.read": ["admin", "ban-gd", "ke-toan"],
+  "payroll.write": ["admin", "ke-toan"],
+  "expense.read": ["admin", "ban-gd", "ke-toan"],
+  "expense.write": ["admin", "ke-toan"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof permissions;
