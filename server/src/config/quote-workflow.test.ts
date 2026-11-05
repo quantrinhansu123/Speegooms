@@ -8,7 +8,7 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import { accountingContractSchema, createContractSchema, contractPaymentFlags, fclChargeTotal, fclTotals, quoteAmount, shippingInCurrency } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, contractPaymentFlags, fclChargeTotal, fclTotals, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -34,6 +34,7 @@ test("FCL charges include VAT and optional trucking only in the full total", () 
   const quote = handoffInput();
   quote.notes.fcl = { to: "Customer", pol: "Yantian", pod: "LAX", etd: "", weight: "12 tons", volume: "1x40HC", commodity: "Furniture", stuffingDate: "", charges, notes: "" };
   assert.deepEqual(quoteAmount({ ...quote, shippingMode: "SEA", logisticsClass: "FCL" }, "logistics"), { amount: 8108, currency: "USD", rate: null });
+  assert.deepEqual(shippingAmount({ ...quote, shippingMode: "SEA", logisticsClass: "FCL" }), { amount: 8108, currency: "USD" });
 });
 
 test("combined sourcing routes viewing and notifications to the correct desk", () => {
@@ -422,13 +423,61 @@ test("quote totals use costs, avoid double counting, and convert contract shippi
   input.notes.logisticsFees = [{ label: "Cảng", labelEn: "", value: "1.000.000", currency: "", itemStt: "" }, { label: "Vận chuyển", labelEn: "", value: "500.000", currency: "", itemStt: "" }];
   assert.equal(quoteAmount(input, "sourcing").amount, 6000);
   assert.equal(quoteAmount(input, "logistics").amount, 1500000);
+  assert.equal(quoteAmount(input, "logistics").currency, "VND");
   input.notes.shippingLabel = "2.000.000";
-  assert.equal(quoteAmount(input, "logistics").amount, 2000000);
-  assert.equal(shippingInCurrency(input, { currency: "USD", rate: 25000 }), 80);
+  assert.equal(quoteAmount(input, "logistics").amount, 1500000);
+  assert.equal(shippingInCurrency(input, { currency: "USD", rate: 25000 }), 60);
   assert.equal(shippingInCurrency(input, { currency: "USD", rate: null }), null);
   input.notes.shippingLabel = "";
   input.notes.logisticsFees[0].value = "Chưa chốt";
   assert.equal(quoteAmount(input, "logistics").amount, null);
+});
+
+test("logistics total keeps the fee currency when freight currency was left blank", () => {
+  const order = {
+    id: "00000000-0000-4000-8000-000000000001", name: "Pepe", selected: true, currency: "VND", rate: null,
+    priceColumns: [{ currency: "USD", rate: 25769.0653 }], lines: [],
+  };
+  const notes = {
+    ...handoffInput().notes,
+    freight: { rate: 3.5, cbmRate: null, basis: "kg" as const, currency: "", total: 857.15, totalManual: false },
+    logisticsFees: [{ label: "Phụ phí địa chỉ", labelEn: "", value: "36,", currency: "USD", itemStt: "" }],
+  };
+  const total = quoteAmount({ orders: [order], notes }, "logistics");
+  assert.equal(total.currency, "USD");
+  assert.equal(total.amount, 893.15);
+  assert.equal(total.rate, 25769.0653);
+  assert.equal(shippingInCurrency({ orders: [order], notes }, { currency: "VND", rate: null }), 23015640.67);
+});
+
+test("contract amounts keep only the entered currency, not rate-converted columns", () => {
+  const order = {
+    id: "00000000-0000-4000-8000-000000000001", name: "Pepe", selected: true, currency: "VND" as const, rate: null,
+    priceColumns: [{ currency: "USD" as const, rate: 25769.0653 }],
+    lines: [
+      { lineTotal: 5242974, prices: [{ currency: "USD", lineTotal: 203.46 }] },
+      { lineTotal: 8480084, prices: [{ currency: "USD", lineTotal: 329.08 }] },
+      { lineTotal: 31458102, prices: [{ currency: "USD", lineTotal: 1220.77 }] },
+    ],
+  };
+  const notes = {
+    ...handoffInput().notes,
+    freight: { rate: 3.5, cbmRate: null, basis: "kg" as const, currency: "", total: 857.15, totalManual: false },
+    logisticsFees: [{ label: "Phụ phí địa chỉ", labelEn: "", value: "36,", currency: "USD", itemStt: "" }],
+  };
+  const product = productAmounts(order as never);
+  const shipping = shippingAmount({ orders: [order as never], notes });
+  assert.deepEqual(product, [{ currency: "VND", amount: 45181160 }]);
+  assert.deepEqual(shipping, { currency: "USD", amount: 893.15 });
+  const totals = sumByCurrency([product, shipping ? [shipping] : []]);
+  assert.deepEqual(remainderByCurrency(totals, "VND", 2627), [
+    { currency: "VND", amount: 45178533 },
+    { currency: "USD", amount: 893.15 },
+  ]);
+  assert.deepEqual(remainderAfterPayments(totals, [{ currency: "VND", amount: 2363 }, { currency: "USD", amount: 264 }]), [
+    { currency: "VND", amount: 45178797 },
+    { currency: "USD", amount: 629.15 },
+  ]);
 });
 
 test("accounting must enter a positive amount for every confirmation", () => {
@@ -489,6 +538,31 @@ test("creating a contract uses persisted Logistics costs instead of a submitted 
     assert.equal(inserted?.[9], 1250);
     assert.equal(inserted?.[10], 11250);
   }
+});
+
+test("creating a contract keeps logistics currency instead of converting it", async () => {
+  const sheet = handoffInput();
+  sheet.notes.freight = { rate: 3.5, cbmRate: null, basis: "kg", currency: "", total: 857.15, totalManual: false };
+  sheet.notes.logisticsFees = [{ label: "Phụ phí địa chỉ", labelEn: "", value: "36,", currency: "USD", itemStt: "" }];
+  sheet.orders[0].priceColumns = [{ currency: "USD", rate: 25769.0653 }];
+  let inserted: unknown[] | undefined;
+  const repository = new PostgresCrmRepository({
+    query: async (sql: string, values: unknown[]) => {
+      if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGS" }] };
+      if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: sheet, created_at: new Date() }] };
+      if (sql.includes("insert into crm.hop_dong (")) inserted = values;
+      return { rowCount: 0, rows: [] };
+    },
+  } as unknown as pg.Pool);
+  await repository.createContract("vn", "quote", createContractSchema.parse({
+    currency: "VND", customerName: "Khách", saleName: "Sale", shipTo: "", product: "Hàng", quantity: 1,
+    productValue: 10000, shippingCost: 999, totalValue: 10999, paidAmount: 0, signedOn: "",
+  }));
+  assert.equal(inserted?.[9], 893.15);
+  assert.equal(inserted?.[10], 10000);
+  assert.equal(inserted?.[15], "USD");
+  const stored = JSON.parse(String(inserted?.[16])) as { shipping: { currency: string; amount: number }[] };
+  assert.deepEqual(stored.shipping, [{ currency: "USD", amount: 893.15 }]);
 });
 
 test("Sale cannot set prices on new orders or new lines; Logistics prices them later", () => {

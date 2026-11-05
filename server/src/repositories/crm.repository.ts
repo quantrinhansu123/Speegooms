@@ -179,6 +179,7 @@ export type LogisticsQuoteRequestResult =
 
 export interface ContractPaymentLine {
   amount: number;
+  currency: string;
   paidOn: string | null;
   note: string;
   images: string[];
@@ -205,6 +206,8 @@ export interface ContractRecord {
   currency: QuoteCurrency;
   productValue: number;
   shippingCost: number;
+  /** Giá và cước theo loại tiền đã nhập. Không quy đổi chung. */
+  amounts: { product: { currency: string; amount: number }[]; shipping: { currency: string; amount: number }[] };
   totalValue: number;
   paidAmount: number;
   payments: ContractPaymentLine[];

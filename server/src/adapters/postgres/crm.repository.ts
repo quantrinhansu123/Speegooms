@@ -1,6 +1,8 @@
 import {
   isCombinedSourcing,
-  shippingInCurrency,
+  productAmounts,
+  shippingAmount,
+  sumByCurrency,
   logisticsOrderFromSourcing,
   orderHasContent,
   sourcingHandoffOrder,
@@ -690,6 +692,33 @@ function moneyValue(value: string | number | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function moneyParts(value: unknown): { currency: string; amount: number }[] | null {
+  if (!Array.isArray(value)) return null;
+  const parts = value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as { currency?: unknown; amount?: unknown };
+    if (typeof row.amount !== "number" && typeof row.amount !== "string") return [];
+    return [{ currency: asCurrency(row.currency), amount: moneyValue(row.amount) }];
+  });
+  return parts.length > 0 ? parts : null;
+}
+
+/** Khoản đã lưu theo loại tiền. Hợp đồng cũ chỉ có một loại tiền cho cả sản phẩm và cước. */
+function amountsFromRow(row: ContractRow): ContractRecord["amounts"] {
+  const body = row.amounts_body && typeof row.amounts_body === "object" && !Array.isArray(row.amounts_body)
+    ? row.amounts_body as { product?: unknown; shipping?: unknown }
+    : null;
+  const currency = asCurrency(row.currency);
+  const shippingCurrency = asCurrency(row.shipping_currency || row.currency);
+  // Hợp đồng cũ lưu thêm giá sản phẩm quy đổi theo tỷ giá; chỉ giữ loại tiền chính của hợp đồng.
+  const storedProduct = moneyParts(body?.product);
+  const mainProduct = storedProduct?.filter((item) => item.currency === currency) ?? [];
+  return {
+    product: mainProduct.length > 0 ? mainProduct : storedProduct ?? [{ currency, amount: moneyValue(row.product_value) }],
+    shipping: moneyParts(body?.shipping) ?? [{ currency: shippingCurrency, amount: moneyValue(row.shipping_cost) }],
+  };
+}
+
 type ContractRow = {
   id: string;
   code: string;
@@ -703,6 +732,8 @@ type ContractRow = {
   industry: IndustryCategory | null;
   quantity: string | number | null;
   currency: string;
+  shipping_currency: string | null;
+  amounts_body: unknown;
   product_value: string | number;
   shipping_cost: string | number;
   total_value: string | number;
@@ -800,7 +831,8 @@ function contractSelect(): string {
          h.ma_bao_gia::text as quote_id, h.ma_bao_gia_hien_thi as quote_code,
          h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name,
          h.van_chuyen_den as ship_to, h.san_pham as product, h.nganh_hang as industry, h.so_luong as quantity,
-         h.loai_tien as currency, h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
+         h.loai_tien as currency, h.loai_tien_van_chuyen as shipping_currency, h.khoan_tien as amounts_body,
+         h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
          h.tong_gia_tri as total_value, h.so_tien_thanh_toan as paid_amount, h.so_tien_con_lai as balance,
          coalesce(pays.payments, '[]'::jsonb) as payments,
          h.ngay_ky::text as signed_on, h.trang_thai_van_hanh as ops_status, h.tracking,
@@ -823,6 +855,7 @@ function contractSelect(): string {
   left join lateral (
     select jsonb_agg(jsonb_build_object(
       'amount', d.so_tien,
+      'currency', d.loai_tien,
       'paidOn', to_char(d.ngay_chuyen, 'YYYY-MM-DD'),
       'note', coalesce(d.ghi_chu, ''),
       'images', coalesce(d.anh_bill, '[]'::jsonb)
@@ -855,7 +888,12 @@ function imageList(value: unknown): string[] {
   return parsed.flatMap((item) => (typeof item === "string" ? [item] : []));
 }
 
-function paymentList(value: unknown): ContractRecord["payments"] {
+function paymentCurrency(value: unknown, fallback: string): string {
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return /^[A-Z]{3}$/.test(code) ? code : asCurrency(fallback);
+}
+
+function paymentList(value: unknown, fallbackCurrency: string): ContractRecord["payments"] {
   let parsed = value;
   if (typeof value === "string") {
     try {
@@ -872,7 +910,7 @@ function paymentList(value: unknown): ContractRecord["payments"] {
     const paidOn = typeof row.paidOn === "string" && row.paidOn ? row.paidOn.slice(0, 10) : null;
     const note = typeof row.note === "string" ? row.note : "";
     const images = imageList(row.images);
-    return [{ amount, paidOn, note, images }];
+    return [{ amount, currency: paymentCurrency(row.currency, fallbackCurrency), paidOn, note, images }];
   });
 }
 
@@ -897,7 +935,7 @@ function confirmationList(value: unknown): ContractRecord["confirmations"] {
 }
 
 function toContract(row: ContractRow): ContractRecord {
-  const payments = paymentList(row.payments);
+  const payments = paymentList(row.payments, row.currency);
   const paidAmount = moneyValue(row.paid_amount);
   const confirmations = confirmationList(row.confirmations);
   const confirmedAmount = row.confirmed_amount == null ? null : moneyValue(row.confirmed_amount);
@@ -917,12 +955,13 @@ function toContract(row: ContractRow): ContractRecord {
     currency: asCurrency(row.currency),
     productValue: moneyValue(row.product_value),
     shippingCost: moneyValue(row.shipping_cost),
+    amounts: amountsFromRow(row),
     totalValue: moneyValue(row.total_value),
     paidAmount,
     payments: payments.length > 0
       ? payments
       : paidAmount > 0
-        ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }]
+        ? [{ amount: paidAmount, currency: asCurrency(row.currency), paidOn: null, note: "", images: [] }]
         : [],
     balance: moneyValue(row.balance),
     signedOn: dayText(row.signed_on),
@@ -1015,8 +1054,8 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     shippingCost: snapMoney(source, "shippingCost"),
     totalValue: snapMoney(source, "totalValue"),
     paidAmount,
-    payments: paymentList(source.payments).length > 0 ? paymentList(source.payments)
-      : paidAmount > 0 ? [{ amount: paidAmount, paidOn: null, note: "", images: [] }] : [],
+    payments: paymentList(source.payments, asCurrency(source.currency)).length > 0 ? paymentList(source.payments, asCurrency(source.currency))
+      : paidAmount > 0 ? [{ amount: paidAmount, currency: asCurrency(source.currency), paidOn: null, note: "", images: [] }] : [],
     balance: snapMoney(source, "balance"),
     signedOn: snapNullableText(source, "signedOn"),
   };
@@ -1890,19 +1929,25 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     const industry = category.rows[0]?.industry ?? null;
     const source = await this.findQuote(lane, "sourcing", quoteId);
-    if (source?.logisticsSheet) {
-      const order = source.sentQuote?.order ?? source.orders.find((item) => item.selected) ?? source.orders[0];
-      const shipping = shippingInCurrency(source.logisticsSheet, { currency: input.currency, rate: order?.currency === input.currency ? order.rate : null });
-      if (shipping == null) throw new AppError(400, "RULE", "Chi phí vận chuyển hoặc tỷ giá trên báo giá chưa hợp lệ");
-      input = { ...input, shippingCost: shipping, totalValue: input.productValue + shipping };
-      if (input.paidAmount > input.totalValue) throw new AppError(400, "RULE", "Thanh toán vượt tổng hợp đồng");
-    }
+    const order = source?.sentQuote?.order ?? source?.orders.find((item) => item.selected) ?? source?.orders[0];
+    const product = productAmounts(order);
+    const productValue = product.find((item) => item.currency === input.currency)?.amount ?? input.productValue;
+    const productLines = product.length > 0 ? product : [{ currency: input.currency, amount: productValue }];
+    const linkedShipping = source?.logisticsSheet ? shippingAmount(source.logisticsSheet) : null;
+    if (source?.logisticsSheet && !linkedShipping) throw new AppError(400, "RULE", "Chi phí vận chuyển trên báo giá chưa hợp lệ");
+    const shippingCurrency = linkedShipping?.currency ?? input.currency;
+    const shippingCost = linkedShipping?.amount ?? input.shippingCost;
+    const totalValue = shippingCurrency === input.currency ? Math.round((productValue + shippingCost) * 100) / 100 : productValue;
+    input = { ...input, productValue, shippingCost, totalValue };
+    if (input.paidAmount > input.totalValue) throw new AppError(400, "RULE", "Thanh toán vượt tổng hợp đồng");
+    const amounts = { product: productLines, shipping: [{ currency: shippingCurrency, amount: shippingCost }] };
     await this.query(
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,
-         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien, nganh_hang
+         san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien, nganh_hang,
+         loai_tien_van_chuyen, khoan_tien
        ) values (
-         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $15
+         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $15, $16, $17::jsonb
        ) on conflict (tuyen, ma_bao_gia) do nothing`,
       [
         lane,
@@ -1920,17 +1965,19 @@ export class PostgresCrmRepository implements CrmRepository {
         input.signedOn || null,
         input.currency,
         industry,
+        shippingCurrency,
+        JSON.stringify(amounts),
       ],
     );
     if (input.paidAmount > 0) {
       await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu)
-         select id, $3, 1 from crm.hop_dong
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu, loai_tien)
+         select id, $3, 1, $4 from crm.hop_dong
          where tuyen = $1 and ma_bao_gia = $2::uuid
            and not exists (
              select 1 from crm.hop_dong_dong_thanh_toan d where d.ma_hop_dong = crm.hop_dong.id
            )`,
-        [lane, quoteId, input.paidAmount],
+        [lane, quoteId, input.paidAmount, input.currency],
       );
     }
     await this.query(
@@ -2028,8 +2075,10 @@ export class PostgresCrmRepository implements CrmRepository {
     const payments = input.payments.filter(
       (line) => line.amount > 0 || line.paidOn || line.note || line.images.length > 0,
     );
-    const paidAmount = payments.reduce((sum, line) => sum + line.amount, 0);
-    if (paidAmount > current.totalValue) return "invalid" as const;
+    const totals = sumByCurrency([current.amounts.product, current.amounts.shipping]);
+    const paidGroups = sumByCurrency([payments.map((line) => ({ currency: line.currency || current.currency, amount: line.amount }))]);
+    if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0))) return "invalid" as const;
+    const paidAmount = paidGroups.find((group) => group.currency === current.currency)?.amount ?? 0;
     const updated = await this.query(
       `update crm.hop_dong set so_tien_thanh_toan = $3
        where id = $1::uuid and tuyen = $2`,
@@ -2040,9 +2089,9 @@ export class PostgresCrmRepository implements CrmRepository {
     const flatImages: string[] = [];
     for (const [index, line] of payments.entries()) {
       await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu, anh_bill)
-         values ($1::uuid, $2, $3::date, $4, $5, $6::jsonb)`,
-        [id, line.amount, line.paidOn || null, blank(line.note), index + 1, JSON.stringify(line.images)],
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu, anh_bill, loai_tien)
+         values ($1::uuid, $2, $3::date, $4, $5, $6::jsonb, $7)`,
+        [id, line.amount, line.paidOn || null, blank(line.note), index + 1, JSON.stringify(line.images), line.currency || current.currency],
       );
       flatImages.push(...line.images);
     }

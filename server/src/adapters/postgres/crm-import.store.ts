@@ -331,8 +331,8 @@ export class PostgresCrmImportStore {
     await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
     if (input.paidAmount > 0) {
       await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu) values ($1::uuid, $2, 1)`,
-        [id, input.paidAmount],
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu, loai_tien) values ($1::uuid, $2, 1, $3)`,
+        [id, input.paidAmount, input.currency],
       );
     }
   }

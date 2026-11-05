@@ -1,6 +1,6 @@
 "use client";
 
-import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, type QuoteLang } from "@speego/shared";
+import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -179,7 +179,7 @@ function FreightCostEditor({
           </NativeSelect>
         </Field>
         <Field label="Loại tiền cước" htmlFor={fieldId("freight-currency")}>
-          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || order?.currency || "VND"} disabled={!canEdit} onChange={(currency) => write({ ...freight, currency })} />
+          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => write({ ...freight, currency })} />
         </Field>
         {freight.basis !== "cbm" && <Field label="Giá cước / kg" htmlFor={fieldId("freight-rate")}>
           <MoneyInput id={fieldId("freight-rate")} fractionDigits={3} value={freight.rate} disabled={!canEdit} onValueChange={(rate) => write({ ...freight, rate })} aria-label="Giá cước / kg" />
@@ -232,6 +232,7 @@ function LogisticsFeesEditor({
 }) {
   const fees = notes.logisticsFees ?? [];
   const currency = order?.currency || "VND";
+  const freightCurrency = resolvedFreightCurrency(notes, currency);
   const items = (order?.lines ?? []).map((line, index) => ({ stt: line.stt.trim() || String(index + 1), line }));
   const itemKeys = new Set(items.map((item) => item.stt));
   /** Phí chung, gồm cả phí của mặt hàng đã bị xóa để không mất dữ liệu. */
@@ -247,7 +248,7 @@ function LogisticsFeesEditor({
     totals.set(code, Math.round(((totals.get(code) ?? 0) + value) * 1000) / 1000);
   }
   if (freightTotal != null) {
-    const code = freight.currency || currency;
+    const code = freight.currency?.trim() || freightCurrency;
     totals.set(code, Math.round(((totals.get(code) ?? 0) + freightTotal) * 1000) / 1000);
   }
   const emptyFee = (patch: Partial<LogisticsFee>): LogisticsFee => ({ label: "", labelEn: "", value: "", currency: "", itemStt: "", ...patch });
@@ -2442,7 +2443,8 @@ export function QuoteEditor({
         <TabsContent value={pureLogistics || saleFill ? "sale" : "sourcing"} className={pureLogistics || saleFill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" : tabPanelClass}>
           {quoteStep && saleDraft && (
             <>
-              <QuoteStepNotes key={quote.id} initial={saleDraft} draftRef={saleDraftRef} fieldId={fieldId} />
+              {/* Nhu cầu Tìm hàng: Sale chỉ nhập mặt hàng/ảnh/số lượng/lưu ý từng dòng, không hiện Yêu cầu của khách + Ghi chú sale. */}
+              {!sourcingSale && <QuoteStepNotes key={quote.id} initial={saleDraft} draftRef={saleDraftRef} fieldId={fieldId} />}
               {saleError ? <InlineAlert>{saleError}</InlineAlert> : null}
             </>
           )}

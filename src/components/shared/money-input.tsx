@@ -42,15 +42,8 @@ export function MoneyInput({ value, onValueChange, onFocus, onBlur, name, fracti
           onBlur?.(event);
         }}
         onChange={(event) => {
-          let raw = event.target.value;
-          // Dấu "." vừa gõ là dấu thập phân (bàn phím en/numpad), không phải dấu ngăn nghìn: "876.123" ≠ 876123.
-          const pos = event.target.selectionStart ?? 0;
-          if (fractionDigits > 0 && (event.nativeEvent as InputEvent).data === "." && raw[pos - 1] === ".") {
-            const head = raw.slice(0, pos - 1).replace(/\./g, "");
-            const tail = raw.slice(pos).replace(/\./g, "");
-            raw = raw.includes(",") ? head + tail : `${head},${tail}`;
-          }
-          const next = formatMoneyInput(raw, fractionDigits);
+          // Không tự đổi "." thành ",": dấu "," là dấu thập phân người dùng tự gõ, "." chỉ là ngăn nghìn tự động.
+          const next = formatMoneyInput(event.target.value, fractionDigits);
           setText(next);
           onValueChange(next.trim() ? parseMoneyInput(next) : null);
         }}
