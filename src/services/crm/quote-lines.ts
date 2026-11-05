@@ -57,7 +57,7 @@ const packageText = {
   },
 } as const;
 
-/** Mô tả đóng gói để in vào cột Note, giống cách sheet đang ghi tay. */
+/** Mô tả đóng gói để in cùng cột Quy cách. */
 export function packagesText(packages: PackageSpec[], lang: QuoteLang = "vi") {
   const m = packageMetrics(packages);
   const text = packageText[lang];

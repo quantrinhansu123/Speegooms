@@ -110,7 +110,7 @@ export interface QuoteSheetFreight {
 
 export interface QuoteSheetDeps {
   /** Mô tả đóng gói theo ngôn ngữ (đặt ở frontend vì cần công thức quy đổi kiện). */
-  packagesNote: (line: QuoteLine, lang: QuoteLang) => string;
+  packagesSpec: (line: QuoteLine, lang: QuoteLang) => string;
 }
 
 function filledLine(line: QuoteLine): boolean {
@@ -157,9 +157,9 @@ function attrsTextOf(line: QuoteLine, lang: QuoteLang, pick: PickText, where: st
   });
 }
 
-function lineNoteOf(line: QuoteLine, lang: QuoteLang, deps: QuoteSheetDeps, pick: PickText, where: string): string {
+function lineNoteOf(line: QuoteLine, lang: QuoteLang, pick: PickText, where: string): string {
   const attrs = attrsTextOf(line, lang, pick, where);
-  return [deps.packagesNote(line, lang), ...attrs, pick(line.note, line.noteEn, `Ghi chú (${where})`)].filter(Boolean).join("\n");
+  return [...attrs, pick(line.note, line.noteEn, `Ghi chú (${where})`)].filter(Boolean).join("\n");
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -227,8 +227,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
       const price = line.prices.find((item) => item.currency.toUpperCase() === code);
       return { currency: code, price: price?.pricePerSet ?? null, total: price?.lineTotal ?? null, totalManual: price?.lineTotalManual === true };
     }),
-    spec: pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`),
-    note: lineNoteOf(line, lang, deps, pick, `dòng ${lineIndex + 1}`),
+    spec: [pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`), deps.packagesSpec(line, lang)].filter(Boolean).join("\n"),
+    note: lineNoteOf(line, lang, pick, `dòng ${lineIndex + 1}`),
     };
   });
   const priced = lines.some((line) => line.total != null);
