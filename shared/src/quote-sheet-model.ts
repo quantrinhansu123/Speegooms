@@ -102,6 +102,9 @@ export interface QuoteSheetModel {
 
 export interface QuoteSheetFreight {
   rate: number | null;
+  cbmRate: number | null;
+  basis: "kg" | "cbm" | "both";
+  currency: string;
   chargeableKg: number | null;
   chargeableCbm: number | null;
   total: number | null;
@@ -110,7 +113,7 @@ export interface QuoteSheetFreight {
 
 export interface QuoteSheetDeps {
   /** Mô tả đóng gói theo ngôn ngữ (đặt ở frontend vì cần công thức quy đổi kiện). */
-  packagesNote: (line: QuoteLine, lang: QuoteLang) => string;
+  packagesSpec: (line: QuoteLine, lang: QuoteLang) => string;
 }
 
 function filledLine(line: QuoteLine): boolean {
@@ -157,24 +160,35 @@ function attrsTextOf(line: QuoteLine, lang: QuoteLang, pick: PickText, where: st
   });
 }
 
-function lineNoteOf(line: QuoteLine, lang: QuoteLang, deps: QuoteSheetDeps, pick: PickText, where: string): string {
+function lineNoteOf(line: QuoteLine, lang: QuoteLang, pick: PickText, where: string): string {
   const attrs = attrsTextOf(line, lang, pick, where);
-  return [deps.packagesNote(line, lang), ...attrs, pick(line.note, line.noteEn, `Ghi chú (${where})`)].filter(Boolean).join("\n");
+  return [...attrs, pick(line.note, line.noteEn, `Ghi chú (${where})`)].filter(Boolean).join("\n");
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
+export function quoteFreightTotal(freight: QuoteNotes["freight"], chargeableKg: number | null, chargeableCbm: number | null): number | null {
+  const kg = freight.basis !== "cbm" && freight.rate != null && chargeableKg != null ? freight.rate * chargeableKg : null;
+  const cbm = freight.basis !== "kg" && freight.cbmRate != null && chargeableCbm != null ? freight.cbmRate * chargeableCbm : null;
+  if (freight.basis === "both" && (kg == null || cbm == null)) return null;
+  const value = (kg ?? 0) + (cbm ?? 0);
+  return kg == null && cbm == null ? null : round3(value);
+}
+
 function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"], note: string): QuoteSheetFreight {
   const stored = notes.freight ?? { rate: null, total: null, totalManual: false };
   const chargeableKg = metrics && metrics.chargeableKg > 0 ? metrics.chargeableKg : null;
   const chargeableCbm = metrics && metrics.cbm > 0 ? metrics.cbm : null;
-  const auto = stored.rate != null && chargeableKg != null ? round3(stored.rate * chargeableKg) : null;
+  const auto = quoteFreightTotal(stored, chargeableKg, chargeableCbm);
   return {
     rate: stored.rate,
+    cbmRate: stored.cbmRate,
+    basis: stored.basis,
+    currency: stored.currency || "",
     chargeableKg,
     chargeableCbm,
-    total: stored.totalManual ? stored.total : auto,
+    total: stored.totalManual ? stored.total : auto ?? stored.total,
     note,
   };
 }
@@ -227,8 +241,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
       const price = line.prices.find((item) => item.currency.toUpperCase() === code);
       return { currency: code, price: price?.pricePerSet ?? null, total: price?.lineTotal ?? null, totalManual: price?.lineTotalManual === true };
     }),
-    spec: pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`),
-    note: lineNoteOf(line, lang, deps, pick, `dòng ${lineIndex + 1}`),
+    spec: [pick(line.spec, line.specEn, `Quy cách (dòng ${lineIndex + 1})`), deps.packagesSpec(line, lang)].filter(Boolean).join("\n"),
+    note: lineNoteOf(line, lang, pick, `dòng ${lineIndex + 1}`),
     };
   });
   const priced = lines.some((line) => line.total != null);
@@ -259,6 +273,9 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   for (const fee of fees) {
     if (fee.amount != null) subtotalByCurrency.set(fee.currency, round2((subtotalByCurrency.get(fee.currency) ?? 0) + fee.amount));
   }
+  const freight = freightOf(notes, input.freightMetrics, t.freightNote);
+  freight.currency ||= currency;
+  if (freight.total != null) subtotalByCurrency.set(freight.currency, round2((subtotalByCurrency.get(freight.currency) ?? 0) + freight.total));
   const customer = input.customer;
   const validityNote = pick(notes.validityNote, notes.validityNoteEn, "Hiệu lực báo giá");
   const customerRows: [string, string][] = [
@@ -292,8 +309,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     shippingText,
     shippingAmount: quoteMoneyValue(shippingText),
     fees,
-    feeSubtotals: shippingText ? [] : [...subtotalByCurrency].map(([code, amount]) => ({ currency: code, amount })),
-    freight: freightOf(notes, input.freightMetrics, t.freightNote),
+    feeSubtotals: [...subtotalByCurrency].map(([code, amount]) => ({ currency: code, amount })),
+    freight,
     deposit: notes.deposit
       .map((line, index) => pick(line, notes.depositEn?.[index], `Đặt cọc (dòng ${index + 1})`))
       .filter(Boolean),

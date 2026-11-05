@@ -333,13 +333,13 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
         <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
-      <TableHScroll>
+      <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1800px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tên khách</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
@@ -359,8 +359,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
+                <td className="px-3 py-3" title={row.customerName ?? undefined}>{row.customerName}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.receivedAt ? formatDate(dateInputFromIso(row.receivedAt)) : "—"}</td>
-                <td className="px-3 py-3">{row.customerName}</td>
                 <td className="px-3 py-3">{row.market || "—"}</td>
                 <td className="px-3 py-3"><HeatBadge value={row.classification} /></td>
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>

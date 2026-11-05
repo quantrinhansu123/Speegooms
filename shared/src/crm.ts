@@ -250,12 +250,18 @@ const depositLine = text(300);
 export const quoteFreightSchema = z.object({
   /** Giá cước trên mỗi kg tính phí. */
   rate: amount,
+  /** Giá cước trên mỗi CBM tính phí. */
+  cbmRate: amount.default(null),
+  /** kg, CBM, hoặc tổng của hai cách tính. */
+  basis: z.enum(["kg", "cbm", "both"]).default("kg"),
+  /** Rỗng = loại tiền chính của đơn hàng. */
+  currency: z.string().trim().toUpperCase().regex(/^$|^[A-Z]{3}$/).default(""),
   /** Tổng chi phí. Khi totalManual = false, in sẽ tính rate × cân nặng tính phí. */
   total: amount,
   totalManual: z.boolean().default(false),
 });
 
-export const emptyQuoteFreight = { rate: null, total: null, totalManual: false };
+export const emptyQuoteFreight = { rate: null, cbmRate: null, basis: "kg" as const, currency: "", total: null, totalManual: false };
 
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({

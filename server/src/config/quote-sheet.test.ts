@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildQuoteSheetModel,
   defaultQuoteBank,
+  emptyQuoteFreight,
   formatQuoteNumber,
   quoteAmount,
   quotePrintText,
@@ -17,15 +18,26 @@ const line = (patch: Partial<QuoteLine> = {}): QuoteLine => ({
 });
 
 const notes = (patch: Partial<QuoteNotes> = {}): QuoteNotes => ({
-  totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", weightNoteEn: "", validityNoteEn: "", depositEn: [], deposit: [], logisticsFees: [], opsExtra: "", freight: { rate: null, total: null, totalManual: false }, ...patch,
+  totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", weightNoteEn: "", validityNoteEn: "", depositEn: [], deposit: [], logisticsFees: [], opsExtra: "", freight: emptyQuoteFreight, ...patch,
 });
 
 const customer = { customerName: "An", companyName: "ABC", address: "HN", phone: "090", email: "a@b.c" };
-const deps = { packagesNote: () => "" };
+const deps = { packagesSpec: () => "" };
 
 const input = (patch: Partial<QuoteSheetInput> = {}): QuoteSheetInput => ({
   customer, lines: [line()], currency: "USD", notes: notes(), bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" },
   ...patch,
+});
+
+test("packaging prints with specification while note stays in its own column", () => {
+  const packaging = { packagesSpec: (_line: QuoteLine, lang: "vi" | "en") => lang === "en" ? "2 cartons" : "2 kiện" };
+  const item = line({ spec: "Ghế", specEn: "Chair", note: "Dễ vỡ", noteEn: "Fragile" });
+  const vi = buildQuoteSheetModel(input({ lines: [item] }), packaging).lines[0];
+  const en = buildQuoteSheetModel(input({ lines: [item], lang: "en" }), packaging).lines[0];
+  assert.equal(vi?.spec, "Ghế\n2 kiện");
+  assert.equal(vi?.note, "Dễ vỡ");
+  assert.equal(en?.spec, "Chair\n2 cartons");
+  assert.equal(en?.note, "Fragile");
 });
 
 test("tỷ giá là loại tiền được chọn: giá in nguyên như đã nhập, không quy đổi", () => {
@@ -83,9 +95,9 @@ test("mỗi mặt hàng có một dòng chi phí riêng và tổng theo từng l
   assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 150 }, { currency: "CNY", amount: 500 }]);
 });
 
-test("đã có tổng vận chuyển nhập tay thì không tự cộng phí", () => {
+test("tổng vận chuyển cũ không che tổng phí đã nhập", () => {
   const model = buildQuoteSheetModel(input({ notes: notes({ shippingLabel: "2.000", logisticsFees: [{ label: "Cảng", labelEn: "", value: "1", currency: "", itemStt: "" }] }) }), deps);
-  assert.deepEqual(model.feeSubtotals, []);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 1 }]);
   assert.equal(model.shippingText, "2.000");
 });
 
@@ -144,7 +156,7 @@ test("đơn vị mặc định trên file khách là cái, tiếng Anh là pcs, 
 
 test("cước vận chuyển = giá cước × cân tính phí, ghi đè thì giữ số tay, và có lưu ý mặc định", () => {
   const model = buildQuoteSheetModel(input({
-    notes: notes({ freight: { rate: 2.5, total: null, totalManual: false } }),
+    notes: notes({ freight: { ...emptyQuoteFreight, rate: 2.5 } }),
     freightMetrics: { chargeableKg: 148, cbm: 1.25 },
   }), deps);
   assert.equal(model.freight.total, 370);
@@ -153,12 +165,38 @@ test("cước vận chuyển = giá cước × cân tính phí, ghi đè thì gi
   assert.equal(model.freight.note, quotePrintText.vi.freightNote);
   const manual = buildQuoteSheetModel(input({
     lang: "en",
-    notes: notes({ freight: { rate: 2.5, total: 999, totalManual: true } }),
+    notes: notes({ freight: { ...emptyQuoteFreight, rate: 2.5, total: 999, totalManual: true } }),
     freightMetrics: { chargeableKg: 148, cbm: 1.25 },
   }), deps);
   assert.equal(manual.freight.total, 999);
   assert.equal(manual.freight.note, quotePrintText.en.freightNote);
   assert.equal(manual.lines[0]?.unit, "pcs");
+  const savedWithoutPackages = buildQuoteSheetModel(input({
+    notes: notes({ freight: { ...emptyQuoteFreight, rate: 2.5, total: 370 } }),
+  }), deps);
+  assert.equal(savedWithoutPackages.freight.total, 370);
+});
+
+test("cước kg và CBM cộng với phí theo đúng từng loại tiền", () => {
+  const model = buildQuoteSheetModel(input({
+    notes: notes({
+      freight: { ...emptyQuoteFreight, rate: 2, cbmRate: 10, basis: "both", currency: "USD" },
+      logisticsFees: [
+        { label: "A", labelEn: "", value: "5", currency: "USD", itemStt: "1" },
+        { label: "B", labelEn: "", value: "100000", currency: "VND", itemStt: "" },
+      ],
+    }),
+    freightMetrics: { chargeableKg: 100, cbm: 2 },
+  }), deps);
+  assert.equal(model.freight.total, 220);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 225 }, { currency: "VND", amount: 100000 }]);
+});
+
+test("giá trị logistics dùng cước cộng phụ phí và từ chối cộng khác tiền", () => {
+  const order = { id: "00000000-0000-4000-8000-000000000001", name: "A", selected: true, currency: "USD" as const, rate: null, priceColumns: [], lines: [line()] };
+  const costNotes = notes({ freight: { ...emptyQuoteFreight, rate: 2, total: 200 }, logisticsFees: [{ label: "Cảng", labelEn: "", value: "5", currency: "USD", itemStt: "" }] });
+  assert.equal(quoteAmount({ orders: [order], notes: costNotes }, "logistics").amount, 205);
+  assert.equal(quoteAmount({ orders: [order], notes: { ...costNotes, freight: { ...costNotes.freight, currency: "VND" } } }, "logistics").amount, null);
 });
 
 test("dòng trống bị bỏ và mã báo giá, ngày được đưa vào mô hình", () => {
