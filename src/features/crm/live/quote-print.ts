@@ -204,8 +204,8 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   /** Ô tổng theo loại tiền: tiền chính ở cột Tổng tiền hàng, tiền thêm ở cột riêng, tiền lạ kèm mã tiền. */
   const amountCells = (currency: string, amount: number) => {
     const text = fmt(amount);
-    if (currency === model.currency) return { total: numRow(text), extra: {} };
-    if (model.extraCurrencies.includes(currency)) return { total: "", extra: { [currency]: numRow(text) } };
+    if (currency === model.currency) return { total: numRow(text, currency), extra: {} };
+    if (model.extraCurrencies.includes(currency)) return { total: "", extra: { [currency]: numRow(text, currency) } };
     return { total: numRow(text, currency), extra: {} };
   };
 
