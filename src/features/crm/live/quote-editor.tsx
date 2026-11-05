@@ -1616,12 +1616,10 @@ function OrderDraftDialog({
         </DialogHeader>
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1">
           {orderError && <InlineAlert>{orderError}</InlineAlert>}
-          {mode !== "view" && (
+          {mode !== "view" && !pureLogistics && !saleLogisticsOrder && (
             <InlineAlert>
               {sourcingSale
                 ? "Sale nhập mặt hàng, hình ảnh, số lượng, quy cách và lưu ý, rồi bấm Chuyển Sourcing."
-                : pureLogistics || saleLogisticsOrder
-                ? "Sale nhập ảnh, số lượng, quy cách và đóng gói. Logistics nhập đơn giá và chi phí logistics."
                 : "Sourcing điền ảnh, số lượng, quy cách, đóng gói và đơn giá hàng. Logistics chỉ nhập chi phí logistics."}
             </InlineAlert>
           )}
