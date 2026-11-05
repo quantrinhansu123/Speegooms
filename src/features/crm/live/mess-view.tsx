@@ -14,6 +14,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Role } from "@/types/role";
+import { packageMetrics } from "@/services/crm/quote-lines";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -114,6 +115,19 @@ function draftFrom(row: MessageRecord): MessDraft {
     linkMess: row.linkMess ?? "",
     note: row.note ?? "",
     order: row.order ?? null,
+  };
+}
+
+/** Tính lại cân và CBM mỗi đơn vị của từng dòng theo hệ số thể tích của đường bay (5000) hoặc đường biển (6000). */
+function withShippingMetrics(order: QuoteOrder, mode: "AIR" | "SEA"): QuoteOrder {
+  return {
+    ...order,
+    lines: order.lines.map((line) => {
+      if (line.packages.length === 0) return line;
+      const metrics = packageMetrics(line.packages, mode);
+      const quantity = line.quantity && line.quantity > 0 ? line.quantity : 1;
+      return { ...line, cbm: metrics.cbm / quantity, weightKg: metrics.chargeableKg / quantity };
+    }),
   };
 }
 
@@ -258,9 +272,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         const desk = body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing");
         // Hàng biển FCL dùng form cước riêng nên không đưa nháp đơn hàng sang.
         const skipDraft = mode === "SEA" && logisticsClass === "FCL";
-        const prefilled = skipDraft ? null : await prefillOrder(row, body.quote, desk);
+        const prefilled = skipDraft ? null : await prefillOrder(row, body.quote, desk, mode || null);
         setOrderDesk(desk);
         setOrderQuote(prefilled ?? body.quote);
+        if (skipDraft && row.order && orderHasContent(row.order)) {
+          setOrderError("Hàng biển FCL nhập ở form cước riêng nên thông tin sản phẩm đã nhập trên mess không được đưa sang. Hãy nhập lại ở đây.");
+        }
         if (prefilled) await sendPrefilled(prefilled, desk);
         load();
       })
@@ -269,14 +286,16 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   };
 
   /** Mess đã có nháp thông tin đơn hàng: đưa vào báo giá vừa tạo để Sale không phải nhập lại. */
-  const prefillOrder = async (row: MessageRecord, quote: QuoteRecord, desk: "sourcing" | "logistics"): Promise<QuoteRecord | null> => {
+  const prefillOrder = async (row: MessageRecord, quote: QuoteRecord, desk: "sourcing" | "logistics", shippingMode: "AIR" | "SEA" | null): Promise<QuoteRecord | null> => {
     if (!row.order || !orderHasContent(row.order)) return null;
+    // Nháp nhập khi chưa chọn đường bay/biển nên cân và CBM từng dòng phải tính lại theo hệ số của phương thức vừa chọn.
+    const order = shippingMode ? withShippingMetrics(row.order, shippingMode) : row.order;
     const parsed = updateQuoteSchema.safeParse({
       templateId: quote.templateId,
       opsNote: quote.opsNote ?? "",
       quoteStatus: quote.quoteStatus,
       contractStatus: quote.contractStatus,
-      orders: [{ ...row.order, selected: true }],
+      orders: [{ ...order, selected: true }],
       notes: quote.notes,
       bank: quote.bank,
     });
@@ -596,6 +615,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   </div>
                   {!draft.demand && <p className="text-xs text-muted-foreground">Chọn Nhu cầu (Tìm hàng hoặc Vận chuyển) để nhập thông tin sản phẩm.</p>}
+                  {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Hàng biển FCL nhập ở form cước riêng nên không dùng thông tin này.</p>}
                 </div>
               )}
               <Field label="Số điện thoại" htmlFor="mess-phone" hint="Chỉ nhập số">
