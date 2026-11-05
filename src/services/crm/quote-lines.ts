@@ -12,17 +12,17 @@ export interface PackageSpec {
   actualKg: number;
 }
 
-/** Hệ số quy đổi thể tích: kg = D×R×C(cm) / 6000. Khớp các mẫu 105×81×141→200kg, 110×95×100→175kg. */
-export const VOLUMETRIC_DIVISOR = 6000;
+/** Khách cũ chưa có phương thức được tính theo hệ số đường biển đang dùng. */
+export const VOLUMETRIC_DIVISOR = { AIR: 5000, SEA: 6000 } as const;
 
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
-export function packageMetrics(packages: PackageSpec[]) {
+export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | null = null) {
   let cbm = 0, volumetricKg = 0, actualKg = 0, chargeableKg = 0, count = 0;
   for (const p of packages) {
     const pieces = p.count > 0 ? p.count : 0;
     const vol = p.lengthCm * p.widthCm * p.heightCm;
-    const volKg = (vol / VOLUMETRIC_DIVISOR) * pieces;
+    const volKg = (vol / VOLUMETRIC_DIVISOR[mode ?? "SEA"]) * pieces;
     const actKg = p.actualKg * pieces;
     cbm += (vol / 1e6) * pieces;
     volumetricKg += volKg;
@@ -58,8 +58,8 @@ const packageText = {
 } as const;
 
 /** Mô tả đóng gói để in cùng cột Quy cách. */
-export function packagesText(packages: PackageSpec[], lang: QuoteLang = "vi") {
-  const m = packageMetrics(packages);
+export function packagesText(packages: PackageSpec[], lang: QuoteLang = "vi", mode: "AIR" | "SEA" | null = null) {
+  const m = packageMetrics(packages, mode);
   const text = packageText[lang];
   const rows = packages.map((p, i) => text.pack(i + 1, p));
   if (rows.length) rows.push(text.total(m.count, m.cbm, m.chargeableKg));

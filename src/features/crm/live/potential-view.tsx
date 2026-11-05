@@ -87,6 +87,7 @@ type Draft = {
   packageDimensions: string;
   weightKg: string;
   logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
+  shippingMode: "" | NonNullable<UpdatePotentialInput["shippingMode"]>;
   shipFromAddress: string;
   shipToAddress: string;
   requirements: string;
@@ -114,6 +115,7 @@ function draftFrom(row: PotentialRecord): Draft {
     packageDimensions: row.packageDimensions ?? "",
     weightKg: row.weightKg == null ? "" : String(row.weightKg),
     logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
+    shippingMode: row.shippingMode ?? "",
     shipFromAddress: row.shipFromAddress ?? "",
     shipToAddress: row.shipToAddress ?? "",
     requirements: row.requirements ?? "",
@@ -182,6 +184,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       classification: draft.classification || undefined,
       weightKg: draft.weightKg,
       logisticsClass: draft.logisticsClass || undefined,
+      shippingMode: draft.shippingMode || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
       shipToAddress: draft.shipToAddress || undefined,
       requirements: draft.requirements || undefined,
@@ -391,7 +394,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="max-w-48 truncate px-3 py-3" title={row.packSpec ?? undefined}>{row.packSpec || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.packageDimensions ?? undefined}>{row.packageDimensions || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.weightKg ?? undefined}>{row.weightKg || "—"}</td>
-                <td className="max-w-48 truncate px-3 py-3" title={row.logisticsClass ?? undefined}>{row.logisticsClass || "—"}</td>
+                <td className="max-w-48 truncate px-3 py-3">{row.shippingMode === "AIR" ? "Đường bay" : row.shippingMode === "SEA" ? `Đường biển ${row.logisticsClass || ""}`.trim() : row.logisticsClass || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.shipFromAddress ?? undefined}>{row.shipFromAddress || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.shipToAddress ?? undefined}>{row.shipToAddress || "—"}</td>
                 <td className="px-3 py-3">
@@ -493,7 +496,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Phân loại" htmlFor="pot-class" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Phân loại" htmlFor="pot-class">
                 <NativeSelect id="pot-class" value={draft.classification} onChange={(event) => setDraft({ ...draft, classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -511,18 +514,23 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <Textarea id="pot-pack" rows={3} value={draft.packSpec} readOnly />
                 </Field>
               )}
-              <Field label="Kích thước kiện hàng (KH logistics)" htmlFor="pot-dimensions" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Phương thức vận chuyển" htmlFor="pot-shipping-mode" required={draft.customerKind === "LOGISTICS"}>
+                <NativeSelect id="pot-shipping-mode" value={draft.shippingMode} onChange={(event) => setDraft({ ...draft, shippingMode: event.target.value as Draft["shippingMode"], logisticsClass: "", classification: "" })}>
+                  <option value="">Chưa chọn</option><option value="AIR">Đường bay</option><option value="SEA">Đường biển</option>
+                </NativeSelect>
+              </Field>
+              <Field label="Kích thước kiện hàng (KH logistics)" htmlFor="pot-dimensions" required={draft.customerKind === "LOGISTICS" && draft.logisticsClass !== "FCL"}>
                 <Input id="pot-dimensions" value={draft.packageDimensions} placeholder="Dài × rộng × cao, đơn vị cm" onChange={(event) => setDraft({ ...draft, packageDimensions: event.target.value })} />
               </Field>
               <Field label="Trọng lượng (KH logistics)" htmlFor="pot-weight" required={draft.customerKind === "LOGISTICS"}>
                 <Input id="pot-weight" value={draft.weightKg} placeholder="Ví dụ: khoảng 20 kg/kiện" onChange={(event) => setDraft({ ...draft, weightKg: event.target.value })} />
               </Field>
-              <Field label="Phân loại (KH logistics)" htmlFor="pot-logistics" required={draft.customerKind === "LOGISTICS"}>
-                <NativeSelect id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value as Draft["logisticsClass"] })}>
+              {draft.shippingMode === "SEA" && <Field label="Phân loại (KH logistics)" htmlFor="pot-logistics" required={draft.customerKind === "LOGISTICS"}>
+                <NativeSelect id="pot-logistics" value={draft.logisticsClass} onChange={(event) => setDraft({ ...draft, logisticsClass: event.target.value as Draft["logisticsClass"], classification: event.target.value as Draft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
-              </Field>
+              </Field>}
               <Field label="Địa chỉ gửi hàng (KH logistics)" htmlFor="pot-from">
                 <Textarea id="pot-from" rows={3} value={draft.shipFromAddress} onChange={(event) => setDraft({ ...draft, shipFromAddress: event.target.value })} />
               </Field>

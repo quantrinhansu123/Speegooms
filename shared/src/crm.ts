@@ -20,6 +20,7 @@ export const customerTypeSchema = z.enum(["INDIVIDUAL", "PRINCIPAL", "ENTERPRISE
 export const customerKindSchema = z.enum(["SOURCING", "LOGISTICS"]);
 export const potentialStatusSchema = z.enum(["POTENTIAL", "CLOSING", "DEPOSITED", "NOT_ORDERED"]);
 export const leadClassificationSchema = z.enum(["LCL", "FCL"]);
+export const shippingModeSchema = z.enum(["AIR", "SEA"]);
 export const careChannelSchema = z.enum(["FACEBOOK", "ZALO", "WHATSAPP", "VIBER"]);
 export const industryCategoryValues = {
   NAIL_SPA_SUPPLIES: "NAIL_SPA_SUPPLIES",
@@ -113,6 +114,7 @@ export const updatePotentialSchema = z
     packageDimensions: text(500).optional(),
     weightKg: text(500).optional(),
     logisticsClass: leadClassificationSchema.optional(),
+    shippingMode: shippingModeSchema.optional(),
     shipFromAddress: text(2000).optional(),
     shipToAddress: text(2000).optional(),
     requirements: text(8000).optional(),
@@ -129,6 +131,8 @@ export const convertMessageSchema = z.object({
   quantityNote: text(500).optional(),
   packageDimensions: text(500).optional(),
   weightKg: text(500).optional(),
+  shippingMode: shippingModeSchema.optional(),
+  logisticsClass: leadClassificationSchema.optional(),
   shipFromAddress: text(2000).optional(),
   shipToAddress: text(2000).optional(),
   images: z.array(z.string().max(100_000).refine(
@@ -136,6 +140,13 @@ export const convertMessageSchema = z.object({
     "Ảnh không hợp lệ",
   )).max(20, "Tối đa 20 ảnh").default([]),
   reason: z.string().trim().max(2000).default(""),
+}).superRefine((input, ctx) => {
+  if (input.shippingMode === "SEA" && !input.logisticsClass) {
+    ctx.addIssue({ code: "custom", message: "Chọn LCL hoặc FCL", path: ["logisticsClass"] });
+  }
+  if (input.shippingMode === "AIR" && input.logisticsClass) {
+    ctx.addIssue({ code: "custom", message: "Đường bay không phân loại LCL/FCL", path: ["logisticsClass"] });
+  }
 });
 
 export const quoteDeskSchema = z.enum(["sourcing", "logistics"]);
@@ -275,6 +286,27 @@ export const logisticsFeeSchema = z.object({
   itemStt: text(20).default(""),
 });
 
+export const fclQuoteSchema = z.object({
+  to: text(160).default(""),
+  pol: text(160).default(""),
+  pod: text(200).default(""),
+  etd: text(80).default(""),
+  weight: text(80).default(""),
+  volume: text(80).default(""),
+  commodity: text(160).default(""),
+  stuffingDate: text(80).default(""),
+  charges: z.array(z.object({
+    name: text(160),
+    rate: amount,
+    quantity: z.number().min(0).max(1_000_000).nullable(),
+    unit: text(60),
+    vatAmount: z.number().min(0).max(1_000_000_000),
+    note: text(300),
+    optional: z.boolean().default(false),
+  })).max(30),
+  notes: text(2000).default(""),
+});
+
 export const quoteNotesSchema = z.object({
   totalLabel: text(300),
   /** Nhãn dòng tổng chi phí vận chuyển (phần Logistics trên mẫu in). */
@@ -291,6 +323,7 @@ export const quoteNotesSchema = z.object({
   ]).transform((value) => (Array.isArray(value) ? value : value ? [value] : [])),
   /** Chi phí logistics chi tiết (cảng, vận chuyển, thông quan…). */
   logisticsFees: z.array(logisticsFeeSchema).max(30, "Tối đa 30 dòng chi phí logistics").default([]),
+  fcl: fclQuoteSchema.optional(),
   /** Bảng cước vận chuyển: giá cước, cân/thể tích tính phí và tổng. */
   freight: quoteFreightSchema.default(emptyQuoteFreight),
   /** Ghi chú thêm của vận hành (tách lô, dời lịch…) để Sale xem. */

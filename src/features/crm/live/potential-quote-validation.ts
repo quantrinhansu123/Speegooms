@@ -18,6 +18,7 @@ type LogisticsQuoteFields = Pick<PotentialRecord,
   | "packageDimensions"
   | "weightKg"
   | "logisticsClass"
+  | "shippingMode"
   | "shipToAddress"
   | "requirements"
   | "convertReason"
@@ -36,10 +37,7 @@ const requiredLogisticsFields = [
   ["address", "Địa chỉ"],
   ["saleNote", "Ghi chú sale"],
   ["careChannel", "Kênh chăm sóc"],
-  ["classification", "Phân loại"],
-  ["packageDimensions", "Kích thước kiện hàng"],
   ["weightKg", "Trọng lượng"],
-  ["logisticsClass", "Phân loại logistics"],
   ["shipToAddress", "Địa chỉ nhận hàng"],
   ["requirements", "Yêu cầu của khách"],
   ["convertReason", "Lý do chuyển"],
@@ -47,7 +45,10 @@ const requiredLogisticsFields = [
 
 export function missingLogisticsQuoteFields(row: LogisticsQuoteFields): string[] {
   if (row.customerKind !== "LOGISTICS") return [];
-  return requiredLogisticsFields
+  const missing: string[] = requiredLogisticsFields
     .filter(([field]) => !row[field]?.trim())
     .map(([, label]) => label);
+  if (row.shippingMode === "SEA" && !row.logisticsClass) missing.push("LCL/FCL");
+  if (row.logisticsClass !== "FCL" && !row.packageDimensions?.trim()) missing.push("Kích thước kiện hàng");
+  return missing;
 }

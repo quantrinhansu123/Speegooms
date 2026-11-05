@@ -20,6 +20,7 @@ const hints: Partial<Record<keyof ContractDocFields, string>> = {
   quoteDays: "fourteen (14)",
   noticeDays: "two (2)",
   delivery: "delivery shall be made on a Delivered Duty Paid (DDP) basis to the Client's designated U.S. delivery location",
+  shippingCategory: "Air / Sea LCL / Sea FCL",
 };
 
 const labels: [keyof ContractDocFields, string][] = [
@@ -30,6 +31,7 @@ const labels: [keyof ContractDocFields, string][] = [
   ["representative", "Người đại diện"],
   ["email", "Email"],
   ["phone", "Điện thoại"],
+  ["shippingCategory", "Phân loại báo giá Logistics"],
   ["deposit", "Tiền cọc (vd: 30% hoặc $5,000)"],
   ["refundDays", "Hoàn cọc nếu chưa đặt hàng sau (ngày)"],
   ["sampleDays", "Duyệt mẫu trong (ngày làm việc)"],
@@ -58,6 +60,7 @@ export function ContractDocDialog({
     representative: quote.customerName?.trim() ?? "",
     email: quote.email?.trim() ?? "",
     phone: quote.phone?.trim() ?? "",
+    shippingCategory: quote.shippingMode === "AIR" ? "Air" : quote.shippingMode === "SEA" && quote.logisticsClass === "FCL" ? "Sea FCL" : quote.shippingMode === "SEA" && quote.logisticsClass === "LCL" ? "Sea LCL" : "",
     entityType: "",
     state: "",
     deposit: "",
