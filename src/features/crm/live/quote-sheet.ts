@@ -15,7 +15,7 @@ export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
   return buildQuoteSheetModel({
     ...input,
     freightMetrics: metrics.count > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,
-  }, { packagesNote: (line, lang) => packagesText(line.packages, lang) });
+  }, { packagesSpec: (line, lang) => packagesText(line.packages, lang) });
 }
 
 /** Bản ghi báo giá (danh sách, RFQ) đủ thông tin để in, tải PDF hoặc Excel. */

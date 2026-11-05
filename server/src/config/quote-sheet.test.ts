@@ -21,11 +21,22 @@ const notes = (patch: Partial<QuoteNotes> = {}): QuoteNotes => ({
 });
 
 const customer = { customerName: "An", companyName: "ABC", address: "HN", phone: "090", email: "a@b.c" };
-const deps = { packagesNote: () => "" };
+const deps = { packagesSpec: () => "" };
 
 const input = (patch: Partial<QuoteSheetInput> = {}): QuoteSheetInput => ({
   customer, lines: [line()], currency: "USD", notes: notes(), bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" },
   ...patch,
+});
+
+test("packaging prints with specification while note stays in its own column", () => {
+  const packaging = { packagesSpec: (_line: QuoteLine, lang: "vi" | "en") => lang === "en" ? "2 cartons" : "2 kiện" };
+  const item = line({ spec: "Ghế", specEn: "Chair", note: "Dễ vỡ", noteEn: "Fragile" });
+  const vi = buildQuoteSheetModel(input({ lines: [item] }), packaging).lines[0];
+  const en = buildQuoteSheetModel(input({ lines: [item], lang: "en" }), packaging).lines[0];
+  assert.equal(vi?.spec, "Ghế\n2 kiện");
+  assert.equal(vi?.note, "Dễ vỡ");
+  assert.equal(en?.spec, "Chair\n2 cartons");
+  assert.equal(en?.note, "Fragile");
 });
 
 test("tỷ giá là loại tiền được chọn: giá in nguyên như đã nhập, không quy đổi", () => {
