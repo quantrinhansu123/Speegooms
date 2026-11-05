@@ -414,7 +414,7 @@ export class CrmService {
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord> {
     const result = await this.ready().updateCommercialContract(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
-    if (result === "invalid") throw new AppError(400, "VALIDATION", "Số tiền thanh toán không được lớn hơn tổng giá trị");
+    if (result === "invalid") throw new AppError(400, "VALIDATION", "Số tiền thanh toán không được lớn hơn tổng của cùng loại tiền");
     return result;
   }
 

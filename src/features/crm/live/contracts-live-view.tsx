@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, saleContractPaymentSchema, type CrmLane, type IndustryCategory, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -37,6 +37,7 @@ import { labelOf, type QuoteRecord } from "./types";
 
 export type ContractPaymentLine = {
   amount: number;
+  currency: string;
   paidOn: string | null;
   note: string;
   images: string[];
@@ -63,6 +64,7 @@ export type ContractRecord = {
   currency: QuoteCurrency;
   productValue: number;
   shippingCost: number;
+  amounts: ContractAmounts;
   totalValue: number;
   paidAmount: number;
   payments: ContractPaymentLine[];
@@ -87,11 +89,11 @@ export type ContractRecord = {
   updatedAt: string;
 };
 
-type PaymentDraft = { amount: string; paidOn: string; note: string; images: string[] };
+type PaymentDraft = { amount: string; currency: string; paidOn: string; note: string; images: string[] };
 type ConfirmationDraft = { amount: string; note: string; images: string[] };
 
-function emptyPaymentDraft(): PaymentDraft {
-  return { amount: "", paidOn: "", note: "", images: [] };
+function emptyPaymentDraft(currency: string): PaymentDraft {
+  return { amount: "", currency, paidOn: "", note: "", images: [] };
 }
 
 function emptyConfirmationDraft(): ConfirmationDraft {
@@ -116,15 +118,16 @@ function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
   if (contract.payments?.length) {
     return contract.payments.map((line) => ({
       amount: formatMoneyGrouped(line.amount),
+      currency: line.currency || contract.currency,
       paidOn: line.paidOn ?? "",
       note: line.note ?? "",
       images: line.images ?? [],
     }));
   }
   if (contract.paidAmount > 0) {
-    return [{ amount: formatMoneyGrouped(contract.paidAmount), paidOn: "", note: "", images: contract.images.slice() }];
+    return [{ amount: formatMoneyGrouped(contract.paidAmount), currency: contract.currency, paidOn: "", note: "", images: contract.images.slice() }];
   }
-  return [emptyPaymentDraft()];
+  return [emptyPaymentDraft(contract.currency)];
 }
 
 function billImagesOf(row: ContractRecord): string[] {
@@ -181,6 +184,36 @@ const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
 function money(value: number | null, currency: QuoteCurrency): string {
   return value == null ? "—" : formatMoney(value, currency);
+}
+
+function enteredAmounts(row: ContractRecord): ContractAmounts {
+  if (row.amounts?.product && row.amounts.shipping) return row.amounts;
+  return {
+    product: [{ currency: row.currency, amount: row.productValue }],
+    shipping: [{ currency: row.currency, amount: row.shippingCost }],
+  };
+}
+
+function documentAmounts(row: ContractRecord) {
+  const amounts = enteredAmounts(row);
+  const productValue = amounts.product.find((item) => item.currency === row.currency)?.amount ?? row.productValue;
+  const shippingCost = amounts.shipping.find((item) => item.currency === row.currency)?.amount ?? 0;
+  return { currency: row.currency, productValue, shippingCost, totalValue: productValue + shippingCost };
+}
+
+/** Loại tiền khác loại tiền chính của hợp đồng thì ghi "Quy đổi" phía trước để không nhầm với tiền chính. */
+function MoneyStack({ lines, main }: { lines: MoneyAmount[]; main: string }) {
+  if (lines.length === 0) return <>—</>;
+  return (
+    <span className="inline-flex flex-col gap-0.5 align-top">
+      {lines.map((line) => (
+        <span key={line.currency}>
+          {line.currency !== main && <span className="text-muted-foreground">Quy đổi </span>}
+          {formatMoney(line.amount, line.currency)}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function shownStamp(value: string | null): string {
@@ -481,6 +514,12 @@ export function ContractsLiveView({
               <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
+              const amounts = enteredAmounts(row);
+              const totals = sumByCurrency([amounts.product, amounts.shipping]);
+              const paidLines = (row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [])
+                .map((line) => ({ currency: line.currency || row.currency, amount: line.amount }));
+              const paidTotals = sumByCurrency([paidLines]);
+              const remainders = remainderAfterPayments(totals, paidLines);
               const flags = contractPaymentFlags({
                 totalValue: row.totalValue,
                 confirmedAmount: row.confirmedAmount,
@@ -504,8 +543,8 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{money(row.paidAmount, row.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={totals} main={row.currency} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={paidTotals} main={row.currency} /></td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   {(() => {
                     const bills = billImagesOf(row);
@@ -521,7 +560,7 @@ export function ContractsLiveView({
                     );
                   })()}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">{money(row.balance, row.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={remainders} main={row.currency} /></td>
                 <td className="min-w-40 px-3 py-3">
                   <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
                 </td>
@@ -610,7 +649,7 @@ export function ContractsLiveView({
         <ContractDocDialog
           code={printing.row.code}
           quote={printing.quote}
-          amounts={{ currency: printing.row.currency, productValue: printing.row.productValue, shippingCost: printing.row.shippingCost, totalValue: printing.row.totalValue }}
+          amounts={documentAmounts(printing.row)}
           onClose={() => setPrinting(null)}
         />
       )}
@@ -703,9 +742,20 @@ function ContractDialog({
   const [accountingStatus, setAccountingStatus] = useState(contract.accountingStatus ?? "");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const paidValue = payments.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
+  const draftPaid = payments.flatMap((line) => {
+    const amount = numberValue(line.amount);
+    return amount == null ? [] : [{ currency: line.currency || contract.currency, amount }];
+  });
+  const savedPaid = contract.payments.map((line) => ({ currency: line.currency || contract.currency, amount: line.amount }));
+  const paidLines = canSale ? draftPaid : savedPaid;
+  const paidTotals = sumByCurrency([paidLines]);
+  const paidValue = paidTotals.find((line) => line.currency === contract.currency)?.amount ?? 0;
   const confirmedValue = confirmations.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
+  const amounts = enteredAmounts(contract);
+  const amountTotals = sumByCurrency([amounts.product, amounts.shipping]);
+  const remainders = remainderAfterPayments(amountTotals, paidLines);
+  const currencies = amountTotals.map((item) => item.currency).join(", ") || contract.currency;
   const paymentFlags = contractPaymentFlags({
     totalValue: contract.totalValue,
     confirmedAmount: confirmedValue,
@@ -728,6 +778,7 @@ function ContractDialog({
     const parsed = saleContractPaymentSchema.safeParse({
       payments: payments.map((line) => ({
         amount: numberValue(line.amount) ?? 0,
+        currency: line.currency || contract.currency,
         paidOn: line.paidOn,
         note: line.note,
         images: line.images,
@@ -737,9 +788,9 @@ function ContractDialog({
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
       return;
     }
-    const totalPaid = parsed.data.payments.reduce((sum, line) => sum + line.amount, 0);
-    if (totalPaid > contract.totalValue) {
-      setError("Số tiền thanh toán không được lớn hơn tổng giá trị");
+    const over = sumByCurrency([parsed.data.payments]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0));
+    if (over) {
+      setError(`Số tiền ${over.currency} lớn hơn tổng ${over.currency}`);
       return;
     }
     setPending(true);
@@ -906,16 +957,16 @@ function ContractDialog({
               <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
               <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
-              <p><span className="text-muted-foreground">Loại tiền: </span>{contract.currency}</p>
+              <p><span className="text-muted-foreground">Loại tiền: </span>{currencies}</p>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(canSale ? paidValue : contract.paidAmount, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} main={contract.currency} /></p>
             </section>
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3">
               <div>
@@ -944,22 +995,22 @@ function ContractDialog({
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
-              <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} main={contract.currency} /></p>
             </section>
             {canSale ? (
               <>
                 <section className="space-y-3 rounded-xl border p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                    <p className="text-sm text-muted-foreground">Tổng: {money(paidValue, contract.currency)}</p>
+                    <p className="text-sm text-muted-foreground">Tổng: <MoneyStack lines={paidTotals} main={contract.currency} /></p>
                   </div>
                   <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng; ảnh bill gắn theo từng lần.</p>
                   {payments.map((line, index) => (
                     <div key={`pay-${index}`} className="space-y-3 rounded-lg border p-3">
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_8rem_1fr_1.4fr_auto]">
                         <Field label={`Số tiền lần ${index + 1}`} htmlFor={`contract-paid-${index}`}>
                           <Input
                             id={`contract-paid-${index}`}
@@ -967,6 +1018,16 @@ function ContractDialog({
                             value={line.amount}
                             onChange={(event) => updatePayment(index, { amount: formatMoneyInput(event.target.value) })}
                           />
+                        </Field>
+                        <Field label="Tỷ giá" htmlFor={`contract-paid-currency-${index}`}>
+                          <NativeSelect
+                            id={`contract-paid-currency-${index}`}
+                            aria-label={`Tỷ giá lần ${index + 1}`}
+                            value={line.currency || contract.currency}
+                            onChange={(event) => updatePayment(index, { currency: event.target.value })}
+                          >
+                            {quoteCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
+                          </NativeSelect>
                         </Field>
                         <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
                           <Input
@@ -1038,7 +1099,7 @@ function ContractDialog({
                     type="button"
                     variant="outline"
                     disabled={payments.length >= 50}
-                    onClick={() => setPayments((current) => [...current, emptyPaymentDraft()])}
+                    onClick={() => setPayments((current) => [...current, emptyPaymentDraft(contract.currency)])}
                   >
                     <Plus className="size-4" /> Thêm lần thanh toán
                   </Button>
@@ -1051,7 +1112,7 @@ function ContractDialog({
             ) : (
               <section className="space-y-3 rounded-xl border p-4">
                 <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                <p><span className="text-muted-foreground">Đã thanh toán: </span>{money(contract.paidAmount, contract.currency)}</p>
+                <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} main={contract.currency} /></p>
                 {aggregatePayments ? (
                   <div className="flex flex-wrap items-center gap-2">
                     {billImagesOf(contract).map((image, index) => (
@@ -1065,7 +1126,7 @@ function ContractDialog({
                     {contract.payments.map((line, index) => (
                       <li key={`view-pay-${index}`} className="space-y-2 rounded-lg border p-3 text-muted-foreground">
                         <p>
-                          Lần {index + 1}: {money(line.amount, contract.currency)}
+                          Lần {index + 1}: {money(line.amount, line.currency || contract.currency)}
                           {line.paidOn ? ` · ${shownDate(line.paidOn)}` : ""}
                           {line.note ? ` · ${line.note}` : ""}
                         </p>

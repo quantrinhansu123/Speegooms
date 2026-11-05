@@ -136,4 +136,14 @@ export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user
 
 export { isCombinedSourcing, quoteAccessKind, type QuoteWorkflow } from "./quote-workflow";
 export { logisticsOrderFromSourcing, orderHasContent, sourcingHandoffOrder } from "./quote-handoff";
-export { quoteAmount, quoteMoneyValue, shippingInCurrency } from "./quote-amounts";
+export { quoteAmount, quoteMoneyValue, resolvedFreightCurrency, shippingInCurrency } from "./quote-amounts";
+export {
+  contractAmountsFromQuote,
+  productAmounts,
+  remainderAfterPayments,
+  remainderByCurrency,
+  shippingAmount,
+  sumByCurrency,
+  type ContractAmounts,
+  type MoneyAmount,
+} from "./contract-amounts";

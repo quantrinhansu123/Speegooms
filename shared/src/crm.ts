@@ -501,6 +501,8 @@ export const opsContractSchema = z.object({
 /** Một lần khách chuyển khoản (kèm ảnh bill của lần đó). */
 export const contractPaymentLineSchema = z.object({
   amount: money,
+  /** Loại tiền của lần chuyển khoản. Cùng danh sách với ô Tỷ giá trên đơn hàng. */
+  currency: quoteCurrencySchema.default("VND"),
   paidOn: day,
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần thanh toán").default([]),

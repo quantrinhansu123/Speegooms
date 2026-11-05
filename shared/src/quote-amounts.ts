@@ -19,29 +19,48 @@ export function quoteMoneyValue(text: string): number | null {
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
-/** Chỉ cộng phí cùng loại tiền của đơn. Có phí khác loại tiền thì không có tổng chung. */
-function logisticsFeesTotal(fees: QuoteNotes["logisticsFees"], currency: string): number | null {
-  let total = 0;
-  for (const fee of fees) {
-    if (fee.currency && fee.currency.toUpperCase() !== currency.toUpperCase()) return null;
-    const amount = quoteMoneyValue(fee.value);
-    if (amount == null) return null;
-    total += amount;
-  }
-  return total;
+function orderCurrencyOf(order: QuoteOrder | undefined): string {
+  return (order?.currency || "VND").toUpperCase();
+}
+
+/**
+ * Cước chưa chọn loại tiền thì dùng loại tiền của phụ phí khi mọi phụ phí ghi rõ cùng một loại.
+ * Không lấy loại tiền chính của đơn, để số USD không bị hiện thành VND.
+ */
+export function resolvedFreightCurrency(notes: Pick<QuoteNotes, "freight" | "logisticsFees"> | undefined, orderCurrency: string): string {
+  const explicit = notes?.freight?.currency?.trim().toUpperCase();
+  if (explicit) return explicit;
+  const codes = [...new Set((notes?.logisticsFees ?? [])
+    .map((fee) => fee.currency?.trim().toUpperCase())
+    .filter((code): code is string => Boolean(code)))];
+  return codes.length === 1 ? codes[0] : (orderCurrency || "VND").toUpperCase();
+}
+
+function rateOf(order: QuoteOrder | undefined, currency: string): number | null {
+  if (currency === "VND") return 1;
+  if (order?.currency?.toUpperCase() === currency) return order.rate ?? null;
+  return order?.priceColumns?.find((column) => column.currency.toUpperCase() === currency)?.rate ?? null;
 }
 
 export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics"): QuoteAmount {
   const order = sheet?.sentQuote?.order ?? sheet?.orders.find((item) => item.selected) ?? sheet?.orders[0];
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
-  const currency = order?.currency ?? "VND";
+  const currency = orderCurrencyOf(order);
   if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
   if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
-    const feeTotal = logisticsFeesTotal(notes.logisticsFees, currency);
-    const freightCurrency = notes.freight.currency || currency;
-    const amount = feeTotal == null || (notes.freight.total != null && freightCurrency !== currency)
-      ? null : Math.round(((notes.freight.total ?? 0) + feeTotal) * 1000) / 1000;
-    return { amount, currency, rate: order?.rate ?? null };
+    const freightCurrency = resolvedFreightCurrency(notes, currency);
+    const buckets = new Map<string, number>();
+    for (const fee of notes.logisticsFees) {
+      const feeAmount = quoteMoneyValue(fee.value);
+      if (feeAmount == null) return { amount: null, currency: freightCurrency, rate: rateOf(order, freightCurrency) };
+      const code = (fee.currency?.trim() || currency).toUpperCase();
+      buckets.set(code, (buckets.get(code) ?? 0) + feeAmount);
+    }
+    if (notes.freight.total != null) buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);
+    const only = buckets.size === 1 ? [...buckets][0] : undefined;
+    if (!only) return { amount: null, currency: freightCurrency, rate: rateOf(order, freightCurrency) };
+    const [totalCurrency, total] = only;
+    return { amount: Math.round(total * 1000) / 1000, currency: totalCurrency, rate: rateOf(order, totalCurrency) };
   }
   let amount = quoteMoneyValue(desk === "sourcing" ? notes.totalLabel : notes.shippingLabel);
   if (amount == null) amount = order?.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0) ?? 0;

@@ -4,8 +4,10 @@ import { useState } from "react";
 import {
   contractShipToOptions,
   createContractSchema,
+  productAmounts,
   quoteAmount,
-  shippingInCurrency,
+  shippingAmount,
+  sumByCurrency,
   type CrmLane,
   type QuoteCurrency,
   type QuoteNotes,
@@ -75,19 +77,20 @@ export function ContractCreateDialog({
   const customerName = quote.customerName?.trim() || quote.companyName?.trim() || "";
   const product = productFromOrder(order, quote.goods);
   const quantity = orderQuantity(order);
-  const productValue = sourceTotal.amount ?? 0;
-  const linkedShipping = quote.logisticsSheet
-    ? shippingInCurrency(quote.logisticsSheet, { currency, rate: order?.currency === currency ? order.rate : null })
-    : 0;
-  const shippingCost = linkedShipping ?? 0;
-  const totalValue = productValue + shippingCost;
+  const productLines = productAmounts(order);
+  const productValue = productLines.find((item) => item.currency === currency)?.amount ?? sourceTotal.amount ?? 0;
+  const linkedShipping = quote.logisticsSheet ? shippingAmount(quote.logisticsSheet) : { currency, amount: 0 };
+  const shippingCost = linkedShipping?.amount ?? 0;
+  const shippingCurrency = linkedShipping?.currency ?? currency;
+  const totals = sumByCurrency([productLines.length > 0 ? productLines : [{ currency, amount: productValue }], linkedShipping ? [linkedShipping] : []]);
+  const totalValue = shippingCurrency === currency ? productValue + shippingCost : productValue;
   const shipTo = shipToFromQuote(quote.shipToAddress);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
   const submit = async () => {
     if (linkedShipping == null) {
-      setError("Chi phí logistics hoặc tỷ giá trên báo giá chưa hợp lệ");
+      setError("Chi phí vận chuyển trên báo giá chưa hợp lệ");
       return;
     }
     const parsed = createContractSchema.safeParse({
@@ -129,10 +132,9 @@ export function ContractCreateDialog({
     ["Sản phẩm", product || "—"],
     ["Số lượng", quantity == null ? "—" : String(quantity)],
     ["Tuyến vận chuyển", shipTo || "—"],
-    ["Loại tiền", currency],
-    ["Giá trị sản phẩm", formatMoney(productValue, currency)],
-    ["Chi phí vận chuyển", linkedShipping == null ? "Chưa đủ dữ liệu" : formatMoney(shippingCost, currency)],
-    ["Tổng giá trị", formatMoney(totalValue, currency)],
+    ...(productLines.length > 0 ? productLines : [{ currency, amount: productValue }]).map((line) => [`Giá trị sản phẩm (${line.currency})`, formatMoney(line.amount, line.currency)] as [string, string]),
+    ["Chi phí vận chuyển", linkedShipping == null ? "Chưa đủ dữ liệu" : formatMoney(shippingCost, shippingCurrency)],
+    ...totals.map((line) => [`Tổng ${line.currency}`, formatMoney(line.amount, line.currency)] as [string, string]),
     ["Ngày ký", "Để trống đến khi ký"],
     ["Đã thanh toán", formatMoney(0, currency)],
   ];
@@ -145,7 +147,7 @@ export function ContractCreateDialog({
         </DialogHeader>
         <div className="grid max-h-[min(68vh,680px)] gap-4 overflow-y-auto pr-1">
           {error && <InlineAlert>{error}</InlineAlert>}
-          {linkedShipping == null && <InlineAlert>Chi phí logistics hoặc tỷ giá trên báo giá chưa hợp lệ.</InlineAlert>}
+          {linkedShipping == null && <InlineAlert>Chi phí vận chuyển trên báo giá chưa hợp lệ.</InlineAlert>}
           <InlineAlert>
             Thông tin khách hàng, sản phẩm, số lượng và giá trị được lấy từ báo giá. Ngày ký để trống; tiền đã thanh toán mặc định là 0 để cập nhật khi phát sinh.
           </InlineAlert>

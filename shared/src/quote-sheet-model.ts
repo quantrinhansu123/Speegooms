@@ -1,5 +1,5 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
-import { quoteMoneyValue } from "./quote-amounts";
+import { quoteMoneyValue, resolvedFreightCurrency } from "./quote-amounts";
 import { quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
@@ -274,7 +274,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     if (fee.amount != null) subtotalByCurrency.set(fee.currency, round2((subtotalByCurrency.get(fee.currency) ?? 0) + fee.amount));
   }
   const freight = freightOf(notes, input.freightMetrics, t.freightNote);
-  freight.currency ||= currency;
+  freight.currency = resolvedFreightCurrency(notes, currency);
   if (freight.total != null) subtotalByCurrency.set(freight.currency, round2((subtotalByCurrency.get(freight.currency) ?? 0) + freight.total));
   const customer = input.customer;
   const validityNote = pick(notes.validityNote, notes.validityNoteEn, "Hiệu lực báo giá");

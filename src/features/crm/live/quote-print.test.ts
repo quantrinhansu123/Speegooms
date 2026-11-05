@@ -30,3 +30,15 @@ test("print shows a single logistics fee subtotal in its own currency", () => {
   }));
   assert.match(html, /Tổng chi phí logistics \(CNY\)[\s\S]*?500/);
 });
+
+test("blank freight currency follows the common fee instead of the order currency", () => {
+  const html = quoteSheetHtml({
+    ...input({
+      freight: { ...emptyQuoteFreight, rate: 3.5, total: 857.15, totalManual: true },
+      logisticsFees: [{ label: "Phụ phí địa chỉ", labelEn: "", value: "36", currency: "USD", itemStt: "" }],
+    }),
+    currency: "VND",
+  });
+  assert.match(html, /Tổng chi phí logistics \(USD\)[\s\S]*?893,15/);
+  assert.doesNotMatch(html, /Tổng chi phí logistics \(VND\)/);
+});
