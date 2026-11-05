@@ -702,7 +702,7 @@ function LinePackagesEditor({
           <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
         )}
       </div>
-      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
+      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Cân thể tích = D × R × C / 6000; mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
       {line.packages.map((pkg, pi) => (
         <div key={pi} className="grid gap-1">
           <div className="flex flex-wrap items-center gap-1">
@@ -1181,7 +1181,7 @@ const OrderLines = memo(function OrderLines({
     onChange((lines) => lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
       let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
-      if ("packages" in patch && next.packages.length > 0) {
+      if (("packages" in patch || "quantity" in patch) && next.packages.length > 0) {
         const m = packageMetrics(next.packages);
         const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
         next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
@@ -1237,7 +1237,7 @@ const OrderLines = memo(function OrderLines({
               {priceColumns.map((column) => (
                 <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
               ))}
-              <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>
+              {!pureLogistics && <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>}
               {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Thông tin hàng hóa" : "Thuộc tính xưởng"}</th>}
               <th className="min-w-[140px] whitespace-nowrap px-2 py-3 font-medium">{brief ? "Lưu ý" : "Note"}</th>
               <th className="px-2 py-3" />
@@ -1400,10 +1400,10 @@ const OrderLines = memo(function OrderLines({
                       </td>
                     );
                   })}
-                  <td className="px-2 py-2">
+                  {!pureLogistics && <td className="px-2 py-2">
                     <DraftArea className="min-h-16 w-36" aria-label={`Quy cách dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={lang === "en" ? line.specEn : line.spec} disabled={!canEditContent} onValueChange={(next) => { updateLine(index, lang === "en" ? { specEn: next } : { spec: next }); onClearError?.(`line.${index}.spec`); }} placeholder={lang === "en" ? line.spec || "Specification" : "Quy cách"} />
                     <InputError message={errors[`line.${index}.spec`]} />
-                  </td>
+                  </td>}
                   {!brief && <td className="px-2 py-2">
                     <div className="grid w-[14.5rem] grid-cols-2 gap-1.5">
                       {visibleAttrKeys.map((key) => (
@@ -1454,7 +1454,7 @@ const OrderLines = memo(function OrderLines({
           )}
           <div className="grid content-start gap-2">
             <label className="grid gap-2 text-sm">
-              <span>{`Trọng lượng (kg) · STT ${line.stt || index + 1}`}</span>
+              <span>{`${pureLogistics ? "Cân tính cước (kg/đơn vị hàng)" : "Trọng lượng (kg)"} · STT ${line.stt || index + 1}`}</span>
               <DraftQuantity aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
               <InputError message={errors[`line.${index}.weight`]} />
             </label>
