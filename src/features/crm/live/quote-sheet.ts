@@ -50,7 +50,8 @@ export function quoteWithLogisticsCosts<T extends QuoteSheetSource>(source: T, l
     notes: {
       ...source.notes,
       shippingLabel: logistics.notes.shippingLabel,
-      logisticsFees: logistics.notes.logisticsFees.map((fee) => ({ ...fee, currency: fee.currency || logistics.order.currency })),
+      // Phụ phí không ghi loại tiền thì theo loại tiền cước của bản Logistics.
+      logisticsFees: logistics.notes.logisticsFees.map((fee) => ({ ...fee, currency: fee.currency || model.freight.currency })),
       // Giữ tổng từ kiện của bản Logistics đã gửi khi in cùng hàng hóa Sourcing.
       freight: { ...logistics.notes.freight, total: model.freight.total ?? (model.feeSubtotals.length === 0 ? model.shippingAmount : null), totalManual: true, currency: model.freight.currency },
       ...(logistics.notes.payment ? { payment: logistics.notes.payment } : {}),

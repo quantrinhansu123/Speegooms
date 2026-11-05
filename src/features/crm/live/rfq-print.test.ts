@@ -33,15 +33,16 @@ test("RFQ print includes sent Logistics freight and surcharges in USD beside VND
   const source = printableRfqQuote(row)!;
   const input = quoteSheetInputOf(source, source.orders[0]);
   const html = quoteSheetHtml(input);
-  assert.ok(/Tổng chi phí logistics \(USD\)[\s\S]*?893,15/.test(html), "Bản in phải có tổng Logistics 893,15 USD");
+  // Cân tính cước 244,9 kg làm tròn lên 245 kg: 3,5 × 245 = 857,5; cộng phụ phí 36 = 893,5.
+  assert.ok(/Tổng chi phí logistics \(USD\)[\s\S]*?893,5/.test(html), "Bản in phải có tổng Logistics 893,5 USD");
   assert.ok(!html.includes("Tổng chi phí logistics (VND)"));
   assert.equal(source.orders[0].currency, "VND");
   assert.equal(source.orders[0].lines[0].lineTotal, 100);
-  assert.equal(source.notes.freight.total, 857.15);
+  assert.equal(source.notes.freight.total, 857.5);
   assert.deepEqual(row, before);
   const workbook = await buildQuoteWorkbook(input);
   const values = workbook.worksheets[0].getSheetValues();
-  assert.ok(values.some((row) => Array.isArray(row) && row.includes("Tổng chi phí logistics (USD)") && row.includes(893.15)));
+  assert.ok(values.some((row) => Array.isArray(row) && row.includes("Tổng chi phí logistics (USD)") && row.includes(893.5)));
 });
 
 test("RFQ never includes unpublished Logistics costs and preserves pure Logistics snapshots", () => {
