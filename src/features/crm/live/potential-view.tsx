@@ -310,7 +310,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="lead-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
         <FilterSelect id="lead-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
       </ListSearchBar>
-      <TableHScroll>
+      <TableHScroll stickyIdentity>
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -345,7 +345,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
-                <td className="px-3 py-3">{row.fullName}</td>
+                <td className="px-3 py-3" title={row.fullName ?? undefined}>{row.fullName}</td>
                 <td className="px-3 py-3">{row.companyName || "—"}</td>
                 <td className="px-3 py-3">{row.phone || "—"}</td>
                 <td className="px-3 py-3">{row.email || "—"}</td>

@@ -454,13 +454,13 @@ export function ContractsLiveView({
         <FilterSelect id="contract-ops-status" label="Trạng thái vận hành" value={filters.draft.opsStatus} onChange={(value) => filters.set("opsStatus", value)} options={opsStatusFilterOptions} />
         <FilterSelect id="contract-accounting-status" label="Trạng thái kế toán" value={filters.draft.accountingStatus} onChange={(value) => filters.set("accountingStatus", value)} options={accountingStatusOptions} />
       </ListSearchBar>
-      <TableHScroll className="-mx-1 overscroll-x-contain">
+      <TableHScroll className="-mx-1 overscroll-x-contain" stickyIdentity>
         <table className="w-max min-w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
-              <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ngành hàng</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
@@ -500,8 +500,8 @@ export function ContractsLiveView({
                 )}
               >
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{money(row.totalValue, row.currency)}</td>

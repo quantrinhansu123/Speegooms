@@ -172,6 +172,42 @@ th {
   white-space: nowrap;
 }
 
+/* Keep the record code and customer name visible while wide CRM tables scroll. */
+@layer components {
+  [data-sticky-identity] tbody tr {
+    background-color: var(--card);
+  }
+
+  [data-sticky-identity] thead tr {
+    background-color: var(--muted);
+  }
+
+  [data-sticky-identity] :is(th, td):first-child:not([colspan]),
+  [data-sticky-identity] :is(th, td):nth-child(2):not([colspan]) {
+    position: sticky;
+    z-index: 1;
+    background-color: inherit;
+  }
+
+  [data-sticky-identity] :is(th, td):first-child:not([colspan]) {
+    left: 0;
+    white-space: nowrap;
+  }
+
+  [data-sticky-identity] :is(th, td):nth-child(2):not([colspan]) {
+    left: var(--sticky-code-width, 0px);
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 1px 0 0 var(--border), 6px 0 10px -10px var(--foreground);
+  }
+
+  [data-sticky-identity] thead th:first-child,
+  [data-sticky-identity] thead th:nth-child(2) {
+    z-index: 2;
+  }
+}
+
 .workspace-scroll {
   scroll-padding-top: 1rem;
   scrollbar-width: thin;

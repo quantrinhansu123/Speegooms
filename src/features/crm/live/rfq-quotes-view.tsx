@@ -412,7 +412,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
-      <TableHScroll>
+      <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -445,7 +445,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 className={cn("border-b last:border-0", highlightId === row.id && FOCUS_ROW_CLASS)}
               >
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.code} potentialId={row.potentialId} lane={lane} /></td>
-                <td className="px-3 py-3">
+                <td className="px-3 py-3" title={row.customerName || undefined}>
                   <p>{row.customerName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                 </td>
