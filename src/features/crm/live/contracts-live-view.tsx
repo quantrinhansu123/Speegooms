@@ -388,11 +388,11 @@ export function ContractsLiveView({
     };
   }, [highlightId]);
 
-  const resend = async (row: ContractRecord) => {
-    const to = mode === "sale" ? "ops" : mode === "ops" ? "accounting" : "parties";
-    const message = mode === "sale"
+  const resend = async (row: ContractRecord, target?: "ops" | "accounting" | "parties") => {
+    const to = target ?? (mode === "accounting" ? "parties" : "accounting");
+    const message = to === "ops"
       ? `Đã gửi lại hợp đồng ${row.code} cho Vận hành.`
-      : mode === "ops"
+      : to === "accounting"
         ? `Đã gửi lại hợp đồng ${row.code} cho Kế toán.`
         : `Đã gửi lại hợp đồng ${row.code} cho Sale và Vận hành.`;
     setError(undefined);
@@ -554,6 +554,11 @@ export function ContractsLiveView({
                   {handoffLines(mode, row).length === 0 ? "—" : handoffLines(mode, row).map((line) => <p key={line}>{line}</p>)}
                 </td>
                 <td className="px-3 py-3">
+                  {mode === "accounting" && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => { setNotice(undefined); markSeen(row); setSelected(row); }}>
+                      <Eye aria-hidden /> Xem
+                    </Button>
+                  )}
                   <RowMenu
                     label={`Thao tác ${row.code}`}
                     items={[
@@ -573,9 +578,15 @@ export function ContractsLiveView({
                         icon: <FileText />,
                         onClick: () => { void printContract(row); },
                       }] : []),
+                      ...(canSale ? [{
+                        key: "resend-ops",
+                        label: "Gửi lại cho Vận hành",
+                        icon: <Send />,
+                        onClick: () => { void resend(row, "ops"); },
+                      }] : []),
                       ...(canResend ? [{
                         key: "resend",
-                        label: "Gửi lại",
+                        label: mode === "accounting" ? "Gửi lại cho Sale và Vận hành" : "Gửi lại cho Kế toán",
                         icon: <Send />,
                         onClick: () => { void resend(row); },
                       }] : []),
@@ -641,7 +652,7 @@ export function ContractsLiveView({
           canAccounting={canAccounting}
           canResend={canResend}
           onClose={() => setSelected(null)}
-          onResend={resend}
+          onResend={(contract) => resend(contract)}
           onSaved={(contract, message) => {
             markSeen(contract);
             setSelected(contract);
@@ -923,6 +934,21 @@ function ContractDialog({
           </TabsContent>
 
           <TabsContent value="thanh-toan" className="mt-3 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
+            <section className="grid gap-2 rounded-xl border p-4 sm:grid-cols-2">
+              <h3 className="font-medium sm:col-span-2">Thông tin từ hợp đồng</h3>
+              <p><span className="text-muted-foreground">Mã hợp đồng: </span>{contract.code}</p>
+              <p><span className="text-muted-foreground">Khách hàng: </span>{contract.customerName}</p>
+              <p><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
+              <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
+              <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
+              <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span>{money(contract.productValue, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span>{money(contract.shippingCost, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span>{money(contract.totalValue, contract.currency)}</p>
+              <p><span className="text-muted-foreground">Còn lại: </span>{money(canSale ? balanceValue : contract.balance, contract.currency)}</p>
+            </section>
             {canSale ? (
               <>
                 <section className="space-y-3 rounded-xl border p-4">
@@ -1019,7 +1045,7 @@ function ContractDialog({
                 </section>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void saveCommercial(false); }}>Lưu</Button>
-                  {canResend && <Button type="button" disabled={pending} onClick={() => { void saveCommercial(true); }}>Gửi lại</Button>}
+                  {canResend && <Button type="button" disabled={pending} onClick={() => { void saveCommercial(true); }}>Gửi lại cho Kế toán</Button>}
                 </div>
               </>
             ) : (
