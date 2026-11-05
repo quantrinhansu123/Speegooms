@@ -27,7 +27,7 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputActions, quoteOutputIcon, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
-import { orderForQuotePdf, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
+import { printableRfqQuote, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
@@ -95,21 +95,8 @@ function optionLabel(row: PotentialRecord): string {
   return `${row.leadCode} — ${row.fullName || "Chưa có tên"}${company}`;
 }
 
-/** Ưu tiên bản đã gửi cho Sale; không có thì lấy mẫu đơn hàng hiện có để xem/in. */
-function printableQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
-  if (row.sentQuote) {
-    return {
-      ...row,
-      orders: [{ ...row.sentQuote.order, selected: true }],
-      notes: row.sentQuote.notes,
-      bank: row.sentQuote.bank,
-    };
-  }
-  return orderForQuotePdf(row.orders) ? row : null;
-}
-
 function viewableQuote(row: RfqQuoteRecord): RfqQuoteRecord {
-  return printableQuote(row) ?? row;
+  return printableRfqQuote(row) ?? row;
 }
 
 export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
@@ -437,7 +424,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             )}
             {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
-              const printSource = printableQuote(row) ?? (logistics ? printableQuote(logistics) : null);
+              const printSource = printableRfqQuote(row) ?? (logistics ? printableRfqQuote(logistics) : null);
               return (
               <tr
                 key={row.id}
