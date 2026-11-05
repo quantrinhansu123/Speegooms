@@ -307,7 +307,19 @@ export const fclQuoteSchema = z.object({
   notes: text(2000).default(""),
 });
 
+export const quotePaymentSchema = z.object({
+  quoteCurrency: quoteCurrencySchema,
+  currency: quoteCurrencySchema,
+  /** Số đơn vị tiền thanh toán cho 1 đơn vị tiền báo giá. */
+  exchangeRate: z.number().finite().positive("Tỷ giá thanh toán phải lớn hơn 0").max(1_000_000).nullable(),
+}).superRefine((value, ctx) => {
+  if (value.currency !== value.quoteCurrency && value.exchangeRate == null) {
+    ctx.addIssue({ code: "custom", message: "Nhập tỷ giá thanh toán", path: ["exchangeRate"] });
+  }
+});
+
 export const quoteNotesSchema = z.object({
+  payment: quotePaymentSchema.optional(),
   totalLabel: text(300),
   /** Nhãn dòng tổng chi phí vận chuyển (phần Logistics trên mẫu in). */
   shippingLabel: text(300).default(""),
@@ -331,6 +343,9 @@ export const quoteNotesSchema = z.object({
 });
 
 export const quoteBankSchema = z.object({
+  custom: z.boolean().optional(),
+  bankName: text(200).optional(),
+  swiftCode: text(80).optional(),
   title: text(200),
   accountName: text(200),
   accountNumber: text(80),
@@ -358,6 +373,11 @@ export const updateQuoteSchema = z.object({
   notes: quoteNotesSchema,
   bank: quoteBankSchema,
 }).superRefine((value, ctx) => {
+  if (value.notes.payment && value.bank.custom) {
+    for (const key of ["bankName", "accountName", "accountNumber"] as const) {
+      if (!value.bank[key]?.trim()) ctx.addIssue({ code: "custom", message: "Nhập đủ tên ngân hàng, chủ tài khoản và số tài khoản nhận tiền", path: ["bank", key] });
+    }
+  }
   if (value.orders.filter((order) => order.selected).length > 1) {
     ctx.addIssue({ code: "custom", message: "Chỉ chọn một mẫu báo giá", path: ["orders"] });
   }
