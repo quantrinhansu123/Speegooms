@@ -380,7 +380,7 @@ test("Logistics prices a pure logistics order by unit, kg, m2 or CBM without tou
   assert.equal(combined.basis, "m2");
 });
 
-test("Logistics can change only costs, while Sourcing owns the order", () => {
+test("Logistics can change costs and payment account, while Sourcing owns the order", () => {
   const original = handoffInput();
   const current = { ...original, orders: original.orders } as QuoteRecord;
   const submitted = structuredClone(original);
@@ -397,7 +397,7 @@ test("Logistics can change only costs, while Sourcing owns the order", () => {
   assert.equal(costs.orders[0].lines[0].spec, "Kích thước sản phẩm");
   assert.equal(costs.orders[0].lines[0].pricePerSet, 100000);
   assert.equal(costs.orders[0].rate, 999);
-  assert.deepEqual(costs.bank, original.bank);
+  assert.deepEqual(costs.bank, submitted.bank);
   assert.equal(costs.opsNote, "Changed");
   assert.equal(costs.notes.weightNote, original.notes.weightNote);
   assert.deepEqual(costs.notes.logisticsFees, submitted.notes.logisticsFees);

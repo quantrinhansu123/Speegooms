@@ -105,6 +105,7 @@ export function applyLogisticsDeskSave(
   if (options.canOps && (options.contentOnly || options.canRequest)) {
     patch = {
       ...patch,
+      bank: input.bank,
       orders: options.contentOnly ? content.orders : input.orders,
       notes: {
         ...patch.notes,
@@ -113,6 +114,7 @@ export function applyLogisticsDeskSave(
         opsExtra: input.notes.opsExtra,
         freight: input.notes.freight,
         fcl: input.notes.fcl,
+        payment: input.notes.payment,
       },
     };
   }
@@ -126,11 +128,12 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
     quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
     contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
     orders: logisticsOrders(current.orders, input.orders, current.customerKind === "LOGISTICS"),
-    bank: current.bank,
+    bank: input.bank,
     notes: {
       ...current.notes,
       /** Logistics tự định số ngày hiệu lực cho báo giá của mình. */
       validityDays: input.notes.validityDays,
+      payment: input.notes.payment,
       logisticsFees: input.notes.logisticsFees,
       shippingLabel: input.notes.shippingLabel,
       opsExtra: input.notes.opsExtra,

@@ -1,7 +1,7 @@
 import type { QuoteNotes, QuoteOrder, SentQuote } from "./crm";
 
 type QuoteAmountSource = {
-  orders: QuoteOrder[];
+  orders: Pick<QuoteOrder, "currency" | "rate" | "priceColumns" | "lines" | "selected">[];
   notes: QuoteNotes;
   shippingMode?: "AIR" | "SEA" | null;
   logisticsClass?: string | null;
@@ -34,7 +34,7 @@ export function quoteMoneyValue(text: string): number | null {
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
-function orderCurrencyOf(order: QuoteOrder | undefined): string {
+function orderCurrencyOf(order: { currency: string } | undefined): string {
   return (order?.currency || "VND").toUpperCase();
 }
 
@@ -51,7 +51,7 @@ export function resolvedFreightCurrency(notes: Pick<QuoteNotes, "freight" | "log
   return codes.length === 1 ? codes[0] : (orderCurrency || "VND").toUpperCase();
 }
 
-function rateOf(order: QuoteOrder | undefined, currency: string): number | null {
+function rateOf(order: Pick<QuoteOrder, "currency" | "rate" | "priceColumns"> | undefined, currency: string): number | null {
   if (currency === "VND") return 1;
   if (order?.currency?.toUpperCase() === currency) return order.rate ?? null;
   return order?.priceColumns?.find((column) => column.currency.toUpperCase() === currency)?.rate ?? null;
@@ -62,7 +62,7 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
   const currency = orderCurrencyOf(order);
   if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
-  if (desk === "logistics" && sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL" && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: "USD", rate: order?.rate ?? null };
+  if (desk === "logistics" && sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL" && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: notes.payment?.quoteCurrency ?? "USD", rate: order?.rate ?? null };
   if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
     const freightCurrency = resolvedFreightCurrency(notes, currency);
     const buckets = new Map<string, number>();
@@ -90,4 +90,19 @@ export function shippingInCurrency(sheet: QuoteAmountSource | null | undefined, 
   const toRate = target.currency === "VND" ? 1 : target.rate;
   if (shipping.amount == null || !fromRate || !toRate) return null;
   return Math.round(shipping.amount * fromRate / toRate * 100) / 100;
+}
+
+/** Dùng bản nháp/bản đã gửi do caller chọn; không đổi loại tiền hay giá của báo giá. */
+export function quotePaymentSummary(sheet: Omit<QuoteAmountSource, "sentQuote">) {
+  const payment = sheet.notes.payment;
+  if (!payment) return null;
+  const total = quoteAmount({ orders: sheet.orders, notes: sheet.notes, shippingMode: sheet.shippingMode, logisticsClass: sheet.logisticsClass }, "logistics");
+  const rate = payment.currency === payment.quoteCurrency ? 1 : payment.exchangeRate;
+  let error = total.amount == null || total.currency !== payment.quoteCurrency
+    ? "Các khoản phí phải có số tiền hợp lệ và cùng loại tiền báo giá trước khi quy đổi thanh toán"
+    : !rate || !Number.isFinite(rate) || rate <= 0 ? "Nhập tỷ giá thanh toán lớn hơn 0" : "";
+  const converted = error ? null : total.amount! * rate!;
+  if (converted != null && (!Number.isFinite(converted) || converted > Number.MAX_SAFE_INTEGER)) error = "Số tiền quy đổi vượt giới hạn cho phép";
+  const digits = payment.currency === "VND" || payment.currency === "JPY" ? 0 : 2;
+  return { ...payment, total: total.amount, rate, amount: error || converted == null ? null : Math.round(converted * 10 ** digits) / 10 ** digits, error };
 }

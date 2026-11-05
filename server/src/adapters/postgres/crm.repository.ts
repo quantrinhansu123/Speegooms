@@ -1,5 +1,7 @@
 import {
   isCombinedSourcing,
+  fclQuoteSchema,
+  quotePaymentSchema,
   paymentsInMain,
   productAmounts,
   shippingAmount,
@@ -457,7 +459,7 @@ function asFreight(value: unknown): QuoteNotes["freight"] {
 
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; validityDays?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; validityDays?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown; fcl?: unknown; payment?: unknown }
     : {};
   const deposit = asDeposit(row.deposit);
   return {
@@ -473,11 +475,14 @@ function asNotes(value: unknown): QuoteNotes {
     logisticsFees: asLogisticsFees(row.logisticsFees),
     opsExtra: textField(row.opsExtra),
     freight: asFreight(row.freight),
+    fcl: row.fcl ? fclQuoteSchema.parse(row.fcl) : undefined,
+    payment: row.payment ? quotePaymentSchema.parse(row.payment) : undefined,
   };
 }
 
 function asBank(value: unknown): QuoteBank {
   const row = value && typeof value === "object" ? value as Partial<QuoteBank> : {};
+  if (row.custom) return { custom: true, title: textField(row.title), bankName: textField(row.bankName), accountName: textField(row.accountName), accountNumber: textField(row.accountNumber), routingNumber: textField(row.routingNumber), swiftCode: textField(row.swiftCode) };
   return {
     title: textField(row.title) || defaultQuoteBank.title,
     accountName: textField(row.accountName) || defaultQuoteBank.accountName,

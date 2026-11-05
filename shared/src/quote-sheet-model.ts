@@ -1,6 +1,6 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
-import { quoteMoneyValue, resolvedFreightCurrency } from "./quote-amounts";
-import { quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
+import { quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency } from "./quote-amounts";
+import { formatQuoteNumber, quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
 export const quoteCompany = {
@@ -98,6 +98,7 @@ export interface QuoteSheetModel {
   freight: QuoteSheetFreight;
   deposit: string[];
   bank: { title: string; rows: [string, string][] };
+  payment: { rows: [string, string][]; error: string } | null;
   /** Bản tiếng Anh: các ô tự điền đã có tiếng Việt nhưng chưa có tiếng Anh (để trống trên bản in). */
   missing: string[];
 }
@@ -197,6 +198,7 @@ function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"]
 
 /** Bank trống thì dùng tài khoản ACH mặc định để bản in luôn có thông tin thanh toán. */
 export function effectiveQuoteBank(bank: QuoteBank | null | undefined): QuoteBank {
+  if (bank?.custom) return bank;
   const orDefault = (value: string | undefined, fallback: string) => (value?.trim() ? value.trim() : fallback);
   return {
     title: orDefault(bank?.title, defaultQuoteBank.title),
@@ -292,6 +294,19 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     [t.validity, validityNote],
   ];
   const bank = effectiveQuoteBank(input.bank);
+  const paymentSummary = quotePaymentSummary({
+    orders: [{ currency, lines: input.lines, selected: true, rate: null, priceColumns: input.priceColumns ?? [] }],
+    notes: { ...notes, freight: { ...notes.freight, total: freight.total } },
+    shippingMode: input.shippingMode,
+    logisticsClass: input.logisticsClass,
+  });
+  const paymentRows: [string, string][] = [];
+  if (paymentSummary && !paymentSummary.error) {
+    const p = paymentSummary;
+    paymentRows.push([lang === "vi" ? "Tổng báo giá" : "Quotation total", `${formatQuoteNumber(p.total!, lang, 3)} ${p.quoteCurrency}`]);
+    if (p.currency !== p.quoteCurrency) paymentRows.push([lang === "vi" ? "Tỷ giá thanh toán" : "Payment exchange rate", `1 ${p.quoteCurrency} = ${formatQuoteNumber(p.rate!, lang, 6)} ${p.currency}`]);
+    paymentRows.push([lang === "vi" ? "Số tiền thanh toán" : "Payment amount", `${formatQuoteNumber(p.amount!, lang, p.currency === "VND" || p.currency === "JPY" ? 0 : 2)} ${p.currency}`]);
+  }
   const labels = quoteCompanyLabels[lang];
   return {
     lang,
@@ -322,11 +337,14 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     bank: {
       title: bank.title,
       rows: [
+        ...(bank.bankName ? [[lang === "vi" ? "Ngân hàng" : "Bank", bank.bankName] as [string, string]] : []),
         [t.accountName, bank.accountName],
         [t.accountNumber, bank.accountNumber],
         [t.routingNumber, bank.routingNumber],
+        ...(bank.swiftCode ? [["SWIFT", bank.swiftCode] as [string, string]] : []),
       ],
     },
+    payment: paymentSummary ? { rows: paymentRows, error: paymentSummary.error } : null,
     missing: [...missing],
   };
 }
