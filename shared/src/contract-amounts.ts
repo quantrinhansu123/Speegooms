@@ -11,6 +11,8 @@ export type ContractAmounts = {
 };
 
 type AmountSheet = {
+  shippingMode?: "AIR" | "SEA" | null;
+  logisticsClass?: string | null;
   orders?: QuoteOrder[];
   notes?: QuoteNotes;
   sentQuote?: SentQuote | null;
@@ -53,7 +55,7 @@ export function productAmounts(order: QuoteOrder | null | undefined): MoneyAmoun
 /** Tổng logistics đúng loại tiền đã nhập. Null khi các khoản không cùng một loại tiền. */
 export function shippingAmount(sheet: AmountSheet | null | undefined): MoneyAmount | null {
   if (!sheet?.notes) return null;
-  const shipping = quoteAmount({ orders: sheet.orders ?? [], notes: sheet.notes, sentQuote: sheet.sentQuote }, "logistics");
+  const shipping = quoteAmount({ ...sheet, orders: sheet.orders ?? [], notes: sheet.notes }, "logistics");
   if (shipping.amount == null) return null;
   return { currency: shipping.currency, amount: shipping.amount };
 }

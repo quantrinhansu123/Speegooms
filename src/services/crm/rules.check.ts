@@ -68,6 +68,8 @@ const mixed = packageMetrics([
   { count: 1, lengthCm: 40, widthCm: 40, heightCm: 30, actualKg: 5 },
 ]);
 assert.equal(mixed.chargeableKg, 148);
+assert.equal(packageMetrics([{ count: 1, lengthCm: 100, widthCm: 50, heightCm: 50, actualKg: 10 }], "AIR").chargeableKg, 50);
+assert.equal(packageMetrics([{ count: 1, lengthCm: 100, widthCm: 50, heightCm: 50, actualKg: 10 }], "SEA").chargeableKg, 41.7);
 assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 9520); // Võ Hải Triều
 assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
 assert.equal(lineAmount({ basis: "unit", quantity: 3, price: 0.035, weightKg: null, cbm: null }), 0.105);

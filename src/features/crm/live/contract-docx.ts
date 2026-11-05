@@ -8,6 +8,7 @@ export type ContractDocFields = {
   representative: string;
   email: string;
   phone: string;
+  shippingCategory: string;
   // Xanh nhưng báo giá không có dữ liệu: Sale nhập
   entityType: string;
   state: string;

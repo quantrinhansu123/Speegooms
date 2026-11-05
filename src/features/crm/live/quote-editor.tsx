@@ -20,6 +20,7 @@ import {
   type UpdateQuoteInput,
 } from "@speego/shared";
 import { ContractCreateDialog } from "./contract-create-dialog";
+import { emptyFclQuote, FclQuoteForm } from "./fcl-quote-form";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ import { MoneyInput } from "@/components/shared/money-input";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
-import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, type PricingBasis } from "@/services/crm/quote-lines";
+import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuoteExcel } from "./quote-excel";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
@@ -119,9 +120,9 @@ function FeeCurrencySelect({ id, value, disabled, onChange }: { id: string; valu
   );
 }
 
-function notesWithFreight(notes: QuoteNotes, orders: QuoteOrder[]): QuoteNotes {
+function notesWithFreight(notes: QuoteNotes, orders: QuoteOrder[], shippingMode: "AIR" | "SEA" | null): QuoteNotes {
   const order = orders.find((item) => item.selected) ?? orders[0];
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages));
+  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
   if (freight.totalManual) return { ...notes, freight };
   const total = quoteFreightTotal(freight, metrics.count > 0 ? metrics.chargeableKg : null, metrics.count > 0 ? metrics.cbm : null) ?? freight.total;
@@ -137,6 +138,7 @@ function FreightCostEditor({
   notes,
   setNotes,
   order,
+  shippingMode,
   canEdit,
   lang,
   fieldId,
@@ -144,11 +146,12 @@ function FreightCostEditor({
   notes: QuoteNotes;
   setNotes: (notes: QuoteNotes) => void;
   order?: QuoteOrder;
+  shippingMode: "AIR" | "SEA" | null;
   canEdit: boolean;
   lang: QuoteLang;
   fieldId: (name: string) => string;
 }) {
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages));
+  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
   const chargeableKg = metrics.count > 0 ? metrics.chargeableKg : null;
   const chargeableCbm = metrics.count > 0 ? metrics.cbm : null;
@@ -211,6 +214,7 @@ function LogisticsFeesEditor({
   pending,
   fieldId,
   order,
+  shippingMode,
   lang = "vi",
 }: {
   children?: ReactNode;
@@ -222,6 +226,7 @@ function LogisticsFeesEditor({
   fieldId: (name: string) => string;
   /** Đơn đang báo giá: mỗi mặt hàng của đơn có một dòng chi phí riêng. */
   order?: QuoteOrder;
+  shippingMode: "AIR" | "SEA" | null;
   /** Ngôn ngữ nội dung đang sửa. Tiếng Anh chỉ sửa chữ, thêm/xóa dòng làm ở tiếng Việt. */
   lang?: QuoteLang;
 }) {
@@ -232,7 +237,7 @@ function LogisticsFeesEditor({
   const itemKeys = new Set(items.map((item) => item.stt));
   /** Phí chung, gồm cả phí của mặt hàng đã bị xóa để không mất dữ liệu. */
   const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => !fee.itemStt || !itemKeys.has(fee.itemStt));
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages));
+  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
   const freight = notes.freight;
   const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.count ? metrics.chargeableKg : null, metrics.count ? metrics.cbm : null) ?? freight.total;
   const totals = new Map<string, number>();
@@ -280,7 +285,7 @@ function LogisticsFeesEditor({
       </div>
 
       {children}
-      <FreightCostEditor notes={notes} setNotes={setNotes} order={order} canEdit={canEdit} lang={lang} fieldId={fieldId} />
+      <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
       <div className="grid gap-3 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
         <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
@@ -381,11 +386,13 @@ function LogisticsFeesEditor({
 
 function OrderPackagesBlock({
   orders,
+  shippingMode,
   canEdit,
   onChange,
   emptyHint,
 }: {
   orders: QuoteOrder[];
+  shippingMode: "AIR" | "SEA" | null;
   canEdit: boolean;
   onChange: (orderId: string, lineIndex: number, packages: QuoteLine["packages"]) => void;
   emptyHint?: string;
@@ -407,6 +414,7 @@ function OrderPackagesBlock({
             <LinePackagesEditor
               key={`${order.id}-${lineIndex}`}
               line={line}
+              shippingMode={shippingMode}
               lineLabel={`STT ${line.stt || lineIndex + 1}`}
               canEdit={canEdit}
               onChange={(packages) => onChange(order.id, lineIndex, packages)}
@@ -437,6 +445,7 @@ type SaleLeadDraft = {
   packageDimensions: string;
   weightKg: string;
   logisticsClass: "" | NonNullable<UpdatePotentialInput["logisticsClass"]>;
+  shippingMode: "" | NonNullable<UpdatePotentialInput["shippingMode"]>;
   shipFromAddress: string;
   shipToAddress: string;
   requirements: string;
@@ -463,6 +472,7 @@ function saleDraftFromQuote(row: QuoteRecord): SaleLeadDraft {
     packageDimensions: row.packageDimensions ?? "",
     weightKg: row.weightKg == null ? "" : String(row.weightKg),
     logisticsClass: row.logisticsClass === "LCL" || row.logisticsClass === "FCL" ? row.logisticsClass : "",
+    shippingMode: row.shippingMode ?? "",
     shipFromAddress: row.shipFromAddress ?? "",
     shipToAddress: row.shipToAddress ?? "",
     requirements: row.requirements ?? "",
@@ -490,6 +500,7 @@ export function quoteFieldsFromPotential(input: UpdatePotentialInput, images: st
     packageDimensions: input.packageDimensions ?? null,
     weightKg: input.weightKg ?? null,
     logisticsClass: input.logisticsClass ?? null,
+    shippingMode: input.shippingMode ?? null,
     shipFromAddress: input.shipFromAddress ?? null,
     shipToAddress: input.shipToAddress ?? null,
     requirements: input.requirements ?? null,
@@ -595,8 +606,8 @@ function filledLine(line: QuoteLine): boolean {
   return Boolean(line.stt || line.productName || quoteLineImages(line).length > 0 || line.quantity != null || line.pricePerSet != null || line.lineTotal != null || line.weightKg != null || line.spec || line.note || line.packages.length > 0);
 }
 
-function packagesSummary(packages: QuoteLine["packages"]): string {
-  const m = packageMetrics(packages);
+function packagesSummary(packages: QuoteLine["packages"], shippingMode: "AIR" | "SEA" | null): string {
+  const m = packageMetrics(packages, shippingMode);
   return `${m.count} kiện · ${m.cbm} cbm · tính cước ${m.chargeableKg} kg`;
 }
 
@@ -666,6 +677,7 @@ function MeasureInput({
 
 function LinePackagesEditor({
   line,
+  shippingMode,
   lineLabel,
   canEdit,
   error,
@@ -673,6 +685,7 @@ function LinePackagesEditor({
   onChange,
 }: {
   line: QuoteLine;
+  shippingMode: "AIR" | "SEA" | null;
   lineLabel: string;
   canEdit: boolean;
   error?: string;
@@ -700,10 +713,10 @@ function LinePackagesEditor({
             Bắt buộc — đừng bỏ sót
           </span>
         ) : (
-          <span className="text-xs text-amber-900">{packagesSummary(line.packages)}</span>
+          <span className="text-xs text-amber-900">{packagesSummary(line.packages, shippingMode)}</span>
         )}
       </div>
-      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
+      <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Cân thể tích = D × R × C / {VOLUMETRIC_DIVISOR[shippingMode ?? "SEA"]}; mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
       {line.packages.map((pkg, pi) => (
         <div key={pi} className="grid gap-1">
           <div className="flex flex-wrap items-center gap-1">
@@ -1142,6 +1155,7 @@ function DraftQuantity({
 
 const OrderLines = memo(function OrderLines({
   lines,
+  shippingMode,
   currency,
   columns,
   canEditContent,
@@ -1158,6 +1172,7 @@ const OrderLines = memo(function OrderLines({
   pureLogistics = false,
 }: {
   lines: QuoteLine[];
+  shippingMode: "AIR" | "SEA" | null;
   currency: QuoteCurrency;
   columns: PriceColumn[];
   canEditContent: boolean;
@@ -1182,8 +1197,8 @@ const OrderLines = memo(function OrderLines({
     onChange((lines) => lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
       let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
-      if ("packages" in patch && next.packages.length > 0) {
-        const m = packageMetrics(next.packages);
+      if (("packages" in patch || "quantity" in patch) && next.packages.length > 0) {
+        const m = packageMetrics(next.packages, shippingMode);
         const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
         next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
       }
@@ -1238,7 +1253,7 @@ const OrderLines = memo(function OrderLines({
               {priceColumns.map((column) => (
                 <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
               ))}
-              <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>
+              {!pureLogistics && <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>}
               {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Thông tin hàng hóa" : "Thuộc tính xưởng"}</th>}
               <th className="min-w-[140px] whitespace-nowrap px-2 py-3 font-medium">{brief ? "Lưu ý" : "Note"}</th>
               <th className="px-2 py-3" />
@@ -1401,10 +1416,10 @@ const OrderLines = memo(function OrderLines({
                       </td>
                     );
                   })}
-                  <td className="px-2 py-2">
+                  {!pureLogistics && <td className="px-2 py-2">
                     <DraftArea className="min-h-16 w-36" aria-label={`Quy cách dòng ${index + 1}`} aria-invalid={errors[`line.${index}.spec`] ? true : undefined} value={lang === "en" ? line.specEn : line.spec} disabled={!canEditContent} onValueChange={(next) => { updateLine(index, lang === "en" ? { specEn: next } : { spec: next }); onClearError?.(`line.${index}.spec`); }} placeholder={lang === "en" ? line.spec || "Specification" : "Quy cách"} />
                     <InputError message={errors[`line.${index}.spec`]} />
-                  </td>
+                  </td>}
                   {!brief && <td className="px-2 py-2">
                     <div className="grid w-[14.5rem] grid-cols-2 gap-1.5">
                       {visibleAttrKeys.map((key) => (
@@ -1442,6 +1457,7 @@ const OrderLines = memo(function OrderLines({
           {packagingRequired && (
             <LinePackagesEditor
               line={line}
+              shippingMode={shippingMode}
               lineLabel={`STT ${line.stt || index + 1}`}
               canEdit={canEditPackaging}
               error={errors[`line.${index}.packages`]}
@@ -1455,7 +1471,7 @@ const OrderLines = memo(function OrderLines({
           )}
           <div className="grid content-start gap-2">
             <label className="grid gap-2 text-sm">
-              <span>{`Trọng lượng (kg) · STT ${line.stt || index + 1}`}</span>
+              <span>{`${pureLogistics ? "Cân tính cước (kg/đơn vị hàng)" : "Trọng lượng (kg)"} · STT ${line.stt || index + 1}`}</span>
               <DraftQuantity aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
               <InputError message={errors[`line.${index}.weight`]} />
             </label>
@@ -1512,6 +1528,7 @@ function QuoteStepNotes({
 function OrderDraftDialog({
   mode: initialMode,
   order: initialOrder,
+  shippingMode,
   pending,
   sourcingSale,
   pureLogistics,
@@ -1531,6 +1548,7 @@ function OrderDraftDialog({
 }: {
   mode: "create" | "edit" | "view";
   order: QuoteOrder;
+  shippingMode: "AIR" | "SEA" | null;
   pending: boolean;
   sourcingSale: boolean;
   pureLogistics: boolean;
@@ -1635,6 +1653,7 @@ function OrderDraftDialog({
               )}
               <OrderLines
                 lang={printLang}
+                shippingMode={shippingMode}
                 showPricing={!pureLogistics && !sourcingSale}
                 lines={order.lines}
                 currency={order.currency}
@@ -1750,6 +1769,7 @@ export function QuoteEditor({
   const canEditPackaging = sourcingSale ? false : pureLogistics ? canEditContent : (saleFill && canEditContent) || (canEditContent && canEditPricing);
   const canEditSaleNotes = pureLogistics || saleFill ? canEditContent : canEditPricing;
   const [lead, setLead] = useState(quote);
+  const isFcl = pureLogistics && lead.shippingMode === "SEA" && lead.logisticsClass === "FCL";
   const [editingSale, setEditingSale] = useState(false);
   const [saleDraft, setSaleDraft] = useState<SaleLeadDraft | null>(null);
   const [saleError, setSaleError] = useState<string>();
@@ -1844,6 +1864,7 @@ export function QuoteEditor({
       packageDimensions: current.packageDimensions,
       weightKg: current.weightKg,
       logisticsClass: current.logisticsClass || undefined,
+      shippingMode: current.shippingMode || undefined,
       shipFromAddress: current.shipFromAddress || undefined,
       shipToAddress: current.shipToAddress || undefined,
       requirements: current.requirements || undefined,
@@ -1897,7 +1918,7 @@ export function QuoteEditor({
       quoteStatus,
       contractStatus,
       orders: nextOrders,
-      notes: notesWithFreight(notesRef.current, nextOrders),
+      notes: notesWithFreight(notesRef.current, nextOrders, lead.shippingMode),
       bank,
     });
     if (!parsed.success) {
@@ -1963,7 +1984,7 @@ export function QuoteEditor({
   const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
 
   const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
-    quoteSheetInputOf({ ...lead, code: quote.code, notes: notesWithFreight(notes, [order]), bank }, order, lang, issuedOn);
+    quoteSheetInputOf({ ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank }, order, lang, issuedOn);
 
   const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
 
@@ -2048,7 +2069,7 @@ export function QuoteEditor({
         id: crypto.randomUUID(),
         name: "",
         selected: orders.every((order) => !order.selected),
-        currency: "VND",
+        currency: isFcl ? "USD" : "VND",
         rate: null,
         priceColumns: [],
         lines: [emptyLine("1")],
@@ -2116,6 +2137,7 @@ export function QuoteEditor({
     ["Kích thước kiện hàng", lead.packageDimensions || "—"],
     ["Trọng lượng", lead.weightKg || "—"],
     ["Phân loại logistics", lead.logisticsClass || "—"],
+    ["Phương thức vận chuyển", lead.shippingMode === "AIR" ? "Đường bay" : lead.shippingMode === "SEA" ? "Đường biển" : "—"],
     ["Địa chỉ gửi", lead.shipFromAddress || "—"],
     ["Địa chỉ nhận", lead.shipToAddress || "—"],
   ];
@@ -2144,7 +2166,7 @@ export function QuoteEditor({
           if (index !== lineIndex) return line;
           let next: QuoteLine = { ...line, packages };
           if (packages.length > 0) {
-            const m = packageMetrics(packages);
+            const m = packageMetrics(packages, lead.shippingMode);
             const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
             next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
           }
@@ -2375,12 +2397,17 @@ export function QuoteEditor({
                   <Field label="Trọng lượng" htmlFor={fieldId("sale-weight")}>
                     <Input id={fieldId("sale-weight")} value={saleDraft.weightKg} onChange={(event) => setSaleDraft({ ...saleDraft, weightKg: event.target.value })} />
                   </Field>
-                  <Field label="Phân loại logistics" htmlFor={fieldId("sale-logistics")}>
-                    <NativeSelect id={fieldId("sale-logistics")} value={saleDraft.logisticsClass} onChange={(event) => setSaleDraft({ ...saleDraft, logisticsClass: event.target.value as SaleLeadDraft["logisticsClass"] })}>
+                  <Field label="Phương thức vận chuyển" htmlFor={fieldId("sale-shipping-mode")}>
+                    <NativeSelect id={fieldId("sale-shipping-mode")} value={saleDraft.shippingMode} onChange={(event) => setSaleDraft({ ...saleDraft, shippingMode: event.target.value as SaleLeadDraft["shippingMode"], logisticsClass: "", classification: "" })}>
+                      <option value="">Chưa chọn</option><option value="AIR">Đường bay</option><option value="SEA">Đường biển</option>
+                    </NativeSelect>
+                  </Field>
+                  {saleDraft.shippingMode === "SEA" && <Field label="Phân loại logistics" htmlFor={fieldId("sale-logistics")}>
+                    <NativeSelect id={fieldId("sale-logistics")} value={saleDraft.logisticsClass} onChange={(event) => setSaleDraft({ ...saleDraft, logisticsClass: event.target.value as SaleLeadDraft["logisticsClass"], classification: event.target.value as SaleLeadDraft["classification"] })}>
                       <option value="">Chưa chọn</option>
                       {classificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </NativeSelect>
-                  </Field>
+                  </Field>}
                   <Field label="Địa chỉ gửi" htmlFor={fieldId("sale-from")}>
                     <Textarea id={fieldId("sale-from")} rows={2} value={saleDraft.shipFromAddress} onChange={(event) => setSaleDraft({ ...saleDraft, shipFromAddress: event.target.value })} />
                   </Field>
@@ -2429,6 +2456,12 @@ export function QuoteEditor({
             <p className="sm:col-span-2"><span className="text-muted-foreground">Email: </span>{quote.email || "—"}</p>
           </div>}
 
+          {isFcl && <FclQuoteForm
+            value={notes.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "")}
+            onChange={(fcl) => commitNotes({ ...notesRef.current, fcl })}
+            shipmentEditable={canEditContent}
+            chargesEditable={false}
+          />}
           <div className="grid gap-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-base font-medium">Thông tin đơn hàng</h3>
@@ -2482,7 +2515,7 @@ export function QuoteEditor({
                     const quantityText = orderQuantityText(order.lines);
                     const specText = orderSpecText(order.lines);
                     const noteText = orderNoteText(order.lines);
-                    const packed = packageMetrics(order.lines.flatMap((line) => line.packages));
+                    const packed = packageMetrics(order.lines.flatMap((line) => line.packages), lead.shippingMode);
                     return (
                       <tr key={order.id} className="border-b last:border-0">
                         <td className="px-3 py-2">
@@ -2518,7 +2551,7 @@ export function QuoteEditor({
                           </div>
                           {specText && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-xs text-muted-foreground" title={specText}>{specText}</p>}
                           {order.lines.map((line, lineIndex) => {
-                            const packedText = packagesText(line.packages);
+                            const packedText = packagesText(line.packages, "vi", lead.shippingMode);
                             if (!packedText) return null;
                             return (
                               <p key={`${order.id}-pack-${lineIndex}`} className="mt-1 whitespace-pre-line text-xs text-muted-foreground" title={packedText}>
@@ -2618,9 +2651,10 @@ export function QuoteEditor({
             </TableHScroll>
           </div>
 
-          {pureLogistics && showPackaging && (
+          {pureLogistics && showPackaging && !isFcl && (
             <OrderPackagesBlock
               orders={orders}
+              shippingMode={lead.shippingMode}
               canEdit={canEditPackaging}
               onChange={patchOrderLinePackages}
               emptyHint="Chưa có thông tin đơn hàng — bấm Tạo thông tin đơn hàng."
@@ -2674,12 +2708,14 @@ export function QuoteEditor({
 
           {!pureLogistics && !sourcingSale && showPackaging && <OrderPackagesBlock
             orders={orders}
+            shippingMode={lead.shippingMode}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
           />}
 
           {!pureLogistics && !saleFill && <LogisticsFeesEditor
             notes={notes}
+            shippingMode={lead.shippingMode}
             setNotes={setNotes}
             canEdit={canEditLogisticsFees}
             canEditOrderNotes={canEditPricing}
@@ -2754,6 +2790,7 @@ export function QuoteEditor({
 
           {showPackaging && quote.customerKind !== "LOGISTICS" && <OrderPackagesBlock
             orders={orders}
+            shippingMode={lead.shippingMode}
             canEdit={canEditPackaging}
             onChange={patchOrderLinePackages}
           />}
@@ -2762,8 +2799,15 @@ export function QuoteEditor({
             <Textarea id={fieldId("logistics-ops-extra")} rows={3} value={notes.opsExtra} disabled={mode !== "full"} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
           </Field>
 
-          <LogisticsFeesEditor
+          {isFcl && <FclQuoteForm
+            value={notes.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "")}
+            onChange={(fcl) => commitNotes({ ...notesRef.current, fcl })}
+            shipmentEditable={canPriceAsLogistics}
+            chargesEditable={canEditLogisticsFees}
+          />}
+          {!isFcl && <LogisticsFeesEditor
             notes={notes}
+            shippingMode={lead.shippingMode}
             setNotes={setNotes}
             canEdit={canEditLogisticsFees}
             canEditOrderNotes={pureLogistics ? false : canEditPricing}
@@ -2872,7 +2916,7 @@ export function QuoteEditor({
             </section>
           )}
 
-          </LogisticsFeesEditor>
+          </LogisticsFeesEditor>}
         </TabsContent>
 
 
@@ -2930,11 +2974,12 @@ export function QuoteEditor({
           key={`${draft.order.id}:${draft.mode}`}
           mode={draft.mode}
           order={draft.order}
+          shippingMode={lead.shippingMode}
           pending={pending}
           sourcingSale={sourcingSale}
           pureLogistics={pureLogistics}
-          saleLogisticsOrder={saleLogisticsOrder}
-          showPackaging={showPackaging}
+          saleLogisticsOrder={saleLogisticsOrder && !isFcl}
+          showPackaging={showPackaging && !isFcl}
           canEditContent={canEditContent}
           canEditOrderPrices={canEditOrderPrices}
           canEditPackaging={canEditPackaging}

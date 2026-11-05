@@ -91,6 +91,7 @@ export function applyLogisticsDeskSave(
       ...patch,
       notes: {
         ...patch.notes,
+        fcl: input.notes.fcl ? { ...input.notes.fcl, charges: current.notes.fcl?.charges ?? [] } : current.notes.fcl,
         totalLabel: input.notes.totalLabel,
         validityNote: input.notes.validityNote,
         validityNoteEn: input.notes.validityNoteEn,
@@ -111,6 +112,7 @@ export function applyLogisticsDeskSave(
         shippingLabel: input.notes.shippingLabel,
         opsExtra: input.notes.opsExtra,
         freight: input.notes.freight,
+        fcl: input.notes.fcl,
       },
     };
   }
@@ -131,6 +133,7 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
       shippingLabel: input.notes.shippingLabel,
       opsExtra: input.notes.opsExtra,
       freight: input.notes.freight,
+      fcl: input.notes.fcl,
     },
   };
   return {

@@ -25,6 +25,8 @@ export interface QuoteSheetCustomer {
 export interface QuoteSheetInput {
   customer: QuoteSheetCustomer;
   lines: QuoteLine[];
+  shippingMode?: "AIR" | "SEA" | null;
+  logisticsClass?: string | null;
   currency?: string;
   /** Các loại tiền thêm của đơn (cột đơn giá + thành tiền). */
   priceColumns?: QuoteOrder["priceColumns"];
@@ -334,12 +336,14 @@ export function quoteItemFeeLabel(lang: QuoteLang, stt: string, spec: string | u
 }
 
 /** Bản ghi báo giá (hoặc bản nháp trong editor) đủ thông tin để dựng bản in. */
-export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank };
+export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank; shippingMode?: "AIR" | "SEA" | null; logisticsClass?: string | null };
 
 export function quoteSheetInputOf(source: QuoteSheetSource, order: QuoteOrder, lang?: QuoteLang, issuedOn?: string | null): QuoteSheetInput {
   return {
     customer: source,
     lines: order.lines,
+    shippingMode: source.shippingMode,
+    logisticsClass: source.logisticsClass,
     currency: order.currency,
     priceColumns: order.priceColumns,
     notes: source.notes,

@@ -3,10 +3,25 @@ import type { QuoteNotes, QuoteOrder, SentQuote } from "./crm";
 type QuoteAmountSource = {
   orders: QuoteOrder[];
   notes: QuoteNotes;
+  shippingMode?: "AIR" | "SEA" | null;
+  logisticsClass?: string | null;
   sentQuote?: SentQuote | null;
 };
 
 type QuoteAmount = { amount: number | null; currency: string; rate: number | null };
+
+export type FclQuote = NonNullable<QuoteNotes["fcl"]>;
+
+export function fclChargeTotal(charge: FclQuote["charges"][number]): number | null {
+  if (charge.rate == null || charge.quantity == null) return null;
+  // Cột VAT 8% trong file FCL chứa số tiền thuế nhập tay, được cộng trực tiếp vào thành tiền.
+  return Math.round((charge.rate * charge.quantity + charge.vatAmount) * 100) / 100;
+}
+
+export function fclTotals(charges: FclQuote["charges"]) {
+  const amount = (rows: FclQuote["charges"]) => Math.round(rows.reduce((sum, row) => sum + (fclChargeTotal(row) ?? 0), 0) * 100) / 100;
+  return { base: amount(charges.filter((row) => !row.optional)), all: amount(charges) };
+}
 
 export function quoteMoneyValue(text: string): number | null {
   const value = text.trim().replace(/\s*(?:[A-Z]{3}|₫|đ|\$)\s*$/i, "").replace(/\s/g, "");
@@ -47,6 +62,7 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
   const currency = orderCurrencyOf(order);
   if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
+  if (desk === "logistics" && sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL" && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: "USD", rate: order?.rate ?? null };
   if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
     const freightCurrency = resolvedFreightCurrency(notes, currency);
     const buckets = new Map<string, number>();

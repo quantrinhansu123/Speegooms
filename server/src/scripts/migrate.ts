@@ -60,6 +60,7 @@ const files = [
   "036_so_thu_chi_lien_ket_sao_ke.sql",
   "037_hop_dong_khoan_tien.sql",
   "038_thanh_toan_loai_tien.sql",
+  "037_logistics_shipping_mode.sql",
 ];
 
 await client.connect();
