@@ -20,6 +20,7 @@ import {
   type UpdateQuoteInput,
 } from "@speego/shared";
 import { ContractCreateDialog } from "./contract-create-dialog";
+import { QuotePaymentEditor } from "./quote-payment-editor";
 import { emptyFclQuote, FclQuoteForm } from "./fcl-quote-form";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -1925,6 +1926,9 @@ export function QuoteEditor({
       setFormError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
       return null;
     }
+    const paymentOrder = orderForQuotePdf(nextOrders);
+    const paymentError = paymentOrder && buildQuoteSheet(quoteSheetInputOf({ ...lead, notes: parsed.data.notes, bank }, paymentOrder)).payment?.error;
+    if (paymentError) { setFormError(paymentError); return null; }
     setFormError(undefined);
     return parsed.data;
   };
@@ -2052,6 +2056,7 @@ export function QuoteEditor({
     setOutputPick(null);
     if (!pick) return;
     const target = pick.order ?? selectedOrder;
+    if (notes.payment && !payloadFor(target ? [target] : orders)) return;
     if (pick.action === "print") {
       if (pick.order) printOrder(pick.order, lang);
       else printSelected(lang);
@@ -2069,7 +2074,7 @@ export function QuoteEditor({
         id: crypto.randomUUID(),
         name: "",
         selected: orders.every((order) => !order.selected),
-        currency: isFcl ? "USD" : "VND",
+        currency: notes.payment?.quoteCurrency ?? (isFcl ? "USD" : "VND"),
         rate: null,
         priceColumns: [],
         lines: [emptyLine("1")],
@@ -2457,6 +2462,7 @@ export function QuoteEditor({
           </div>}
 
           {isFcl && <FclQuoteForm
+            currency={notes.payment?.quoteCurrency ?? "USD"}
             value={notes.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "")}
             onChange={(fcl) => commitNotes({ ...notesRef.current, fcl })}
             shipmentEditable={canEditContent}
@@ -2801,6 +2807,7 @@ export function QuoteEditor({
 
           {isFcl && <FclQuoteForm
             value={notes.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "")}
+            currency={notes.payment?.quoteCurrency ?? "USD"}
             onChange={(fcl) => commitNotes({ ...notesRef.current, fcl })}
             shipmentEditable={canPriceAsLogistics}
             chargesEditable={canEditLogisticsFees}
@@ -2917,6 +2924,22 @@ export function QuoteEditor({
           )}
 
           </LogisticsFeesEditor>}
+          <QuotePaymentEditor
+            payment={notes.payment}
+            bank={bank}
+            currency={isFcl ? "USD" : resolvedFreightCurrency(notes, selectedOrder?.currency ?? "VND")}
+            model={selectedOrder ? buildQuoteSheet(sheetInputFor(selectedOrder)) : null}
+            disabled={!canEditLogisticsFees || pending}
+            fieldId={fieldId}
+            onPayment={(payment) => commitNotes({ ...notesRef.current, payment })}
+            onBank={setBank}
+            onCurrency={(currency) => {
+              const current = notesRef.current;
+              if (!current.payment) return;
+              setOrders((items) => items.map((order) => selectRateColumn(order, currency)));
+              commitNotes({ ...current, payment: { ...current.payment, quoteCurrency: currency, exchangeRate: null }, freight: { ...current.freight, currency }, logisticsFees: current.logisticsFees.map((fee) => ({ ...fee, currency })) });
+            }}
+          />
         </TabsContent>
 
 

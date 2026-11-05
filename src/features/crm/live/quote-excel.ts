@@ -66,9 +66,10 @@ function boxRow(row: Row, from: number, to: number) {
 type ExcelColumn = { key: string; width: number };
 
 /** Dựng workbook báo giá. Thành tiền và tổng là công thức để sửa tay vẫn tự tính lại. */
-async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
+export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   if (input.shippingMode === "SEA" && input.logisticsClass === "FCL" && input.notes.fcl) return buildFclWorkbook(input);
   const model = buildQuoteSheet(input);
+  if (model.payment?.error) throw new Error(model.payment.error);
   const { t } = model;
   // Thư viện Excel và ảnh tải song song.
   const [{ default: ExcelJS }, images] = await Promise.all([
@@ -312,11 +313,11 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     r += 1;
   }
 
-  // Thông tin thanh toán (tài khoản ACH) và chữ ký
+  // Thông tin thanh toán và chữ ký
   r += 1;
   text(r, 1, model.bank.title || t.paymentInfo, { bold: true, color: NAVY, merge: last });
   r += 1;
-  for (const [label, value] of model.bank.rows) {
+  for (const [label, value] of [...(model.payment?.rows ?? []), ...model.bank.rows]) {
     if (!value.trim()) continue;
     text(r, 1, label, { bold: true, merge: 3 });
     text(r, 4, value, { merge: last - 3 });
@@ -340,6 +341,9 @@ async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("FCL QUOTATION", { pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
   const fcl = input.notes.fcl!;
+  const currency = input.notes.payment?.quoteCurrency ?? "USD";
+  const model = buildQuoteSheet(input);
+  if (model.payment?.error) throw new Error(model.payment.error);
   [8, 34, 16, 14, 18, 12, 18, 38].forEach((width, index) => { ws.getColumn(index + 1).width = width; });
   ws.mergeCells("A1:H1");
   ws.getCell("A1").value = `SPEEGO LOGISTICS · QUOTATION ${input.code ?? ""}`;
@@ -350,9 +354,9 @@ async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   const fields = [["To", fcl.to], ["POL", fcl.pol], ["POD", fcl.pod], ["ETD", fcl.etd], ["Weight", fcl.weight], ["Volume", fcl.volume], ["Commodity", fcl.commodity], ["Date of stuffing goods", fcl.stuffingDate]];
   fields.forEach(([label, value], index) => { const row = ws.getRow(index + 4); row.getCell(1).value = label; ws.mergeCells(index + 4, 2, index + 4, 8); row.getCell(2).value = value; boxRow(row, 1, 8); });
   ws.mergeCells("A13:H13");
-  ws.getCell("A13").value = "QUOTATION · USD";
+  ws.getCell("A13").value = `QUOTATION · ${currency}`;
   styleHeader(ws.getRow(13));
-  ws.getRow(14).values = ["OR.", "NAME", "UNIT RATE", "QUANTITY", "UNIT", "VAT 8% (USD)", "TOTAL", "NOTE"];
+  ws.getRow(14).values = ["OR.", "NAME", "UNIT RATE", "QUANTITY", "UNIT", `VAT 8% (${currency})`, "TOTAL", "NOTE"];
   styleHeader(ws.getRow(14));
   fcl.charges.forEach((charge, index) => {
     const number = index + 15;
@@ -365,12 +369,23 @@ async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   const totals = fclTotals(fcl.charges);
   const baseRefs = fcl.charges.flatMap((charge, index) => charge.optional ? [] : [`G${index + 15}`]);
   ws.mergeCells(totalRow, 1, totalRow, 6);
-  ws.getCell(totalRow, 1).value = "TOTAL IN USD WITHOUT OPTIONAL CHARGES";
+  ws.getCell(totalRow, 1).value = `TOTAL IN ${currency} WITHOUT OPTIONAL CHARGES`;
   ws.getCell(totalRow, 7).value = { formula: baseRefs.length ? baseRefs.join("+") : "0", result: totals.base };
   ws.mergeCells(totalRow + 1, 1, totalRow + 1, 6);
-  ws.getCell(totalRow + 1, 1).value = "TOTAL IN USD WITH ALL CHARGES";
+  ws.getCell(totalRow + 1, 1).value = `TOTAL IN ${currency} WITH ALL CHARGES`;
   ws.getCell(totalRow + 1, 7).value = { formula: fcl.charges.length ? `SUM(G15:G${totalRow - 1})` : "0", result: totals.all };
   if (fcl.notes) { ws.mergeCells(totalRow + 3, 1, totalRow + 3, 8); ws.getCell(totalRow + 3, 1).value = fcl.notes; ws.getCell(totalRow + 3, 1).alignment = { wrapText: true }; }
+  if (model.payment) {
+    let row = totalRow + 5;
+    for (const [label, value] of [...model.payment.rows, ...model.bank.rows].filter(([, value]) => value.trim())) {
+      ws.mergeCells(row, 1, row, 3);
+      ws.mergeCells(row, 4, row, 8);
+      ws.getCell(row, 1).value = label;
+      ws.getCell(row, 4).value = value;
+      boxRow(ws.getRow(row), 1, 8);
+      row += 1;
+    }
+  }
   return workbook;
 }
 

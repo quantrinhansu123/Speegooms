@@ -1,5 +1,5 @@
 import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
-import { isCombinedSourcing, quoteAccessKind } from "@speego/shared";
+import { isCombinedSourcing, quoteAccessKind, quotePaymentSummary } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -250,6 +250,8 @@ export class CrmService {
         canRequest: can(options.role, "quote.request"),
       })
       : deskPatch;
+    const paymentError = desk === "logistics" ? quotePaymentSummary({ ...current, ...patch })?.error : "";
+    if (paymentError) throw new AppError(400, "RULE", paymentError);
     const result = await this.ready().updateQuote(lane, desk, id, patch);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
@@ -284,6 +286,8 @@ export class CrmService {
     if (orders.length > 0 && !orders.some((order) => order.selected)) {
       orders = orders.map((order, index) => ({ ...order, selected: index === 0 }));
     }
+    const paymentError = desk === "logistics" ? quotePaymentSummary({ ...current, ...patched, orders })?.error : "";
+    if (paymentError) throw new AppError(400, "RULE", paymentError);
     const result = await this.ready().sendQuote(lane, desk, id, { ...patched, orders });
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "empty") throw new AppError(400, "RULE", "Tạo thông tin đơn hàng trước khi gửi báo giá");

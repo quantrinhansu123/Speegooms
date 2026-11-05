@@ -125,7 +125,11 @@ function colgroupHtml(cols: Column[]): string {
 }
 
 /** Tài khoản nhận tiền cố định của Speego, in ở cuối phiếu báo giá. */
-function bankInfoBlock(lang: QuoteLang): string {
+function bankInfoBlock(lang: QuoteLang, model?: QuoteSheetModel): string {
+  if (model?.payment) {
+    const rows = [...model.payment.rows, ...model.bank.rows].filter(([, value]) => value.trim());
+    return `<section class="bank"><h2>${escapeHtml(model.t.paymentInfo)}</h2>${model.payment.error ? `<p>${escapeHtml(model.payment.error)}</p>` : ""}${rows.map(([label, value]) => `<div class="r"><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("")}</section>`;
+  }
   const vi = lang === "vi";
   const rowsHtml = (rows: [string, string][]) => rows.map(([label, value]) => `<div class="r"><span>${label}</span>${escapeHtml(value)}</div>`).join("");
   const group = (title: string, rows: [string, string][]) => `<h3>${title}</h3>${rowsHtml(rows)}`;
@@ -277,7 +281,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
 
-  const bankBlock = bankInfoBlock(lang);
+  const bankBlock = bankInfoBlock(lang, model);
 
   return `<article class="sheet ${input.compact ? "sheet-compact" : ""}">
   ${input.compact ? "" : `
@@ -349,6 +353,8 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
 
 function fclSheetHtml(input: QuoteSheetInput): string {
   const fcl = input.notes.fcl!;
+  const currency = escapeHtml(input.notes.payment?.quoteCurrency ?? "USD");
+  const model = buildQuoteSheet(input);
   const fields = [
     ["To", fcl.to || input.customer.companyName || input.customer.customerName || ""],
     ["POL", fcl.pol], ["POD", fcl.pod], ["ETD", fcl.etd],
@@ -364,11 +370,12 @@ function fclSheetHtml(input: QuoteSheetInput): string {
     <h1 class="doc-title">QUOTATION ${escapeHtml(input.code ?? "")}</h1>
     <h2 class="banner">SHIPMENT INFORMATION</h2>
     <table class="items"><tbody>${fields.map(([label, value]) => `<tr><th style="text-align:left;width:30%">${escapeHtml(label)}</th>${cell(value)}</tr>`).join("")}</tbody></table>
-    <h2 class="banner">QUOTATION · USD</h2>
-    <table class="items"><thead><tr><th>OR.</th><th>NAME</th><th>UNIT RATE</th><th>QUANTITY</th><th>UNIT</th><th>VAT 8% (USD)</th><th>TOTAL</th><th>NOTE</th></tr></thead>
+    <h2 class="banner">QUOTATION · ${currency}</h2>
+    <table class="items"><thead><tr><th>OR.</th><th>NAME</th><th>UNIT RATE</th><th>QUANTITY</th><th>UNIT</th><th>VAT 8% (${currency})</th><th>TOTAL</th><th>NOTE</th></tr></thead>
     <tbody>${fcl.charges.map((row, index) => `<tr>${cell(index + 1)}${cell(row.name)}${cell(fmt(row.rate))}${cell(row.quantity ?? "")}${cell(row.unit)}${cell(fmt(row.vatAmount))}${cell(fmt(fclChargeTotal(row)))}${cell(row.note)}</tr>`).join("")}</tbody></table>
-    <table class="items"><tbody><tr><th style="text-align:left" colspan="7">TOTAL IN USD WITHOUT OPTIONAL CHARGES</th>${cell(fmt(totals.base))}</tr><tr><th style="text-align:left" colspan="7">TOTAL IN USD WITH ALL CHARGES</th>${cell(fmt(totals.all))}</tr></tbody></table>
+    <table class="items"><tbody><tr><th style="text-align:left" colspan="7">TOTAL IN ${currency} WITHOUT OPTIONAL CHARGES</th>${cell(fmt(totals.base))}</tr><tr><th style="text-align:left" colspan="7">TOTAL IN ${currency} WITH ALL CHARGES</th>${cell(fmt(totals.all))}</tr></tbody></table>
     ${fcl.notes ? `<p style="white-space:pre-wrap;padding:12px">${escapeHtml(fcl.notes)}</p>` : ""}
+    ${model.payment ? bankInfoBlock(input.lang ?? "vi", model) : ""}
   </article>`;
 }
 
