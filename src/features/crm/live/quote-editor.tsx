@@ -2390,7 +2390,8 @@ export function QuoteEditor({
         <TabsContent value={pureLogistics || saleFill ? "sale" : "sourcing"} className={pureLogistics || saleFill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" : tabPanelClass}>
           {quoteStep && saleDraft && (
             <>
-              <QuoteStepNotes key={quote.id} initial={saleDraft} draftRef={saleDraftRef} fieldId={fieldId} />
+              {/* Nhu cầu Tìm hàng: Sale chỉ nhập mặt hàng/ảnh/số lượng/lưu ý từng dòng, không hiện Yêu cầu của khách + Ghi chú sale. */}
+              {!sourcingSale && <QuoteStepNotes key={quote.id} initial={saleDraft} draftRef={saleDraftRef} fieldId={fieldId} />}
               {saleError ? <InlineAlert>{saleError}</InlineAlert> : null}
             </>
           )}
