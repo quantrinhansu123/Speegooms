@@ -1,4 +1,4 @@
-import { packageMetrics, packagesText } from "@/services/crm/quote-lines";
+import { orderPackageMetrics, packagesText } from "@/services/crm/quote-lines";
 import {
   buildQuoteSheetModel,
   quoteSheetInputOf,
@@ -11,7 +11,7 @@ import {
 
 /** Mô hình dữ liệu báo giá dùng chung cho bản in/PDF và Excel. Phần đóng gói cần công thức quy đổi kiện của frontend. */
 export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
-  const metrics = packageMetrics(input.lines.flatMap((line) => line.packages), input.shippingMode);
+  const metrics = orderPackageMetrics(input.lines, input.shippingMode);
   return buildQuoteSheetModel({
     ...input,
     freightMetrics: metrics.count > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,

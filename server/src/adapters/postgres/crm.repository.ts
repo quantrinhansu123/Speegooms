@@ -450,7 +450,7 @@ function asFreight(value: unknown): QuoteNotes["freight"] {
   return {
     rate: optionalAmount(row.rate),
     cbmRate: optionalAmount(row.cbmRate),
-    basis: row.basis === "cbm" || row.basis === "both" ? row.basis : "kg",
+    basis: row.basis === "cbm" || row.basis === "both" || row.basis === "lump" ? row.basis : "kg",
     currency: typeof row.currency === "string" && /^[A-Z]{3}$/.test(row.currency.toUpperCase()) ? row.currency.toUpperCase() : "",
     total: optionalAmount(row.total),
     totalManual: row.totalManual === true,

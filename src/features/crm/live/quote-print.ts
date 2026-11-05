@@ -183,7 +183,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
       ${cell(line.stt, "stt")}
       ${cell(line.productName, "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(fmt(line.quantity), line.unit)}
+      ${numCell(fmt(line.quantity), "")}
       ${numCell(fmt(line.metric, 3), line.metricUnit)}
       ${numCell(fmt(line.price, 3), line.priceUnit)}
       ${numCell(fmt(line.total, 3), "", "num money")}
@@ -250,24 +250,25 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   )).join("");
   const summaryRows = [goodsRow, feeRows, shippingRow].filter(Boolean).join("");
   const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
+  const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
+  const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
+  const freightColumns: { head: string; cell: string }[] = [
+    ...(model.freight.basis === "lump" ? [] : [{
+      head: t.freightRate,
+      cell: freightCell([
+        usesKg && model.freight.rate != null ? `${fmt(model.freight.rate, 3)} ${model.freight.currency}/kg` : "",
+        usesCbm && model.freight.cbmRate != null ? `${fmt(model.freight.cbmRate, 3)} ${model.freight.currency}/CBM` : "",
+      ].filter(Boolean).join(" + ")),
+    }]),
+    ...(usesKg ? [{ head: t.chargeableWeight, cell: freightCell(model.freight.chargeableKg == null ? "" : fmt(model.freight.chargeableKg, 1), model.freight.chargeableKg == null ? "" : "kg") }] : []),
+    ...(usesCbm ? [{ head: t.chargeableVolume, cell: freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM") }] : []),
+    { head: t.freightTotal, cell: freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency) },
+  ];
   const freightTable = `<section class="freight">
     <h2>${escapeHtml(t.freightTitle)}</h2>
     <table class="freight-table">
-      <thead><tr>
-        <th>${escapeHtml(t.freightRate)}</th>
-        <th>${escapeHtml(t.chargeableWeight)}</th>
-        <th>${escapeHtml(t.chargeableVolume)}</th>
-        <th>${escapeHtml(t.freightTotal)}</th>
-      </tr></thead>
-      <tbody><tr>
-        ${freightCell([
-          model.freight.basis !== "cbm" && model.freight.rate != null ? `${fmt(model.freight.rate, 3)} ${model.freight.currency}/kg` : "",
-          model.freight.basis !== "kg" && model.freight.cbmRate != null ? `${fmt(model.freight.cbmRate, 3)} ${model.freight.currency}/CBM` : "",
-        ].filter(Boolean).join(" + "))}
-        ${freightCell(model.freight.chargeableKg == null ? "" : fmt(model.freight.chargeableKg, 1), model.freight.chargeableKg == null ? "" : "kg")}
-        ${freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM")}
-        ${freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency)}
-      </tr></tbody>
+      <thead><tr>${freightColumns.map((column) => `<th>${escapeHtml(column.head)}</th>`).join("")}</tr></thead>
+      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr></tbody>
     </table>
     <p class="freight-note">${escapeHtml(model.freight.note)}</p>
   </section>`;
@@ -312,7 +313,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
         <th>${escapeHtml(t.stt)}</th>
         <th>${escapeHtml(t.product)}</th>
         <th>${escapeHtml(t.image)}</th>
-        <th>${escapeHtml(t.quantity)}</th>
+        <th>${escapeHtml(model.quantityUnit ? `${t.quantity} (${model.quantityUnit})` : t.quantity)}</th>
         <th>${escapeHtml(t.metric)}</th>
         <th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
         <th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>

@@ -264,3 +264,44 @@ test("dòng chi phí: mặt hàng tự có tên tiếng Anh từ quy cách tiế
   assert.ok(model.missing.includes('Tên chi phí "Phí kho"'));
   assert.ok(!model.missing.some((label) => label.includes("Mặt hàng 1")));
 });
+
+test("trọn gói không tự tính từ cân hay CBM, tiền cước do người báo giá nhập", () => {
+  const model = buildQuoteSheetModel(input({
+    notes: notes({ freight: { ...emptyQuoteFreight, basis: "lump", rate: 2.5, cbmRate: 10, total: 500, totalManual: true, currency: "USD" } }),
+    freightMetrics: { chargeableKg: 148, cbm: 1.25 },
+  }), deps);
+  assert.equal(model.freight.basis, "lump");
+  assert.equal(model.freight.total, 500);
+  const empty = buildQuoteSheetModel(input({
+    notes: notes({ freight: { ...emptyQuoteFreight, basis: "lump", rate: 2.5 } }),
+    freightMetrics: { chargeableKg: 148, cbm: 1.25 },
+  }), deps);
+  assert.equal(empty.freight.total, null);
+});
+
+test("theo kg chỉ tính cân, theo CBM chỉ tính thể tích", () => {
+  const byKg = buildQuoteSheetModel(input({ notes: notes({ freight: { ...emptyQuoteFreight, basis: "kg", rate: 2, cbmRate: 10 } }), freightMetrics: { chargeableKg: 100, cbm: 2 } }), deps);
+  assert.equal(byKg.freight.total, 200);
+  const byCbm = buildQuoteSheetModel(input({ notes: notes({ freight: { ...emptyQuoteFreight, basis: "cbm", rate: 2, cbmRate: 10 } }), freightMetrics: { chargeableKg: 100, cbm: 2 } }), deps);
+  assert.equal(byCbm.freight.total, 20);
+});
+
+test("phụ phí không ghi loại tiền thì theo loại tiền cước", () => {
+  const costNotes = notes({
+    freight: { ...emptyQuoteFreight, rate: 2, total: 200, currency: "USD" },
+    logisticsFees: [{ label: "Cảng", labelEn: "", value: "5", currency: "", itemStt: "" }],
+  });
+  const order = { id: "00000000-0000-4000-8000-000000000001", name: "A", selected: true, currency: "VND" as const, rate: null, priceColumns: [], lines: [line()] };
+  assert.deepEqual(
+    { amount: quoteAmount({ orders: [order], notes: costNotes }, "logistics").amount, currency: quoteAmount({ orders: [order], notes: costNotes }, "logistics").currency },
+    { amount: 205, currency: "USD" },
+  );
+  const model = buildQuoteSheetModel(input({ currency: "VND", notes: costNotes }), deps);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 205 }]);
+});
+
+test("số lượng ghi đơn vị dòng đầu ở tiêu đề, ô từng dòng chỉ còn số", () => {
+  const model = buildQuoteSheetModel(input({ lines: [line({ unit: "bộ" }), line({ stt: "2", unit: "cái" })] }), deps);
+  assert.equal(model.quantityUnit, "bộ");
+  assert.equal(buildQuoteSheetModel(input({ lang: "en", lines: [line({ unit: "cái" })] }), deps).quantityUnit, "pcs");
+});

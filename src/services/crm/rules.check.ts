@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { canHandOver, canMoveToHot, canRequestDeposit, findDuplicateGroups, makeMessId, nextId, quoteTotals, routeFromOrigin } from "./rules.ts";
-import { lineAmount, packageMetrics } from "./quote-lines.ts";
+import { ceilHalf, lineAmount, orderPackageMetrics, packageMetrics } from "./quote-lines.ts";
 import { snapshotFromDto } from "./adapters.ts";
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`../../mocks/crm/${f}.json`, import.meta.url), "utf8"));
@@ -69,7 +69,13 @@ const mixed = packageMetrics([
 ]);
 assert.equal(mixed.chargeableKg, 148);
 assert.equal(packageMetrics([{ count: 1, lengthCm: 100, widthCm: 50, heightCm: 50, actualKg: 10 }], "AIR").chargeableKg, 50);
-assert.equal(packageMetrics([{ count: 1, lengthCm: 100, widthCm: 50, heightCm: 50, actualKg: 10 }], "SEA").chargeableKg, 41.7);
+assert.equal(packageMetrics([{ count: 1, lengthCm: 100, widthCm: 50, heightCm: 50, actualKg: 10 }], "SEA").chargeableKg, 42); // 41,67 làm tròn lên bội 0,5 → 42
+// Cân tính cước làm tròn lên bội 0,5 kg: 30,4 → 30,5; 30,6 → 31; 30 và 30,5 giữ nguyên.
+assert.deepEqual([30.4, 30.6, 30, 30.5, 30.51, 0.1, 148].map(ceilHalf), [30.5, 31, 30, 30.5, 31, 0.5, 148]);
+// Tổng cả đơn cộng cân đã làm tròn của từng dòng (10,2 + 10,2 → 10,5 + 10,5 = 21, không phải 20,4 → 20,5).
+const perLine = { count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 10.2 };
+assert.equal(packageMetrics([perLine]).chargeableKg, 10.5);
+assert.equal(orderPackageMetrics([{ packages: [perLine] }, { packages: [perLine] }]).chargeableKg, 21);
 assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 9520); // Võ Hải Triều
 assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
 assert.equal(lineAmount({ basis: "unit", quantity: 3, price: 0.035, weightKg: null, cbm: null }), 0.105);

@@ -69,7 +69,8 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
     for (const fee of notes.logisticsFees) {
       const feeAmount = quoteMoneyValue(fee.value);
       if (feeAmount == null) return { amount: null, currency: freightCurrency, rate: rateOf(order, freightCurrency) };
-      const code = (fee.currency?.trim() || currency).toUpperCase();
+      // Phụ phí không ghi loại tiền thì theo loại tiền cước.
+      const code = (fee.currency?.trim() || freightCurrency).toUpperCase();
       buckets.set(code, (buckets.get(code) ?? 0) + feeAmount);
     }
     if (notes.freight.total != null) buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);

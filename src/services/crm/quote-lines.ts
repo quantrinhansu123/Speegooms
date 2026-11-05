@@ -17,6 +17,11 @@ export const VOLUMETRIC_DIVISOR = { AIR: 5000, SEA: 6000 } as const;
 
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
+/** Làm tròn lên bội 0,5 kg: 30,4 → 30,5; 30,6 → 31; 30 và 30,5 giữ nguyên. */
+export function ceilHalf(value: number): number {
+  return Math.ceil(round(value, 3) * 2) / 2;
+}
+
 export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | null = null) {
   let cbm = 0, volumetricKg = 0, actualKg = 0, chargeableKg = 0, count = 0;
   for (const p of packages) {
@@ -31,7 +36,23 @@ export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | nu
     chargeableKg += Math.max(actKg, volKg);
     count += pieces;
   }
-  return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: round(chargeableKg, 1) };
+  // Cân tính cước làm tròn lên 0,5 kg cho từng nhóm đóng gói.
+  return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: ceilHalf(chargeableKg) };
+}
+
+/** Tổng đóng gói của cả đơn: cộng số đã làm tròn của từng dòng nên khớp với số hiển thị ở mỗi dòng. */
+export function orderPackageMetrics(lines: { packages: PackageSpec[] }[], mode: "AIR" | "SEA" | null = null) {
+  const total = { count: 0, cbm: 0, volumetricKg: 0, actualKg: 0, chargeableKg: 0 };
+  for (const line of lines) {
+    if (line.packages.length === 0) continue;
+    const m = packageMetrics(line.packages, mode);
+    total.count += m.count;
+    total.cbm += m.cbm;
+    total.volumetricKg += m.volumetricKg;
+    total.actualKg += m.actualKg;
+    total.chargeableKg += m.chargeableKg;
+  }
+  return { count: total.count, cbm: round(total.cbm, 3), volumetricKg: round(total.volumetricKg, 1), actualKg: round(total.actualKg, 1), chargeableKg: round(total.chargeableKg, 1) };
 }
 
 /** Thành tiền theo cách tính giá của dòng; kg/m2/CBM là định mức mỗi đơn vị hàng. */
@@ -46,14 +67,20 @@ export function lineAmount(l: { basis: PricingBasis; quantity: number | null; pr
 
 export const pricingBasisLabels: Record<PricingBasis, string> = { unit: "theo đơn vị", kg: "theo kg", m2: "theo m2", cbm: "theo CBM", lump: "trọn gói" };
 
+/** Số thập phân theo ngôn ngữ: tiếng Việt dùng dấu phẩy (30,5), tiếng Anh dùng dấu chấm (30.5). */
+const numberText = {
+  vi: new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }),
+  en: new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }),
+} as const;
+
 const packageText = {
   vi: {
-    pack: (i: number, p: PackageSpec) => `Kiện ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, thực tế ${p.actualKg} kg`,
-    total: (count: number, cbm: number, kg: number) => `Tổng ${count} kiện = ${cbm} cbm, cân tính cước ${kg} kg`,
+    pack: (i: number, p: PackageSpec) => `Kiện ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, thực tế ${numberText.vi.format(p.actualKg)} kg`,
+    total: (count: number, cbm: number, kg: number) => `Tổng ${count} kiện = ${numberText.vi.format(cbm)} cbm, cân tính cước ${numberText.vi.format(kg)} kg`,
   },
   en: {
-    pack: (i: number, p: PackageSpec) => `Package ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, actual ${p.actualKg} kg`,
-    total: (count: number, cbm: number, kg: number) => `Total ${count} package${count === 1 ? "" : "s"} = ${cbm} cbm, chargeable weight ${kg} kg`,
+    pack: (i: number, p: PackageSpec) => `Package ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, actual ${numberText.en.format(p.actualKg)} kg`,
+    total: (count: number, cbm: number, kg: number) => `Total ${count} package${count === 1 ? "" : "s"} = ${numberText.en.format(cbm)} cbm, chargeable weight ${numberText.en.format(kg)} kg`,
   },
 } as const;
 

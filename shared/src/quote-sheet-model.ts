@@ -83,6 +83,8 @@ export interface QuoteSheetModel {
   company: { name: string; rows: [string, string][] };
   customerRows: [string, string][];
   lines: QuoteSheetLine[];
+  /** Đơn vị của dòng đầu, ghi một lần ở tiêu đề cột Số lượng, ví dụ "cái". Ô từng dòng chỉ còn số. */
+  quantityUnit: string;
   /** cbm: tổng CBM của đơn = CBM mỗi đơn vị × số lượng. */
   totals: { goods: number | null; extra: Record<string, number | null>; cbm: number; priced: boolean };
   totalLabel: string;
@@ -106,7 +108,7 @@ export interface QuoteSheetModel {
 export interface QuoteSheetFreight {
   rate: number | null;
   cbmRate: number | null;
-  basis: "kg" | "cbm" | "both";
+  basis: "kg" | "cbm" | "both" | "lump";
   currency: string;
   chargeableKg: number | null;
   chargeableCbm: number | null;
@@ -172,6 +174,8 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
 export function quoteFreightTotal(freight: QuoteNotes["freight"], chargeableKg: number | null, chargeableCbm: number | null): number | null {
+  // Trọn gói: không tính từ cân hay CBM, tiền cước do người báo giá nhập.
+  if (freight.basis === "lump") return null;
   const kg = freight.basis !== "cbm" && freight.rate != null && chargeableKg != null ? freight.rate * chargeableKg : null;
   const cbm = freight.basis !== "kg" && freight.cbmRate != null && chargeableCbm != null ? freight.cbmRate * chargeableCbm : null;
   if (freight.basis === "both" && (kg == null || cbm == null)) return null;
@@ -262,6 +266,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     const line = input.lines.find((item, i) => (item.stt.trim() || String(i + 1)) === stt);
     return quoteItemFeeLabel("en", stt, line?.specEn);
   };
+  /** Phụ phí không ghi loại tiền thì theo loại tiền cước. */
+  const feeCurrency = resolvedFreightCurrency(notes, currency);
   const fees: QuoteSheetFee[] = (notes.logisticsFees ?? [])
     .map((fee) => ({
       label: lang === "en"
@@ -269,7 +275,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
         : fee.label.trim(),
       text: fee.value.trim(),
       amount: quoteMoneyValue(fee.value),
-      currency: (fee.currency?.trim() || currency).toUpperCase(),
+      currency: (fee.currency?.trim() || feeCurrency).toUpperCase(),
       itemStt: fee.itemStt?.trim() ?? "",
     }))
     .filter((fee) => fee.label || fee.text);
@@ -278,7 +284,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     if (fee.amount != null) subtotalByCurrency.set(fee.currency, round2((subtotalByCurrency.get(fee.currency) ?? 0) + fee.amount));
   }
   const freight = freightOf(notes, input.freightMetrics, t.freightNote);
-  freight.currency = resolvedFreightCurrency(notes, currency);
+  freight.currency = feeCurrency;
   if (freight.total != null) subtotalByCurrency.set(freight.currency, round2((subtotalByCurrency.get(freight.currency) ?? 0) + freight.total));
   const customer = input.customer;
   /** Có số ngày hiệu lực thì tự sinh câu; báo giá cũ chưa có số ngày vẫn in ghi chú nhập tay. */
@@ -317,6 +323,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     company: { name: quoteCompany.name, rows: quoteCompany.values.map((value, index) => [labels[index] ?? "", value] as [string, string]) },
     customerRows,
     lines,
+    quantityUnit: lines[0]?.unit ?? "",
     totals: {
       goods: priced ? round3(lines.reduce((sum, line) => sum + (line.total ?? 0), 0)) : null,
       extra: extraTotals,

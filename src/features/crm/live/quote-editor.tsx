@@ -46,7 +46,7 @@ import { MoneyInput } from "@/components/shared/money-input";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
-import { lineAmount, packageMetrics, packagesText, pricingBasisLabels, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
+import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuoteExcel } from "./quote-excel";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
@@ -123,7 +123,7 @@ function FeeCurrencySelect({ id, value, disabled, onChange }: { id: string; valu
 
 function notesWithFreight(notes: QuoteNotes, orders: QuoteOrder[], shippingMode: "AIR" | "SEA" | null): QuoteNotes {
   const order = orders.find((item) => item.selected) ?? orders[0];
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
+  const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
   if (freight.totalManual) return { ...notes, freight };
   const total = quoteFreightTotal(freight, metrics.count > 0 ? metrics.chargeableKg : null, metrics.count > 0 ? metrics.cbm : null) ?? freight.total;
@@ -152,12 +152,15 @@ function FreightCostEditor({
   lang: QuoteLang;
   fieldId: (name: string) => string;
 }) {
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
+  const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
   const chargeableKg = metrics.count > 0 ? metrics.chargeableKg : null;
   const chargeableCbm = metrics.count > 0 ? metrics.cbm : null;
   const autoTotal = quoteFreightTotal(freight, chargeableKg, chargeableCbm);
   const total = freight.totalManual ? freight.total : autoTotal ?? freight.total;
+  /** Kg chỉ hiện cân tính phí, CBM chỉ hiện thể tích, trọn gói không cần cả hai (tiền cước nhập tay). */
+  const usesKg = freight.basis === "kg" || freight.basis === "both";
+  const usesCbm = freight.basis === "cbm" || freight.basis === "both";
   const note = (lang === "en" ? quotePrintText.en : quotePrintText.vi).freightNote;
   const write = (next: QuoteNotes["freight"]) => {
     const shown = next.totalManual ? next.total : quoteFreightTotal(next, chargeableKg, chargeableCbm) ?? next.total;
@@ -171,29 +174,30 @@ function FreightCostEditor({
     <div className="grid gap-2">
       <div>
         <h4 className="text-sm font-semibold">Chi phí vận chuyển</h4>
-        <p className="text-sm text-muted-foreground">Chọn tính theo kg, CBM hoặc cộng cả hai. Có thể ghi đè tiền cước.</p>
+        <p className="text-sm text-muted-foreground">Chọn tính theo kg, CBM hoặc trọn gói. Có thể ghi đè tiền cước.</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         <Field label="Đơn vị tính cước" htmlFor={fieldId("freight-basis")}>
           <NativeSelect id={fieldId("freight-basis")} value={freight.basis} disabled={!canEdit} onChange={(event) => write({ ...freight, basis: event.target.value as QuoteNotes["freight"]["basis"] })}>
-            <option value="kg">Theo kg</option><option value="cbm">Theo CBM</option><option value="both">Cả kg và CBM</option>
+            <option value="kg">Theo kg</option><option value="cbm">Theo CBM</option><option value="lump">Trọn gói</option>
+            {freight.basis === "both" && <option value="both">Cả kg và CBM (cũ)</option>}
           </NativeSelect>
         </Field>
         <Field label="Loại tiền cước" htmlFor={fieldId("freight-currency")}>
-          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => write({ ...freight, currency })} />
+          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes({ ...notes, freight: { ...freight, currency }, logisticsFees: (notes.logisticsFees ?? []).map((fee) => ({ ...fee, currency: "" })) })} />
         </Field>
-        {freight.basis !== "cbm" && <Field label="Giá cước / kg" htmlFor={fieldId("freight-rate")}>
+        {usesKg && <Field label="Giá cước / kg" htmlFor={fieldId("freight-rate")}>
           <MoneyInput id={fieldId("freight-rate")} fractionDigits={3} value={freight.rate} disabled={!canEdit} onValueChange={(rate) => write({ ...freight, rate })} aria-label="Giá cước / kg" />
         </Field>}
-        {freight.basis !== "kg" && <Field label="Giá cước / CBM" htmlFor={fieldId("freight-cbm-rate")}>
+        {usesCbm && <Field label="Giá cước / CBM" htmlFor={fieldId("freight-cbm-rate")}>
           <MoneyInput id={fieldId("freight-cbm-rate")} fractionDigits={3} value={freight.cbmRate} disabled={!canEdit} onValueChange={(cbmRate) => write({ ...freight, cbmRate })} aria-label="Giá cước / CBM" />
         </Field>}
-        <Field label="Cân nặng tính phí (kg)" htmlFor={fieldId("freight-kg")}>
+        {usesKg && <Field label="Cân nặng tính phí (kg)" htmlFor={fieldId("freight-kg")}>
           <Input id={fieldId("freight-kg")} readOnly value={chargeableKg == null ? "" : formatMeasure(chargeableKg)} aria-label="Cân nặng tính phí" />
-        </Field>
-        <Field label="Thể tích tính phí (CBM)" htmlFor={fieldId("freight-cbm")}>
+        </Field>}
+        {usesCbm && <Field label="Thể tích tính phí (CBM)" htmlFor={fieldId("freight-cbm")}>
           <Input id={fieldId("freight-cbm")} readOnly value={chargeableCbm == null ? "" : formatMeasure(chargeableCbm)} aria-label="Thể tích tính phí" />
-        </Field>
+        </Field>}
         <Field label="Tiền cước" htmlFor={fieldId("freight-total")}>
           <MoneyInput id={fieldId("freight-total")} fractionDigits={3} value={total} disabled={!canEdit} aria-label="Tiền cước vận chuyển" onValueChange={(value) => write({ ...freight, total: value, totalManual: value !== autoTotal })} />
           {freight.totalManual && canEdit && (
@@ -217,10 +221,13 @@ function LogisticsFeesEditor({
   order,
   shippingMode,
   lang = "vi",
+  layout = "classic",
 }: {
   children?: ReactNode;
   notes: QuoteNotes;
   setNotes: (notes: QuoteNotes) => void;
+  /** "pricing": bố cục của bàn Logistics (phí chung, phụ phí theo tiền cước). "classic": bố cục cũ (chi phí theo từng mặt hàng). */
+  layout?: "pricing" | "classic";
   canEdit: boolean;
   canEditOrderNotes?: boolean;
   pending: boolean;
@@ -238,14 +245,15 @@ function LogisticsFeesEditor({
   const itemKeys = new Set(items.map((item) => item.stt));
   /** Phí chung, gồm cả phí của mặt hàng đã bị xóa để không mất dữ liệu. */
   const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => !fee.itemStt || !itemKeys.has(fee.itemStt));
-  const metrics = packageMetrics((order?.lines ?? []).flatMap((line) => line.packages), shippingMode);
+  const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight;
   const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.count ? metrics.chargeableKg : null, metrics.count ? metrics.cbm : null) ?? freight.total;
   const totals = new Map<string, number>();
   for (const fee of fees) {
     const value = quoteMoneyValue(fee.value);
     if (value == null) continue;
-    const code = fee.currency || currency;
+    // Phụ phí theo loại tiền cước.
+    const code = fee.currency?.trim() || freightCurrency;
     totals.set(code, Math.round(((totals.get(code) ?? 0) + value) * 1000) / 1000);
   }
   if (freightTotal != null) {
@@ -271,115 +279,187 @@ function LogisticsFeesEditor({
     setNotes({ ...notes, logisticsFees: [...fees, emptyFee({})] });
   };
 
-  return (
-    <div className="grid gap-3 rounded-xl border p-4 text-base">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-semibold">Chi phí logistics</h3>
-          <p className="text-sm text-muted-foreground">Mỗi mặt hàng của đơn có một dòng chi phí, chọn loại tiền cho từng dòng. Có thể thêm phí chung.</p>
+  if (layout === "classic") {
+    return (
+      <div className="grid gap-3 rounded-xl border p-4 text-base">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold">Chi phí logistics</h3>
+            <p className="text-sm text-muted-foreground">Mỗi mặt hàng của đơn có một dòng chi phí, chọn loại tiền cho từng dòng. Có thể thêm phí chung.</p>
+          </div>
+          {canEdit && lang === "vi" ? (
+            <Button type="button" variant="outline" size="sm" disabled={pending || fees.length >= 30} onClick={() => addFee()}>
+              <Plus />Thêm phí chung
+            </Button>
+          ) : null}
         </div>
-        {canEdit && lang === "vi" ? (
-          <Button type="button" variant="outline" size="sm" disabled={pending || fees.length >= 30} onClick={() => addFee()}>
-            <Plus />Thêm phí chung
-          </Button>
-        ) : null}
-      </div>
 
-      {children}
-      <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
+        {children}
+        <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
-      <div className="grid gap-3 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
-        <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
-      </div>
+        <div className="grid gap-3 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
+          <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
+        </div>
 
-      {items.length > 0 && (
-        <div className="grid gap-3">
-          <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
-          {items.map(({ stt, line }) => {
-            const fee = fees.find((item) => item.itemStt === stt);
-            const label = fee?.label || quoteItemFeeLabel("vi", stt, line.spec);
-            return (
-              <div key={stt} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem] sm:items-end">
-                <p className="text-sm font-medium" title={label}>{label}</p>
-                <Field label="Số tiền / ghi chú" htmlFor={fieldId(`item-fee-value-${stt}`)}>
+        {items.length > 0 && (
+          <div className="grid gap-3">
+            <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
+            {items.map(({ stt, line }) => {
+              const fee = fees.find((item) => item.itemStt === stt);
+              const label = fee?.label || quoteItemFeeLabel("vi", stt, line.spec);
+              return (
+                <div key={stt} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem] sm:items-end">
+                  <p className="text-sm font-medium" title={label}>{label}</p>
+                  <Field label="Số tiền / ghi chú" htmlFor={fieldId(`item-fee-value-${stt}`)}>
+                    <Input
+                      id={fieldId(`item-fee-value-${stt}`)}
+                      value={moneyText(fee?.value ?? "")}
+                      disabled={!canEdit}
+                      onChange={(event) => patchItemFee(stt, line, { value: formatMoneyInput(event.target.value) })}
+                      placeholder="Số tiền hoặc mô tả"
+                    />
+                  </Field>
+                  <Field label="Loại tiền" htmlFor={fieldId(`item-fee-currency-${stt}`)}>
+                    <FeeCurrencySelect
+                      id={fieldId(`item-fee-currency-${stt}`)}
+                      value={fee?.currency || freightCurrency}
+                      disabled={!canEdit}
+                      onChange={(code) => patchItemFee(stt, line, { currency: code })}
+                    />
+                  </Field>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {generalFees.length === 0 && items.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            Chưa có dòng chi phí chi tiết. Bấm Thêm phí chung để nhập.
+          </p>
+        ) : generalFees.length > 0 ? (
+          <div className="grid gap-3">
+            <h4 className="text-sm font-semibold">Phí chung</h4>
+            {generalFees.map(({ fee, index }) => (
+              <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem_auto] sm:items-end">
+                <Field label="Tên chi phí" htmlFor={fieldId(`fee-label-${index}`)}>
                   <Input
-                    id={fieldId(`item-fee-value-${stt}`)}
-                    value={moneyText(fee?.value ?? "")}
+                    id={fieldId(`fee-label-${index}`)}
+                    value={lang === "en" ? fee.labelEn : fee.label}
                     disabled={!canEdit}
-                    onChange={(event) => patchItemFee(stt, line, { value: formatMoneyInput(event.target.value) })}
+                    onChange={(event) => patchFee(index, lang === "en" ? { labelEn: event.target.value } : { label: event.target.value })}
+                    placeholder={lang === "en" ? fee.label : "Ví dụ: Chi phí cảng biển"}
+                  />
+                </Field>
+                <Field label="Số tiền / ghi chú" htmlFor={fieldId(`fee-value-${index}`)}>
+                  <Input
+                    id={fieldId(`fee-value-${index}`)}
+                    value={moneyText(fee.value)}
+                    disabled={!canEdit}
+                    onChange={(event) => patchFee(index, { value: formatMoneyInput(event.target.value) })}
                     placeholder="Số tiền hoặc mô tả"
                   />
                 </Field>
-                <Field label="Loại tiền" htmlFor={fieldId(`item-fee-currency-${stt}`)}>
+                <Field label="Loại tiền" htmlFor={fieldId(`fee-currency-${index}`)}>
                   <FeeCurrencySelect
-                    id={fieldId(`item-fee-currency-${stt}`)}
-                    value={fee?.currency || currency}
+                    id={fieldId(`fee-currency-${index}`)}
+                    value={fee.currency || freightCurrency}
                     disabled={!canEdit}
-                    onChange={(code) => patchItemFee(stt, line, { currency: code })}
+                    onChange={(code) => patchFee(index, { currency: code })}
                   />
                 </Field>
+                {canEdit && lang === "vi" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="justify-self-end"
+                    aria-label={`Xóa chi phí ${index + 1}`}
+                    disabled={pending}
+                    onClick={() => setNotes({ ...notes, logisticsFees: fees.filter((_, itemIndex) => itemIndex !== index) })}
+                  >
+                    <Trash2 />
+                  </Button>
+                ) : null}
               </div>
-            );
-          })}
+            ))}
+          </div>
+        ) : null}
+        <div className="border-t pt-3">
+          <h4 className="font-semibold">Tổng chi phí logistics</h4>
+          <p className="text-sm text-muted-foreground">Tiền cước + phụ phí, cộng riêng theo từng loại tiền.</p>
+          {totals.size ? [...totals].map(([code, amount]) => <p key={code} className="text-right font-semibold tabular-nums">{formatMoneyGrouped(amount)} {code}</p>) : <p className="text-sm text-muted-foreground">Chưa có số tiền.</p>}
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {generalFees.length === 0 && items.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-          Chưa có dòng chi phí chi tiết. Bấm Thêm phí chung để nhập.
-        </p>
-      ) : generalFees.length > 0 ? (
-        <div className="grid gap-3">
-          <h4 className="text-sm font-semibold">Phí chung</h4>
-          {generalFees.map(({ fee, index }) => (
-            <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem_auto] sm:items-end">
-              <Field label="Tên chi phí" htmlFor={fieldId(`fee-label-${index}`)}>
-                <Input
-                  id={fieldId(`fee-label-${index}`)}
-                  value={lang === "en" ? fee.labelEn : fee.label}
-                  disabled={!canEdit}
-                  onChange={(event) => patchFee(index, lang === "en" ? { labelEn: event.target.value } : { label: event.target.value })}
-                  placeholder={lang === "en" ? fee.label : "Ví dụ: Chi phí cảng biển"}
-                />
-              </Field>
-              <Field label="Số tiền / ghi chú" htmlFor={fieldId(`fee-value-${index}`)}>
-                <Input
-                  id={fieldId(`fee-value-${index}`)}
-                  value={moneyText(fee.value)}
-                  disabled={!canEdit}
-                  onChange={(event) => patchFee(index, { value: formatMoneyInput(event.target.value) })}
-                  placeholder="Số tiền hoặc mô tả"
-                />
-              </Field>
-              <Field label="Loại tiền" htmlFor={fieldId(`fee-currency-${index}`)}>
-                <FeeCurrencySelect
-                  id={fieldId(`fee-currency-${index}`)}
-                  value={fee.currency || currency}
-                  disabled={!canEdit}
-                  onChange={(code) => patchFee(index, { currency: code })}
-                />
-              </Field>
-              {canEdit && lang === "vi" ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="justify-self-end"
-                  aria-label={`Xóa chi phí ${index + 1}`}
-                  disabled={pending}
-                  onClick={() => setNotes({ ...notes, logisticsFees: fees.filter((_, itemIndex) => itemIndex !== index) })}
-                >
-                  <Trash2 />
-                </Button>
-              ) : null}
-            </div>
-          ))}
+  return (
+    <div className="grid gap-3 rounded-xl border p-4 text-base">
+      {children}
+      <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
+
+      <div className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="text-sm font-semibold">Phí chung</h4>
+            <p className="text-sm text-muted-foreground">Tính theo loại tiền cước ({freightCurrency}).</p>
+          </div>
+          {canEdit && lang === "vi" ? (
+            <Button type="button" variant="outline" size="sm" disabled={pending || fees.length >= 30} onClick={() => addFee()}>
+              <Plus />Thêm phí chung
+            </Button>
+          ) : null}
         </div>
-      ) : null}
+        {fees.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            Chưa có phí chung. Bấm Thêm phí chung để nhập.
+          </p>
+        ) : fees.map((fee, index) => (
+          <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-end">
+            <Field label="Tên chi phí" htmlFor={fieldId("fee-label-" + index)}>
+              <Input
+                id={fieldId("fee-label-" + index)}
+                value={lang === "en" ? fee.labelEn : fee.label}
+                disabled={!canEdit}
+                onChange={(event) => patchFee(index, lang === "en" ? { labelEn: event.target.value } : { label: event.target.value })}
+                placeholder={lang === "en" ? fee.label : "Ví dụ: Chi phí cảng biển"}
+              />
+            </Field>
+            <Field label={"Số tiền / ghi chú (" + (fee.currency?.trim() || freightCurrency) + ")"} htmlFor={fieldId("fee-value-" + index)}>
+              <Input
+                id={fieldId("fee-value-" + index)}
+                value={moneyText(fee.value)}
+                disabled={!canEdit}
+                onChange={(event) => patchFee(index, { value: formatMoneyInput(event.target.value) })}
+                placeholder="Số tiền hoặc mô tả"
+              />
+            </Field>
+            {canEdit && lang === "vi" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="justify-self-end"
+                aria-label={"Xóa chi phí " + (index + 1)}
+                disabled={pending}
+                onClick={() => setNotes({ ...notes, logisticsFees: fees.filter((_, itemIndex) => itemIndex !== index) })}
+              >
+                <Trash2 />
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
       <div className="border-t pt-3">
         <h4 className="font-semibold">Tổng chi phí logistics</h4>
         <p className="text-sm text-muted-foreground">Tiền cước + phụ phí, cộng riêng theo từng loại tiền.</p>
         {totals.size ? [...totals].map(([code, amount]) => <p key={code} className="text-right font-semibold tabular-nums">{formatMoneyGrouped(amount)} {code}</p>) : <p className="text-sm text-muted-foreground">Chưa có số tiền.</p>}
+      </div>
+
+      <div className="grid gap-3 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
+        <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
       </div>
     </div>
   );
@@ -599,6 +679,12 @@ function moneyText(raw: string): string {
   return amount == null ? raw : formatMoneyGrouped(amount);
 }
 
+/** Tiêu đề cột số lượng: ghi đơn vị của dòng đầu một lần, ô từng dòng chỉ còn số. */
+function quantityHeading(lines: Pick<QuoteLine, "unit">[]): string {
+  const unit = lines[0]?.unit?.trim();
+  return unit ? `Số lượng (${unit})` : "Số lượng";
+}
+
 function amountText(value: number | null): string {
   return value == null ? "" : String(value);
 }
@@ -609,7 +695,7 @@ function filledLine(line: QuoteLine): boolean {
 
 function packagesSummary(packages: QuoteLine["packages"], shippingMode: "AIR" | "SEA" | null): string {
   const m = packageMetrics(packages, shippingMode);
-  return `${m.count} kiện · ${m.cbm} cbm · tính cước ${m.chargeableKg} kg`;
+  return `${m.count} kiện · ${formatMeasure(m.cbm)} cbm · tính cước ${formatMeasure(m.chargeableKg)} kg`;
 }
 
 const factoryAttrKeys = ["Chất liệu", "MOQ", "Lead time", "Bảo hành"] as const;
@@ -681,6 +767,8 @@ function LinePackagesEditor({
   shippingMode,
   lineLabel,
   canEdit,
+  optional = false,
+  variant = "box",
   error,
   fieldError,
   onChange,
@@ -689,10 +777,78 @@ function LinePackagesEditor({
   shippingMode: "AIR" | "SEA" | null;
   lineLabel: string;
   canEdit: boolean;
+  /** Nháp trên mess: nhập được nhưng không bắt buộc, nên không gắn dấu * và nhãn "Bắt buộc". */
+  optional?: boolean;
+  /** "cell": 5 ô con ngay trên dòng sản phẩm; "box": khung vàng riêng (tab Logistics). */
+  variant?: "box" | "cell";
   error?: string;
   fieldError?: (packageIndex: number, key: string) => string | undefined;
   onChange: (packages: QuoteLine["packages"]) => void;
 }) {
+  const cell = variant === "cell";
+  const rows = line.packages.map((pkg, pi) => (
+    <div key={pi} className="grid gap-1">
+      <div className="flex flex-wrap items-center gap-1">
+        {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => {
+          const message = fieldError?.(pi, key);
+          const shared = {
+            className: cell ? "h-8 w-[4.5rem]" : "h-8 w-[4.5rem] border-amber-700/30 bg-white",
+            placeholder: { count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key],
+            "aria-label": `Kiện ${pi + 1} ${lineLabel}: ${key}`,
+            "aria-invalid": message ? true : undefined,
+            disabled: !canEdit,
+          } as const;
+          if (key === "count") {
+            return (
+              <Input
+                key={key}
+                {...shared}
+                inputMode="numeric"
+                value={pkg.count ? String(pkg.count) : ""}
+                onChange={(event) => {
+                  const parsed = Number(event.target.value.replace(/[^\d]/g, ""));
+                  onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, count: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 } : x)));
+                }}
+              />
+            );
+          }
+          return (
+            <MeasureInput
+              key={key}
+              {...shared}
+              value={pkg[key]}
+              onValueChange={(next) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: next } : x)))}
+            />
+          );
+        })}
+        {canEdit && (
+          <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => onChange(line.packages.filter((_, xi) => xi !== pi))}>
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+      <InputError message={["count", "lengthCm", "widthCm", "heightCm", "actualKg"].map((key) => fieldError?.(pi, key)).find(Boolean)} />
+    </div>
+  ));
+  const addPackage = () => onChange([...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }]);
+
+  if (cell) {
+    return (
+      <div aria-invalid={error ? true : undefined} className="grid min-w-[28rem] gap-1">
+        {rows}
+        <InputError message={error} />
+        <div className="flex flex-wrap items-center gap-2">
+          {canEdit && (
+            <Button type="button" size="sm" variant="outline" className="w-fit" onClick={addPackage}>
+              <Plus />Thêm kiện
+            </Button>
+          )}
+          {line.packages.length > 0 && <span className="text-xs text-muted-foreground">{packagesSummary(line.packages, shippingMode)}</span>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       aria-invalid={error ? true : undefined}
@@ -706,71 +862,26 @@ function LinePackagesEditor({
     >
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-semibold text-amber-950">
-          Quy cách đóng gói <span className="text-amber-700" aria-hidden>*</span>
+          Quy cách đóng gói {optional ? null : <span className="text-amber-700" aria-hidden>*</span>}
           {lineLabel ? <span className="font-medium text-amber-900/80"> · {lineLabel}</span> : null}
         </p>
         {line.packages.length === 0 ? (
-          <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-            Bắt buộc — đừng bỏ sót
-          </span>
+          optional ? (
+            <span className="text-xs text-amber-900/80">Không bắt buộc ở bước này</span>
+          ) : (
+            <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Bắt buộc — đừng bỏ sót
+            </span>
+          )
         ) : (
           <span className="text-xs text-amber-900">{packagesSummary(line.packages, shippingMode)}</span>
         )}
       </div>
       <p className="text-[11px] text-amber-900/80">Số kiện · D × R × C (cm, nhập được 35,8) · kg/kiện. Cân thể tích = D × R × C / {VOLUMETRIC_DIVISOR[shippingMode ?? "SEA"]}; mỗi kiện lấy số lớn hơn giữa cân thực và cân thể tích, rồi cộng lại.</p>
-      {line.packages.map((pkg, pi) => (
-        <div key={pi} className="grid gap-1">
-          <div className="flex flex-wrap items-center gap-1">
-            {(["count", "lengthCm", "widthCm", "heightCm", "actualKg"] as const).map((key) => {
-              const message = fieldError?.(pi, key);
-              const shared = {
-                className: "h-8 w-[4.5rem] border-amber-700/30 bg-white",
-                placeholder: { count: "Số kiện", lengthCm: "D cm", widthCm: "R cm", heightCm: "C cm", actualKg: "kg/kiện" }[key],
-                "aria-label": `Kiện ${pi + 1} ${lineLabel}: ${key}`,
-                "aria-invalid": message ? true : undefined,
-                disabled: !canEdit,
-              } as const;
-              if (key === "count") {
-                return (
-                  <Input
-                    key={key}
-                    {...shared}
-                    inputMode="numeric"
-                    value={pkg.count ? String(pkg.count) : ""}
-                    onChange={(event) => {
-                      const parsed = Number(event.target.value.replace(/[^\d]/g, ""));
-                      onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, count: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 } : x)));
-                    }}
-                  />
-                );
-              }
-              return (
-                <MeasureInput
-                  key={key}
-                  {...shared}
-                  value={pkg[key]}
-                  onValueChange={(next) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: next } : x)))}
-                />
-              );
-            })}
-            {canEdit && (
-              <Button type="button" size="icon-sm" variant="ghost" aria-label={`Xóa kiện ${pi + 1}`} onClick={() => onChange(line.packages.filter((_, xi) => xi !== pi))}>
-                <Trash2 />
-              </Button>
-            )}
-          </div>
-          <InputError message={["count", "lengthCm", "widthCm", "heightCm", "actualKg"].map((key) => fieldError?.(pi, key)).find(Boolean)} />
-        </div>
-      ))}
+      {rows}
       <InputError message={error} />
       {canEdit && (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-fit border-amber-700/40 bg-white"
-          onClick={() => onChange([...line.packages, { count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }])}
-        >
+        <Button type="button" size="sm" variant="outline" className="w-fit border-amber-700/40 bg-white" onClick={addPackage}>
           <Plus />Thêm kiện
         </Button>
       )}
@@ -815,6 +926,15 @@ function orderNoteText(lines: QuoteLine[]): string {
 }
 
 type PriceColumn = { currency: string };
+
+/** Quy cách đóng gói của một dòng sản phẩm, gọn cho bảng tổng hợp: dòng trên là từng loại kiện, dòng dưới là tổng. */
+function packagingSummaryOf(line: QuoteLine, shippingMode: "AIR" | "SEA" | null): { spec: string; total: string } | null {
+  if (line.packages.length === 0) return null;
+  const spec = line.packages
+    .map((pkg) => formatMeasure(pkg.count) + " kiện · " + formatMeasure(pkg.lengthCm) + "×" + formatMeasure(pkg.widthCm) + "×" + formatMeasure(pkg.heightCm) + " cm · " + formatMeasure(pkg.actualKg) + " kg/kiện")
+    .join("  |  ");
+  return { spec, total: packagesSummary(line.packages, shippingMode) };
+}
 
 /** Ô nhập số nhân của cách tính giá theo kg, m2 hoặc CBM: trường dữ liệu và nhãn. */
 const basisMetric = {
@@ -1162,6 +1282,7 @@ const OrderLines = memo(function OrderLines({
   canEditContent,
   canEditPricing,
   packagingRequired,
+  packagingOptional = false,
   canEditPackaging,
   errors = {},
   onChange,
@@ -1179,6 +1300,8 @@ const OrderLines = memo(function OrderLines({
   canEditContent: boolean;
   canEditPricing: boolean;
   packagingRequired: boolean;
+  /** Vẫn hiện ô đóng gói nhưng không bắt buộc (nháp trên mess). */
+  packagingOptional?: boolean;
   canEditPackaging: boolean;
   errors?: Record<string, string>;
   onChange: (lines: QuoteLine[] | ((current: QuoteLine[]) => QuoteLine[])) => void;
@@ -1193,6 +1316,8 @@ const OrderLines = memo(function OrderLines({
   pureLogistics?: boolean;
 }) {
   const priceColumns = !showPricing ? [] : columns.length > 0 ? columns : [{ currency }];
+  /** Quy cách đóng gói là một cột (5 cột con) cùng dòng với STT của sản phẩm. */
+  const showPackagesColumn = !brief && (packagingRequired || packagingOptional);
   const visibleAttrKeys = pureLogistics ? logisticsAttrKeys : factoryAttrKeys;
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange((lines) => lines.map((line, lineIndex) => {
@@ -1237,16 +1362,25 @@ const OrderLines = memo(function OrderLines({
   };
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <InputError message={errors.lines} />
-      <TableHScroll className="rounded-lg">
+      <TableHScroll className="min-w-0 rounded-lg" stickyIdentity>
         <table className="w-full min-w-[980px] text-base">
           <thead>
-            <tr className="border-b bg-muted/50 text-left text-sm">
+            <tr className="border-b text-left text-sm">
               {!brief && <th className="whitespace-nowrap px-2 py-3 font-medium">STT</th>}
               <th className="min-w-[180px] whitespace-nowrap px-2 py-3 font-medium">Mặt hàng</th>
               <th className="min-w-[160px] whitespace-nowrap px-2 py-3 font-medium">Hình ảnh</th>
-              <th className="whitespace-nowrap px-2 py-3 font-medium">Số lượng</th>
+              <th className="whitespace-nowrap px-2 py-3 font-medium">{quantityHeading(lines)}</th>
+              {showPackagesColumn && (
+                <th className="px-2 py-3 font-medium">
+                  <div className="whitespace-nowrap">{"Quy cách đóng gói" + (packagingRequired ? " *" : "")}</div>
+                  <div className="mt-1 flex gap-1 text-xs font-normal text-muted-foreground">
+                    {["Số kiện", "Dài (cm)", "Rộng (cm)", "Cao (cm)", "Kg/kiện"].map((label) => <span key={label} className="w-[4.5rem] whitespace-nowrap">{label}</span>)}
+                  </div>
+                </th>
+              )}
+              {!brief && <th className="whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Cân tính cước (kg/đv)" : "Trọng lượng (kg)"}</th>}
               {showPricing && <th className="whitespace-nowrap px-2 py-3 font-medium">Kg/CBM/m2</th>}
               {priceColumns.map((column) => (
                 <th key={`price-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Đơn giá ({column.currency})</th>
@@ -1256,6 +1390,7 @@ const OrderLines = memo(function OrderLines({
               ))}
               {!pureLogistics && <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>}
               {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Thông tin hàng hóa" : "Thuộc tính xưởng"}</th>}
+              {!brief && <th className="min-w-[19rem] whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Thông tin hàng hóa khác" : "Thuộc tính khác"} <span className="text-xs font-normal text-muted-foreground">(tên · giá trị)</span></th>}
               <th className="min-w-[140px] whitespace-nowrap px-2 py-3 font-medium">{brief ? "Lưu ý" : "Note"}</th>
               <th className="px-2 py-3" />
             </tr>
@@ -1366,6 +1501,33 @@ const OrderLines = memo(function OrderLines({
                       {!brief && <InputError message={errors[`line.${index}.unit`]} />}
                     </div>
                   </td>
+                  {showPackagesColumn && (
+                    <td className="px-2 py-2 align-top">
+                      <LinePackagesEditor
+                        variant="cell"
+                        line={line}
+                        shippingMode={shippingMode}
+                        lineLabel={`STT ${line.stt || index + 1}`}
+                        canEdit={canEditPackaging}
+                        optional={!packagingRequired}
+                        error={errors[`line.${index}.packages`]}
+                        fieldError={(packageIndex, key) => errors[`line.${index}.package.${packageIndex}.${key}`]}
+                        onChange={(packages) => {
+                          updateLine(index, { packages });
+                          onClearError?.(`line.${index}.packages`);
+                          onClearError?.(`line.${index}.package`);
+                        }}
+                      />
+                    </td>
+                  )}
+                  {!brief && (
+                    <td className="px-2 py-2 align-top">
+                      <div className="grid w-28 gap-1">
+                        <DraftQuantity className="h-8" placeholder="kg" aria-label={`${pureLogistics ? "Cân tính cước" : "Trọng lượng"} dòng ${index + 1} (kg)`} aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
+                        <InputError message={errors[`line.${index}.weight`]} />
+                      </div>
+                    </td>
+                  )}
                   {showPricing && <td className="px-2 py-2">
                     <div className="grid w-28 gap-1">
                       <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
@@ -1436,6 +1598,20 @@ const OrderLines = memo(function OrderLines({
                       ))}
                     </div>
                   </td>}
+                  {!brief && (
+                    <td className="px-2 py-2 align-top">
+                      <div className="grid min-w-[19rem] gap-1.5">
+                        {line.attrs.map((attr, attrIndex) => factoryAttrKeys.some((key) => key === attr.key) ? null : (
+              <div key={attrIndex} className="flex items-center gap-1">
+                <Input className="h-8 w-[8.5rem] text-xs" aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.keyEn : attr.key} placeholder={lang === "en" ? attr.key : "Tên thuộc tính"} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { keyEn: event.target.value } : { key: event.target.value }) } : item) })} />
+                <Input className="h-8 w-[8.5rem] text-xs" aria-label={`Giá trị thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.valueEn : attr.value} placeholder={lang === "en" ? attr.value : "Giá trị"} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { valueEn: event.target.value } : { value: event.target.value }) } : item) })} />
+                {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label="Xóa thuộc tính" onClick={() => updateLine(index, { attrs: line.attrs.filter((_, i) => i !== attrIndex) })}><Trash2 /></Button>}
+              </div>
+            ))}
+                        {canEditContent && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "", keyEn: "", valueEn: "" }] })}><Plus />Thêm thuộc tính</Button>}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-2 py-2">
                     <DraftArea className="min-h-16 w-40" aria-label={`Lưu ý dòng ${index + 1}`} aria-invalid={errors[`line.${index}.note`] ? true : undefined} value={lang === "en" ? line.noteEn : line.note} disabled={!canEditContent} onValueChange={(next) => { updateLine(index, lang === "en" ? { noteEn: next } : { note: next }); onClearError?.(`line.${index}.note`); }} placeholder={lang === "en" ? line.note || "Note" : "Lưu ý"} />
                     <InputError message={errors[`line.${index}.note`]} />
@@ -1453,41 +1629,6 @@ const OrderLines = memo(function OrderLines({
           </tbody>
         </table>
       </TableHScroll>
-      {!brief && lines.map((line, index) => (
-        <div key={index} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-2">
-          {packagingRequired && (
-            <LinePackagesEditor
-              line={line}
-              shippingMode={shippingMode}
-              lineLabel={`STT ${line.stt || index + 1}`}
-              canEdit={canEditPackaging}
-              error={errors[`line.${index}.packages`]}
-              fieldError={(packageIndex, key) => errors[`line.${index}.package.${packageIndex}.${key}`]}
-              onChange={(packages) => {
-                updateLine(index, { packages });
-                onClearError?.(`line.${index}.packages`);
-                onClearError?.(`line.${index}.package`);
-              }}
-            />
-          )}
-          <div className="grid content-start gap-2">
-            <label className="grid gap-2 text-sm">
-              <span>{`${pureLogistics ? "Cân tính cước (kg/đơn vị hàng)" : "Trọng lượng (kg)"} · STT ${line.stt || index + 1}`}</span>
-              <DraftQuantity aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
-              <InputError message={errors[`line.${index}.weight`]} />
-            </label>
-            <p className="text-sm font-medium">{pureLogistics ? "Thông tin hàng hóa khác" : "Thuộc tính xưởng khác"}</p>
-            {line.attrs.map((attr, attrIndex) => factoryAttrKeys.some((key) => key === attr.key) ? null : (
-              <div key={attrIndex} className="flex items-center gap-1">
-                <Input aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.keyEn : attr.key} placeholder={lang === "en" ? attr.key : undefined} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { keyEn: event.target.value } : { key: event.target.value }) } : item) })} />
-                <Input aria-label={`Giá trị thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.valueEn : attr.value} placeholder={lang === "en" ? attr.value : undefined} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { valueEn: event.target.value } : { value: event.target.value }) } : item) })} />
-                {canEditContent && <Button type="button" size="icon-sm" variant="ghost" aria-label="Xóa thuộc tính" onClick={() => updateLine(index, { attrs: line.attrs.filter((_, i) => i !== attrIndex) })}><Trash2 /></Button>}
-              </div>
-            ))}
-            {canEditContent && <Button type="button" variant="outline" className="w-fit" onClick={() => updateLine(index, { attrs: [...line.attrs, { key: "", value: "", keyEn: "", valueEn: "" }] })}><Plus />Thêm thuộc tính</Button>}
-          </div>
-        </div>
-      ))}
       {canEditContent && (
         <Button type="button" variant="outline" onClick={addLine}>
           <Plus />Thêm dòng
@@ -1609,7 +1750,7 @@ function OrderDraftDialog({
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
-        className="z-[80] max-h-[96dvh] w-[min(96vw,90rem)] max-w-none flex-col sm:max-w-none"
+        className="z-[80] max-h-[96dvh] w-[min(98vw,120rem)] max-w-none flex-col sm:max-w-none"
         style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         <DialogHeader className="shrink-0">
@@ -1665,6 +1806,7 @@ function OrderDraftDialog({
                 brief={sourcingSale}
                 pureLogistics={pureLogistics}
                 packagingRequired={!sourcingSale && !packagesOptional && (saleLogisticsOrder || showPackaging)}
+                packagingOptional={!sourcingSale && packagesOptional && (saleLogisticsOrder || showPackaging)}
                 canEditPackaging={canEditPackaging}
                 errors={orderFields}
                 onChange={commitLines}
@@ -2571,8 +2713,9 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Tên mẫu</th>
                     {showSourcingLineColumns && <th className="whitespace-nowrap px-3 py-3 font-medium">Mặt hàng</th>}
-                    <th className="whitespace-nowrap px-3 py-3 font-medium">Số lượng</th>
+                    <th className="whitespace-nowrap px-3 py-3 font-medium">{showSourcingLineColumns ? quantityHeading(orders[0]?.lines ?? []) : "Số lượng"}</th>
                     {showSourcingLineColumns && <th className="whitespace-nowrap px-3 py-3 font-medium">Kg/CBM</th>}
+                    {!sourcingSale && <th className="min-w-64 whitespace-nowrap px-3 py-3 font-medium">Quy cách đóng gói</th>}
                     {!sourcingSale && <th className="whitespace-nowrap px-3 py-3 font-medium">Tỷ giá</th>}
                     {!sourcingSale && priceColumns.map((column) => (
                       <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({column.currency})</th>
@@ -2593,7 +2736,7 @@ export function QuoteEditor({
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={sourcingSale ? 6 : 11 + priceColumns.length * 2 + (showSourcingLineColumns ? 2 : 0)} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                    <tr><td colSpan={sourcingSale ? 6 : 12 + priceColumns.length * 2 + (showSourcingLineColumns ? 2 : 0)} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                   )}
                   {orders.map((order) => {
                     const totals = quoteTotals(order.lines);
@@ -2638,15 +2781,6 @@ export function QuoteEditor({
                             {order.selected && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">Đang chọn</span>}
                           </div>
                           {specText && <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-xs text-muted-foreground" title={specText}>{specText}</p>}
-                          {order.lines.map((line, lineIndex) => {
-                            const packedText = packagesText(line.packages, "vi", lead.shippingMode);
-                            if (!packedText) return null;
-                            return (
-                              <p key={`${order.id}-pack-${lineIndex}`} className="mt-1 whitespace-pre-line text-xs text-muted-foreground" title={packedText}>
-                                {`STT ${line.stt || lineIndex + 1} · ${packedText}`}
-                              </p>
-                            );
-                          })}
                         </td>
                         {showSourcingLineColumns && (
                           <td className="min-w-48 px-3 py-2">
@@ -2660,7 +2794,7 @@ export function QuoteEditor({
                         <td className="whitespace-nowrap px-3 py-2">
                           {showSourcingLineColumns
                             ? order.lines.length === 0 ? "—" : order.lines.map((line, index) => (
-                              <div key={index} className="flex h-10 items-center border-b last:border-0">{line.quantity == null ? "—" : `${money(line.quantity)} ${line.unit?.trim() || "cái"}`}</div>
+                              <div key={index} className="flex h-10 items-center border-b last:border-0">{line.quantity == null ? "—" : money(line.quantity)}</div>
                             ))
                             : quantityText || "—"}
                         </td>
@@ -2674,6 +2808,27 @@ export function QuoteEditor({
                                 line.basis === "m2" && line.areaM2 != null ? `${money(line.areaM2)} m2/${unit}` : null,
                               ].filter(Boolean);
                               return <div key={index} className="flex h-10 items-center border-b last:border-0">{metrics.length ? metrics.join(" · ") : "—"}</div>;
+                            })}
+                          </td>
+                        )}
+                        {!sourcingSale && (
+                          <td className="min-w-64 px-3 py-2">
+                            {order.lines.length === 0 ? "—" : order.lines.map((line, index) => {
+                              const pack = packagingSummaryOf(line, lead.shippingMode);
+                              return (
+                                <div
+                                  key={index}
+                                  className="flex h-10 flex-col justify-center border-b text-xs leading-4 last:border-0"
+                                  title={pack ? "STT " + (line.stt || index + 1) + ": " + pack.spec + " — " + pack.total : undefined}
+                                >
+                                  {pack ? (
+                                    <>
+                                      <span className="max-w-80 truncate">{pack.spec}</span>
+                                      <span className="max-w-80 truncate text-muted-foreground">{pack.total}</span>
+                                    </>
+                                  ) : <span className="text-muted-foreground">—</span>}
+                                </div>
+                              );
                             })}
                           </td>
                         )}
@@ -2792,13 +2947,6 @@ export function QuoteEditor({
             </div>
           </div>
 
-          {!pureLogistics && !sourcingSale && showPackaging && <OrderPackagesBlock
-            orders={orders}
-            shippingMode={lead.shippingMode}
-            canEdit={canEditPackaging}
-            onChange={patchOrderLinePackages}
-          />}
-
           {!pureLogistics && !saleFill && <LogisticsFeesEditor
             notes={notes}
             shippingMode={lead.shippingMode}
@@ -2809,6 +2957,7 @@ export function QuoteEditor({
             fieldId={(name) => fieldId(`sourcing-${name}`)}
             order={selectedOrder}
             lang={printLang}
+            layout={desk === "logistics" ? "pricing" : "classic"}
           />}
           {!pureLogistics && !quoteStep && <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
             <Field label="Mẫu báo giá" htmlFor={fieldId("quote-template")}>
@@ -2845,14 +2994,14 @@ export function QuoteEditor({
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/50 text-left">
-                    {["STT", "Mặt hàng", "Ảnh hàng", "Số lượng", "Kg/CBM", "Quy cách / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
+                    {["STT", "Mặt hàng", "Ảnh hàng", quantityHeading(quote.sourcingContext.order.lines), "Kg/CBM", "Quy cách / thuộc tính xưởng", "Ghi chú", "Đơn giá Sourcing"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}
                   </tr></thead>
                   <tbody>{quote.sourcingContext.order.lines.map((line, index) => (
                     <tr key={index} className="border-b align-top last:border-0">
                       <td className="px-3 py-2">{line.stt}</td>
                       <td className="whitespace-pre-wrap px-3 py-2">{line.productName || "—"}</td>
                       <td className="min-w-36 px-3 py-2">{quoteLineImages(line).length > 0 ? <RequirementImageSlider images={quoteLineImages(line)} showTitle={false} /> : "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-2">{amountText(line.quantity)} {line.unit}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{amountText(line.quantity)}</td>
                       <td className="whitespace-nowrap px-3 py-2">{line.basis === "kg" ? `${amountText(line.weightKg)} kg/set` : line.basis === "cbm" ? `${amountText(line.cbm)} CBM/set` : "—"}</td>
                       <td className="min-w-48 whitespace-pre-wrap px-3 py-2">{[line.spec, ...line.attrs.map((attr) => attr.key + ": " + attr.value)].filter(Boolean).join("\n") || "—"}</td>
                       <td className="whitespace-pre-wrap px-3 py-2">{line.note || "—"}</td>
@@ -2904,6 +3053,7 @@ export function QuoteEditor({
             fieldId={fieldId}
             order={selectedOrder}
             lang={printLang}
+            layout={desk === "logistics" ? "pricing" : "classic"}
           >
           {mode === "full" && orders.length > 0 && (quote.customerKind !== "LOGISTICS" || canPriceAsLogistics) && (
             <section className="grid gap-3 rounded-xl border p-4">

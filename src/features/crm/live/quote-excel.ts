@@ -156,7 +156,7 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
     stt: t.stt,
     product: t.product,
     image: t.image,
-    qty: t.quantity,
+    qty: model.quantityUnit ? `${t.quantity} (${model.quantityUnit})` : t.quantity,
     basis: t.pricingBasis,
     metric: t.metric,
     price: `${t.unitPrice} (${model.currency})`,
@@ -270,36 +270,41 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
     r += 1;
   }
   r += 1;
-  text(r, 1, t.freightTitle, { bold: true, color: "FFFFFFFF", merge: 4, align: "center" });
+  const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
+  const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
+  const freightColumns: { head: string; value: number | string | undefined }[] = [
+    ...(model.freight.basis === "lump" ? [] : [{
+      head: t.freightRate,
+      value: [
+        usesKg && model.freight.rate != null ? `${model.freight.rate} ${model.freight.currency}/kg` : "",
+        usesCbm && model.freight.cbmRate != null ? `${model.freight.cbmRate} ${model.freight.currency}/CBM` : "",
+      ].filter(Boolean).join(" + ") || undefined,
+    }]),
+    ...(usesKg ? [{ head: t.chargeableWeight, value: model.freight.chargeableKg ?? undefined }] : []),
+    ...(usesCbm ? [{ head: t.chargeableVolume, value: model.freight.chargeableCbm ?? undefined }] : []),
+    { head: t.freightTotal, value: model.freight.total == null ? undefined : `${model.freight.total} ${model.freight.currency}` },
+  ];
+  text(r, 1, t.freightTitle, { bold: true, color: "FFFFFFFF", merge: freightColumns.length, align: "center" });
   ws.getCell(r, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
   r += 1;
-  const freightHeads = [t.freightRate, t.chargeableWeight, t.chargeableVolume, t.freightTotal];
-  freightHeads.forEach((label, index) => {
+  freightColumns.forEach((column, index) => {
     const cell = ws.getRow(r).getCell(index + 1);
-    cell.value = label;
+    cell.value = column.head;
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   });
-  boxRow(ws.getRow(r), 1, 4);
+  boxRow(ws.getRow(r), 1, freightColumns.length);
   r += 1;
-  const freightValues: Array<number | string | undefined> = [
-    [
-      model.freight.basis !== "cbm" && model.freight.rate != null ? `${model.freight.rate} ${model.freight.currency}/kg` : "",
-      model.freight.basis !== "kg" && model.freight.cbmRate != null ? `${model.freight.cbmRate} ${model.freight.currency}/CBM` : "",
-    ].filter(Boolean).join(" + ") || undefined,
-    model.freight.chargeableKg ?? undefined,
-    model.freight.chargeableCbm ?? undefined,
-    model.freight.total == null ? undefined : `${model.freight.total} ${model.freight.currency}`,
-  ];
-  freightValues.forEach((value, index) => {
+  freightColumns.forEach((column, index) => {
+    const value = column.value;
     const cell = ws.getRow(r).getCell(index + 1);
     cell.value = value;
     if (typeof value === "number") cell.numFmt = NUMBER_FORMAT;
     cell.font = { bold: true, color: { argb: NAVY } };
     cell.alignment = { horizontal: "center", vertical: "middle" };
   });
-  boxRow(ws.getRow(r), 1, 4);
+  boxRow(ws.getRow(r), 1, freightColumns.length);
   r += 1;
   text(r, 1, model.freight.note, { merge: last, color: "FF334155" });
   r += 1;

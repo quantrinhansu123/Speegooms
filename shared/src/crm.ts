@@ -265,8 +265,8 @@ export const quoteFreightSchema = z.object({
   rate: amount,
   /** Giá cước trên mỗi CBM tính phí. */
   cbmRate: amount.default(null),
-  /** kg, CBM, hoặc tổng của hai cách tính. */
-  basis: z.enum(["kg", "cbm", "both"]).default("kg"),
+  /** kg, CBM hoặc trọn gói (tiền cước nhập tay). "both" (cộng kg và CBM) chỉ còn để đọc báo giá cũ. */
+  basis: z.enum(["kg", "cbm", "both", "lump"]).default("kg"),
   /** Rỗng = loại tiền chính của đơn hàng. */
   currency: z.string().trim().toUpperCase().regex(/^$|^[A-Z]{3}$/).default(""),
   /** Tổng chi phí. Khi totalManual = false, in sẽ tính rate × cân nặng tính phí. */
