@@ -26,7 +26,7 @@ import { quoteRecordMissing } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
-import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
+import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge, ValidityBadge } from "./status-badges";
 import {
   contractStatusOptions,
   customerKindOptions,
@@ -169,7 +169,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const visibleRows = desk === "logistics" && modeFilter
     ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
     : rows;
-  const columnCount = 11;
+  const columnCount = 12;
 
   return (
     <>
@@ -217,7 +217,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         <FilterSelect id={`${desk}-quote-kind`} label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="w-full min-w-[1250px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
@@ -228,6 +228,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mẫu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú VH</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái báo giá</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
@@ -264,6 +265,14 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                   <td className="px-3 py-3">{row.templateName || "—"}</td>
                   <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>
                   <td className="px-3 py-3"><QuoteStatusBadge value={row.quoteStatus} /></td>
+                  <td className="px-3 py-3">
+                    {desk === "sourcing" && isCombinedSourcing(row) ? (
+                      <div className="grid gap-1">
+                        <p className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground">Sourcing</span><ValidityBadge sent={row.sentQuote} status={row.quoteStatus} /></p>
+                        <p className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground">Logistics</span><ValidityBadge sent={row.logisticsSheet?.sentQuote} status={row.logisticsSheet?.quoteStatus} /></p>
+                      </div>
+                    ) : <ValidityBadge sent={row.sentQuote} status={row.quoteStatus} />}
+                  </td>
                   <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                   {desk === "sourcing" && (
                     <td className="px-3 py-3">

@@ -81,11 +81,11 @@ export class CrmController {
   };
 
   createMessage = async (req: Request, res: Response) => {
-    res.status(201).json({ message: await this.crm.createMessage(laneOf(req), req.body) });
+    res.status(201).json({ message: await this.crm.createMessage(laneOf(req), req.body, roleOf(req)) });
   };
 
   updateMessage = async (req: Request, res: Response) => {
-    res.status(200).json({ message: await this.crm.updateMessage(laneOf(req), one(req.params.id), req.body) });
+    res.status(200).json({ message: await this.crm.updateMessage(laneOf(req), one(req.params.id), req.body, roleOf(req)) });
   };
 
   deleteMessage = async (req: Request, res: Response) => {

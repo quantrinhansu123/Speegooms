@@ -112,6 +112,7 @@ export {
   quoteLangLabels,
   quoteLangs,
   quotePrintText,
+  quoteValidityText,
   type QuoteLang,
   type QuotePrintText,
 } from "./quote-print-text";
@@ -131,7 +132,8 @@ export {
   type QuoteSheetSource,
   type QuoteSheetModel,
 } from "./quote-sheet-model";
-export { listSearchSchema, type ListSearch } from "./search";
+export { QUOTE_VALIDITY_WARN_DAYS, formatQuoteDay, quoteValidity, type QuoteValidity } from "./quote-validity";
+export { listSearchSchema,type ListSearch } from "./search";
 export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user";
 
 export { isCombinedSourcing, quoteAccessKind, type QuoteWorkflow } from "./quote-workflow";

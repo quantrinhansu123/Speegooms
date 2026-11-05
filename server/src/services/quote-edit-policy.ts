@@ -129,6 +129,8 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
     bank: current.bank,
     notes: {
       ...current.notes,
+      /** Logistics tự định số ngày hiệu lực cho báo giá của mình. */
+      validityDays: input.notes.validityDays,
       logisticsFees: input.notes.logisticsFees,
       shippingLabel: input.notes.shippingLabel,
       opsExtra: input.notes.opsExtra,

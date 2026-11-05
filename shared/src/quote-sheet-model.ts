@@ -1,6 +1,6 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
 import { quoteMoneyValue, resolvedFreightCurrency } from "./quote-amounts";
-import { quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
+import { quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
 export const quoteCompany = {
@@ -279,7 +279,10 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   freight.currency = resolvedFreightCurrency(notes, currency);
   if (freight.total != null) subtotalByCurrency.set(freight.currency, round2((subtotalByCurrency.get(freight.currency) ?? 0) + freight.total));
   const customer = input.customer;
-  const validityNote = pick(notes.validityNote, notes.validityNoteEn, "Hiệu lực báo giá");
+  /** Có số ngày hiệu lực thì tự sinh câu; báo giá cũ chưa có số ngày vẫn in ghi chú nhập tay. */
+  const validityNote = notes.validityDays
+    ? quoteValidityText(notes.validityDays, lang)
+    : pick(notes.validityNote, notes.validityNoteEn, "Hiệu lực báo giá");
   const customerRows: [string, string][] = [
     [t.customer, customer.customerName?.trim() ?? ""],
     [t.company, customer.companyName?.trim() ?? ""],

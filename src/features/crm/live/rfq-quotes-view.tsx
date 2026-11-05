@@ -31,7 +31,7 @@ import { orderForQuotePdf, quoteRecordMissing, type QuotePdfSource } from "./quo
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
-import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge } from "./status-badges";
+import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge, ValidityBadge } from "./status-badges";
 import { contractStatusOptions, customerKindOptions, deskLabels, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -413,7 +413,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>
-        <table className="w-full min-w-[1480px] text-sm">
+        <table className="w-full min-w-[1600px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
@@ -423,6 +423,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Bàn</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Sourcing</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Logistics</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
@@ -433,7 +434,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
+              <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
@@ -466,6 +467,14 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                       </p>
                     </div>
                   ) : <QuoteStatusBadge value={row.quoteStatus} />}
+                </td>
+                <td className="px-3 py-3">
+                  {isCombinedSourcing(row) ? (
+                    <div className="grid gap-1">
+                      <p className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground">Sourcing</span><ValidityBadge sent={row.sentQuote} status={row.quoteStatus} /></p>
+                      <p className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground">Logistics</span><ValidityBadge sent={logistics?.sentQuote} status={logistics?.quoteStatus} /></p>
+                    </div>
+                  ) : <ValidityBadge sent={row.sentQuote} status={row.quoteStatus} />}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>

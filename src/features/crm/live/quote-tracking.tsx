@@ -14,7 +14,7 @@ import { formatMoney } from "@/lib/format";
 import { crmPath } from "./lane";
 import type { ContractRecord } from "./contracts-live-view";
 import { type PotentialRecord, type RfqQuoteRecord, deskLabel, potentialOptions, labelOf } from "./types";
-import { QuoteStatusBadge } from "./status-badges";
+import { QuoteStatusBadge, ValidityBadge } from "./status-badges";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { quoteSheetHtml } from "./quote-print";
@@ -114,7 +114,7 @@ export function QuoteTrackingPage({ potentialId, lane }: { potentialId: string; 
     <SectionCard title="Chi tiết báo giá" description="Chỉ hiển thị bản báo giá đã gửi cho Sale.">
       {!sheets.length && <p className="text-sm text-muted-foreground">Chưa có báo giá để hiển thị.</p>}
       <div className="space-y-6">{sheets.map((q) => <section id={`quote-${q.id}`} key={`${q.desk}-${q.id}`} className="scroll-mt-6 space-y-3 rounded-lg border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{q.code} · {deskLabel(q.desk)}</h3><QuoteStatusBadge value={q.quoteStatus} /></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{q.code} · {deskLabel(q.desk)}</h3><span className="flex flex-wrap items-center gap-2"><ValidityBadge sent={q.sentQuote} status={q.quoteStatus} /><QuoteStatusBadge value={q.quoteStatus} /></span></div>
         <Details rows={[["Ngày tạo", new Date(q.createdAt).toLocaleDateString("vi-VN")], ["Ghi chú vận hành", q.opsNote], ["Ghi chú thêm", q.notes.opsExtra]]} />
         {q.sentQuote && <details open><summary className="cursor-pointer py-2 font-medium">Báo giá đã gửi</summary><QuoteSheetPreview title={`${q.code} đã gửi`} html={quoteSheetHtml({ customer: q, lines: q.sentQuote.order.lines, currency: q.sentQuote.order.currency, notes: q.sentQuote.notes, bank: q.sentQuote.bank, code: q.code, orderName: q.sentQuote.order.name, compact: true })} /></details>}
         {!q.sentQuote && <p className="text-sm text-muted-foreground">Chưa có bản báo giá đã gửi cho Sale.</p>}

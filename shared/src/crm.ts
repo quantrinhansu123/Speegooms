@@ -88,6 +88,8 @@ const messageFields = {
   saleName: text(160),
   painPoint: z.string().trim().min(1, "Nhập Pain-Point của KH").max(2000),
   linkMess: text(500),
+  /** Nháp thông tin sản phẩm/đơn hàng do Sale nhập trên mess. undefined: giữ nguyên, null: xóa. */
+  order: z.lazy(() => quoteOrderSchema).nullish(),
 };
 
 export const createMessageSchema = z.object(messageFields).superRefine(contact);
@@ -313,6 +315,8 @@ export const quoteNotesSchema = z.object({
   shippingLabel: text(300).default(""),
   weightNote: text(500),
   validityNote: text(500),
+  /** Số ngày báo giá có hiệu lực, đếm từ lần gửi báo giá gần nhất. Bắt buộc khi gửi. */
+  validityDays: z.number().int("Số ngày hiệu lực phải là số nguyên").min(1, "Số ngày hiệu lực tối thiểu 1").max(365, "Số ngày hiệu lực tối đa 365").nullable().optional(),
   /** Bản tiếng Anh của ghi chú cân nặng, hiệu lực và các dòng đặt cọc (depositEn[i] ứng với deposit[i]). */
   weightNoteEn: text(500).default(""),
   validityNoteEn: text(500).default(""),

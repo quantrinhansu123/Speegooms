@@ -155,7 +155,14 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
   },
 };
 
-const genericQuoteUnits = new Set(["", "set", "cái", "cai", "pcs", "pc", "piece", "pieces"]);
+/** Câu hiệu lực tự sinh từ số ngày: dùng cho dòng "Hiệu lực" trên bản in / PDF / Excel. */
+export function quoteValidityText(days: number, lang: QuoteLang): string {
+  return lang === "en"
+    ? `Valid for ${days} ${days === 1 ? "day" : "days"} from the quotation date`
+    : `Báo giá có hiệu lực ${days} ngày kể từ ngày gửi báo giá`;
+}
+
+const genericQuoteUnits =new Set(["", "set", "cái", "cai", "pcs", "pc", "piece", "pieces"]);
 
 /** Đơn vị số lượng trên file gửi khách: mặc định cái (vi) / pcs (en). Đơn vị tự nhập thì giữ nguyên. */
 export function quoteDisplayUnit(unit: string | null | undefined, lang: QuoteLang): string {

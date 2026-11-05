@@ -8,6 +8,7 @@ import {
   totalsInMain,
   logisticsOrderFromSourcing,
   orderHasContent,
+  quoteOrderSchema,
   sourcingHandoffOrder,
   quoteAccessKind,
   type QuoteWorkflow,
@@ -75,6 +76,7 @@ type MessageRow = {
   sale_name: string | null;
   pain_point: string | null;
   link_mess: string | null;
+  order_info: unknown;
   received_at: Date | string;
   lead_id: string | null;
   lead_code: string | null;
@@ -455,7 +457,7 @@ function asFreight(value: unknown): QuoteNotes["freight"] {
 
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; validityDays?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown }
     : {};
   const deposit = asDeposit(row.deposit);
   return {
@@ -463,6 +465,7 @@ function asNotes(value: unknown): QuoteNotes {
     shippingLabel: textField(row.shippingLabel),
     weightNote: textField(row.weightNote),
     validityNote: textField(row.validityNote),
+    validityDays: typeof row.validityDays === "number" && Number.isInteger(row.validityDays) && row.validityDays >= 1 ? row.validityDays : null,
     weightNoteEn: textField(row.weightNoteEn),
     validityNoteEn: textField(row.validityNoteEn),
     deposit,
@@ -628,6 +631,7 @@ function messageSelect(message: string, potential: string): string {
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
+         m.thong_tin_don_hang as order_info,
          m.nhan_luc as received_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
@@ -1176,10 +1180,17 @@ function toMessage(row: MessageRow): MessageRecord {
     saleName: row.sale_name,
     painPoint: row.pain_point,
     linkMess: row.link_mess,
+    order: messageOrder(row.order_info),
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,
     leadCode: row.lead_code,
   };
+}
+
+/** Nháp đơn hàng trên mess. Dữ liệu hỏng thì coi như chưa có, không làm hỏng cả danh sách. */
+function messageOrder(value: unknown): QuoteOrder | null {
+  const parsed = quoteOrderSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 function toPotential(row: PotentialRow): PotentialRecord {
@@ -1254,11 +1265,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb
        )
        returning id::text as id`,
       [
@@ -1276,6 +1287,7 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.painPoint),
         blank(input.linkMess),
         input.industry ?? null,
+        input.order ? JSON.stringify(input.order) : null,
       ],
     );
     const id = inserted.rows[0]?.id;
@@ -1302,7 +1314,8 @@ export class PostgresCrmRepository implements CrmRepository {
          nhan_vien_ban = $12,
          ghi_chu_van_de = $13,
          link_mess = $14,
-         nganh_hang = $15
+         nganh_hang = $15,
+         thong_tin_don_hang = case when $16::boolean then $17::jsonb else thong_tin_don_hang end
        where id = $1::uuid
        returning id::text as id`,
       [
@@ -1321,6 +1334,8 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.painPoint),
         blank(input.linkMess),
         input.industry ?? null,
+        input.order !== undefined,
+        input.order ? JSON.stringify(input.order) : null,
       ],
     );
     if (!updated.rows[0]) return null;

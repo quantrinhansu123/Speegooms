@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { convertMessageSchema, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane, type IndustryCategory, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { convertMessageSchema, createMessageSchema, industryCategoryOptions, orderHasContent, updateMessageSchema, updateQuoteSchema, type CrmLane, type IndustryCategory, type QuoteOrder, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -17,7 +17,7 @@ import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
-import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
+import { MessOrderDialog, QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { RowMenu } from "./row-menu";
 import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
@@ -57,6 +57,8 @@ type MessDraft = {
   painPoint: string;
   linkMess: string;
   note: string;
+  /** Nháp thông tin sản phẩm/đơn hàng (Sale nhập, không bắt buộc). */
+  order: QuoteOrder | null;
 };
 
 const emptyDraft: MessDraft = {
@@ -74,6 +76,7 @@ const emptyDraft: MessDraft = {
   painPoint: "",
   linkMess: "",
   note: "",
+  order: null,
 };
 
 function todayInput(): string {
@@ -110,7 +113,13 @@ function draftFrom(row: MessageRecord): MessDraft {
     painPoint: row.painPoint ?? "",
     linkMess: row.linkMess ?? "",
     note: row.note ?? "",
+    order: row.order ?? null,
   };
+}
+
+/** Số dòng hàng đã nhập trong nháp đơn hàng. */
+function orderLineCount(order: QuoteOrder | null): number {
+  return order ? order.lines.filter((line) => line.productName?.trim()).length : 0;
 }
 
 export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
@@ -131,6 +140,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [converting, setConverting] = useState<{ row: MessageRecord; mode: "" | "AIR" | "SEA"; logisticsClass: "" | "LCL" | "FCL" } | null>(null);
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
+  const [orderDialog, setOrderDialog] = useState(false);
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
@@ -187,6 +197,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       industry: draft.industry || undefined,
       customerType: draft.customerType || undefined,
       classification: draft.classification || undefined,
+      // Chỉ Sale/Admin ghi nháp đơn hàng; vai trò khác không gửi để server giữ nguyên nháp cũ.
+      order: canConvert ? draft.order : undefined,
     };
     const parsed = (editingId ? updateMessageSchema : createMessageSchema).safeParse(payload);
     if (!parsed.success) {
@@ -241,14 +253,51 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       body: JSON.stringify(parsed.data),
     })
       .then((converted) => api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${converted.potential.id}/quotes`, lane), { method: "POST" }))
-      .then((body) => {
+      .then(async (body) => {
         setConverting(null);
-        setOrderDesk(body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing"));
-        setOrderQuote(body.quote);
+        const desk = body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing");
+        // Hàng biển FCL dùng form cước riêng nên không đưa nháp đơn hàng sang.
+        const skipDraft = mode === "SEA" && logisticsClass === "FCL";
+        const prefilled = skipDraft ? null : await prefillOrder(row, body.quote, desk);
+        setOrderDesk(desk);
+        setOrderQuote(prefilled ?? body.quote);
+        if (prefilled) await sendPrefilled(prefilled, desk);
         load();
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không chuyển được mess"))
       .finally(() => setConvertPending(false));
+  };
+
+  /** Mess đã có nháp thông tin đơn hàng: đưa vào báo giá vừa tạo để Sale không phải nhập lại. */
+  const prefillOrder = async (row: MessageRecord, quote: QuoteRecord, desk: "sourcing" | "logistics"): Promise<QuoteRecord | null> => {
+    if (!row.order || !orderHasContent(row.order)) return null;
+    const parsed = updateQuoteSchema.safeParse({
+      templateId: quote.templateId,
+      opsNote: quote.opsNote ?? "",
+      quoteStatus: quote.quoteStatus,
+      contractStatus: quote.contractStatus,
+      orders: [{ ...row.order, selected: true }],
+      notes: quote.notes,
+      bank: quote.bank,
+    });
+    if (!parsed.success) return null;
+    const saved = await api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${quote.id}?desk=${desk}&orderContent=1`, lane), {
+      method: "PATCH",
+      body: JSON.stringify(parsed.data),
+    });
+    return saved.quote;
+  };
+
+  /** Đã có đủ thông tin đơn hàng thì chuyển luôn; thiếu thì giữ bước báo giá mở sẵn với đơn đã điền để bổ sung. */
+  const sendPrefilled = async (quote: QuoteRecord, desk: "sourcing" | "logistics") => {
+    const path = desk === "sourcing" ? "handoff-sourcing" : "handoff-logistics";
+    try {
+      await api(crmPath(`/api/crm/quotes/${quote.id}/${path}`, lane), { method: "POST" });
+      setOrderQuote(null);
+      setNotice(desk === "sourcing" ? "Đã chuyển thông tin đơn hàng cho Sourcing" : "Đã chuyển thông tin đơn hàng cho Logistics");
+    } catch (err: unknown) {
+      setOrderError(err instanceof ApiError ? err.message : "Không chuyển được báo giá");
+    }
   };
 
   const saveOrderPart = (input: UpdateQuoteInput, orderContent: boolean) => {
@@ -519,6 +568,36 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2">
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
               </Field>
+              {canConvert && (
+                <div className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Thông tin sản phẩm</p>
+                      <p className="text-sm text-muted-foreground">
+                        {draft.order && orderLineCount(draft.order) > 0
+                          ? `Đã nhập ${orderLineCount(draft.order)} dòng hàng. Bấm Chuyển sau khi lưu sẽ dùng luôn, không phải nhập lại.`
+                          : "Không bắt buộc. Nhập trước để khi bấm Chuyển không phải nhập lại."}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {draft.order && orderLineCount(draft.order) > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setDraft({ ...draft, order: null })}>Xóa</Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!draft.demand}
+                        title={draft.demand ? undefined : "Chọn Nhu cầu trước"}
+                        onClick={() => setOrderDialog(true)}
+                      >
+                        <Plus /> {draft.order && orderLineCount(draft.order) > 0 ? "Sửa thông tin sản phẩm" : "Thêm thông tin sản phẩm"}
+                      </Button>
+                    </div>
+                  </div>
+                  {!draft.demand && <p className="text-xs text-muted-foreground">Chọn Nhu cầu (Tìm hàng hoặc Vận chuyển) để nhập thông tin sản phẩm.</p>}
+                </div>
+              )}
               <Field label="Số điện thoại" htmlFor="mess-phone" hint="Chỉ nhập số">
                 <Input
                   id="mess-phone"
@@ -539,6 +618,14 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {orderDialog && draft?.demand && (
+        <MessOrderDialog
+          order={draft.order}
+          onClose={() => setOrderDialog(false)}
+          onSave={(order) => setDraft((current) => (current ? { ...current, order } : current))}
+        />
+      )}
 
       {orderQuote && (
         <QuoteEditor

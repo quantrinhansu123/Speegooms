@@ -1,3 +1,4 @@
+import { QUOTE_VALIDITY_WARN_DAYS, formatQuoteDay, quoteValidity, type SentQuote } from "@speego/shared";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { StatusTone } from "@/types/status";
 import {
@@ -136,6 +137,19 @@ export function QuoteStatusBadge({ value }: { value: string | null | undefined }
   const label = labelOf(quoteStatusOptions, value ?? null);
   if (!value || label === "—") return <span className="text-muted-foreground">—</span>;
   return <StatusBadge tone={quoteTone(value)}>{label}</StatusBadge>;
+}
+
+/** Hạn báo giá: kể từ lần gửi gần nhất. Đang điều chỉnh (Sale trả về) thì chưa có hạn mới. */
+export function ValidityBadge({ sent, status }: { sent: SentQuote | null | undefined; status: string | null | undefined }) {
+  if (status === "CHUA_CO_BAO_GIA_LAI") return <StatusBadge tone="warning">Đang điều chỉnh</StatusBadge>;
+  const validity = quoteValidity(sent);
+  if (!validity) return <span className="text-muted-foreground">—</span>;
+  const expires = formatQuoteDay(validity.expiresOn);
+  const title = `Hiệu lực ${validity.days} ngày, hết hạn ${expires}`;
+  if (validity.expired) return <span title={title}><StatusBadge tone="danger">Hết hạn {expires}</StatusBadge></span>;
+  const tone: StatusTone = validity.remainingDays <= QUOTE_VALIDITY_WARN_DAYS ? "warning" : "neutral";
+  const label = validity.remainingDays === 0 ? "Hết hạn hôm nay" : `Còn ${validity.remainingDays} ngày`;
+  return <span title={title}><StatusBadge tone={tone}>{label}</StatusBadge></span>;
 }
 
 export function ContractStatusBadge({ value }: { value: string | null | undefined }) {

@@ -8,10 +8,10 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import { accountingContractSchema, createContractSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, createMessageSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
-import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
+import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
 
 test("conversion reason is optional while customer requirements remain mandatory", () => {
   for (const reason of [undefined, "", "   ", "Khách cần mua hàng"]) {
@@ -135,6 +135,62 @@ test("creating a quote does not notify; Sale hands a filled sourcing order to So
   assert.deepEqual(desks, []);
   await service.handoffSourcingOrder("vn", "quote", { role: "sale-vn" } as PublicUser);
   assert.deepEqual(desks, ["sourcing"]);
+});
+
+const messageInput = {
+  customerName: "Khách", phone: "0900000000", email: "", goods: "Gạch", note: "", market: "", saleName: "Sale", painPoint: "Cần tư vấn",
+  linkMess: "", demand: "SOURCING" as const,
+};
+const messageOrder = {
+  id: "00000000-0000-4000-8000-000000000009", name: "Gạch", selected: true, currency: "VND" as const, rate: null, priceColumns: [],
+  lines: [{ stt: "1", productName: "Gạch men", quantity: 100, pricePerSet: null, lineTotal: null, weightKg: null, unit: "m2", spec: "", note: "" }],
+};
+
+test("only Sale and Admin can save the product draft on a mess", async () => {
+  const seen: unknown[] = [];
+  const service = new CrmService({
+    createMessage: async (_lane: string, input: { order?: unknown }) => { seen.push(input.order); return {} as never; },
+    updateMessage: async (_lane: string, _id: string, input: { order?: unknown }) => { seen.push(input.order); return {} as never; },
+  } as unknown as CrmRepository);
+  const input = createMessageSchema.parse({ ...messageInput, order: messageOrder });
+  await service.createMessage("vn", input, "marketing");
+  await service.updateMessage("vn", "id", input, "marketing");
+  assert.deepEqual(seen, [undefined, undefined]);
+  seen.length = 0;
+  for (const role of ["sale-vn", "sale-global", "admin"] as const) await service.createMessage("vn", input, role);
+  assert.equal(seen.length, 3);
+  assert.ok(seen.every((order) => (order as { name: string }).name === "Gạch"));
+});
+
+test("message product draft is saved, kept on edits without it, and cleared explicitly", async () => {
+  const calls: { sql: string; values: unknown[] }[] = [];
+  const row = {
+    id: "message", mess_code: "MESS-1", source: "OG", customer_name_raw: "Khách", phone: null, email: null, status: "NEW", goods: null,
+    industry: null, demand: "SOURCING", customer_type: null, note: null, market: null, classification: null, sale_name: null,
+    pain_point: "Cần tư vấn", link_mess: null, order_info: messageOrder, received_at: new Date(), lead_id: null, lead_code: null,
+  };
+  const repository = new PostgresCrmRepository({
+    query: async (sql: string, values: unknown[]) => {
+      calls.push({ sql, values });
+      if (sql.includes("insert into crm.tin_nhan") || sql.includes("update crm.tin_nhan")) return { rowCount: 1, rows: [{ id: "message" }] };
+      if (sql.includes("select m.id")) return { rowCount: 1, rows: [row] };
+      return { rowCount: 0, rows: [] };
+    },
+  } as unknown as pg.Pool);
+  const created = await repository.createMessage("vn", createMessageSchema.parse({ ...messageInput, order: messageOrder }));
+  assert.equal(created.order?.lines[0]?.productName, "Gạch men");
+  const insert = calls.find((call) => call.sql.includes("insert into crm.tin_nhan"));
+  assert.equal(JSON.parse(String(insert?.values[14])).name, "Gạch");
+
+  calls.length = 0;
+  await repository.updateMessage("vn", "message", updateMessageSchema.parse(messageInput));
+  let update = calls.find((call) => call.sql.includes("update crm.tin_nhan"));
+  assert.equal(update?.values[15], false);
+
+  calls.length = 0;
+  await repository.updateMessage("vn", "message", updateMessageSchema.parse({ ...messageInput, order: null }));
+  update = calls.find((call) => call.sql.includes("update crm.tin_nhan"));
+  assert.deepEqual([update?.values[15], update?.values[16]], [true, null]);
 });
 
 test("Sale content updates preserve Logistics packaging for the new workflow", async () => {

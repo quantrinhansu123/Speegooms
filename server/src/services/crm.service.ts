@@ -71,12 +71,19 @@ export class CrmService {
     return this.ready().listMessages(lane, search);
   }
 
-  createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord> {
-    return this.ready().createMessage(lane, input);
+  /** Chỉ vai trò được chuyển mess mới ghi nháp thông tin đơn hàng; vai trò khác bị bỏ qua, không ghi đè nháp cũ. */
+  private withOrderDraft<T extends { order?: unknown }>(input: T, role: Role | undefined): T {
+    if (input.order === undefined || (role && can(role, "message.convert"))) return input;
+    const { order: _ignored, ...rest } = input;
+    return rest as T;
   }
 
-  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord> {
-    const row = await this.ready().updateMessage(lane, id, input);
+  createMessage(lane: CrmLane, input: CreateMessageInput, role?: Role): Promise<MessageRecord> {
+    return this.ready().createMessage(lane, this.withOrderDraft(input, role));
+  }
+
+  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput, role?: Role): Promise<MessageRecord> {
+    const row = await this.ready().updateMessage(lane, id, this.withOrderDraft(input, role));
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     return row;
   }
@@ -277,6 +284,7 @@ export class CrmService {
   ): Promise<QuoteRecord> {
     const current = await this.assertQuoteEdit(lane, desk, id, actor.role);
     const patched = quoteDeskPatch(desk, current, input);
+    if (!patched.notes.validityDays) throw new AppError(400, "RULE", "Nhập số ngày hiệu lực báo giá trước khi gửi");
     let orders = patched.orders.length > 0 ? patched.orders : current.orders;
     if (orders.length === 0 && current.sourcingContext?.order) {
       orders = [{ ...current.sourcingContext.order, selected: true }];

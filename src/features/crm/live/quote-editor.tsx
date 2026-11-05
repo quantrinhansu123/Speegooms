@@ -1,6 +1,6 @@
 "use client";
 
-import { isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
+import { formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -1697,6 +1697,54 @@ function OrderDraftDialog({
   );
 }
 
+/**
+ * Sale nhập nháp thông tin sản phẩm/đơn hàng ngay trên mess, trước khi bấm Chuyển.
+ * Dùng lại form đơn hàng của bước báo giá: Tìm hàng nhập mặt hàng/ảnh/số lượng, Vận chuyển nhập thêm quy cách đóng gói. Sale không nhập giá.
+ */
+/** Nháp đơn hàng trên mess: cùng một form cho Tìm hàng lẫn Vận chuyển (quy cách đóng gói bắt buộc, cân tính cước, thông tin hàng hóa). */
+export function MessOrderDialog({
+  order,
+  onClose,
+  onSave,
+}: {
+  order: QuoteOrder | null;
+  onClose: () => void;
+  onSave: (order: QuoteOrder) => void;
+}) {
+  const [initial] = useState<QuoteOrder>(() => order ?? {
+    id: crypto.randomUUID(),
+    name: "",
+    selected: true,
+    currency: "VND",
+    rate: null,
+    priceColumns: [],
+    lines: [emptyLine("1")],
+  });
+  return (
+    <OrderDraftDialog
+      mode={order ? "edit" : "create"}
+      order={initial}
+      shippingMode={null}
+      pending={false}
+      sourcingSale={false}
+      pureLogistics
+      saleLogisticsOrder
+      showPackaging
+      canEditContent
+      canEditOrderPrices={false}
+      canEditPackaging
+      printLang="vi"
+      quoteCode=""
+      fieldId={(name) => `mess-order-${name}`}
+      pdfPending={false}
+      previewHtml=""
+      onClose={onClose}
+      onPersist={async (next) => { onSave({ ...next, selected: true }); return true; }}
+      onOutput={() => undefined}
+    />
+  );
+}
+
 export function QuoteEditor({
   quote,
   templates,
@@ -1768,6 +1816,8 @@ export function QuoteEditor({
   const canEditOrderPrices = pureLogistics ? canPriceAsLogistics : canEditPricing;
   const canEditPackaging = sourcingSale ? false : pureLogistics ? canEditContent : (saleFill && canEditContent) || (canEditContent && canEditPricing);
   const canEditSaleNotes = pureLogistics || saleFill ? canEditContent : canEditPricing;
+  /** Số ngày hiệu lực do bàn gửi báo giá nhập: Sourcing ở bàn sourcing, Logistics ở bàn logistics. Sale không sửa. */
+  const canEditValidity = mode === "full";
   const [lead, setLead] = useState(quote);
   const isFcl = pureLogistics && lead.shippingMode === "SEA" && lead.logisticsClass === "FCL";
   const [editingSale, setEditingSale] = useState(false);
@@ -1806,8 +1856,38 @@ export function QuoteEditor({
   const [contractOpen, setContractOpen] = useState(false);
   const [pdfPending, setPdfPending] = useState(false);
   const sent = quoteStatus === "DA_CO_BAO_GIA" || quoteStatus === "DA_CO_BAO_GIA_LAI";
+  /** Đang điều chỉnh (Sale trả về) thì chưa có hạn mới: hạn sẽ đếm lại khi gửi lại. */
+  const validity = quoteStatus === "CHUA_CO_BAO_GIA_LAI" ? null : quoteValidity(quote.sentQuote);
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
+
+  /** Ô số ngày hiệu lực. Sourcing nhập ở tab Sourcing, Logistics nhập ở tab Logistics (mỗi bàn một báo giá riêng). */
+  const validityField = (name: string) => (
+    <Field label="Hiệu lực báo giá (ngày)" htmlFor={fieldId(name)}>
+      <Input
+        id={fieldId(name)}
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={365}
+        step={1}
+        value={notes.validityDays ?? ""}
+        disabled={!canEditValidity}
+        onChange={(event) => {
+          const raw = event.target.value.trim();
+          commitNotes({ ...notesRef.current, validityDays: raw === "" ? null : Math.trunc(Number(raw)) });
+        }}
+        placeholder="Ví dụ: 7"
+      />
+      <p className="mt-1 text-xs text-muted-foreground">
+        {validity
+          ? validity.expired
+            ? `Đã gửi ${formatQuoteDay(validity.sentOn)} · đã hết hạn từ ${formatQuoteDay(validity.expiresOn)}. Gửi lại báo giá để đếm lại.`
+            : `Đã gửi ${formatQuoteDay(validity.sentOn)} · hết hạn ${formatQuoteDay(validity.expiresOn)} (còn ${validity.remainingDays} ngày).`
+          : "Tính từ ngày gửi báo giá. Điều chỉnh và gửi lại thì đếm lại từ đầu."}
+      </p>
+    </Field>
+  );
 
   const canSaveSale = Boolean(onSaveSale) && (desk !== "logistics" || pureLogistics);
 
@@ -2668,9 +2748,7 @@ export function QuoteEditor({
             <Field label="Tổng giá trị hàng hóa (Sourcing)" htmlFor={fieldId("note-total")}>
               <Input id={fieldId("note-total")} value={moneyText(notes.totalLabel)} disabled={!canEditSaleNotes} onChange={(event) => commitNotes({ ...notesRef.current, totalLabel: formatMoneyInput(event.target.value) })} placeholder="0" />
             </Field>
-            <Field label="Hiệu lực báo giá" htmlFor={fieldId("note-valid")}>
-              <DraftText id={fieldId("note-valid")} value={printLang === "en" ? notes.validityNoteEn : notes.validityNote} disabled={!canEditSaleNotes} onValueChange={(next) => commitNotes(printLang === "en" ? { ...notesRef.current, validityNoteEn: next } : { ...notesRef.current, validityNote: next })} placeholder={printLang === "en" ? notes.validityNote || "Quotation validity" : "Báo giá có hiệu lực kể từ ngày báo giá (...)"} />
-            </Field>
+            {validityField("note-valid")}
             <div className="grid gap-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium">Thông tin đặt cọc</span>
@@ -2798,6 +2876,8 @@ export function QuoteEditor({
           <Field label="Ghi chú thêm cho Sale" htmlFor={fieldId("logistics-ops-extra")} hint="Ví dụ tách lô vận chuyển, dời lịch. Sale xem được ghi chú này.">
             <Textarea id={fieldId("logistics-ops-extra")} rows={3} value={notes.opsExtra} disabled={mode !== "full"} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
           </Field>
+
+          {desk === "logistics" && <div className="grid gap-3 sm:grid-cols-2">{validityField("logistics-note-valid")}</div>}
 
           {isFcl && <FclQuoteForm
             value={notes.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "")}
@@ -3021,6 +3101,10 @@ export function QuoteEditor({
             : priced.map((order, index) => ({ ...order, selected: index === 0 }));
           const data = payloadFor(ready);
           if (!data) return;
+          if (!data.notes.validityDays) {
+            setFormError("Nhập số ngày hiệu lực báo giá trước khi gửi");
+            return;
+          }
           void onSend(data).then((status) => {
             if (status && quoteStatusOptions.some((item) => item[0] === status)) {
               setQuoteStatus(status as (typeof quoteStatusOptions)[number][0]);
