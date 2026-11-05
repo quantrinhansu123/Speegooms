@@ -267,7 +267,7 @@ function resendTarget(req: Request): "ops" | "accounting" | "parties" {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const role = req.user?.role;
   if (value === "ops" && (role === "admin" || role === "sale-vn" || role === "sale-global")) return "ops";
-  if (value === "accounting" && (role === "admin" || role === "van-hanh")) return "accounting";
+  if (value === "accounting" && (role === "admin" || role === "sale-vn" || role === "sale-global" || role === "van-hanh")) return "accounting";
   if (value === "parties" && role === "ke-toan") return "parties";
   throw new AppError(403, "FORBIDDEN", "Không gửi lại hợp đồng cho bên này");
 }

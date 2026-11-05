@@ -2014,7 +2014,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const assignment = target === "ops"
       ? `gui_van_hanh_luc = now(), ban_gui_van_hanh = ${commercialSnapshotSql}`
       : target === "accounting"
-        ? `gui_ke_toan_luc = now(), ban_gui_ke_toan = ${opsSnapshotSql}`
+        ? `gui_ke_toan_luc = now(), ban_gui_ke_toan = (${opsSnapshotSql}) || ${commercialSnapshotSql}`
         : `gui_xac_nhan_luc = now(), ban_gui_xac_nhan = ${accountingSnapshotSql}`;
     const pendingGuard = target === "parties" ? "and gui_ke_toan_luc is not null" : "";
     const updated = await this.query(
