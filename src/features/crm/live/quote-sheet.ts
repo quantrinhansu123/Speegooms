@@ -11,11 +11,11 @@ import {
 
 /** Mô hình dữ liệu báo giá dùng chung cho bản in/PDF và Excel. Phần đóng gói cần công thức quy đổi kiện của frontend. */
 export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
-  const metrics = packageMetrics(input.lines.flatMap((line) => line.packages));
+  const metrics = packageMetrics(input.lines.flatMap((line) => line.packages), input.shippingMode);
   return buildQuoteSheetModel({
     ...input,
     freightMetrics: metrics.count > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,
-  }, { packagesNote: (line, lang) => packagesText(line.packages, lang) });
+  }, { packagesNote: (line, lang) => packagesText(line.packages, lang, input.shippingMode) });
 }
 
 /** Bản ghi báo giá (danh sách, RFQ) đủ thông tin để in, tải PDF hoặc Excel. */

@@ -20,6 +20,7 @@ const complete = {
   packageDimensions: "40 x 30 x 20 cm",
   weightKg: "20 kg",
   logisticsClass: "LCL",
+  shippingMode: "SEA" as const,
   shipFromAddress: null,
   shipToAddress: "123 Main Street",
   requirements: "Giao trước thứ sáu",
@@ -42,4 +43,9 @@ test("Sourcing quote does not require Logistics details", () => {
     companyName: null,
     requirements: null,
   }), []);
+});
+
+test("FCL profile needs a container class but no per-package dimensions", () => {
+  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, logisticsClass: "FCL", packageDimensions: null }), []);
+  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, logisticsClass: null }), ["LCL/FCL"]);
 });

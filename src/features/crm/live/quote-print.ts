@@ -1,5 +1,7 @@
 import {
   formatQuoteNumber,
+  fclChargeTotal,
+  fclTotals,
   quoteCompany,
   quoteCompanyLabels,
   quoteFileBase,
@@ -155,6 +157,9 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   /** Chỉ thông tin khách hàng và bảng chi tiết đơn hàng, dùng cho màn hình theo dõi. */
   compact?: boolean;
 }): string {
+  if (input.shippingMode === "SEA" && input.logisticsClass === "FCL" && input.notes.fcl) {
+    return fclSheetHtml(input);
+  }
   const model = buildQuoteSheet(input);
   const { t, lang } = model;
   const fmt = (value: number | null, digits = 2) => (value == null ? "" : formatQuoteNumber(value, lang, digits));
@@ -340,6 +345,31 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   </section>
   `}
 </article>`;
+}
+
+function fclSheetHtml(input: QuoteSheetInput): string {
+  const fcl = input.notes.fcl!;
+  const fields = [
+    ["To", fcl.to || input.customer.companyName || input.customer.customerName || ""],
+    ["POL", fcl.pol], ["POD", fcl.pod], ["ETD", fcl.etd],
+    ["Weight", fcl.weight], ["Volume", fcl.volume],
+    ["Commodity", fcl.commodity], ["Date of stuffing goods", fcl.stuffingDate],
+  ];
+  const fmt = (value: number | null) => value == null ? "" : formatQuoteNumber(value, input.lang ?? "vi", 2);
+  const cell = (value: string | number) => `<td>${escapeHtml(String(value))}</td>`;
+  const totals = fclTotals(fcl.charges);
+  return `<article class="sheet fcl-sheet">
+    <header class="masthead"><div class="brand"><img class="logo" src="${SPEEGO_LOGO_DATA_URL}" alt="SpeeGo Logistics" width="168" height="50"><div class="company"><strong>${escapeHtml(quoteCompany.name)}</strong><p>${escapeHtml(quoteCompany.values.join(" · "))}</p></div></div></header>
+    <div class="accent-bar" aria-hidden="true"></div>
+    <h1 class="doc-title">QUOTATION ${escapeHtml(input.code ?? "")}</h1>
+    <h2 class="banner">SHIPMENT INFORMATION</h2>
+    <table class="items"><tbody>${fields.map(([label, value]) => `<tr><th style="text-align:left;width:30%">${escapeHtml(label)}</th>${cell(value)}</tr>`).join("")}</tbody></table>
+    <h2 class="banner">QUOTATION · USD</h2>
+    <table class="items"><thead><tr><th>OR.</th><th>NAME</th><th>UNIT RATE</th><th>QUANTITY</th><th>UNIT</th><th>VAT 8% (USD)</th><th>TOTAL</th><th>NOTE</th></tr></thead>
+    <tbody>${fcl.charges.map((row, index) => `<tr>${cell(index + 1)}${cell(row.name)}${cell(fmt(row.rate))}${cell(row.quantity ?? "")}${cell(row.unit)}${cell(fmt(row.vatAmount))}${cell(fmt(fclChargeTotal(row)))}${cell(row.note)}</tr>`).join("")}</tbody></table>
+    <table class="items"><tbody><tr><th style="text-align:left" colspan="7">TOTAL IN USD WITHOUT OPTIONAL CHARGES</th>${cell(fmt(totals.base))}</tr><tr><th style="text-align:left" colspan="7">TOTAL IN USD WITH ALL CHARGES</th>${cell(fmt(totals.all))}</tr></tbody></table>
+    ${fcl.notes ? `<p style="white-space:pre-wrap;padding:12px">${escapeHtml(fcl.notes)}</p>` : ""}
+  </article>`;
 }
 
 /** Tông màu logo SpeeGo: Navy #082A59, Orange #F26522, nền #F6F8FC. */

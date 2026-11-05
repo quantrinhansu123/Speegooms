@@ -1,5 +1,5 @@
 import { downloadBlob } from "@/lib/download";
-import { quoteFileBase, quoteSheetInputOf, safeQuoteFilename, type QuoteLang, type QuoteSheetInput } from "@speego/shared";
+import { fclChargeTotal, fclTotals, quoteFileBase, quoteSheetInputOf, safeQuoteFilename, type QuoteLang, type QuoteSheetInput } from "@speego/shared";
 import type { CellValue, Workbook, Worksheet } from "exceljs";
 import { SPEEGO_LOGO_DATA_URL } from "./quote-logo";
 import { buildQuoteSheet, orderForQuotePdf, type QuotePdfSource } from "./quote-sheet";
@@ -67,6 +67,7 @@ type ExcelColumn = { key: string; width: number };
 
 /** Dựng workbook báo giá. Thành tiền và tổng là công thức để sửa tay vẫn tự tính lại. */
 async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
+  if (input.shippingMode === "SEA" && input.logisticsClass === "FCL" && input.notes.fcl) return buildFclWorkbook(input);
   const model = buildQuoteSheet(input);
   const { t } = model;
   // Thư viện Excel và ảnh tải song song.
@@ -330,6 +331,45 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   text(r, mid + 1, t.signStamp, { color: ORANGE, merge: last - mid, align: "center" });
   ws.getRow(r + 4).height = 20;
 
+  return workbook;
+}
+
+async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
+  const { default: ExcelJS } = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet("FCL QUOTATION", { pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const fcl = input.notes.fcl!;
+  [8, 34, 16, 14, 18, 12, 18, 38].forEach((width, index) => { ws.getColumn(index + 1).width = width; });
+  ws.mergeCells("A1:H1");
+  ws.getCell("A1").value = `SPEEGO LOGISTICS · QUOTATION ${input.code ?? ""}`;
+  ws.getCell("A1").font = { bold: true, size: 17, color: { argb: NAVY } };
+  ws.mergeCells("A3:H3");
+  ws.getCell("A3").value = "SHIPMENT INFORMATION";
+  styleHeader(ws.getRow(3));
+  const fields = [["To", fcl.to], ["POL", fcl.pol], ["POD", fcl.pod], ["ETD", fcl.etd], ["Weight", fcl.weight], ["Volume", fcl.volume], ["Commodity", fcl.commodity], ["Date of stuffing goods", fcl.stuffingDate]];
+  fields.forEach(([label, value], index) => { const row = ws.getRow(index + 4); row.getCell(1).value = label; ws.mergeCells(index + 4, 2, index + 4, 8); row.getCell(2).value = value; boxRow(row, 1, 8); });
+  ws.mergeCells("A13:H13");
+  ws.getCell("A13").value = "QUOTATION · USD";
+  styleHeader(ws.getRow(13));
+  ws.getRow(14).values = ["OR.", "NAME", "UNIT RATE", "QUANTITY", "UNIT", "VAT 8% (USD)", "TOTAL", "NOTE"];
+  styleHeader(ws.getRow(14));
+  fcl.charges.forEach((charge, index) => {
+    const number = index + 15;
+    const row = ws.getRow(number);
+    row.values = [index + 1, charge.name, charge.rate, charge.quantity, charge.unit, charge.vatAmount, { formula: `C${number}*D${number}+F${number}`, result: fclChargeTotal(charge) ?? 0 }, charge.note];
+    [3, 7].forEach((col) => { row.getCell(col).numFmt = NUMBER_FORMAT; });
+    boxRow(row, 1, 8);
+  });
+  const totalRow = 15 + fcl.charges.length;
+  const totals = fclTotals(fcl.charges);
+  const baseRefs = fcl.charges.flatMap((charge, index) => charge.optional ? [] : [`G${index + 15}`]);
+  ws.mergeCells(totalRow, 1, totalRow, 6);
+  ws.getCell(totalRow, 1).value = "TOTAL IN USD WITHOUT OPTIONAL CHARGES";
+  ws.getCell(totalRow, 7).value = { formula: baseRefs.length ? baseRefs.join("+") : "0", result: totals.base };
+  ws.mergeCells(totalRow + 1, 1, totalRow + 1, 6);
+  ws.getCell(totalRow + 1, 1).value = "TOTAL IN USD WITH ALL CHARGES";
+  ws.getCell(totalRow + 1, 7).value = { formula: fcl.charges.length ? `SUM(G15:G${totalRow - 1})` : "0", result: totals.all };
+  if (fcl.notes) { ws.mergeCells(totalRow + 3, 1, totalRow + 3, 8); ws.getCell(totalRow + 3, 1).value = fcl.notes; ws.getCell(totalRow + 3, 1).alignment = { wrapText: true }; }
   return workbook;
 }
 

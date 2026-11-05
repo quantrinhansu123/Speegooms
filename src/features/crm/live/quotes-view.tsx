@@ -64,6 +64,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [editing, setEditing] = useState<QuoteRecord | null>(null);
   const [output, setOutput] = useState<{ action: QuoteOutputAction; row: QuoteRecord } | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
+  const [modeFilter, setModeFilter] = useState("");
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
@@ -165,7 +166,10 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       .catch((err: unknown) => setTemplateError(err instanceof ApiError ? err.message : "Không xóa được mẫu"));
   };
 
-  const columnCount = desk === "sourcing" ? 11 : 10;
+  const visibleRows = desk === "logistics" && modeFilter
+    ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
+    : rows;
+  const columnCount = 11;
 
   return (
     <>
@@ -192,6 +196,11 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         </InlineAlert>
       )}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
+      {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter" className="mb-4 max-w-56">
+        <NativeSelect id="logistics-mode-filter" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
+          <option value="">Tất cả</option><option value="AIR">Đường bay</option><option value="LCL">Đường biển LCL</option><option value="FCL">Đường biển FCL</option>
+        </NativeSelect>
+      </Field>}
       <ListSearchBar
         q={filters.draft.q}
         from={filters.draft.from}
@@ -214,6 +223,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
+              {desk === "logistics" && <th className="whitespace-nowrap px-3 py-2 font-medium">Tuyến</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mẫu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú VH</th>
@@ -225,10 +235,10 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có báo giá."}</td></tr>
             )}
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [
                 { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } },
                 { key: "pdf", label: "Tải PDF", icon: <Download />, onClick: () => setOutput({ action: "pdf", row }) },
@@ -249,6 +259,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                     <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                   </td>
                   <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
+                  {desk === "logistics" && <td className="px-3 py-3 whitespace-nowrap">{row.shippingMode === "AIR" ? "Đường bay" : row.logisticsClass === "FCL" ? "Đường biển FCL" : row.logisticsClass === "LCL" ? "Đường biển LCL" : "—"}</td>}
                   <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
                   <td className="px-3 py-3">{row.templateName || "—"}</td>
                   <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>

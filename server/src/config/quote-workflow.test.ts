@@ -8,7 +8,7 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import { accountingContractSchema, createContractSchema, contractPaymentFlags, quoteAmount, shippingInCurrency } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, contractPaymentFlags, fclChargeTotal, fclTotals, quoteAmount, shippingInCurrency } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -20,6 +20,20 @@ test("conversion reason is optional while customer requirements remain mandatory
   }
   assert.equal(convertMessageSchema.safeParse({ requirements: " " }).success, false);
   assert.equal(customerKindSchema.safeParse("SOURCING_LOGISTICS").success, false);
+  assert.equal(convertMessageSchema.safeParse({ requirements: "Hàng biển", shippingMode: "SEA" }).success, false);
+  assert.equal(convertMessageSchema.safeParse({ requirements: "Hàng biển", shippingMode: "SEA", logisticsClass: "FCL" }).success, true);
+});
+
+test("FCL charges include VAT and optional trucking only in the full total", () => {
+  const charges = [
+    { name: "Ocean Freight", rate: 7000, quantity: 1, unit: "cont 40'", vatAmount: 0, note: "", optional: false },
+    { name: "Trucking US", rate: 1100, quantity: 1, unit: "cont 40'", vatAmount: 8, note: "", optional: true },
+  ];
+  assert.equal(fclChargeTotal(charges[1]), 1108);
+  assert.deepEqual(fclTotals(charges), { base: 7000, all: 8108 });
+  const quote = handoffInput();
+  quote.notes.fcl = { to: "Customer", pol: "Yantian", pod: "LAX", etd: "", weight: "12 tons", volume: "1x40HC", commodity: "Furniture", stuffingDate: "", charges, notes: "" };
+  assert.deepEqual(quoteAmount({ ...quote, shippingMode: "SEA", logisticsClass: "FCL" }, "logistics"), { amount: 8108, currency: "USD", rate: null });
 });
 
 test("combined sourcing routes viewing and notifications to the correct desk", () => {
@@ -109,7 +123,7 @@ test("creating a quote does not notify; Sale hands a filled sourcing order to So
     customerKind: "SOURCING",
     quoteWorkflow: "SOURCING",
     orders: [{ lines: [{ productName: "Gạch", quantity: 2 }] }],
-  } as QuoteRecord;
+  } as unknown as QuoteRecord;
   const service = new CrmService({
     requestQuote: async () => ({ quote, created: true, desk: "sourcing" }),
     findQuote: async () => quote,
@@ -151,6 +165,25 @@ const handoffInput = () => updateQuoteSchema.parse({
       weightKg: 20, cbm: 0.4, unit: "thùng", basis: "unit", spec: "Kích thước sản phẩm", note: "Không xếp chồng",
       attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
+});
+
+test("FCL shipment edits from Sale preserve Logistics charges", async () => {
+  const stored = handoffInput();
+  const fcl = { to: "Customer", pol: "Yantian", pod: "LAX", etd: "", weight: "12 tons", volume: "1x40HC", commodity: "Furniture", stuffingDate: "", charges: [{ name: "Ocean Freight", rate: 7000, quantity: 1, unit: "cont", vatAmount: 0, note: "", optional: false }], notes: "" };
+  stored.notes.fcl = fcl;
+  const submitted = structuredClone(stored);
+  submitted.notes.fcl!.pol = "Shanghai";
+  submitted.notes.fcl!.charges[0].rate = 1;
+  const current = { ...stored, id: "quote", customerKind: "LOGISTICS", shippingMode: "SEA", logisticsClass: "FCL", quoteWorkflow: "LEGACY" } as QuoteRecord;
+  const service = new CrmService({
+    findQuote: async () => current,
+    updateQuote: async (_lane: string, _desk: string, _id: string, patch: typeof stored) => {
+      assert.equal(patch.notes.fcl?.pol, "Shanghai");
+      assert.deepEqual(patch.notes.fcl?.charges, fcl.charges);
+      return current;
+    },
+  } as unknown as CrmRepository);
+  await service.updateQuote("vn", "logistics", "quote", submitted, { contentOnly: true, role: "sale-vn" });
 });
 
 test("Sale order content on a pure logistics customer keeps the prices set by Logistics and the logistics fees", async () => {

@@ -102,6 +102,7 @@ type PotentialRow = {
   package_dimensions: string | null;
   weight_kg: string | null;
   logistics_class: string | null;
+  shipping_mode: "AIR" | "SEA" | null;
   ship_from_address: string | null;
   ship_to_address: string | null;
   link_mess: string | null;
@@ -157,6 +158,7 @@ type QuoteRow = {
   package_dimensions: string | null;
   weight_kg: string | null;
   logistics_class: string | null;
+  shipping_mode: "AIR" | "SEA" | null;
   ship_from_address: string | null;
   ship_to_address: string | null;
   mess_code: string | null;
@@ -236,6 +238,7 @@ function quoteSelect(
          l.ghi_chu_ban_hang as sale_note, l.quy_cach_dong_goi as pack_spec,
          l.kich_thuoc_kien_hang as package_dimensions,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
+         l.phuong_thuc_van_chuyen as shipping_mode,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          l.yeu_cau_khach as requirements, l.anh_yeu_cau as requirement_images,
          msg.ma_hien_thi as mess_code, msg.link_mess as link_mess,
@@ -532,6 +535,7 @@ function toQuote(row: QuoteRow): QuoteRecord {
     packageDimensions: row.package_dimensions,
     weightKg: row.weight_kg,
     logisticsClass: row.logistics_class,
+    shippingMode: row.shipping_mode,
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
     messCode: row.mess_code,
@@ -643,6 +647,7 @@ function potentialSelect(message: string, potential: string): string {
          l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
          l.kich_thuoc_kien_hang as package_dimensions,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
+         l.phuong_thuc_van_chuyen as shipping_mode,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          m.link_mess as link_mess,
          l.yeu_cau_khach as requirements,
@@ -1155,6 +1160,7 @@ function toPotential(row: PotentialRow): PotentialRecord {
     packageDimensions: row.package_dimensions,
     weightKg: row.weight_kg,
     logisticsClass: row.logistics_class,
+    shippingMode: row.shipping_mode,
     shipFromAddress: row.ship_from_address,
     shipToAddress: row.ship_to_address,
     linkMess: row.link_mess,
@@ -1303,6 +1309,9 @@ export class PostgresCrmRepository implements CrmRepository {
       const message = locked.rows[0];
       if (!message) return "missing";
       if (message.status === "LOST") return "lost";
+      if (message.demand === "SHIPPING" && (!input.shippingMode || (input.shippingMode === "SEA" && !input.logisticsClass))) {
+        throw new AppError(400, "VALIDATION_ERROR", "Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
+      }
 
       const existing = await client.query<PotentialRow>(
         `${potentialSelect(messageTable, potentialTable)} and l.ma_tin_nhan = $1::uuid`,
@@ -1318,15 +1327,16 @@ export class PostgresCrmRepository implements CrmRepository {
           `insert into ${potentialTable} (
              nguon, ho_ten, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, tiem_nang, trang_thai, ma_tin_nhan,
              nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen,
-             ghi_chu_so_luong, kich_thuoc_kien_hang, trong_luong_kg, dia_chi_gui, dia_chi_nhan
+             ghi_chu_so_luong, kich_thuoc_kien_hang, trong_luong_kg, dia_chi_gui, dia_chi_nhan,
+             phuong_thuc_van_chuyen, phan_loai, phan_loai_logistics
            )
            values (
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
              $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12,
-             $13, $14, $15, $16, $17
+             $13, $14, $15, $16, $17, $18, $19::text::crm.lead_classification, $19
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress)],
+          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
@@ -1342,9 +1352,12 @@ export class PostgresCrmRepository implements CrmRepository {
                kich_thuoc_kien_hang = coalesce($6, kich_thuoc_kien_hang),
                trong_luong_kg = coalesce($7, trong_luong_kg),
                dia_chi_gui = coalesce($8, dia_chi_gui), dia_chi_nhan = coalesce($9, dia_chi_nhan),
-               nhom_khach = coalesce($10::text::crm.customer_kind, nhom_khach)
+               nhom_khach = coalesce($10::text::crm.customer_kind, nhom_khach),
+               phuong_thuc_van_chuyen = coalesce($11, phuong_thuc_van_chuyen),
+               phan_loai = case when $11::text is null then phan_loai else $12::text::crm.lead_classification end,
+               phan_loai_logistics = case when $11::text is null then phan_loai_logistics else $12 end
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
@@ -1397,7 +1410,8 @@ export class PostgresCrmRepository implements CrmRepository {
          yeu_cau_khach = coalesce($21, yeu_cau_khach),
          anh_yeu_cau = coalesce($22::jsonb, anh_yeu_cau),
          ly_do_chuyen = coalesce($23, ly_do_chuyen),
-         kich_thuoc_kien_hang = $24
+         kich_thuoc_kien_hang = $24,
+         phuong_thuc_van_chuyen = coalesce($25, phuong_thuc_van_chuyen)
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
        returning id::text as id`,
       [
@@ -1425,6 +1439,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.requirementImages === undefined ? null : JSON.stringify(input.requirementImages),
         input.convertReason === undefined ? null : blank(input.convertReason),
         blank(input.packageDimensions),
+        input.shippingMode ?? null,
       ],
     );
     if (!updated.rows[0]) return null;

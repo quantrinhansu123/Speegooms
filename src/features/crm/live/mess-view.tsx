@@ -128,6 +128,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
   const [convertPending, setConvertPending] = useState(false);
+  const [converting, setConverting] = useState<{ row: MessageRecord; mode: "" | "AIR" | "SEA"; logisticsClass: "" | "LCL" | "FCL" } | null>(null);
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderPending, setOrderPending] = useState(false);
@@ -211,8 +212,22 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       setError("Chọn nhu cầu Tìm hàng hoặc Vận chuyển trước khi chuyển");
       return;
     }
+    setConverting({ row, mode: "", logisticsClass: "" });
+  };
+
+  const convert = () => {
+    if (!converting) return;
+    const { row, mode, logisticsClass } = converting;
     const requirements = [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n") || `Chuyển từ mess ${row.messCode}`;
-    const parsed = convertMessageSchema.safeParse({ requirements, images: [], reason: "" });
+    const parsed = convertMessageSchema.safeParse({
+      requirements, images: [], reason: "",
+      shippingMode: row.demand === "SHIPPING" ? mode || undefined : undefined,
+      logisticsClass: row.demand === "SHIPPING" && mode === "SEA" ? logisticsClass || undefined : undefined,
+    });
+    if (row.demand === "SHIPPING" && (!mode || (mode === "SEA" && !logisticsClass))) {
+      setError("Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
+      return;
+    }
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
       return;
@@ -227,6 +242,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     })
       .then((converted) => api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${converted.potential.id}/quotes`, lane), { method: "POST" }))
       .then((body) => {
+        setConverting(null);
         setOrderDesk(body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing"));
         setOrderQuote(body.quote);
         load();
@@ -417,6 +433,29 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </tbody>
         </table>
       </TableHScroll>
+
+      <Dialog open={converting !== null} onOpenChange={(open) => { if (!open && !convertPending) setConverting(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Chuyển sang khách tiềm năng</DialogTitle></DialogHeader>
+          {converting?.row.demand === "SHIPPING" && (
+            <div className="grid gap-4">
+              <Field label="Phương thức vận chuyển" htmlFor="convert-mode" required>
+                <NativeSelect id="convert-mode" value={converting.mode} onChange={(event) => setConverting({ ...converting, mode: event.target.value as "AIR" | "SEA", logisticsClass: "" })}>
+                  <option value="">Chọn phương thức</option><option value="AIR">Đường bay</option><option value="SEA">Đường biển</option>
+                </NativeSelect>
+              </Field>
+              {converting.mode === "SEA" && <Field label="Hình thức hàng biển" htmlFor="convert-class" required>
+                <NativeSelect id="convert-class" value={converting.logisticsClass} onChange={(event) => setConverting({ ...converting, logisticsClass: event.target.value as "LCL" | "FCL" })}>
+                  <option value="">Chọn LCL/FCL</option><option value="LCL">LCL</option><option value="FCL">FCL</option>
+                </NativeSelect>
+              </Field>}
+              <p className="text-sm text-muted-foreground">Cân thể tích: D × R × C (cm) / {converting.mode === "AIR" ? "5000" : "6000"}.</p>
+            </div>
+          )}
+          {error && <InlineAlert>{error}</InlineAlert>}
+          <DialogFooter><Button variant="outline" disabled={convertPending} onClick={() => setConverting(null)}>Hủy</Button><Button disabled={convertPending} onClick={convert}>{convertPending ? "Đang chuyển…" : "Chuyển"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-2xl">

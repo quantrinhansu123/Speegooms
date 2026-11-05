@@ -51,6 +51,7 @@ export interface PotentialRecord {
   packageDimensions: string | null;
   weightKg: string | null;
   logisticsClass: string | null;
+  shippingMode: "AIR" | "SEA" | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;
   linkMess: string | null;
@@ -136,6 +137,7 @@ export interface QuoteRecord {
   packageDimensions: string | null;
   weightKg: string | null;
   logisticsClass: string | null;
+  shippingMode: "AIR" | "SEA" | null;
   shipFromAddress: string | null;
   shipToAddress: string | null;
   messCode: string | null;
