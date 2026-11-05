@@ -2053,6 +2053,7 @@ export function QuoteEditor({
 
 
   const priceColumns = listPriceColumns(orders);
+  const showSourcingLineColumns = desk === "sourcing" && !sourcingSale;
 
   const actions = (
     <>
@@ -2422,7 +2423,9 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Chọn</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Hình ảnh</th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Tên mẫu</th>
+                    {showSourcingLineColumns && <th className="whitespace-nowrap px-3 py-3 font-medium">Mặt hàng</th>}
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Số lượng</th>
+                    {showSourcingLineColumns && <th className="whitespace-nowrap px-3 py-3 font-medium">Kg/CBM</th>}
                     {!sourcingSale && <th className="whitespace-nowrap px-3 py-3 font-medium">Tỷ giá</th>}
                     {!sourcingSale && priceColumns.map((column) => (
                       <th key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-3 font-medium">Đơn giá ({column.currency})</th>
@@ -2443,7 +2446,7 @@ export function QuoteEditor({
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={sourcingSale ? 6 : 10 + priceColumns.length * 2} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
+                    <tr><td colSpan={sourcingSale ? 6 : 11 + priceColumns.length * 2 + (showSourcingLineColumns ? 2 : 0)} className="px-3 py-6 text-center text-muted-foreground">Chưa có thông tin đơn hàng.</td></tr>
                   )}
                   {orders.map((order) => {
                     const totals = quoteTotals(order.lines);
@@ -2498,13 +2501,44 @@ export function QuoteEditor({
                             );
                           })}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2">{quantityText || "—"}</td>
+                        {showSourcingLineColumns && (
+                          <td className="min-w-48 px-3 py-2">
+                            {order.lines.length === 0 ? "—" : order.lines.map((line, index) => (
+                              <div key={index} className="flex h-10 items-center border-b last:border-0" title={line.productName || undefined}>
+                                <span className="max-w-64 truncate">{line.productName || "—"}</span>
+                              </div>
+                            ))}
+                          </td>
+                        )}
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {showSourcingLineColumns
+                            ? order.lines.length === 0 ? "—" : order.lines.map((line, index) => (
+                              <div key={index} className="flex h-10 items-center border-b last:border-0">{line.quantity == null ? "—" : `${money(line.quantity)} ${line.unit?.trim() || "cái"}`}</div>
+                            ))
+                            : quantityText || "—"}
+                        </td>
+                        {showSourcingLineColumns && (
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {order.lines.length === 0 ? "—" : order.lines.map((line, index) => {
+                              const unit = line.unit?.trim() || "cái";
+                              const metrics = [
+                                line.weightKg != null ? `${money(line.weightKg)} kg/${unit}` : null,
+                                line.cbm != null ? `${money(line.cbm)} CBM/${unit}` : null,
+                                line.basis === "m2" && line.areaM2 != null ? `${money(line.areaM2)} m2/${unit}` : null,
+                              ].filter(Boolean);
+                              return <div key={index} className="flex h-10 items-center border-b last:border-0">{metrics.length ? metrics.join(" · ") : "—"}</div>;
+                            })}
+                          </td>
+                        )}
                         {!sourcingSale && <td className="whitespace-nowrap px-3 py-2 font-medium">{columnsFor(order).map((column) => column.currency).join(" · ")}</td>}
                         {!sourcingSale && priceColumns.map((column) => {
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2">
-                              {amounts.texts.length === 0 ? <span className="text-muted-foreground">—</span> : (
+                              {showSourcingLineColumns ? order.lines.length === 0 ? "—" : order.lines.map((line, index) => {
+                                const amount = lineCurrencyPrice(line, order.currency, column.currency);
+                                return <div key={index} className="flex h-10 items-center border-b last:border-0">{amount.price == null ? "—" : `${money(amount.price)} ${column.currency}/${priceUnit(line)}`}</div>;
+                              }) : amounts.texts.length === 0 ? <span className="text-muted-foreground">—</span> : (
                                 <div className="grid gap-0.5">
                                   {amounts.texts.slice(0, 2).map((item, index) => <span key={index}>{item}</span>)}
                                   {amounts.texts.length > 2 && <span className="text-xs text-muted-foreground">+{amounts.texts.length - 2} dòng khác</span>}
@@ -2517,7 +2551,15 @@ export function QuoteEditor({
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">
-                              {amounts.total == null ? <span className="text-muted-foreground">—</span> : <span className="font-medium">{money(amounts.total)} {column.currency}</span>}
+                              {showSourcingLineColumns ? (
+                                <>
+                                  {order.lines.length === 0 ? "—" : order.lines.map((line, index) => {
+                                    const amount = lineCurrencyPrice(line, order.currency, column.currency);
+                                    return <div key={index} className="flex h-10 items-center justify-end border-b last:border-0">{amount.total == null ? "—" : `${money(amount.total)} ${column.currency}`}</div>;
+                                  })}
+                                  {amounts.total != null && <div className="pt-1 text-xs font-semibold">Tổng mẫu: {money(amounts.total)} {column.currency}</div>}
+                                </>
+                              ) : amounts.total == null ? <span className="text-muted-foreground">—</span> : <span className="font-medium">{money(amounts.total)} {column.currency}</span>}
                             </td>
                           );
                         })}
