@@ -205,7 +205,7 @@ export interface ContractRecord {
   productValue: number;
   shippingCost: number;
   /** Giá và cước theo loại tiền đã nhập. Không quy đổi chung. */
-  amounts: { product: { currency: string; amount: number }[]; shipping: { currency: string; amount: number }[] };
+  amounts: { product: { currency: string; amount: number; converted?: number }[]; shipping: { currency: string; amount: number; converted?: number }[] };
   totalValue: number;
   paidAmount: number;
   payments: ContractPaymentLine[];

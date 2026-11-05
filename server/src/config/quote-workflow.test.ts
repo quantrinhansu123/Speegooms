@@ -8,7 +8,7 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import { accountingContractSchema, createContractSchema, contractPaymentFlags, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, contractPaymentFlags, paymentsInMain, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -506,7 +506,7 @@ test("creating a contract uses persisted Logistics costs instead of a submitted 
   }
 });
 
-test("creating a contract keeps logistics currency instead of converting it", async () => {
+test("creating a contract keeps the logistics currency and totals in the main currency", async () => {
   const sheet = handoffInput();
   sheet.notes.freight = { rate: 3.5, cbmRate: null, basis: "kg", currency: "", total: 857.15, totalManual: false };
   sheet.notes.logisticsFees = [{ label: "Phụ phí địa chỉ", labelEn: "", value: "36,", currency: "USD", itemStt: "" }];
@@ -525,10 +525,24 @@ test("creating a contract keeps logistics currency instead of converting it", as
     productValue: 10000, shippingCost: 999, totalValue: 10999, paidAmount: 0, signedOn: "",
   }));
   assert.equal(inserted?.[9], 893.15);
-  assert.equal(inserted?.[10], 10000);
+  assert.equal(inserted?.[10], 23025640.67);
   assert.equal(inserted?.[15], "USD");
-  const stored = JSON.parse(String(inserted?.[16])) as { shipping: { currency: string; amount: number }[] };
-  assert.deepEqual(stored.shipping, [{ currency: "USD", amount: 893.15 }]);
+  const stored = JSON.parse(String(inserted?.[16])) as { shipping: { currency: string; amount: number; converted?: number }[] };
+  assert.deepEqual(stored.shipping, [{ currency: "USD", amount: 893.15, converted: 23015640.67 }]);
+});
+
+test("contract total is shown in the main currency and payments convert at the same rate", () => {
+  const amounts = {
+    product: [{ currency: "VND", amount: 45181160 }],
+    shipping: [{ currency: "USD", amount: 893.15, converted: 23015640.67 }],
+  };
+  assert.deepEqual(totalsInMain(amounts, "VND"), [{ currency: "VND", amount: 68196800.67 }]);
+  const paid = paymentsInMain([{ currency: "VND", amount: 2627 }, { currency: "USD", amount: 100 }], amounts, "VND");
+  assert.deepEqual(paid, [{ currency: "VND", amount: 2627 }, { currency: "VND", amount: 2576906.53 }]);
+  assert.deepEqual(remainderAfterPayments(totalsInMain(amounts, "VND"), paid), [{ currency: "VND", amount: 65617267.14 }]);
+  // Thiếu tỷ giá thì không đoán: giữ riêng từng loại tiền.
+  const noRate = { product: amounts.product, shipping: [{ currency: "USD", amount: 893.15 }] };
+  assert.deepEqual(totalsInMain(noRate, "VND"), [{ currency: "VND", amount: 45181160 }, { currency: "USD", amount: 893.15 }]);
 });
 
 test("Sale cannot set prices on new orders or new lines; Logistics prices them later", () => {

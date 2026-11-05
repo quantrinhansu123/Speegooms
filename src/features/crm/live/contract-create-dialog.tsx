@@ -7,6 +7,7 @@ import {
   productAmounts,
   quoteAmount,
   shippingAmount,
+  shippingInCurrency,
   sumByCurrency,
   type CrmLane,
   type QuoteCurrency,
@@ -82,8 +83,14 @@ export function ContractCreateDialog({
   const linkedShipping = quote.logisticsSheet ? shippingAmount(quote.logisticsSheet) : { currency, amount: 0 };
   const shippingCost = linkedShipping?.amount ?? 0;
   const shippingCurrency = linkedShipping?.currency ?? currency;
-  const totals = sumByCurrency([productLines.length > 0 ? productLines : [{ currency, amount: productValue }], linkedShipping ? [linkedShipping] : []]);
-  const totalValue = shippingCurrency === currency ? productValue + shippingCost : productValue;
+  // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá; thiếu tỷ giá thì giữ riêng từng loại tiền.
+  const shippingInMain = linkedShipping == null ? null
+    : shippingCurrency === currency ? shippingCost
+    : quote.logisticsSheet ? shippingInCurrency(quote.logisticsSheet, { currency, rate: order?.rate ?? null }) : null;
+  const totals = shippingInMain == null
+    ? sumByCurrency([productLines.length > 0 ? productLines : [{ currency, amount: productValue }], linkedShipping ? [linkedShipping] : []])
+    : [{ currency, amount: Math.round((productValue + shippingInMain) * 100) / 100 }];
+  const totalValue = shippingInMain == null ? productValue : Math.round((productValue + shippingInMain) * 100) / 100;
   const shipTo = shipToFromQuote(quote.shipToAddress);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);

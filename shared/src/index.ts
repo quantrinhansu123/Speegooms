@@ -142,8 +142,10 @@ export {
   productAmounts,
   remainderAfterPayments,
   remainderByCurrency,
+  paymentsInMain,
   shippingAmount,
   sumByCurrency,
+  totalsInMain,
   type ContractAmounts,
   type MoneyAmount,
 } from "./contract-amounts";

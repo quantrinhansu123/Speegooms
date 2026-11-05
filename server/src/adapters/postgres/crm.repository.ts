@@ -1,8 +1,11 @@
 import {
   isCombinedSourcing,
+  paymentsInMain,
   productAmounts,
   shippingAmount,
+  shippingInCurrency,
   sumByCurrency,
+  totalsInMain,
   logisticsOrderFromSourcing,
   orderHasContent,
   sourcingHandoffOrder,
@@ -687,15 +690,23 @@ function moneyValue(value: string | number | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function moneyParts(value: unknown): { currency: string; amount: number }[] | null {
+function moneyParts(value: unknown): { currency: string; amount: number; converted?: number }[] | null {
   if (!Array.isArray(value)) return null;
   const parts = value.flatMap((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const row = item as { currency?: unknown; amount?: unknown };
+    const row = item as { currency?: unknown; amount?: unknown; converted?: unknown };
     if (typeof row.amount !== "number" && typeof row.amount !== "string") return [];
-    return [{ currency: asCurrency(row.currency), amount: moneyValue(row.amount) }];
+    const converted = typeof row.converted === "number" ? { converted: row.converted } : {};
+    return [{ currency: asCurrency(row.currency), amount: moneyValue(row.amount), ...converted }];
   });
   return parts.length > 0 ? parts : null;
+}
+
+/** Cước logistics quy ra loại tiền chính của hợp đồng theo tỷ giá trên báo giá. Null khi thiếu tỷ giá. */
+function convertedShipping(source: QuoteRecord | null, currency: string): number | null {
+  if (!source?.logisticsSheet) return null;
+  const order = source.sentQuote?.order ?? source.orders.find((item) => item.selected) ?? source.orders[0];
+  return shippingInCurrency(source.logisticsSheet, { currency, rate: order?.rate ?? null });
 }
 
 /** Khoản đã lưu theo loại tiền. Hợp đồng cũ chỉ có một loại tiền cho cả sản phẩm và cước. */
@@ -1884,7 +1895,10 @@ export class PostgresCrmRepository implements CrmRepository {
        order by h.tao_luc desc limit 200`,
       [lane, sentOnly, ...compiled.values],
     );
-    return result.rows.map((row) => projectContract(row, view));
+    const quotes = new Map<string, QuoteRecord | null>();
+    const contracts: ContractRecord[] = [];
+    for (const row of result.rows) contracts.push(await this.withMainTotal(lane, projectContract(row, view), quotes));
+    return contracts;
   }
 
   async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput) {
@@ -1922,10 +1936,16 @@ export class PostgresCrmRepository implements CrmRepository {
     if (source?.logisticsSheet && !linkedShipping) throw new AppError(400, "RULE", "Chi phí vận chuyển trên báo giá chưa hợp lệ");
     const shippingCurrency = linkedShipping?.currency ?? input.currency;
     const shippingCost = linkedShipping?.amount ?? input.shippingCost;
-    const totalValue = shippingCurrency === input.currency ? Math.round((productValue + shippingCost) * 100) / 100 : productValue;
+    // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá để tổng giá trị là một loại tiền chính.
+    const shippingConverted = shippingCurrency === input.currency ? null : convertedShipping(source, input.currency);
+    const shippingInMain = shippingCurrency === input.currency ? shippingCost : shippingConverted;
+    const totalValue = shippingInMain == null ? productValue : Math.round((productValue + shippingInMain) * 100) / 100;
     input = { ...input, productValue, shippingCost, totalValue };
     if (input.paidAmount > input.totalValue) throw new AppError(400, "RULE", "Thanh toán vượt tổng hợp đồng");
-    const amounts = { product: productLines, shipping: [{ currency: shippingCurrency, amount: shippingCost }] };
+    const amounts = {
+      product: productLines,
+      shipping: [{ currency: shippingCurrency, amount: shippingCost, ...(shippingConverted != null ? { converted: shippingConverted } : {}) }],
+    };
     await this.query(
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,
@@ -2060,8 +2080,8 @@ export class PostgresCrmRepository implements CrmRepository {
     const payments = input.payments.filter(
       (line) => line.amount > 0 || line.paidOn || line.note || line.images.length > 0,
     );
-    const totals = sumByCurrency([current.amounts.product, current.amounts.shipping]);
-    const paidGroups = sumByCurrency([payments.map((line) => ({ currency: line.currency || current.currency, amount: line.amount }))]);
+    const totals = totalsInMain(current.amounts, current.currency);
+    const paidGroups = sumByCurrency([paymentsInMain(payments.map((line) => ({ currency: line.currency || current.currency, amount: line.amount })), current.amounts, current.currency)]);
     if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0))) return "invalid" as const;
     const paidAmount = paidGroups.find((group) => group.currency === current.currency)?.amount ?? 0;
     const updated = await this.query(
@@ -2137,7 +2157,26 @@ export class PostgresCrmRepository implements CrmRepository {
       `${contractSelect()} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid`,
       [lane, quoteId],
     );
-    return result.rows[0] ? projectContract(result.rows[0], view) : null;
+    return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;
+  }
+
+  /**
+   * Tổng giá trị quy ra loại tiền chính. Hợp đồng cũ chưa lưu số quy đổi của cước thì tính lại từ tỷ giá trên báo giá.
+   * Khi thiếu tỷ giá, giữ nguyên số đã lưu và tổng vẫn tách theo từng loại tiền.
+   */
+  private async withMainTotal(lane: CrmLane, contract: ContractRecord, quotes = new Map<string, QuoteRecord | null>()): Promise<ContractRecord> {
+    const main = contract.currency;
+    let shipping = contract.amounts.shipping;
+    if (shipping.some((line) => line.currency !== main && line.converted == null)) {
+      if (!quotes.has(contract.quoteId)) quotes.set(contract.quoteId, await this.findQuote(lane, "sourcing", contract.quoteId));
+      const converted = convertedShipping(quotes.get(contract.quoteId) ?? null, main);
+      if (converted != null && shipping.length === 1) shipping = [{ ...shipping[0], converted }];
+    }
+    const amounts = { ...contract.amounts, shipping };
+    const totals = totalsInMain(amounts, main);
+    if (totals.length !== 1 || totals[0].currency !== main) return { ...contract, amounts };
+    const totalValue = totals[0].amount;
+    return { ...contract, amounts, totalValue, balance: Math.round((totalValue - contract.paidAmount) * 100) / 100 };
   }
 
   private async findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null> {
@@ -2145,7 +2184,7 @@ export class PostgresCrmRepository implements CrmRepository {
       `${contractSelect()} where h.tuyen = $1 and h.id = $2::uuid`,
       [lane, id],
     );
-    return result.rows[0] ? projectContract(result.rows[0], view) : null;
+    return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;
   }
 
   async findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {

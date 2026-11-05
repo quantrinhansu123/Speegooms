@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -201,15 +201,17 @@ function documentAmounts(row: ContractRecord) {
   return { currency: row.currency, productValue, shippingCost, totalValue: productValue + shippingCost };
 }
 
-/** Loại tiền khác loại tiền chính của hợp đồng thì ghi "Quy đổi" phía trước để không nhầm với tiền chính. */
-function MoneyStack({ lines, main }: { lines: MoneyAmount[]; main: string }) {
+/** Có `main`: khoản ngoại tệ đã quy đổi hiện thêm một dòng bên dưới theo loại tiền chính của hợp đồng. */
+function MoneyStack({ lines, main }: { lines: MoneyAmount[]; main?: string }) {
   if (lines.length === 0) return <>—</>;
   return (
     <span className="inline-flex flex-col gap-0.5 align-top">
       {lines.map((line) => (
-        <span key={line.currency}>
-          {line.currency !== main && <span className="text-muted-foreground">Quy đổi </span>}
-          {formatMoney(line.amount, line.currency)}
+        <span key={line.currency} className="inline-flex flex-col">
+          <span>{formatMoney(line.amount, line.currency)}</span>
+          {main && line.currency !== main && line.converted != null && (
+            <span className="text-muted-foreground">Quy đổi {formatMoney(line.converted, main as QuoteCurrency)}</span>
+          )}
         </span>
       ))}
     </span>
@@ -515,11 +517,11 @@ export function ContractsLiveView({
             )}
             {rows.map((row) => {
               const amounts = enteredAmounts(row);
-              const totals = sumByCurrency([amounts.product, amounts.shipping]);
+              const totals = totalsInMain(amounts, row.currency);
               const paidLines = (row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [])
                 .map((line) => ({ currency: line.currency || row.currency, amount: line.amount }));
               const paidTotals = sumByCurrency([paidLines]);
-              const remainders = remainderAfterPayments(totals, paidLines);
+              const remainders = remainderAfterPayments(totals, paymentsInMain(paidLines, amounts, row.currency));
               const flags = contractPaymentFlags({
                 totalValue: row.totalValue,
                 confirmedAmount: row.confirmedAmount,
@@ -543,8 +545,8 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={totals} main={row.currency} /></td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={paidTotals} main={row.currency} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={totals} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={paidTotals} /></td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   {(() => {
                     const bills = billImagesOf(row);
@@ -560,7 +562,7 @@ export function ContractsLiveView({
                     );
                   })()}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={remainders} main={row.currency} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={remainders} /></td>
                 <td className="min-w-40 px-3 py-3">
                   <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
                 </td>
@@ -593,14 +595,19 @@ export function ContractsLiveView({
                   {handoffLines(mode, row).length === 0 ? "—" : handoffLines(mode, row).map((line) => <p key={line}>{line}</p>)}
                 </td>
                 <td className="px-3 py-3">
-                  {mode === "accounting" && (
-                    <Button type="button" variant="outline" size="sm" onClick={() => { setNotice(undefined); markSeen(row); setSelected(row); }}>
-                      <Eye aria-hidden /> Xem
-                    </Button>
-                  )}
                   <RowMenu
                     label={`Thao tác ${row.code}`}
                     items={[
+                      ...(mode === "accounting" ? [{
+                        key: "view",
+                        label: "Xem",
+                        icon: <Eye />,
+                        onClick: () => {
+                          setNotice(undefined);
+                          markSeen(row);
+                          setSelected(row);
+                        },
+                      }] : []),
                       {
                         key: "open",
                         label: canSale || canOps || canAccounting ? "Cập nhật" : "Xem",
@@ -748,13 +755,14 @@ function ContractDialog({
   });
   const savedPaid = contract.payments.map((line) => ({ currency: line.currency || contract.currency, amount: line.amount }));
   const paidLines = canSale ? draftPaid : savedPaid;
+  const amounts = enteredAmounts(contract);
   const paidTotals = sumByCurrency([paidLines]);
-  const paidValue = paidTotals.find((line) => line.currency === contract.currency)?.amount ?? 0;
+  const paidInMain = paymentsInMain(paidLines, amounts, contract.currency);
+  const paidValue = sumByCurrency([paidInMain]).find((line) => line.currency === contract.currency)?.amount ?? 0;
   const confirmedValue = confirmations.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
-  const amounts = enteredAmounts(contract);
-  const amountTotals = sumByCurrency([amounts.product, amounts.shipping]);
-  const remainders = remainderAfterPayments(amountTotals, paidLines);
+  const amountTotals = totalsInMain(amounts, contract.currency);
+  const remainders = remainderAfterPayments(amountTotals, paidInMain);
   const currencies = amountTotals.map((item) => item.currency).join(", ") || contract.currency;
   const paymentFlags = contractPaymentFlags({
     totalValue: contract.totalValue,
@@ -788,7 +796,7 @@ function ContractDialog({
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
       return;
     }
-    const over = sumByCurrency([parsed.data.payments]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0));
+    const over = sumByCurrency([paymentsInMain(parsed.data.payments, amounts, contract.currency)]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0));
     if (over) {
       setError(`Số tiền ${over.currency} lớn hơn tổng ${over.currency}`);
       return;
@@ -962,11 +970,11 @@ function ContractDialog({
               <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} /></p>
               <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} /></p>
+              <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} /></p>
             </section>
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3">
               <div>
@@ -995,17 +1003,17 @@ function ContractDialog({
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} /></p>
               <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} main={contract.currency} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} /></p>
             </section>
             {canSale ? (
               <>
                 <section className="space-y-3 rounded-xl border p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                    <p className="text-sm text-muted-foreground">Tổng: <MoneyStack lines={paidTotals} main={contract.currency} /></p>
+                    <p className="text-sm text-muted-foreground">Tổng: <MoneyStack lines={paidTotals} /></p>
                   </div>
                   <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng; ảnh bill gắn theo từng lần.</p>
                   {payments.map((line, index) => (
@@ -1112,7 +1120,7 @@ function ContractDialog({
             ) : (
               <section className="space-y-3 rounded-xl border p-4">
                 <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} main={contract.currency} /></p>
+                <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} /></p>
                 {aggregatePayments ? (
                   <div className="flex flex-wrap items-center gap-2">
                     {billImagesOf(contract).map((image, index) => (

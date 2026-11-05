@@ -1,7 +1,8 @@
 import type { QuoteNotes, QuoteOrder, SentQuote } from "./crm";
 import { quoteAmount } from "./quote-amounts";
 
-export type MoneyAmount = { currency: string; amount: number };
+/** `converted`: số tiền đã quy đổi sang loại tiền chính của hợp đồng, chỉ có ở khoản khác loại tiền chính. */
+export type MoneyAmount = { currency: string; amount: number; converted?: number };
 
 /** Giá đã nhập trên báo giá, tách theo loại tiền. Không cộng qua tỷ giá. */
 export type ContractAmounts = {
@@ -63,6 +64,29 @@ export function sumByCurrency(groups: MoneyAmount[][]): MoneyAmount[] {
     for (const item of group) totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.amount);
   }
   return sortMoney([...totals].map(([currency, amount]) => ({ currency, amount: round2(amount) })));
+}
+
+/** Tổng giá trị hợp đồng quy ra loại tiền chính. Khoản chưa có tỷ giá để quy đổi giữ riêng loại tiền của nó. */
+export function totalsInMain(amounts: ContractAmounts, main: string): MoneyAmount[] {
+  const totals = new Map<string, number>();
+  for (const line of [...amounts.product, ...amounts.shipping]) {
+    const inMain = line.currency === main ? line.amount : line.converted;
+    const currency = inMain == null ? line.currency : main;
+    totals.set(currency, (totals.get(currency) ?? 0) + (inMain ?? line.amount));
+  }
+  return sortMoney([...totals].map(([currency, amount]) => ({ currency, amount: round2(amount) })));
+}
+
+/** Quy các lần thanh toán ngoại tệ ra loại tiền chính theo tỷ lệ của khoản đã quy đổi trên hợp đồng. */
+export function paymentsInMain(paid: MoneyAmount[], amounts: ContractAmounts, main: string): MoneyAmount[] {
+  const rates = new Map<string, number>();
+  for (const line of [...amounts.product, ...amounts.shipping]) {
+    if (line.currency !== main && line.converted != null && line.amount > 0) rates.set(line.currency, line.converted / line.amount);
+  }
+  return paid.map((line) => {
+    const rate = line.currency === main ? undefined : rates.get(line.currency);
+    return rate ? { currency: main, amount: round2(line.amount * rate) } : { currency: line.currency, amount: line.amount };
+  });
 }
 
 /** Trừ từng lần thanh toán khỏi đúng loại tiền của lần đó. */
