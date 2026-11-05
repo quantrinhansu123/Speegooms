@@ -230,12 +230,10 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     const cells = fee.amount != null ? amountCells(fee.currency, fee.amount) : { total: escapeHtml(fee.text), extra: {} };
     return summaryRow(fee.label || t.logisticsFee, cells);
   }).join("");
-  const freightTotal = model.freight.total;
-  const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
-  const shippingRow = model.shippingText && !shippingDuplicatesFreight
-    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount)) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
+  const shippingRow = model.shippingText
+    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
-  const subtotalRows = model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)
+  const subtotalRows = model.feeSubtotals.length > 0
     ? model.feeSubtotals.map((sub) => summaryRow(
         `${t.feeSubtotal} (${sub.currency})`,
         amountCells(sub.currency, sub.amount),
