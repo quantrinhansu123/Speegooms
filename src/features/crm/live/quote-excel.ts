@@ -259,7 +259,7 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   }
   const freightTotal = model.freight.total;
   const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
-  if (model.shippingText && !shippingDuplicatesFreight) {
+  if (model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight) {
     const row = sumRow(t.shippingTotal);
     if (model.shippingAmount != null) put(row, "total", model.shippingAmount);
     else row.getCell(colOf("total")).value = model.shippingText;
@@ -281,10 +281,13 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   boxRow(ws.getRow(r), 1, 4);
   r += 1;
   const freightValues: Array<number | string | undefined> = [
-    model.freight.rate ?? undefined,
+    [
+      model.freight.basis !== "cbm" && model.freight.rate != null ? `${model.freight.rate} ${model.freight.currency}/kg` : "",
+      model.freight.basis !== "kg" && model.freight.cbmRate != null ? `${model.freight.cbmRate} ${model.freight.currency}/CBM` : "",
+    ].filter(Boolean).join(" + ") || undefined,
     model.freight.chargeableKg ?? undefined,
     model.freight.chargeableCbm ?? undefined,
-    model.freight.total ?? undefined,
+    model.freight.total == null ? undefined : `${model.freight.total} ${model.freight.currency}`,
   ];
   freightValues.forEach((value, index) => {
     const cell = ws.getRow(r).getCell(index + 1);
@@ -297,11 +300,9 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   r += 1;
   text(r, 1, model.freight.note, { merge: last, color: "FF334155" });
   r += 1;
-  if (model.feeSubtotals.length > 1 || (model.feeSubtotals.length === 1 && model.fees.length > 1)) {
-    for (const sub of model.feeSubtotals) {
-      put(sumRow(`${t.feeSubtotal} (${sub.currency})`), feeKey(sub.currency), sub.amount);
-      r += 1;
-    }
+  for (const sub of model.feeSubtotals) {
+    put(sumRow(`${t.feeSubtotal} (${sub.currency})`), feeKey(sub.currency), sub.amount);
+    r += 1;
   }
   for (const line of model.deposit) {
     text(r, 1, line, { bold: true, color: NAVY, merge: last });

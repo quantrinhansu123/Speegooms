@@ -36,10 +36,15 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
   const currency = order?.currency ?? "VND";
   if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
+  if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
+    const feeTotal = logisticsFeesTotal(notes.logisticsFees, currency);
+    const freightCurrency = notes.freight.currency || currency;
+    const amount = feeTotal == null || (notes.freight.total != null && freightCurrency !== currency)
+      ? null : Math.round(((notes.freight.total ?? 0) + feeTotal) * 1000) / 1000;
+    return { amount, currency, rate: order?.rate ?? null };
+  }
   let amount = quoteMoneyValue(desk === "sourcing" ? notes.totalLabel : notes.shippingLabel);
-  if (amount == null && desk === "logistics" && notes.logisticsFees.length > 0) {
-    amount = logisticsFeesTotal(notes.logisticsFees, currency);
-  } else if (amount == null) amount = order?.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0) ?? 0;
+  if (amount == null) amount = order?.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0) ?? 0;
   return { amount, currency, rate: order?.rate ?? null };
 }
 
