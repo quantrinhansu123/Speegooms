@@ -22,7 +22,7 @@ import { QuoteTracking } from "./quote-tracking";
 import { missingLogisticsQuoteFields } from "./potential-quote-validation";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
-import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge } from "./status-badges";
+import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge, QuoteStatusBadge } from "./status-badges";
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -39,6 +39,20 @@ function BrandTag({ brand }: { brand: string | null }) {
   const item = brandOptions.find((option) => option[0] === brand);
   if (!item) return <span className="text-muted-foreground">—</span>;
   return <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${item[2]}`}>{item[1]}</span>;
+}
+
+function PotentialQuoteStatus({ row }: { row: PotentialRecord }) {
+  const status = (value: string | null) => value
+    ? <QuoteStatusBadge value={value} />
+    : <span className="text-muted-foreground">Chưa tạo báo giá</span>;
+  if (row.customerKind === "LOGISTICS") return status(row.logisticsQuoteStatus);
+  if (row.customerKind === "SOURCING" && row.quoteWorkflow === "COMBINED") return (
+    <div className="grid gap-1">
+      <span>Sourcing: {status(row.sourcingQuoteStatus)}</span>
+      <span>Logistics: {status(row.logisticsQuoteStatus)}</span>
+    </div>
+  );
+  return status(row.sourcingQuoteStatus);
 }
 
 function MessLinkedCell({ value, linkMess, className }: { value: string | null; linkMess: string | null; className?: string }) {
@@ -201,6 +215,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         const desk = "desk" in body && (body.desk === "sourcing" || body.desk === "logistics") ? body.desk : "logistics";
         setOrderDesk(desk);
         setOrderQuote(body.quote);
+        load();
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được báo giá"));
   };
@@ -232,6 +247,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .then((body) => {
         setOrderQuote(body.quote);
         setNotice(orderContent && canPrice ? "Đã lưu báo giá" : orderContent ? "Đã lưu thông tin đơn hàng" : "Đã lưu chi phí logistics");
+        load();
         return true;
       })
       .catch((err: unknown) => {
@@ -269,6 +285,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .then(() => {
         setNotice(done);
         setOrderQuote(null);
+        load();
         return true;
       })
       .catch((err: unknown) => {
@@ -330,6 +347,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mess</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nguồn</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Giai đoạn</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tình trạng báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
@@ -349,7 +367,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={24} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={25} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
@@ -360,6 +378,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3">{row.messCode ?? "—"}</td>
                 <td className="whitespace-nowrap px-3 py-3"><BrandTag brand={row.brand} /></td>
                 <td className="px-3 py-3"><PotentialStatusBadge value={row.potential} /></td>
+                <td className="whitespace-nowrap px-3 py-3"><PotentialQuoteStatus row={row} /></td>
                 <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="max-w-48 truncate px-3 py-3"><MessLinkedCell value={row.productInterest} linkMess={row.linkMess} className="truncate" /></td>

@@ -1145,6 +1145,8 @@ function toPotential(row: PotentialRow): PotentialRecord {
     saleNote: row.sale_note,
     potential: row.potential,
     status: row.status,
+    sourcingQuoteStatus: null,
+    logisticsQuoteStatus: null,
     customerKind: row.customer_kind,
     quoteWorkflow: row.quote_workflow,
     customerType: row.customer_type,
@@ -1368,7 +1370,35 @@ export class PostgresCrmRepository implements CrmRepository {
       `${potentialSelect(messageTable, potentialTable)} ${compiled.sql} order by l.tao_luc desc limit 200`,
       compiled.values,
     );
-    return result.rows.map(toPotential);
+    const potentials = result.rows.map(toPotential);
+    if (potentials.length === 0) return potentials;
+    const { sourcing, logistics } = quoteTables[lane];
+    const statuses = await this.query<{ potential_id: string; desk: "sourcing" | "logistics"; status: string }>(
+      `select distinct on (potential_id, desk) potential_id, desk, status
+       from (
+         select q.ma_khach_hang_tiem_nang::text as potential_id, 'sourcing' as desk,
+                q.trang_thai_bao_gia::text as status, q.tao_luc as created_at
+         from ${sourcing} q where q.ma_khach_hang_tiem_nang = any($1::uuid[])
+         union all
+         select q.ma_khach_hang_tiem_nang::text, 'logistics',
+                q.trang_thai_bao_gia::text, q.tao_luc
+         from ${logistics} q where q.ma_khach_hang_tiem_nang = any($1::uuid[])
+         union all
+         select q.ma_khach_hang_tiem_nang::text, 'logistics',
+                q.bao_gia_logistics->>'quoteStatus', q.tao_luc
+         from ${sourcing} q
+         where q.ma_khach_hang_tiem_nang = any($1::uuid[])
+           and q.bao_gia_logistics->>'quoteStatus' is not null
+       ) quotes
+       order by potential_id, desk, created_at desc`,
+      [potentials.map((row) => row.id)],
+    );
+    const byId = new Map(potentials.map((row) => [row.id, row]));
+    for (const { potential_id, desk, status } of statuses.rows) {
+      const row = byId.get(potential_id);
+      if (row) row[desk === "sourcing" ? "sourcingQuoteStatus" : "logisticsQuoteStatus"] = status;
+    }
+    return potentials;
   }
 
   async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null> {

@@ -71,6 +71,8 @@ export interface PotentialRecord {
   saleNote: string | null;
   potential: string;
   status: string;
+  sourcingQuoteStatus: string | null;
+  logisticsQuoteStatus: string | null;
   customerKind: string | null;
   quoteWorkflow: QuoteWorkflow;
   customerType: string | null;
