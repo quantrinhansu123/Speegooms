@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultQuoteBank, type QuoteSheetInput } from "@speego/shared";
+import { defaultQuoteBank, emptyQuoteFreight, type QuoteSheetInput } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
 
 const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
@@ -11,17 +11,17 @@ const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   notes: {
     totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", weightNoteEn: "", validityNoteEn: "",
     deposit: [], depositEn: [], logisticsFees: [], opsExtra: "",
-    freight: { rate: null, total: null, totalManual: false },
+    freight: emptyQuoteFreight,
     ...notes,
   },
 });
 
-test("print shows entered shipping total with currency even when freight matches", () => {
+test("print shows freight in the final logistics total with its currency", () => {
   const html = quoteSheetHtml(input({
     shippingLabel: "120",
-    freight: { rate: null, total: 120, totalManual: true },
+    freight: { ...emptyQuoteFreight, total: 120, totalManual: true },
   }));
-  assert.match(html, /Tổng chi phí vận chuyển[\s\S]*?120[\s\S]*?USD/);
+  assert.match(html, /Tổng chi phí logistics \(USD\)[\s\S]*?120/);
 });
 
 test("print shows a single logistics fee subtotal in its own currency", () => {

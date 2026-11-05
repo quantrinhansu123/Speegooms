@@ -230,16 +230,16 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     const cells = fee.amount != null ? amountCells(fee.currency, fee.amount) : { total: escapeHtml(fee.text), extra: {} };
     return summaryRow(fee.label || t.logisticsFee, cells);
   }).join("");
-  const shippingRow = model.shippingText
+  const freightTotal = model.freight.total;
+  const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
+  const shippingRow = model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight
     ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
-  const subtotalRows = model.feeSubtotals.length > 0
-    ? model.feeSubtotals.map((sub) => summaryRow(
-        `${t.feeSubtotal} (${sub.currency})`,
-        amountCells(sub.currency, sub.amount),
-      )).join("")
-    : "";
-  const summaryRows = [goodsRow, feeRows, shippingRow, subtotalRows].filter(Boolean).join("");
+  const subtotalRows = model.feeSubtotals.map((sub) => summaryRow(
+    `${t.feeSubtotal} (${sub.currency})`,
+    amountCells(sub.currency, sub.amount),
+  )).join("");
+  const summaryRows = [goodsRow, feeRows, shippingRow].filter(Boolean).join("");
   const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
   const freightTable = `<section class="freight">
     <h2>${escapeHtml(t.freightTitle)}</h2>
@@ -251,10 +251,13 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
         <th>${escapeHtml(t.freightTotal)}</th>
       </tr></thead>
       <tbody><tr>
-        ${freightCell(model.freight.rate == null ? "" : fmt(model.freight.rate, 3), model.freight.rate == null ? "" : model.currency)}
+        ${freightCell([
+          model.freight.basis !== "cbm" && model.freight.rate != null ? `${fmt(model.freight.rate, 3)} ${model.freight.currency}/kg` : "",
+          model.freight.basis !== "kg" && model.freight.cbmRate != null ? `${fmt(model.freight.cbmRate, 3)} ${model.freight.currency}/CBM` : "",
+        ].filter(Boolean).join(" + "))}
         ${freightCell(model.freight.chargeableKg == null ? "" : fmt(model.freight.chargeableKg, 1), model.freight.chargeableKg == null ? "" : "kg")}
         ${freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM")}
-        ${freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.currency)}
+        ${freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency)}
       </tr></tbody>
     </table>
     <p class="freight-note">${escapeHtml(model.freight.note)}</p>
@@ -319,6 +322,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   ${depositRows ? `<table class="summary deposit">${colgroup}<tbody>${depositRows}</tbody></table>` : ""}
   </section>` : ""}
   ${freightTable}
+  ${subtotalRows ? `<section class="closing"><table class="summary">${colgroup}<tbody>${subtotalRows}</tbody></table></section>` : ""}
 
   ${input.compact ? "" : `
   <section class="payment-signatures">
