@@ -50,7 +50,7 @@ import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, VO
 import { downloadQuoteExcel } from "./quote-excel";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
-import { buildQuoteSheet, orderForQuotePdf } from "./quote-sheet";
+import { buildQuoteSheet, orderForQuotePdf, quoteWithLogisticsCosts } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
@@ -2212,7 +2212,10 @@ export function QuoteEditor({
   const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
 
   const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
-    quoteSheetInputOf({ ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank }, order, lang, issuedOn);
+    quoteSheetInputOf(quoteWithLogisticsCosts(
+      { ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank },
+      desk === "sourcing" ? quote.logisticsSheet?.sentQuote : null,
+    ), order, lang, issuedOn);
 
   const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
 
