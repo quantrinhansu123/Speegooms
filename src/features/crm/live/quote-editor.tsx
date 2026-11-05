@@ -576,6 +576,7 @@ function packagesSummary(packages: QuoteLine["packages"]): string {
 }
 
 const factoryAttrKeys = ["Chất liệu", "MOQ", "Lead time", "Bảo hành"] as const;
+const logisticsAttrKeys = factoryAttrKeys.filter((key) => key !== "MOQ" && key !== "Bảo hành");
 
 function attrValue(attrs: QuoteLine["attrs"], key: string, lang: QuoteLang = "vi"): string {
   const item = attrs.find((attr) => attr.key === key);
@@ -1134,6 +1135,7 @@ const OrderLines = memo(function OrderLines({
   lang = "vi",
   showPricing = true,
   brief = false,
+  pureLogistics = false,
 }: {
   lines: QuoteLine[];
   currency: QuoteCurrency;
@@ -1152,8 +1154,10 @@ const OrderLines = memo(function OrderLines({
   showPricing?: boolean;
   /** Sale tìm hàng: chỉ mặt hàng, hình ảnh, số lượng, quy cách. */
   brief?: boolean;
+  pureLogistics?: boolean;
 }) {
   const priceColumns = !showPricing ? [] : columns.length > 0 ? columns : [{ currency }];
+  const visibleAttrKeys = pureLogistics ? logisticsAttrKeys : factoryAttrKeys;
   const updateLine = (index: number, patch: Partial<QuoteLine>) => {
     onChange((lines) => lines.map((line, lineIndex) => {
       if (lineIndex !== index) return line;
@@ -1215,7 +1219,7 @@ const OrderLines = memo(function OrderLines({
                 <th key={`total-${column.currency}`} className="whitespace-nowrap px-2 py-3 font-medium">Thành tiền ({column.currency})</th>
               ))}
               <th className="min-w-[120px] whitespace-nowrap px-2 py-3 font-medium">Quy cách</th>
-              {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">Thuộc tính xưởng</th>}
+              {!brief && <th className="min-w-[220px] whitespace-nowrap px-2 py-3 font-medium">{pureLogistics ? "Thông tin hàng hóa" : "Thuộc tính xưởng"}</th>}
               <th className="min-w-[140px] whitespace-nowrap px-2 py-3 font-medium">{brief ? "Lưu ý" : "Note"}</th>
               <th className="px-2 py-3" />
             </tr>
@@ -1383,7 +1387,7 @@ const OrderLines = memo(function OrderLines({
                   </td>
                   {!brief && <td className="px-2 py-2">
                     <div className="grid w-[14.5rem] grid-cols-2 gap-1.5">
-                      {factoryAttrKeys.map((key) => (
+                      {visibleAttrKeys.map((key) => (
                         <Input
                           key={key}
                           className="h-8 text-xs"
@@ -1435,7 +1439,7 @@ const OrderLines = memo(function OrderLines({
               <DraftQuantity aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
               <InputError message={errors[`line.${index}.weight`]} />
             </label>
-            <p className="text-sm font-medium">Thuộc tính xưởng khác</p>
+            <p className="text-sm font-medium">{pureLogistics ? "Thông tin hàng hóa khác" : "Thuộc tính xưởng khác"}</p>
             {line.attrs.map((attr, attrIndex) => factoryAttrKeys.some((key) => key === attr.key) ? null : (
               <div key={attrIndex} className="flex items-center gap-1">
                 <Input aria-label={`Tên thuộc tính ${attrIndex + 1} dòng ${index + 1}`} value={lang === "en" ? attr.keyEn : attr.key} placeholder={lang === "en" ? attr.key : undefined} disabled={!canEditContent} onChange={(event) => updateLine(index, { attrs: line.attrs.map((item, i) => i === attrIndex ? { ...item, ...(lang === "en" ? { keyEn: event.target.value } : { key: event.target.value }) } : item) })} />
@@ -1618,6 +1622,7 @@ function OrderDraftDialog({
                 canEditContent={canEditContent}
                 canEditPricing={canEditOrderPrices}
                 brief={sourcingSale}
+                pureLogistics={pureLogistics}
                 packagingRequired={!sourcingSale && (saleLogisticsOrder || showPackaging)}
                 canEditPackaging={canEditPackaging}
                 errors={orderFields}
