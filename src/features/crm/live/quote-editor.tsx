@@ -1538,6 +1538,7 @@ function OrderDraftDialog({
   canEditContent,
   canEditOrderPrices,
   canEditPackaging,
+  packagesOptional = false,
   printLang,
   quoteCode,
   fieldId,
@@ -1558,6 +1559,8 @@ function OrderDraftDialog({
   canEditContent: boolean;
   canEditOrderPrices: boolean;
   canEditPackaging: boolean;
+  /** Nháp trên mess: chưa biết đường bay/biển/FCL nên không bắt buộc đóng gói; bước báo giá và lúc chuyển sẽ kiểm tra. */
+  packagesOptional?: boolean;
   printLang: QuoteLang;
   quoteCode: string;
   fieldId: (name: string) => string;
@@ -1586,7 +1589,7 @@ function OrderDraftDialog({
   const save = async () => {
     if (mode === "view") return;
     const current = orderRef.current;
-    const requirePackages = Boolean(!sourcingSale && (saleLogisticsOrder || showPackaging));
+    const requirePackages = Boolean(!sourcingSale && !packagesOptional && (saleLogisticsOrder || showPackaging));
     const named = sourcingSale && !current.name.trim()
       ? { ...current, name: current.lines.find((line) => line.productName?.trim())?.productName?.trim() || "Đơn tìm hàng" }
       : current;
@@ -1661,7 +1664,7 @@ function OrderDraftDialog({
                 canEditPricing={canEditOrderPrices}
                 brief={sourcingSale}
                 pureLogistics={pureLogistics}
-                packagingRequired={!sourcingSale && (saleLogisticsOrder || showPackaging)}
+                packagingRequired={!sourcingSale && !packagesOptional && (saleLogisticsOrder || showPackaging)}
                 canEditPackaging={canEditPackaging}
                 errors={orderFields}
                 onChange={commitLines}
@@ -1700,7 +1703,7 @@ function OrderDraftDialog({
  * Sale nhập nháp thông tin sản phẩm/đơn hàng ngay trên mess, trước khi bấm Chuyển.
  * Dùng lại form đơn hàng của bước báo giá: Tìm hàng nhập mặt hàng/ảnh/số lượng, Vận chuyển nhập thêm quy cách đóng gói. Sale không nhập giá.
  */
-/** Nháp đơn hàng trên mess: cùng một form cho Tìm hàng lẫn Vận chuyển (quy cách đóng gói bắt buộc, cân tính cước, thông tin hàng hóa). */
+/** Nháp đơn hàng trên mess: cùng một form cho Tìm hàng lẫn Vận chuyển (cân tính cước, thông tin hàng hóa). Đóng gói không bắt buộc ở nháp, bước chuyển sẽ kiểm tra. */
 export function MessOrderDialog({
   order,
   onClose,
@@ -1732,6 +1735,7 @@ export function MessOrderDialog({
       canEditContent
       canEditOrderPrices={false}
       canEditPackaging
+      packagesOptional
       printLang="vi"
       quoteCode=""
       fieldId={(name) => `mess-order-${name}`}

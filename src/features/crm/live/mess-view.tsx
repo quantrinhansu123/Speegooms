@@ -155,6 +155,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderDialog, setOrderDialog] = useState(false);
+  const [demandChange, setDemandChange] = useState<MessDraft["demand"] | null>(null);
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
@@ -558,7 +559,16 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 </NativeSelect>
               </Field>
               <Field label="Nhu cầu" htmlFor="mess-demand">
-                <NativeSelect id="mess-demand" value={draft.demand} onChange={(event) => setDraft({ ...draft, demand: event.target.value as MessDraft["demand"] })}>
+                <NativeSelect
+                  id="mess-demand"
+                  value={draft.demand}
+                  onChange={(event) => {
+                    const next = event.target.value as MessDraft["demand"];
+                    // Nháp thuộc về một loại khách (Sourcing hay thuần Logistics) nên đổi Nhu cầu phải làm lại.
+                    if (draft.order && orderLineCount(draft.order) > 0 && next !== draft.demand) setDemandChange(next);
+                    else setDraft({ ...draft, demand: next });
+                  }}
+                >
                   <option value="">Chưa chọn</option>
                   {demandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
@@ -615,7 +625,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   </div>
                   {!draft.demand && <p className="text-xs text-muted-foreground">Chọn Nhu cầu (Tìm hàng hoặc Vận chuyển) để nhập thông tin sản phẩm.</p>}
-                  {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Hàng biển FCL nhập ở form cước riêng nên không dùng thông tin này.</p>}
+                  {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Quy cách đóng gói có thể bổ sung ở bước báo giá. Hàng biển FCL nhập ở form cước riêng nên không dùng thông tin này.</p>}
                 </div>
               )}
               <Field label="Số điện thoại" htmlFor="mess-phone" hint="Chỉ nhập số">
@@ -638,6 +648,20 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={demandChange !== null}
+        onOpenChange={(open) => { if (!open) setDemandChange(null); }}
+        destructive
+        title="Đổi Nhu cầu?"
+        description="Thông tin sản phẩm đã nhập sẽ bị xóa, vì Tìm hàng (khách Sourcing) và Vận chuyển (khách thuần Logistics) đi theo hai bàn báo giá khác nhau."
+        confirmLabel="Đổi và xóa"
+        onConfirm={() => {
+          const next = demandChange;
+          setDemandChange(null);
+          if (next !== null) setDraft((current) => (current ? { ...current, demand: next, order: null } : current));
+        }}
+      />
 
       {orderDialog && draft?.demand && (
         <MessOrderDialog
