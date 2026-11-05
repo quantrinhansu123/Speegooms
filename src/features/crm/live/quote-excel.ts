@@ -257,13 +257,17 @@ async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbook> {
     }
     r += 1;
   }
-  const freightTotal = model.freight.total;
-  const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
-  if (model.shippingText && !shippingDuplicatesFreight) {
+  if (model.shippingText) {
     const row = sumRow(t.shippingTotal);
     if (model.shippingAmount != null) put(row, "total", model.shippingAmount);
     else row.getCell(colOf("total")).value = model.shippingText;
+    if (model.shippingAmount != null) row.getCell(colOf("price")).value = model.currency;
     if (model.validityNote) row.getCell(colOf("note")).value = model.validityNote;
+    r += 1;
+  }
+  for (const subtotal of model.feeSubtotals) {
+    const row = sumRow(`${t.feeSubtotal} (${subtotal.currency})`);
+    put(row, feeKey(subtotal.currency), subtotal.amount);
     r += 1;
   }
   r += 1;
