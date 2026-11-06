@@ -544,15 +544,17 @@ test("accounting must enter a positive amount for every confirmation", () => {
   assert.equal(accountingContractSchema.safeParse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [{ amount: 500, note: "", images: [] }] }).success, true);
 });
 
-test("both lanes show each payment and matching payment reminders across all contract desks", async () => {
+test("both lanes show live payments and logistics details to Sale", async () => {
   for (const lane of ["vn", "global"] as const) {
     const raw = {
       id: "contract", lane, customer_name: "Khách", currency: "VND", total_value: 1000, paid_amount: 500, balance: 500,
       confirmed_amount: 500, accounting_status: "DA_HOAN_THANH_COC", ops_status: "Đang vận chuyển", delivery_on: "2026-11-03",
+      tracking: "TRACK-NEW", note_1: "Đã nhập kho", note_2: "Chờ container",
+      china_warehouse_on: "2026-10-31", container_on: "2026-11-01", arrival_on: "2026-11-02",
       payments: [{ amount: 200, paidOn: "2026-10-30", note: "Lần 1", images: [] }, { amount: 300, paidOn: "2026-10-31", note: "Lần 2", images: [] }],
       sent_ops_body: { totalValue: 1000, paidAmount: 200, currency: "VND" },
       sent_accounting_body: { totalValue: 1000, paidAmount: 200, currency: "VND", deliveryOn: "2026-12-20" },
-      sent_parties_body: { deliveryOn: "2026-12-20" },
+      sent_parties_body: { tracking: "TRACK-OLD", note1: "Cũ", deliveryOn: "2026-12-20" },
       created_at: new Date(), updated_at: new Date(),
     };
     const repository = new PostgresCrmRepository({ query: async () => ({ rowCount: 1, rows: [raw] }) } as unknown as pg.Pool);
@@ -561,6 +563,14 @@ test("both lanes show each payment and matching payment reminders across all con
       assert.deepEqual(contract.payments.map((line) => line.amount), [200, 300]);
       assert.equal(contract.paidAmount, 500);
       assert.equal(contract.deliveryOn, "2026-11-03");
+      if (view === "sale") {
+        assert.equal(contract.tracking, "TRACK-NEW");
+        assert.equal(contract.note1, "Đã nhập kho");
+        assert.equal(contract.note2, "Chờ container");
+        assert.equal(contract.chinaWarehouseOn, "2026-10-31");
+        assert.equal(contract.containerOn, "2026-11-01");
+        assert.equal(contract.arrivalOn, "2026-11-02");
+      }
       assert.equal(contractPaymentFlags({ ...contract, today: "2026-10-31" }).urgePayment, true);
     }
   }
