@@ -13,10 +13,19 @@ import { orderSummary } from "./order-summary";
 import { crmPath } from "./lane";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { brandOptions, careChannelOptions, customerTypeOptions, type MessageRecord, type QuoteRecord } from "./types";
+import { zodFieldErrors } from "@/lib/zod-errors";
 
 type Mode = "" | "AIR" | "SEA";
 type ShipClass = "" | "LCL" | "FCL";
 export type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; packageDimensions: string; weightKg: string; shipToAddress: string; reason: string };
+/** Trường của schema chuyển khách tiềm năng → id ô trong hộp thoại Chuyển. */
+const convertFieldIds: Record<string, string> = {
+  phone: "convert-phone", brand: "convert-brand", customerType: "convert-customerType", careChannel: "convert-careChannel",
+  productInterest: "convert-productInterest", quantityNote: "convert-quantityNote", address: "convert-address",
+  saleNote: "convert-saleNote", requirements: "convert-requirements", packageDimensions: "convert-dimensions",
+  weightKg: "convert-weightKg", shipToAddress: "convert-shipToAddress", reason: "convert-reason",
+  shippingMode: "convert-mode", logisticsClass: "convert-class",
+};
 const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", ...orderSummary(row.order), address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
 
 /**
@@ -43,12 +52,15 @@ export function useMessConvert({
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
+  /** Lỗi theo từng ô của hộp thoại chuyển (id ô → thông báo), báo đỏ ngay dưới ô. */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const openConvert = (row: MessageRecord, mode: Mode = "", logisticsClass: ShipClass = "") => {
     if (row.demand !== "SHIPPING" && row.demand !== "SOURCING") {
       setError("Chọn nhu cầu Tìm hàng hoặc Vận chuyển trước khi chuyển");
       return;
     }
+    setFieldErrors({});
     setConverting({ row, mode, logisticsClass, details: detailsFrom(row) });
   };
 
@@ -93,14 +105,16 @@ export function useMessConvert({
       shippingMode: row.demand === "SHIPPING" ? mode || undefined : undefined,
       logisticsClass: row.demand === "SHIPPING" && mode === "SEA" ? logisticsClass || undefined : undefined,
     });
-    if (row.demand === "SHIPPING" && (!mode || (mode === "SEA" && !logisticsClass))) {
-      setError("Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
+    /** Gom lỗi Zod và lỗi chọn phương thức theo từng ô để báo đỏ cùng lúc. */
+    const errors: Record<string, string> = parsed.success ? {} : zodFieldErrors(parsed.error, convertFieldIds);
+    if (row.demand === "SHIPPING" && !mode) errors["convert-mode"] = "Chọn đường bay hoặc đường biển";
+    if (row.demand === "SHIPPING" && mode === "SEA" && !logisticsClass) errors["convert-class"] = "Chọn LCL hoặc FCL";
+    if (!parsed.success || Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError(undefined);
       return Promise.resolve(false);
     }
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
-      return Promise.resolve(false);
-    }
+    setFieldErrors({});
     setError(undefined);
     setNotice(undefined);
     setOrderError(undefined);
@@ -195,22 +209,22 @@ export function useMessConvert({
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Chuyển sang khách tiềm năng</DialogTitle></DialogHeader>
           {converting && <div className="grid gap-3 sm:grid-cols-2">
-            {([['phone', 'Số điện thoại'], ['productInterest', 'Hàng hóa'], ['quantityNote', 'Số lượng'], ['address', 'Địa chỉ'], ['saleNote', 'Ghi chú sale']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
-            {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><NativeSelect id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
-            <Field label="Yêu cầu của khách" htmlFor="convert-requirements" required className="sm:col-span-2"><Textarea id="convert-requirements" value={converting.details.requirements} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, requirements: event.target.value } })} /></Field>
+            {([['phone', 'Số điện thoại'], ['productInterest', 'Hàng hóa'], ['quantityNote', 'Số lượng'], ['address', 'Địa chỉ'], ['saleNote', 'Ghi chú sale']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
+            {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><NativeSelect id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
+            <Field label="Yêu cầu của khách" htmlFor="convert-requirements" error={fieldErrors["convert-requirements"]} required className="sm:col-span-2"><Textarea id="convert-requirements" value={converting.details.requirements} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, requirements: event.target.value } })} /></Field>
             {converting.row.demand === 'SHIPPING' && <>
-              {([['weightKg', 'Trọng lượng'], ['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
-              {converting.logisticsClass !== 'FCL' && <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions" required><Input id="convert-dimensions" value={converting.details.packageDimensions} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, packageDimensions: event.target.value } })} /></Field>}
+              {([['weightKg', 'Trọng lượng'], ['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
+              {converting.logisticsClass !== 'FCL' && <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions" error={fieldErrors["convert-dimensions"]} required><Input id="convert-dimensions" value={converting.details.packageDimensions} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, packageDimensions: event.target.value } })} /></Field>}
             </>}
           </div>}
           {converting?.row.demand === "SHIPPING" && (
             <div className="grid gap-4">
-              <Field label="Phương thức vận chuyển" htmlFor="convert-mode" required>
+              <Field label="Phương thức vận chuyển" htmlFor="convert-mode" error={fieldErrors["convert-mode"]} required>
                 <NativeSelect id="convert-mode" value={converting.mode} onChange={(event) => setConverting({ ...converting, mode: event.target.value as "AIR" | "SEA", logisticsClass: "" })}>
                   <option value="">Chọn phương thức</option><option value="AIR">Đường bay</option><option value="SEA">Đường biển</option>
                 </NativeSelect>
               </Field>
-              {converting.mode === "SEA" && <Field label="Hình thức hàng biển" htmlFor="convert-class" required>
+              {converting.mode === "SEA" && <Field label="Hình thức hàng biển" htmlFor="convert-class" error={fieldErrors["convert-class"]} required>
                 <NativeSelect id="convert-class" value={converting.logisticsClass} onChange={(event) => setConverting({ ...converting, logisticsClass: event.target.value as "LCL" | "FCL" })}>
                   <option value="">Chọn LCL/FCL</option><option value="LCL">LCL</option><option value="FCL">FCL</option>
                 </NativeSelect>

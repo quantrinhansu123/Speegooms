@@ -14,9 +14,10 @@ import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
-import { dateInputFromIso, draftFrom, emptyDraft, marketPresets, MessFormDialog, todayInput, uniqueSuggestions, type MessDraft } from "./mess-form";
+import { dateInputFromIso, draftFrom, emptyDraft, marketPresets, messFieldIds, MessFormDialog, todayInput, uniqueSuggestions, type MessDraft } from "./mess-form";
 import { useMessConvert } from "./mess-convert";
 import { RowMenu } from "./row-menu";
+import { zodFieldErrors } from "@/lib/zod-errors";
 import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
 import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
@@ -35,6 +36,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [draft, setDraft] = useState<MessDraft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
@@ -80,6 +82,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const openCreate = () => {
     setEditingId(null);
     setFormError(undefined);
+    setFieldErrors({});
     setDraft({ ...emptyDraft, receivedOn: todayInput(), saleName: user.name });
   };
 
@@ -98,10 +101,12 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     };
     const parsed = (editingId ? updateMessageSchema : createMessageSchema).safeParse(payload);
     if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+      setFieldErrors(zodFieldErrors(parsed.error, messFieldIds));
+      setFormError(undefined);
       return;
     }
     setPending(true);
+    setFieldErrors({});
     setFormError(undefined);
     const request = editingId
       ? api(crmPath(`/api/crm/messages/${editingId}`, lane), { method: "PATCH", body: JSON.stringify(parsed.data) })
@@ -226,6 +231,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                           ? [
                               { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => {
                                 setEditingId(row.id);
+                                setFieldErrors({});
                                 setFormError(undefined);
                                 const next = draftFrom(row);
                                 setDraft({ ...next, saleName: next.saleName.trim() || user.name });
@@ -249,6 +255,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         title={editingId ? "Sửa mess" : "Tạo mess"}
         submitLabel="Lưu"
         formError={formError}
+        fieldErrors={fieldErrors}
         pending={pending}
         onSave={save}
         onClose={() => setDraft(null)}

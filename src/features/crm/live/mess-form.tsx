@@ -16,6 +16,22 @@ import { brandOptions, careChannelOptions, customerTypeOptions, demandOptions, m
 
 export const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
 
+/** Trường của schema mess (create/update) → id ô trên form, để báo lỗi Zod đỏ đúng ô. */
+export const messFieldIds: Record<string, string> = {
+  receivedOn: "mess-date", customerName: "mess-name", market: "mess-market", classification: "mess-class",
+  customerType: "mess-type", demand: "mess-demand", goods: "mess-goods", industry: "mess-industry",
+  saleName: "mess-sale", painPoint: "mess-pain", linkMess: "mess-link", note: "mess-note",
+  phone: "mess-phone", email: "mess-email", shippingMode: "lead-mode", logisticsClass: "lead-class",
+};
+
+/** Trường của schema chuyển khách tiềm năng → id ô trên form Tạo khách tiềm năng. */
+export const leadConvertFieldIds: Record<string, string> = {
+  phone: "mess-phone", brand: "lead-brand", customerType: "mess-type", careChannel: "lead-care",
+  productInterest: "mess-goods", requirements: "mess-goods", quantityNote: "lead-quantity", address: "lead-address",
+  saleNote: "mess-note", packageDimensions: "lead-dimensions", weightKg: "lead-weight", shipToAddress: "lead-ship-to",
+  reason: "lead-reason", shippingMode: "lead-mode", logisticsClass: "lead-class",
+};
+
 export type Classification = "" | "HOT" | "WARM" | "COLD" | "DEAD";
 
 export function uniqueSuggestions(values: Array<string | null | undefined>, presets: string[] = []): string[] {
@@ -171,6 +187,7 @@ export function MessFormDialog({
   goodsOptions,
   canConvert,
   lead = false,
+  fieldErrors,
 }: {
   draft: MessDraft | null;
   setDraft: Dispatch<SetStateAction<MessDraft | null>>;
@@ -184,6 +201,8 @@ export function MessFormDialog({
   goodsOptions: string[];
   canConvert: boolean;
   lead?: boolean;
+  /** Lỗi theo từng ô (id ô → thông báo), hiện đỏ ngay dưới ô. */
+  fieldErrors?: Record<string, string>;
 }) {
   const [orderDialog, setOrderDialog] = useState(false);
   const [demandChange, setDemandChange] = useState<MessDraft["demand"] | null>(null);
@@ -200,31 +219,31 @@ export function MessFormDialog({
           {draft && (
             <div className="grid max-h-[min(70vh,720px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
               {formError && <InlineAlert className="sm:col-span-2">{formError}</InlineAlert>}
-              <Field label="Ngày" htmlFor="mess-date" required>
+              <Field label="Ngày" htmlFor="mess-date" error={fieldErrors?.["mess-date"]} required>
                 <Input id="mess-date" type="date" value={draft.receivedOn} onChange={(event) => update({ receivedOn: event.target.value })} />
               </Field>
-              <Field label="Tên khách" htmlFor="mess-name" required>
+              <Field label="Tên khách" htmlFor="mess-name" error={fieldErrors?.["mess-name"]} required>
                 <Input id="mess-name" value={draft.customerName} onChange={(event) => update({ customerName: event.target.value })} />
               </Field>
-              <Field label="Thị trường" htmlFor="mess-market" hint="Chọn gợi ý hoặc gõ mới">
+              <Field label="Thị trường" htmlFor="mess-market" error={fieldErrors?.["mess-market"]} hint="Chọn gợi ý hoặc gõ mới">
                 <Input id="mess-market" list="mess-market-options" value={draft.market} placeholder="Ví dụ: Mỹ, Úc, Canada" onChange={(event) => update({ market: event.target.value })} />
                 <datalist id="mess-market-options">
                   {marketOptions.map(([market]) => <option key={market} value={market} />)}
                 </datalist>
               </Field>
-              <Field label="Phân loại" htmlFor="mess-class">
+              <Field label="Phân loại" htmlFor="mess-class" error={fieldErrors?.["mess-class"]}>
                 <NativeSelect id="mess-class" value={draft.classification} onChange={(event) => update({ classification: event.target.value as MessDraft["classification"] })}>
                   <option value="">Chưa chọn</option>
                   {messageClassificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Đối tượng" htmlFor="mess-type" required={lead}>
+              <Field label="Đối tượng" htmlFor="mess-type" error={fieldErrors?.["mess-type"]} required={lead}>
                 <NativeSelect id="mess-type" value={draft.customerType} onChange={(event) => update({ customerType: event.target.value as MessDraft["customerType"] })}>
                   <option value="">Chưa chọn</option>
                   {customerTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Nhu cầu" htmlFor="mess-demand" required={lead} hint={lead ? "Tìm hàng = khách Sourcing, Vận chuyển = khách thuần Logistics" : undefined}>
+              <Field label="Nhu cầu" htmlFor="mess-demand" error={fieldErrors?.["mess-demand"]} required={lead} hint={lead ? "Tìm hàng = khách Sourcing, Vận chuyển = khách thuần Logistics" : undefined}>
                 <NativeSelect
                   id="mess-demand"
                   value={draft.demand}
@@ -241,13 +260,13 @@ export function MessFormDialog({
               </Field>
               {lead && draft.demand === "SHIPPING" && (
                 <>
-                  <Field label="Phương thức vận chuyển" htmlFor="lead-mode" required>
+                  <Field label="Phương thức vận chuyển" htmlFor="lead-mode" error={fieldErrors?.["lead-mode"]} required>
                     <NativeSelect id="lead-mode" value={draft.shippingMode} onChange={(event) => update({ shippingMode: event.target.value as MessDraft["shippingMode"], logisticsClass: "" })}>
                       <option value="">Chọn phương thức</option><option value="AIR">Đường bay</option><option value="SEA">Đường biển</option>
                     </NativeSelect>
                   </Field>
                   {draft.shippingMode === "SEA" && (
-                    <Field label="Hình thức hàng biển" htmlFor="lead-class" required>
+                    <Field label="Hình thức hàng biển" htmlFor="lead-class" error={fieldErrors?.["lead-class"]} required>
                       <NativeSelect id="lead-class" value={draft.logisticsClass} onChange={(event) => update({ logisticsClass: event.target.value as MessDraft["logisticsClass"] })}>
                         <option value="">Chọn LCL/FCL</option><option value="LCL">LCL</option><option value="FCL">FCL</option>
                       </NativeSelect>
@@ -255,42 +274,42 @@ export function MessFormDialog({
                   )}
                 </>
               )}
-              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2" required={lead} hint="Chọn gợi ý hoặc gõ mới">
+              <Field label="Hàng hóa" htmlFor="mess-goods" error={fieldErrors?.["mess-goods"]} className="sm:col-span-2" required={lead} hint="Chọn gợi ý hoặc gõ mới">
                 <Input id="mess-goods" list="mess-goods-options" value={draft.goods} onChange={(event) => update({ goods: event.target.value })} />
                 <datalist id="mess-goods-options">
                   {goodsOptions.map((item) => <option key={item} value={item} />)}
                 </datalist>
               </Field>
-              <Field label="Ngành hàng" htmlFor="mess-industry" className="sm:col-span-2">
+              <Field label="Ngành hàng" htmlFor="mess-industry" error={fieldErrors?.["mess-industry"]} className="sm:col-span-2">
                 <NativeSelect id="mess-industry" value={draft.industry} onChange={(event) => update({ industry: event.target.value as MessDraft["industry"] })}>
                   <option value="">Chưa chọn</option>
                   {industryCategoryOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Sales - hot & warm" htmlFor="mess-sale" className="sm:col-span-2" hint="Tự động theo tài khoản đăng nhập">
+              <Field label="Sales - hot & warm" htmlFor="mess-sale" error={fieldErrors?.["mess-sale"]} className="sm:col-span-2" hint="Tự động theo tài khoản đăng nhập">
                 <Input id="mess-sale" value={draft.saleName} readOnly />
               </Field>
-              <Field label="Pain-Point của KH" htmlFor="mess-pain" className="sm:col-span-2" required hint="Ghi chi tiết mô tả pain-point của khách">
+              <Field label="Pain-Point của KH" htmlFor="mess-pain" error={fieldErrors?.["mess-pain"]} className="sm:col-span-2" required hint="Ghi chi tiết mô tả pain-point của khách">
                 <Textarea id="mess-pain" rows={4} value={draft.painPoint} placeholder="Mô tả chi tiết vấn đề / nhu cầu của khách…" onChange={(event) => update({ painPoint: event.target.value })} />
               </Field>
               {!lead && (
-                <Field label="Link mess" htmlFor="mess-link" className="sm:col-span-2">
+                <Field label="Link mess" htmlFor="mess-link" error={fieldErrors?.["mess-link"]} className="sm:col-span-2">
                   <Input id="mess-link" value={draft.linkMess} placeholder="https://…" onChange={(event) => update({ linkMess: event.target.value })} />
                 </Field>
               )}
-              <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2" required={lead}>
+              <Field label="Ghi chú Sale" htmlFor="mess-note" error={fieldErrors?.["mess-note"]} className="sm:col-span-2" required={lead}>
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => update({ note: event.target.value })} />
               </Field>
               {lead && <>
-                <Field label="Nguồn" htmlFor="lead-brand" required><NativeSelect id="lead-brand" value={draft.brand} onChange={(event) => update({ brand: event.target.value })}><option value="">Chưa chọn</option>{brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
-                <Field label="Kênh chăm sóc" htmlFor="lead-care" required><NativeSelect id="lead-care" value={draft.careChannel} onChange={(event) => update({ careChannel: event.target.value })}><option value="">Chưa chọn</option>{careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
-                <Field label="Số lượng" htmlFor="lead-quantity" required><Input id="lead-quantity" value={draft.quantityNote} onChange={(event) => update({ quantityNote: event.target.value })} /></Field>
-                <Field label="Địa chỉ" htmlFor="lead-address" required><Input id="lead-address" value={draft.address} onChange={(event) => update({ address: event.target.value })} /></Field>
+                <Field label="Nguồn" htmlFor="lead-brand" error={fieldErrors?.["lead-brand"]} required><NativeSelect id="lead-brand" value={draft.brand} onChange={(event) => update({ brand: event.target.value })}><option value="">Chưa chọn</option>{brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
+                <Field label="Kênh chăm sóc" htmlFor="lead-care" error={fieldErrors?.["lead-care"]} required><NativeSelect id="lead-care" value={draft.careChannel} onChange={(event) => update({ careChannel: event.target.value })}><option value="">Chưa chọn</option>{careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
+                <Field label="Số lượng" htmlFor="lead-quantity" error={fieldErrors?.["lead-quantity"]} required><Input id="lead-quantity" value={draft.quantityNote} onChange={(event) => update({ quantityNote: event.target.value })} /></Field>
+                <Field label="Địa chỉ" htmlFor="lead-address" error={fieldErrors?.["lead-address"]} required><Input id="lead-address" value={draft.address} onChange={(event) => update({ address: event.target.value })} /></Field>
                 {draft.demand === "SHIPPING" && <>
-                  {draft.logisticsClass !== "FCL" && <Field label="Kích thước kiện hàng" htmlFor="lead-dimensions" required><Input id="lead-dimensions" value={draft.packageDimensions} onChange={(event) => update({ packageDimensions: event.target.value })} /></Field>}
-                  <Field label="Trọng lượng" htmlFor="lead-weight" required><Input id="lead-weight" value={draft.weightKg} onChange={(event) => update({ weightKg: event.target.value })} /></Field>
-                  <Field label="Địa chỉ nhận hàng" htmlFor="lead-ship-to" required><Input id="lead-ship-to" value={draft.shipToAddress} onChange={(event) => update({ shipToAddress: event.target.value })} /></Field>
-                  <Field label="Lý do chuyển" htmlFor="lead-reason" required><Input id="lead-reason" value={draft.convertReason} onChange={(event) => update({ convertReason: event.target.value })} /></Field>
+                  {draft.logisticsClass !== "FCL" && <Field label="Kích thước kiện hàng" htmlFor="lead-dimensions" error={fieldErrors?.["lead-dimensions"]} required><Input id="lead-dimensions" value={draft.packageDimensions} onChange={(event) => update({ packageDimensions: event.target.value })} /></Field>}
+                  <Field label="Trọng lượng" htmlFor="lead-weight" error={fieldErrors?.["lead-weight"]} required><Input id="lead-weight" value={draft.weightKg} onChange={(event) => update({ weightKg: event.target.value })} /></Field>
+                  <Field label="Địa chỉ nhận hàng" htmlFor="lead-ship-to" error={fieldErrors?.["lead-ship-to"]} required><Input id="lead-ship-to" value={draft.shipToAddress} onChange={(event) => update({ shipToAddress: event.target.value })} /></Field>
+                  <Field label="Lý do chuyển" htmlFor="lead-reason" error={fieldErrors?.["lead-reason"]} required><Input id="lead-reason" value={draft.convertReason} onChange={(event) => update({ convertReason: event.target.value })} /></Field>
                 </>}
               </>}
               {(canConvert || lead) && (
@@ -328,7 +347,7 @@ export function MessFormDialog({
                   {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Quy cách đóng gói có thể bổ sung ở bước báo giá. Hàng biển FCL nhập ở form cước riêng nên không dùng thông tin này.</p>}
                 </div>
               )}
-              <Field label="Số điện thoại" htmlFor="mess-phone" required={lead} hint="Chỉ nhập số">
+              <Field label="Số điện thoại" htmlFor="mess-phone" error={fieldErrors?.["mess-phone"]} required={lead} hint="Chỉ nhập số">
                 <Input
                   id="mess-phone"
                   inputMode="numeric"
@@ -337,7 +356,7 @@ export function MessFormDialog({
                   onChange={(event) => update({ phone: event.target.value.replace(/\D/g, "").slice(0, 30) })}
                 />
               </Field>
-              <Field label="Email" htmlFor="mess-email">
+              <Field label="Email" htmlFor="mess-email" error={fieldErrors?.["mess-email"]}>
                 <Input id="mess-email" type="email" value={draft.email} onChange={(event) => update({ email: event.target.value })} />
               </Field>
             </div>

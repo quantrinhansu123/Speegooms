@@ -134,9 +134,9 @@ export const updatePotentialSchema = z
 
 export const convertMessageSchema = z.object({
   phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(/^\d+$/, "Số điện thoại chỉ được chứa số"),
-  brand: leadBrandSchema,
-  customerType: customerTypeSchema,
-  careChannel: careChannelSchema,
+  brand: z.enum(leadBrandSchema.options, { error: "Chọn nguồn" }),
+  customerType: z.enum(customerTypeSchema.options, { error: "Chọn đối tượng" }),
+  careChannel: z.enum(careChannelSchema.options, { error: "Chọn kênh chăm sóc" }),
   productInterest: z.string().trim().min(1, "Nhập hàng hóa").max(500),
   address: z.string().trim().min(1, "Nhập địa chỉ").max(300),
   saleNote: z.string().trim().min(1, "Nhập ghi chú sale").max(2000),
