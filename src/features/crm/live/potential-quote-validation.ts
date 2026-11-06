@@ -26,9 +26,7 @@ type LogisticsQuoteFields = Pick<PotentialRecord,
 
 const requiredLogisticsFields = [
   ["fullName", "Tên khách"],
-  ["companyName", "Công ty"],
   ["phone", "Số điện thoại"],
-  ["email", "Email"],
   ["brand", "Nguồn"],
   ["potential", "Giai đoạn"],
   ["customerType", "Đối tượng"],

@@ -184,7 +184,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       brand: draft.brand || undefined,
       careChannel: draft.careChannel || undefined,
       classification: draft.classification || undefined,
-      weightKg: draft.weightKg,
+      // Giữ số liệu lấy từ đơn hàng tự cập nhật nếu Sale không sửa trực tiếp hồ sơ.
+      packageDimensions: draft.packageDimensions === (editing.packageDimensions ?? "") ? undefined : draft.packageDimensions,
+      weightKg: draft.weightKg === (editing.weightKg ?? "") ? undefined : draft.weightKg,
       logisticsClass: draft.logisticsClass || undefined,
       shippingMode: draft.shippingMode || undefined,
       shipFromAddress: draft.shipFromAddress || undefined,
@@ -429,13 +431,13 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Tên khách" htmlFor="pot-name" required>
                 <Input id="pot-name" value={draft.fullName} onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} />
               </Field>
-              <Field label="Công ty" htmlFor="pot-company" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Công ty" htmlFor="pot-company">
                 <Input id="pot-company" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
               </Field>
               <Field label="Số điện thoại" htmlFor="pot-phone" required={draft.customerKind === "LOGISTICS"}>
                 <Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
               </Field>
-              <Field label="Email" htmlFor="pot-email" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Email" htmlFor="pot-email">
                 <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
               </Field>
               <Field label="Nguồn" htmlFor="pot-brand" required={draft.customerKind === "LOGISTICS"}>

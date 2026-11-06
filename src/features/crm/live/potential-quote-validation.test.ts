@@ -27,13 +27,18 @@ const complete = {
   convertReason: "Cần báo giá",
 };
 
-test("Logistics quote requires every editable profile field but not a sending address", () => {
+test("Logistics quote still requires weight and receiving address", () => {
   assert.deepEqual(missingLogisticsQuoteFields(complete), []);
   assert.deepEqual(missingLogisticsQuoteFields({ ...complete, companyName: " ", weightKg: "  ", shipToAddress: null }), [
-    "Công ty",
     "Trọng lượng",
     "Địa chỉ nhận hàng",
   ]);
+});
+
+test("Logistics quote accepts blank company and email", () => {
+  for (const value of [null, "", "  "]) {
+    assert.deepEqual(missingLogisticsQuoteFields({ ...complete, companyName: value, email: value }), []);
+  }
 });
 
 test("Sourcing quote does not require Logistics details", () => {

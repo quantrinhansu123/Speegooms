@@ -110,6 +110,8 @@ type PotentialRow = {
   pack_spec: string | null;
   package_dimensions: string | null;
   weight_kg: string | null;
+  order_lines: unknown;
+  order_info: unknown;
   logistics_class: string | null;
   shipping_mode: "AIR" | "SEA" | null;
   ship_from_address: string | null;
@@ -644,7 +646,8 @@ function messageSelect(message: string, potential: string): string {
 `;
 }
 
-function potentialSelect(message: string, potential: string): string {
+function potentialSelect(lane: CrmLane): string {
+  const { message, potential, sourcing, logistics } = quoteTables[lane];
   return `
   select l.id::text as id, l.ma_tiem_nang as lead_code,
          l.ma_tin_nhan::text as mess_id, m.ma_hien_thi as mess_code,
@@ -661,6 +664,8 @@ function potentialSelect(message: string, potential: string): string {
          l.phan_loai::text as classification, l.quy_cach_dong_goi as pack_spec,
          l.kich_thuoc_kien_hang as package_dimensions,
          l.trong_luong_kg as weight_kg, l.phan_loai_logistics as logistics_class,
+         case when l.nhom_khach = 'LOGISTICS' then lq.chi_tiet_don_hang else sq.chi_tiet_don_hang end as order_lines,
+         m.thong_tin_don_hang as order_info,
          l.phuong_thuc_van_chuyen as shipping_mode,
          l.dia_chi_gui as ship_from_address, l.dia_chi_nhan as ship_to_address,
          m.link_mess as link_mess,
@@ -670,6 +675,8 @@ function potentialSelect(message: string, potential: string): string {
          l.tao_luc as created_at
   from ${potential} l
   left join ${message} m on m.id = l.ma_tin_nhan
+  left join ${sourcing} sq on sq.ma_khach_hang_tiem_nang = l.id and l.nhom_khach = 'SOURCING'
+  left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = l.id and l.nhom_khach = 'LOGISTICS'
   where l.xoa_luc is null and l.tiem_nang is not null
 `;
 }
@@ -1199,6 +1206,14 @@ function messageOrder(value: unknown): QuoteOrder | null {
 }
 
 function toPotential(row: PotentialRow): PotentialRecord {
+  const orders = asOrders(row.order_lines);
+  const order = sourcingHandoffOrder({ orders }) ?? (row.logistics_class === "FCL" ? null : messageOrder(row.order_info));
+  const packages = order?.lines.flatMap((line) => line.packages) ?? [];
+  const dimensions = [...new Set(packages
+    .filter((pkg) => pkg.lengthCm > 0 && pkg.widthCm > 0 && pkg.heightCm > 0)
+    .map((pkg) => `${pkg.lengthCm} × ${pkg.widthCm} × ${pkg.heightCm} cm`))].join("; ");
+  // Cân thực tế theo số kiện; weightKg trên dòng có thể là cân quy đổi tính cước.
+  const actualKg = packages.reduce((total, pkg) => total + pkg.actualKg * pkg.count, 0);
   return {
     id: row.id,
     leadCode: row.lead_code,
@@ -1225,8 +1240,8 @@ function toPotential(row: PotentialRow): PotentialRecord {
     careChannel: row.care_channel,
     classification: row.classification,
     packSpec: row.pack_spec,
-    packageDimensions: row.package_dimensions,
-    weightKg: row.weight_kg,
+    packageDimensions: row.package_dimensions?.trim() || dimensions || null,
+    weightKg: row.weight_kg?.trim() || (actualKg > 0 ? `${Number(actualKg.toFixed(3))} kg` : null),
     logisticsClass: row.logistics_class,
     shippingMode: row.shipping_mode,
     shipFromAddress: row.ship_from_address,
@@ -1388,7 +1403,7 @@ export class PostgresCrmRepository implements CrmRepository {
       }
 
       const existing = await client.query<PotentialRow>(
-        `${potentialSelect(messageTable, potentialTable)} and l.ma_tin_nhan = $1::uuid`,
+        `${potentialSelect(lane)} and l.ma_tin_nhan = $1::uuid`,
         [id],
       );
       let potential = existing.rows[0];
@@ -1414,7 +1429,7 @@ export class PostgresCrmRepository implements CrmRepository {
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
-        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [leadId]);
+        const loaded = await client.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [leadId]);
         potential = loaded.rows[0];
         if (!potential) throw new InfrastructureError("lead missing after insert");
       } else {
@@ -1433,7 +1448,7 @@ export class PostgresCrmRepository implements CrmRepository {
            where id = $1::uuid`,
           [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null],
         );
-        const loaded = await client.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [potential.id]);
+        const loaded = await client.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
       }
 
@@ -1449,10 +1464,9 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const compiled = potentialSearch(search).build();
     const result = await this.query<PotentialRow>(
-      `${potentialSelect(messageTable, potentialTable)} ${compiled.sql} order by l.tao_luc desc limit 200`,
+      `${potentialSelect(lane)} ${compiled.sql} order by l.tao_luc desc limit 200`,
       compiled.values,
     );
     const potentials = result.rows.map(toPotential);
@@ -1487,7 +1501,7 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const { potential: potentialTable } = laneTables[lane];
     const updated = await this.query<{ id: string }>(
       `update ${potentialTable} set
          ho_ten = $2,
@@ -1505,14 +1519,14 @@ export class PostgresCrmRepository implements CrmRepository {
          kenh_cham_soc = $14,
          phan_loai = $15::text::crm.lead_classification,
          quy_cach_dong_goi = coalesce($16, quy_cach_dong_goi),
-         trong_luong_kg = $17,
+         trong_luong_kg = case when $17::text is null then trong_luong_kg else nullif(btrim($17), '') end,
          phan_loai_logistics = $18,
          dia_chi_gui = $19,
          dia_chi_nhan = $20,
          yeu_cau_khach = coalesce($21, yeu_cau_khach),
          anh_yeu_cau = coalesce($22::jsonb, anh_yeu_cau),
          ly_do_chuyen = coalesce($23, ly_do_chuyen),
-         kich_thuoc_kien_hang = $24,
+         kich_thuoc_kien_hang = case when $24::text is null then kich_thuoc_kien_hang else nullif(btrim($24), '') end,
          phuong_thuc_van_chuyen = coalesce($25, phuong_thuc_van_chuyen)
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
        returning id::text as id`,
@@ -1540,12 +1554,12 @@ export class PostgresCrmRepository implements CrmRepository {
         input.requirements === undefined ? null : blank(input.requirements),
         input.requirementImages === undefined ? null : JSON.stringify(input.requirementImages),
         input.convertReason === undefined ? null : blank(input.convertReason),
-        blank(input.packageDimensions),
+        input.packageDimensions ?? null,
         input.shippingMode ?? null,
       ],
     );
     if (!updated.rows[0]) return null;
-    const result = await this.query<PotentialRow>(`${potentialSelect(messageTable, potentialTable)} and l.id = $1::uuid`, [id]);
+    const result = await this.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toPotential(row) : null;
   }
