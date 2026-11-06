@@ -35,6 +35,9 @@ type QuoteSource = {
   notes: QuoteNotes;
   sentQuote?: SentQuote | null;
   logisticsSheet?: QuoteSheet | null;
+  customerKind?: string | null;
+  shippingMode?: "AIR" | "SEA" | null;
+  logisticsClass?: string | null;
 };
 
 /** Mẫu đang chọn trên báo giá sourcing (hoặc mẫu đầu). */
@@ -73,20 +76,22 @@ export function ContractCreateDialog({
 }) {
   const user = useSession();
   const order = quote.sentQuote?.order ?? selectedOrder(quote.orders);
-  const sourceTotal = quoteAmount(quote, "sourcing");
+  const pureLogistics = quote.customerKind === "LOGISTICS";
+  const sourceTotal = quoteAmount(quote, pureLogistics ? "logistics" : "sourcing");
   const currency = sourceTotal.currency as QuoteCurrency;
   const customerName = quote.customerName?.trim() || quote.companyName?.trim() || "";
   const product = productFromOrder(order, quote.goods);
   const quantity = orderQuantity(order);
-  const productLines = productAmounts(order);
-  const productValue = productLines.find((item) => item.currency === currency)?.amount ?? sourceTotal.amount ?? 0;
-  const linkedShipping = quote.logisticsSheet ? shippingAmount(quote.logisticsSheet) : { currency, amount: 0 };
+  const productLines = pureLogistics ? [] : productAmounts(order);
+  const productValue = pureLogistics ? 0 : productLines.find((item) => item.currency === currency)?.amount ?? sourceTotal.amount ?? 0;
+  const linkedShipping = pureLogistics ? shippingAmount(quote)
+    : quote.logisticsSheet ? shippingAmount({ ...quote.logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }) : { currency, amount: 0 };
   const shippingCost = linkedShipping?.amount ?? 0;
   const shippingCurrency = linkedShipping?.currency ?? currency;
   // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá; thiếu tỷ giá thì giữ riêng từng loại tiền.
   const shippingInMain = linkedShipping == null ? null
     : shippingCurrency === currency ? shippingCost
-    : quote.logisticsSheet ? shippingInCurrency(quote.logisticsSheet, { currency, rate: order?.rate ?? null }) : null;
+    : quote.logisticsSheet ? shippingInCurrency({ ...quote.logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }, { currency, rate: order?.rate ?? null }) : null;
   const totals = shippingInMain == null
     ? sumByCurrency([productLines.length > 0 ? productLines : [{ currency, amount: productValue }], linkedShipping ? [linkedShipping] : []])
     : [{ currency, amount: Math.round((productValue + shippingInMain) * 100) / 100 }];

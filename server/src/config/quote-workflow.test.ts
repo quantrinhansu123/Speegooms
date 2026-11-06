@@ -610,6 +610,27 @@ test("creating a contract uses persisted Logistics costs instead of a submitted 
   }
 });
 
+test("a Logistics-only contract uses its own quoted freight as the contract value", async () => {
+  const shipping = handoffInput();
+  shipping.notes.shippingLabel = "1.250";
+  let inserted: unknown[] | undefined;
+  const repository = new PostgresCrmRepository({
+    query: async (sql: string, values: unknown[]) => {
+      if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGL" }] };
+      if (sql.includes("select q.id") && sql.includes("from crm.bao_gia_logistics_viet_nam q")) return { rowCount: 1, rows: [{ customer_kind: "LOGISTICS", quote_workflow: "SEPARATE", order_lines: shipping.orders, common_notes: shipping.notes, created_at: new Date() }] };
+      if (sql.includes("insert into crm.hop_dong (")) inserted = values;
+      return { rowCount: 0, rows: [] };
+    },
+  } as unknown as pg.Pool);
+  await repository.createContract("vn", "quote", createContractSchema.parse({
+    currency: "VND", customerName: "Khách", saleName: "Sale", shipTo: "", product: "Hàng", quantity: 1,
+    productValue: 0, shippingCost: 0, totalValue: 0, paidAmount: 0, signedOn: "",
+  }));
+  assert.equal(inserted?.[8], 0);
+  assert.equal(inserted?.[9], 1250);
+  assert.equal(inserted?.[10], 1250);
+});
+
 test("creating a contract keeps the logistics currency and totals in the main currency", async () => {
   const sheet = handoffInput();
   sheet.notes.freight = { rate: 3.5, cbmRate: null, basis: "kg", currency: "", total: 857.15, totalManual: false };

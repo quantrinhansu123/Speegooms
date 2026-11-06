@@ -109,8 +109,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
   const rowsWithTotals = useMemo(() => rows.map((row) => ({
     row,
-    sourcingTotal: quoteAmount(row, "sourcing"),
-    logisticsTotal: quoteAmount(row.logisticsSheet, "logistics"),
+    sourcingTotal: row.desk === "sourcing" ? quoteAmount(row, "sourcing") : null,
+    logisticsTotal: row.desk === "logistics" ? quoteAmount(row, "logistics")
+      : row.logisticsSheet ? quoteAmount(logisticsQuote(row), "logistics") : null,
   })), [rows]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -463,8 +464,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   ) : <ValidityBadge sent={row.sentQuote} status={row.quoteStatus} />}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal?.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{!logisticsTotal ? "—" : logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>
                 <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                 <td className="max-w-72 px-3 py-3">
                   <div className="flex items-start gap-2">

@@ -731,9 +731,10 @@ function moneyParts(value: unknown): { currency: string; amount: number; convert
 
 /** Cước logistics quy ra loại tiền chính của hợp đồng theo tỷ giá trên báo giá. Null khi thiếu tỷ giá. */
 function convertedShipping(source: QuoteRecord | null, currency: string): number | null {
-  if (!source?.logisticsSheet) return null;
+  if (!source) return null;
   const order = source.sentQuote?.order ?? source.orders.find((item) => item.selected) ?? source.orders[0];
-  return shippingInCurrency(source.logisticsSheet, { currency, rate: order?.rate ?? null });
+  const sheet = source.customerKind === "LOGISTICS" ? source : source.logisticsSheet && { ...source.logisticsSheet, shippingMode: source.shippingMode, logisticsClass: source.logisticsClass };
+  return sheet ? shippingInCurrency(sheet, { currency, rate: order?.rate ?? null }) : null;
 }
 
 /** Khoản đã lưu theo loại tiền. Hợp đồng cũ chỉ có một loại tiền cho cả sản phẩm và cước. */
@@ -1972,13 +1973,15 @@ export class PostgresCrmRepository implements CrmRepository {
       [quoteId],
     );
     const industry = category.rows[0]?.industry ?? null;
-    const source = await this.findQuote(lane, "sourcing", quoteId);
+    const source = await this.findQuote(lane, "sourcing", quoteId) ?? await this.findQuote(lane, "logistics", quoteId);
+    const pureLogistics = source?.customerKind === "LOGISTICS";
     const order = source?.sentQuote?.order ?? source?.orders.find((item) => item.selected) ?? source?.orders[0];
-    const product = productAmounts(order);
-    const productValue = product.find((item) => item.currency === input.currency)?.amount ?? input.productValue;
+    const product = pureLogistics ? [] : productAmounts(order);
+    const productValue = pureLogistics ? 0 : product.find((item) => item.currency === input.currency)?.amount ?? input.productValue;
     const productLines = product.length > 0 ? product : [{ currency: input.currency, amount: productValue }];
-    const linkedShipping = source?.logisticsSheet ? shippingAmount(source.logisticsSheet) : null;
-    if (source?.logisticsSheet && !linkedShipping) throw new AppError(400, "RULE", "Chi phí vận chuyển trên báo giá chưa hợp lệ");
+    const sheet = pureLogistics ? source : source?.logisticsSheet && { ...source.logisticsSheet, shippingMode: source.shippingMode, logisticsClass: source.logisticsClass };
+    const linkedShipping = sheet ? shippingAmount(sheet) : null;
+    if (sheet && !linkedShipping) throw new AppError(400, "RULE", "Chi phí vận chuyển trên báo giá chưa hợp lệ");
     const shippingCurrency = linkedShipping?.currency ?? input.currency;
     const shippingCost = linkedShipping?.amount ?? input.shippingCost;
     // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá để tổng giá trị là một loại tiền chính.
