@@ -830,6 +830,8 @@ const accountingSnapshotSql = `jsonb_build_object(
   'confirmations', coalesce((
     select jsonb_agg(jsonb_build_object(
       'amount', x.so_tien,
+      'currency', x.loai_tien,
+      'exchangeRate', x.ty_gia,
       'note', coalesce(x.ghi_chu, ''),
       'images', coalesce(x.anh, '[]'::jsonb)
     ) order by x.thu_tu)
@@ -890,6 +892,7 @@ function contractSelect(): string {
     select jsonb_agg(jsonb_build_object(
       'amount', d.so_tien,
       'currency', d.loai_tien,
+      'exchangeRate', d.ty_gia,
       'paidOn', to_char(d.ngay_chuyen, 'YYYY-MM-DD'),
       'note', coalesce(d.ghi_chu, ''),
       'images', coalesce(d.anh_bill, '[]'::jsonb)
@@ -900,6 +903,8 @@ function contractSelect(): string {
   left join lateral (
     select jsonb_agg(jsonb_build_object(
       'amount', x.so_tien,
+      'currency', x.loai_tien,
+      'exchangeRate', x.ty_gia,
       'note', coalesce(x.ghi_chu, ''),
       'images', coalesce(x.anh, '[]'::jsonb)
     ) order by x.thu_tu) as confirmations
@@ -944,11 +949,12 @@ function paymentList(value: unknown, fallbackCurrency: string): ContractRecord["
     const paidOn = typeof row.paidOn === "string" && row.paidOn ? row.paidOn.slice(0, 10) : null;
     const note = typeof row.note === "string" ? row.note : "";
     const images = imageList(row.images);
-    return [{ amount, currency: paymentCurrency(row.currency, fallbackCurrency), paidOn, note, images }];
+    const exchangeRate = typeof row.exchangeRate === "number" || typeof row.exchangeRate === "string" ? Number(row.exchangeRate) : null;
+    return [{ amount, currency: paymentCurrency(row.currency, fallbackCurrency), exchangeRate: exchangeRate && exchangeRate > 0 ? exchangeRate : null, paidOn, note, images }];
   });
 }
 
-function confirmationList(value: unknown): ContractRecord["confirmations"] {
+function confirmationList(value: unknown, fallbackCurrency: string): ContractRecord["confirmations"] {
   let parsed = value;
   if (typeof value === "string") {
     try {
@@ -964,14 +970,15 @@ function confirmationList(value: unknown): ContractRecord["confirmations"] {
     const amount = typeof row.amount === "number" || typeof row.amount === "string" ? moneyValue(row.amount) : 0;
     const note = typeof row.note === "string" ? row.note : "";
     const images = imageList(row.images);
-    return [{ amount, note, images }];
+    const exchangeRate = typeof row.exchangeRate === "number" || typeof row.exchangeRate === "string" ? Number(row.exchangeRate) : null;
+    return [{ amount, currency: paymentCurrency(row.currency, fallbackCurrency), exchangeRate: exchangeRate && exchangeRate > 0 ? exchangeRate : null, note, images }];
   });
 }
 
 function toContract(row: ContractRow): ContractRecord {
   const payments = paymentList(row.payments, row.currency);
   const paidAmount = moneyValue(row.paid_amount);
-  const confirmations = confirmationList(row.confirmations);
+  const confirmations = confirmationList(row.confirmations, row.currency);
   const confirmedAmount = row.confirmed_amount == null ? null : moneyValue(row.confirmed_amount);
   const confirmationImages = confirmations.flatMap((line) => line.images);
   return {
@@ -995,7 +1002,7 @@ function toContract(row: ContractRow): ContractRecord {
     payments: payments.length > 0
       ? payments
       : paidAmount > 0
-        ? [{ amount: paidAmount, currency: asCurrency(row.currency), paidOn: null, note: "", images: [] }]
+        ? [{ amount: paidAmount, currency: asCurrency(row.currency), exchangeRate: null, paidOn: null, note: "", images: [] }]
         : [],
     balance: moneyValue(row.balance),
     signedOn: dayText(row.signed_on),
@@ -1015,7 +1022,7 @@ function toContract(row: ContractRow): ContractRecord {
     confirmations: confirmations.length > 0
       ? confirmations
       : confirmedAmount != null && confirmedAmount > 0
-        ? [{ amount: confirmedAmount, note: "", images: imageList(row.images) }]
+        ? [{ amount: confirmedAmount, currency: asCurrency(row.currency), exchangeRate: null, note: "", images: imageList(row.images) }]
         : [],
     images: (() => {
       if (confirmationImages.length > 0) return confirmationImages;
@@ -1089,7 +1096,7 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
     totalValue: snapMoney(source, "totalValue"),
     paidAmount,
     payments: paymentList(source.payments, asCurrency(source.currency)).length > 0 ? paymentList(source.payments, asCurrency(source.currency))
-      : paidAmount > 0 ? [{ amount: paidAmount, currency: asCurrency(source.currency), paidOn: null, note: "", images: [] }] : [],
+      : paidAmount > 0 ? [{ amount: paidAmount, currency: asCurrency(source.currency), exchangeRate: null, paidOn: null, note: "", images: [] }] : [],
     balance: snapMoney(source, "balance"),
     signedOn: snapNullableText(source, "signedOn"),
   };
@@ -1111,7 +1118,7 @@ function applyOpsDetails(base: ContractRecord, source: Record<string, unknown> |
 function applyAccounting(base: ContractRecord, source: Record<string, unknown> | null): ContractRecord {
   if (!source) return { ...base, confirmedAmount: null, accountingStatus: null, confirmations: [], images: [] };
   const amount = source.confirmedAmount;
-  const confirmations = confirmationList(source.confirmations);
+  const confirmations = confirmationList(source.confirmations, base.currency);
   const confirmedAmount = amount == null || amount === "" ? null : moneyValue(typeof amount === "number" || typeof amount === "string" ? amount : null);
   const images = confirmations.flatMap((line) => line.images);
   return {
@@ -1121,7 +1128,7 @@ function applyAccounting(base: ContractRecord, source: Record<string, unknown> |
     confirmations: confirmations.length > 0
       ? confirmations
       : confirmedAmount != null && confirmedAmount > 0
-        ? [{ amount: confirmedAmount, note: "", images: imageList(source.images) }]
+        ? [{ amount: confirmedAmount, currency: base.currency, exchangeRate: null, note: "", images: imageList(source.images) }]
         : [],
     images: images.length > 0 ? images : imageList(source.images),
   };
@@ -2089,10 +2096,14 @@ export class PostgresCrmRepository implements CrmRepository {
     const current = await this.findContractById(lane, id, "accounting");
     if (!current) return "missing" as const;
     if (!current.sentToAccountingAt) return "pending" as const;
+    if (input.confirmations.some((line) => line.currency && line.currency !== current.currency && !line.exchangeRate)) {
+      throw new AppError(400, "VALIDATION", "Nhập tỷ giá cho khoản xác nhận khác loại tiền hợp đồng");
+    }
     const confirmations = input.confirmations.filter(
       (line) => line.amount > 0 || line.note || line.images.length > 0,
-    );
-    const confirmedAmount = confirmations.reduce((sum, line) => sum + line.amount, 0);
+    ).map((line) => ({ ...line, currency: line.currency ?? current.currency }));
+    const confirmedAmount = sumByCurrency([paymentsInMain(confirmations, current.amounts, current.currency)])
+      .find((line) => line.currency === current.currency)?.amount ?? 0;
     const updated = await this.query(
       `update crm.hop_dong set
          so_tien_xac_nhan = $3,
@@ -2105,9 +2116,9 @@ export class PostgresCrmRepository implements CrmRepository {
     const flatImages: string[] = [];
     for (const [index, line] of confirmations.entries()) {
       await this.query(
-        `insert into crm.hop_dong_dong_xac_nhan (ma_hop_dong, so_tien, ghi_chu, thu_tu, anh)
-         values ($1::uuid, $2, $3, $4, $5::jsonb)`,
-        [id, line.amount, blank(line.note), index + 1, JSON.stringify(line.images)],
+        `insert into crm.hop_dong_dong_xac_nhan (ma_hop_dong, so_tien, ghi_chu, thu_tu, anh, loai_tien, ty_gia)
+         values ($1::uuid, $2, $3, $4, $5::jsonb, $6, $7)`,
+        [id, line.amount, blank(line.note), index + 1, JSON.stringify(line.images), line.currency, line.exchangeRate],
       );
       flatImages.push(...line.images);
     }
@@ -2125,11 +2136,15 @@ export class PostgresCrmRepository implements CrmRepository {
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
     const current = await this.findContractById(lane, id, "sale");
     if (!current) return "missing" as const;
+    if (input.payments.some((line, index) => line.amount > 0 && line.currency !== current.currency && !line.exchangeRate &&
+      (current.payments[index]?.amount !== line.amount || current.payments[index]?.currency !== line.currency))) {
+      throw new AppError(400, "VALIDATION", "Nhập tỷ giá cho khoản thanh toán khác loại tiền hợp đồng");
+    }
     const payments = input.payments.filter(
       (line) => line.amount > 0 || line.paidOn || line.note || line.images.length > 0,
     );
     const totals = totalsInMain(current.amounts, current.currency);
-    const paidGroups = sumByCurrency([paymentsInMain(payments.map((line) => ({ currency: line.currency || current.currency, amount: line.amount })), current.amounts, current.currency)]);
+    const paidGroups = sumByCurrency([paymentsInMain(payments, current.amounts, current.currency)]);
     if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0))) return "invalid" as const;
     const paidAmount = paidGroups.find((group) => group.currency === current.currency)?.amount ?? 0;
     const updated = await this.query(
@@ -2142,9 +2157,9 @@ export class PostgresCrmRepository implements CrmRepository {
     const flatImages: string[] = [];
     for (const [index, line] of payments.entries()) {
       await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu, anh_bill, loai_tien)
-         values ($1::uuid, $2, $3::date, $4, $5, $6::jsonb, $7)`,
-        [id, line.amount, line.paidOn || null, blank(line.note), index + 1, JSON.stringify(line.images), line.currency || current.currency],
+        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, ngay_chuyen, ghi_chu, thu_tu, anh_bill, loai_tien, ty_gia)
+         values ($1::uuid, $2, $3::date, $4, $5, $6::jsonb, $7, $8)`,
+        [id, line.amount, line.paidOn || null, blank(line.note), index + 1, JSON.stringify(line.images), line.currency || current.currency, line.exchangeRate],
       );
       flatImages.push(...line.images);
     }

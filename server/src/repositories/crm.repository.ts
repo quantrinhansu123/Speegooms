@@ -182,6 +182,7 @@ export type LogisticsQuoteRequestResult =
 export interface ContractPaymentLine {
   amount: number;
   currency: string;
+  exchangeRate: number | null;
   paidOn: string | null;
   note: string;
   images: string[];
@@ -189,6 +190,8 @@ export interface ContractPaymentLine {
 
 export interface ContractConfirmationLine {
   amount: number;
+  currency: string;
+  exchangeRate: number | null;
   note: string;
   images: string[];
 }

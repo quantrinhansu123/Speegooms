@@ -564,6 +564,7 @@ export const contractPaymentLineSchema = z.object({
   amount: money,
   /** Loại tiền của lần chuyển khoản. Cùng danh sách với ô Tỷ giá trên đơn hàng. */
   currency: quoteCurrencySchema.default("VND"),
+  exchangeRate: z.number().finite().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
   paidOn: day,
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần thanh toán").default([]),
@@ -577,6 +578,8 @@ export const saleContractPaymentSchema = z.object({
 /** Một lần kế toán xác nhận số tiền (kèm ảnh về TK của lần đó). */
 export const accountingConfirmationLineSchema = z.object({
   amount: money.positive("Nhập số tiền xác nhận lớn hơn 0"),
+  currency: quoteCurrencySchema.optional(),
+  exchangeRate: z.number().finite().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần xác nhận").default([]),
 });

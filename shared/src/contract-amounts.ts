@@ -79,13 +79,16 @@ export function totalsInMain(amounts: ContractAmounts, main: string): MoneyAmoun
   return sortMoney([...totals].map(([currency, amount]) => ({ currency, amount: round2(amount) })));
 }
 
-/** Quy các lần thanh toán ngoại tệ ra loại tiền chính theo tỷ lệ của khoản đã quy đổi trên hợp đồng. */
-export function paymentsInMain(paid: MoneyAmount[], amounts: ContractAmounts, main: string): MoneyAmount[] {
+/** Quy từng lần nhận tiền theo tỷ giá thực tế; dòng cũ dùng tỷ giá của khoản đã quy đổi trên hợp đồng. */
+export function paymentsInMain(paid: (MoneyAmount & { exchangeRate?: number | null })[], amounts: ContractAmounts, main: string): MoneyAmount[] {
   const rates = new Map<string, number>();
   for (const line of [...amounts.product, ...amounts.shipping]) {
     if (line.currency !== main && line.converted != null && line.amount > 0) rates.set(line.currency, line.converted / line.amount);
   }
   return paid.map((line) => {
+    if (line.currency !== main && line.exchangeRate != null && line.exchangeRate > 0) {
+      return { currency: main, amount: round2(line.amount / line.exchangeRate) };
+    }
     const rate = line.currency === main ? undefined : rates.get(line.currency);
     return rate ? { currency: main, amount: round2(line.amount * rate) } : { currency: line.currency, amount: line.amount };
   });

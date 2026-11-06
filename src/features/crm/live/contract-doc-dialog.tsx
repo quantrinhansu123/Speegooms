@@ -75,7 +75,7 @@ export function ContractDocDialog({
   // Ô đã có dữ liệu từ báo giá (xanh) thì khóa; ô trống và ô vàng Sale tự nhập.
   const [locked] = useState(() => new Set(labels.map(([key]) => key).filter((key) => !(key in hints) && doc[key])));
   const [error, setError] = useState<string>();
-  const download = async () => {
+  const download = async (format: "pdf" | "docx") => {
     try {
       const order = quote.sentQuote?.order ?? quote.orders.find((item) => item.selected) ?? quote.orders[0];
       // Bảng Exhibit A dựng từ cùng mô hình với phiếu báo giá tiếng Anh gửi khách.
@@ -91,7 +91,16 @@ export function ContractDocDialog({
         volumeCbm: model && model.totals.cbm > 0 ? model.totals.cbm : null,
         weightKg: model?.freight.chargeableKg ?? null,
       });
-      await printContractPdf(blob, code);
+      if (format === "pdf") {
+        await printContractPdf(blob, code);
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${code}.docx`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không tạo được file hợp đồng");
     }
@@ -111,7 +120,8 @@ export function ContractDocDialog({
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>
-          <Button type="button" onClick={download}>Tải file PDF</Button>
+          <Button type="button" variant="outline" onClick={() => void download("docx")}>Tải DOCX</Button>
+          <Button type="button" onClick={() => void download("pdf")}>Tải file PDF</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -38,6 +38,7 @@ import { labelOf, type QuoteRecord } from "./types";
 export type ContractPaymentLine = {
   amount: number;
   currency: string;
+  exchangeRate: number | null;
   paidOn: string | null;
   note: string;
   images: string[];
@@ -45,6 +46,8 @@ export type ContractPaymentLine = {
 
 export type ContractConfirmationLine = {
   amount: number;
+  currency: string;
+  exchangeRate: number | null;
   note: string;
   images: string[];
 };
@@ -89,29 +92,31 @@ export type ContractRecord = {
   updatedAt: string;
 };
 
-type PaymentDraft = { amount: string; currency: string; paidOn: string; note: string; images: string[] };
-type ConfirmationDraft = { amount: string; note: string; images: string[] };
+type PaymentDraft = { amount: string; currency: string; exchangeRate: string; paidOn: string; note: string; images: string[] };
+type ConfirmationDraft = { amount: string; currency: string; exchangeRate: string; note: string; images: string[] };
 
 function emptyPaymentDraft(currency: string): PaymentDraft {
-  return { amount: "", currency, paidOn: "", note: "", images: [] };
+  return { amount: "", currency, exchangeRate: "", paidOn: "", note: "", images: [] };
 }
 
-function emptyConfirmationDraft(): ConfirmationDraft {
-  return { amount: "", note: "", images: [] };
+function emptyConfirmationDraft(currency: string): ConfirmationDraft {
+  return { amount: "", currency, exchangeRate: "", note: "", images: [] };
 }
 
 function confirmationDraftsFrom(contract: ContractRecord): ConfirmationDraft[] {
   if (contract.confirmations?.length) {
     return contract.confirmations.map((line) => ({
       amount: formatMoneyGrouped(line.amount),
+      currency: line.currency || contract.currency,
+      exchangeRate: line.exchangeRate == null ? "" : String(line.exchangeRate),
       note: line.note ?? "",
       images: line.images ?? [],
     }));
   }
   if (contract.confirmedAmount != null && contract.confirmedAmount > 0) {
-    return [{ amount: formatMoneyGrouped(contract.confirmedAmount), note: "", images: contract.images.slice() }];
+    return [{ amount: formatMoneyGrouped(contract.confirmedAmount), currency: contract.currency, exchangeRate: "", note: "", images: contract.images.slice() }];
   }
-  return [emptyConfirmationDraft()];
+  return [emptyConfirmationDraft(contract.currency)];
 }
 
 function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
@@ -119,13 +124,14 @@ function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
     return contract.payments.map((line) => ({
       amount: formatMoneyGrouped(line.amount),
       currency: line.currency || contract.currency,
+      exchangeRate: line.exchangeRate == null ? "" : String(line.exchangeRate),
       paidOn: line.paidOn ?? "",
       note: line.note ?? "",
       images: line.images ?? [],
     }));
   }
   if (contract.paidAmount > 0) {
-    return [{ amount: formatMoneyGrouped(contract.paidAmount), currency: contract.currency, paidOn: "", note: "", images: contract.images.slice() }];
+    return [{ amount: formatMoneyGrouped(contract.paidAmount), currency: contract.currency, exchangeRate: "", paidOn: "", note: "", images: contract.images.slice() }];
   }
   return [emptyPaymentDraft(contract.currency)];
 }
@@ -518,8 +524,7 @@ export function ContractsLiveView({
             {rows.map((row) => {
               const amounts = enteredAmounts(row);
               const totals = totalsInMain(amounts, row.currency);
-              const paidLines = (row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [])
-                .map((line) => ({ currency: line.currency || row.currency, amount: line.amount }));
+              const paidLines = row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [];
               const paidTotals = sumByCurrency([paidLines]);
               const remainders = remainderAfterPayments(totals, paymentsInMain(paidLines, amounts, row.currency));
               const flags = contractPaymentFlags({
@@ -751,15 +756,18 @@ function ContractDialog({
   const [pending, setPending] = useState(false);
   const draftPaid = payments.flatMap((line) => {
     const amount = numberValue(line.amount);
-    return amount == null ? [] : [{ currency: line.currency || contract.currency, amount }];
+    return amount == null ? [] : [{ currency: line.currency || contract.currency, amount, exchangeRate: Number(line.exchangeRate) || null }];
   });
-  const savedPaid = contract.payments.map((line) => ({ currency: line.currency || contract.currency, amount: line.amount }));
+  const savedPaid = contract.payments;
   const paidLines = canSale ? draftPaid : savedPaid;
   const amounts = enteredAmounts(contract);
   const paidTotals = sumByCurrency([paidLines]);
   const paidInMain = paymentsInMain(paidLines, amounts, contract.currency);
   const paidValue = sumByCurrency([paidInMain]).find((line) => line.currency === contract.currency)?.amount ?? 0;
-  const confirmedValue = confirmations.reduce((sum, line) => sum + (numberValue(line.amount) ?? 0), 0);
+  const confirmedLines = confirmations.map((line) => ({ amount: numberValue(line.amount) ?? 0, currency: line.currency, exchangeRate: Number(line.exchangeRate) || null }));
+  const confirmedTotals = sumByCurrency([confirmedLines]);
+  const confirmedValue = sumByCurrency([paymentsInMain(confirmedLines, amounts, contract.currency)])
+    .find((line) => line.currency === contract.currency)?.amount ?? 0;
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
   const amountTotals = totalsInMain(amounts, contract.currency);
   const remainders = remainderAfterPayments(amountTotals, paidInMain);
@@ -787,6 +795,7 @@ function ContractDialog({
       payments: payments.map((line) => ({
         amount: numberValue(line.amount) ?? 0,
         currency: line.currency || contract.currency,
+        exchangeRate: line.currency === contract.currency ? null : Number(line.exchangeRate) || null,
         paidOn: line.paidOn,
         note: line.note,
         images: line.images,
@@ -794,6 +803,11 @@ function ContractDialog({
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
+      return;
+    }
+    if (parsed.data.payments.some((line, index) => line.amount > 0 && line.currency !== contract.currency && !line.exchangeRate &&
+      (contract.payments[index]?.amount !== line.amount || contract.payments[index]?.currency !== line.currency))) {
+      setError("Nhập tỷ giá cho khoản thanh toán khác loại tiền hợp đồng");
       return;
     }
     const over = sumByCurrency([paymentsInMain(parsed.data.payments, amounts, contract.currency)]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0));
@@ -850,12 +864,18 @@ function ContractDialog({
       accountingStatus,
       confirmations: confirmations.map((line) => ({
         amount: numberValue(line.amount) ?? Number.NaN,
+        currency: line.currency,
+        exchangeRate: line.currency === contract.currency ? null : Number(line.exchangeRate) || null,
         note: line.note,
         images: line.images,
       })),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin kế toán chưa đúng");
+      return;
+    }
+    if (parsed.data.confirmations.some((line) => line.currency !== contract.currency && !line.exchangeRate)) {
+      setError("Nhập tỷ giá cho khoản xác nhận khác loại tiền hợp đồng");
       return;
     }
     setPending(true);
@@ -1027,16 +1047,22 @@ function ContractDialog({
                             onChange={(event) => updatePayment(index, { amount: formatMoneyInput(event.target.value) })}
                           />
                         </Field>
-                        <Field label="Tỷ giá" htmlFor={`contract-paid-currency-${index}`}>
+                        <Field label="Loại tiền nhận" htmlFor={`contract-paid-currency-${index}`}>
                           <NativeSelect
                             id={`contract-paid-currency-${index}`}
-                            aria-label={`Tỷ giá lần ${index + 1}`}
+                            aria-label={`Loại tiền nhận lần ${index + 1}`}
                             value={line.currency || contract.currency}
-                            onChange={(event) => updatePayment(index, { currency: event.target.value })}
+                            onChange={(event) => updatePayment(index, { currency: event.target.value, exchangeRate: "" })}
                           >
                             {quoteCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
                           </NativeSelect>
                         </Field>
+                        {line.currency !== contract.currency && (
+                          <Field label={`1 ${contract.currency} = ${line.currency}`} htmlFor={`contract-paid-rate-${index}`} required>
+                            <Input id={`contract-paid-rate-${index}`} type="number" min="0" step="any" value={line.exchangeRate}
+                              onChange={(event) => updatePayment(index, { exchangeRate: event.target.value })} />
+                          </Field>
+                        )}
                         <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
                           <Input
                             id={`contract-paid-on-${index}`}
@@ -1214,12 +1240,12 @@ function ContractDialog({
                         ))}
                       </NativeSelect>
                     </Field>
-                    <p className="text-sm text-muted-foreground">Tổng xác nhận: {money(confirmedValue, contract.currency)}</p>
+                    <p className="text-sm text-muted-foreground">Tổng xác nhận: <MoneyStack lines={confirmedTotals} /></p>
                   </div>
                   <p className="text-xs text-muted-foreground">Mỗi lần xác nhận là một dòng riêng; ảnh về TK gắn theo từng lần (có thể nhiều ảnh).</p>
                   {confirmations.map((line, index) => (
                     <div key={`acc-${index}`} className="space-y-3 rounded-lg border p-3">
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_8rem_1fr_1.4fr_auto]">
                         <Field label={`Số tiền lần ${index + 1}`} htmlFor={`acc-amount-${index}`} required>
                           <Input
                             id={`acc-amount-${index}`}
@@ -1230,6 +1256,18 @@ function ContractDialog({
                             onChange={(event) => updateConfirmation(index, { amount: formatMoneyInput(event.target.value) })}
                           />
                         </Field>
+                        <Field label="Loại tiền nhận" htmlFor={`acc-currency-${index}`}>
+                          <NativeSelect id={`acc-currency-${index}`} value={line.currency} disabled={!canAccounting}
+                            onChange={(event) => updateConfirmation(index, { currency: event.target.value, exchangeRate: "" })}>
+                            {quoteCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
+                          </NativeSelect>
+                        </Field>
+                        {line.currency !== contract.currency && (
+                          <Field label={`1 ${contract.currency} = ${line.currency}`} htmlFor={`acc-rate-${index}`} required>
+                            <Input id={`acc-rate-${index}`} type="number" min="0" step="any" value={line.exchangeRate}
+                              disabled={!canAccounting} onChange={(event) => updateConfirmation(index, { exchangeRate: event.target.value })} />
+                          </Field>
+                        )}
                         <Field label="Ghi chú" htmlFor={`acc-note-${index}`}>
                           <Input
                             id={`acc-note-${index}`}
@@ -1303,7 +1341,7 @@ function ContractDialog({
                         type="button"
                         variant="outline"
                         disabled={confirmations.length >= 50}
-                        onClick={() => setConfirmations((current) => [...current, emptyConfirmationDraft()])}
+                        onClick={() => setConfirmations((current) => [...current, emptyConfirmationDraft(contract.currency)])}
                       >
                         <Plus className="size-4" /> Thêm lần thanh toán
                       </Button>
