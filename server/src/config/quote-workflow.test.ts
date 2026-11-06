@@ -451,26 +451,30 @@ test("Sourcing send atomically includes a Logistics handoff on both lanes", asyn
   }
 });
 
-test("Logistics receives the sent source context and existing shipping work is preserved", async () => {
+test("Logistics uses current Sourcing packaging while preserving shipping prices", async () => {
   const input = handoffInput();
   for (const existing of [false, true]) {
     const source = input.orders[0];
+    const currentSource = structuredClone(source);
+    currentSource.lines[0].packages = [{ count: 3, lengthCm: 100, widthCm: 100, heightCm: 80.4, actualKg: 40 }];
     const shipping = logisticsOrderFromSourcing(source);
     shipping.lines[0].pricePerSet = 77;
-    shipping.lines[0].packages = [{ count: 2, lengthCm: 30, widthCm: 40, heightCm: 50, actualKg: 10 }];
+    shipping.lines[0].packages = [{ count: 1, lengthCm: 100, widthCm: 100, heightCm: 80, actualKg: 40 }];
     const repository = new PostgresCrmRepository({
       query: async (sql: string) => ({ rowCount: 1, rows: sql.includes("bao_gia_sourcing") ? [{
         customer_kind: "SOURCING", quote_workflow: "COMBINED", created_at: new Date(), ops_note: input.opsNote,
         sent_copy: { sentAt: new Date().toISOString(), order: source, notes: input.notes, bank: input.bank },
+        order_lines: [currentSource],
         logistics_sheet: { ...input, orders: existing ? [shipping] : [], sentQuote: null },
       }] : [] }),
     } as unknown as pg.Pool);
     const quote = await repository.findQuote("vn", "logistics", "quote");
     assert.equal(quote?.sourcingContext?.order.lines[0].pricePerSet, 500);
+    assert.deepEqual(quote?.sourcingContext?.order.lines[0].packages, currentSource.lines[0].packages);
     assert.equal(quote?.sourcingContext?.opsNote, "Giao hàng dễ vỡ");
     assert.equal(quote?.orders[0].lines[0].quantity, 12);
     assert.equal(quote?.orders[0].lines[0].pricePerSet, existing ? 77 : null);
-    assert.equal(quote?.orders[0].lines[0].packages.length, existing ? 1 : 0);
+    assert.deepEqual(quote?.orders[0].lines[0].packages, currentSource.lines[0].packages);
   }
 });
 
