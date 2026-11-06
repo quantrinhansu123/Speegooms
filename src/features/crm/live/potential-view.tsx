@@ -14,6 +14,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
+import { LeadCreate } from "./lead-create";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
@@ -33,6 +34,7 @@ const sourceOptions = [
   ["AF", "AF"],
   ["REFERRAL", "Referral"],
   ["OUTBOUND", "Outbound"],
+  ["OTHER", "Khác"],
 ] as const;
 
 function BrandTag({ brand }: { brand: string | null }) {
@@ -316,6 +318,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
             {excel.buttons}
+            {canWrite && <LeadCreate lane={lane} error={error} setError={setError} setNotice={setNotice} onDone={load} />}
           </>
         }
       />

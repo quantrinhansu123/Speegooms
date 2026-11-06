@@ -3,7 +3,7 @@ import { z } from "zod";
 export const crmLaneSchema = z.enum(["vn", "global"]);
 export type CrmLane = z.infer<typeof crmLaneSchema>;
 
-export const leadSourceSchema = z.enum(["ADS", "GG", "OG", "AF", "REFERRAL", "OUTBOUND"]);
+export const leadSourceSchema = z.enum(["ADS", "GG", "OG", "AF", "REFERRAL", "OUTBOUND", "OTHER"]);
 export const leadBrandSchema = z.enum([
   "SPEEGO_NAIL",
   "SPEEGO_US",
@@ -92,7 +92,11 @@ const messageFields = {
   order: z.lazy(() => quoteOrderSchema).nullish(),
 };
 
-export const createMessageSchema = z.object(messageFields).superRefine(contact);
+/**
+ * `source: "OTHER"` (Khác): khách Sale tạo tay ở màn Khách hàng tiềm năng, không đến từ kênh quảng cáo/mess.
+ * Bỏ trống thì giữ nguồn mặc định của mess.
+ */
+export const createMessageSchema = z.object({ ...messageFields, source: z.literal("OTHER").optional() }).superRefine(contact);
 
 export const updateMessageSchema = z.object(messageFields).superRefine(contact);
 

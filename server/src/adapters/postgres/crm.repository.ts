@@ -1270,11 +1270,12 @@ export class PostgresCrmRepository implements CrmRepository {
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang, nguon
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb,
+         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source)
        )
        returning id::text as id`,
       [
@@ -1293,6 +1294,7 @@ export class PostgresCrmRepository implements CrmRepository {
         blank(input.linkMess),
         input.industry ?? null,
         input.order ? JSON.stringify(input.order) : null,
+        input.source ?? null,
       ],
     );
     const id = inserted.rows[0]?.id;
