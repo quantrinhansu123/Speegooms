@@ -177,6 +177,15 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
 
   const save = () => {
     if (!editing || !draft) return;
+    if (!draft.customerKind) {
+      setFormError("Chọn loại khách");
+      return;
+    }
+    const missing = missingLogisticsQuoteFields({ ...draft, shippingMode: draft.shippingMode || null });
+    if (missing.length > 0) {
+      setFormError(`Cần nhập đủ thông tin Logistics trước khi lưu: ${missing.join(", ")}.`);
+      return;
+    }
     const parsed = updatePotentialSchema.safeParse({
       ...draft,
       customerKind: draft.customerKind || undefined,

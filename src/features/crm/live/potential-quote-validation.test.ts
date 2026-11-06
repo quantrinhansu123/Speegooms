@@ -41,6 +41,50 @@ test("Logistics quote accepts blank company and email", () => {
   }
 });
 
+test("only company and email are optional among logistics profile fields", () => {
+  const blank = {
+    ...complete,
+    fullName: "",
+    phone: "",
+    brand: "",
+    potential: "",
+    customerType: "",
+    productInterest: "",
+    quantityNote: "",
+    address: "",
+    saleNote: "",
+    careChannel: "",
+    weightKg: "",
+    shipToAddress: "",
+    requirements: "",
+    convertReason: "",
+    packageDimensions: "",
+    logisticsClass: "",
+  };
+  assert.deepEqual(missingLogisticsQuoteFields(blank), [
+    "Tên khách",
+    "Số điện thoại",
+    "Nguồn",
+    "Giai đoạn",
+    "Đối tượng",
+    "Hàng hóa",
+    "Số lượng",
+    "Địa chỉ",
+    "Ghi chú sale",
+    "Kênh chăm sóc",
+    "Trọng lượng",
+    "Địa chỉ nhận hàng",
+    "Yêu cầu của khách",
+    "Lý do chuyển",
+    "LCL/FCL",
+    "Kích thước kiện hàng",
+  ]);
+});
+
+test("Logistics quote requires a shipping mode", () => {
+  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, shippingMode: null }), ["Phương thức vận chuyển"]);
+});
+
 test("Sourcing quote does not require Logistics details", () => {
   assert.deepEqual(missingLogisticsQuoteFields({
     ...complete,

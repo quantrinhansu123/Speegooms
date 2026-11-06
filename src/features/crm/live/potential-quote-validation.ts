@@ -35,6 +35,7 @@ const requiredLogisticsFields = [
   ["address", "Địa chỉ"],
   ["saleNote", "Ghi chú sale"],
   ["careChannel", "Kênh chăm sóc"],
+  ["shippingMode", "Phương thức vận chuyển"],
   ["weightKg", "Trọng lượng"],
   ["shipToAddress", "Địa chỉ nhận hàng"],
   ["requirements", "Yêu cầu của khách"],
