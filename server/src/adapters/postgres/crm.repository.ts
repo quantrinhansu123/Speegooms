@@ -1124,20 +1124,8 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
   const live = toContract(row);
   const sentToOps = jsonObject(row.sent_ops_body);
   const sentToAccounting = jsonObject(row.sent_accounting_body);
-  const sentToParties = jsonObject(row.sent_parties_body);
   // Trạng thái/số tiền/ảnh kế toán luôn lấy bản live để Sale/VH thấy đủ điều kiện đi hàng, giục TT...
-  if (view === "sale") {
-    const projected = applyOpsDetails(live, sentToParties);
-    return {
-      ...projected,
-      deliveryOn: live.deliveryOn,
-      opsStatus: live.opsStatus,
-      confirmedAmount: live.confirmedAmount,
-      accountingStatus: live.accountingStatus,
-      confirmations: live.confirmations,
-      images: live.images,
-    };
-  }
+  if (view === "sale") return live;
   if (view === "ops") {
     const projected = applyCommercial(live, sentToOps);
     return {
