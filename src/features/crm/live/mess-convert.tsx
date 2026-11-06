@@ -9,14 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError, api } from "@/lib/api";
 import { withShippingMetrics } from "./mess-form";
+import { orderSummary } from "./order-summary";
 import { crmPath } from "./lane";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { brandOptions, careChannelOptions, customerTypeOptions, type MessageRecord, type QuoteRecord } from "./types";
 
 type Mode = "" | "AIR" | "SEA";
 type ShipClass = "" | "LCL" | "FCL";
-type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; packageDimensions: string; weightKg: string; shipToAddress: string; reason: string };
-const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", quantityNote: "", address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), packageDimensions: "", weightKg: "", shipToAddress: "", reason: "" });
+export type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; packageDimensions: string; weightKg: string; shipToAddress: string; reason: string };
+const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", ...orderSummary(row.order), address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
 
 /**
  * Luồng chuyển mess thành khách tiềm năng: chọn đường bay/biển (Vận chuyển) → chuyển → tạo báo giá →
