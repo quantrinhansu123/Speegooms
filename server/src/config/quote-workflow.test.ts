@@ -159,7 +159,7 @@ test("only Sale and Admin can save the product draft on a mess", async () => {
   seen.length = 0;
   for (const role of ["sale-vn", "sale-global", "admin"] as const) await service.createMessage("vn", input, role);
   assert.equal(seen.length, 3);
-  assert.ok(seen.every((order) => (order as { name: string }).name === "Gạch"));
+  assert.ok(seen.every((order) => (order as unknown as { name: string }).name === "Gạch"));
 });
 
 test("message product draft is saved, kept on edits without it, and cleared explicitly", async () => {
@@ -643,6 +643,14 @@ test("contract total is shown in the main currency and payments convert at the s
   // Thiếu tỷ giá thì không đoán: giữ riêng từng loại tiền.
   const noRate = { product: amounts.product, shipping: [{ currency: "USD", amount: 893.15 }] };
   assert.deepEqual(totalsInMain(noRate, "VND"), [{ currency: "VND", amount: 45181160 }, { currency: "USD", amount: 893.15 }]);
+});
+
+test("USD contract accepts VND receipt at the rate of each transfer", () => {
+  const amounts = { product: [{ currency: "USD", amount: 100 }], shipping: [] };
+  const payments = [{ currency: "VND", amount: 1_250_000, exchangeRate: 25_000 }, { currency: "VND", amount: 1_300_000, exchangeRate: 26_000 }];
+  const paid = paymentsInMain(payments, amounts, "USD");
+  assert.deepEqual(paid, [{ currency: "USD", amount: 50 }, { currency: "USD", amount: 50 }]);
+  assert.deepEqual(remainderAfterPayments(totalsInMain(amounts, "USD"), paid), [{ currency: "USD", amount: 0 }]);
 });
 
 test("Sale cannot set prices on new orders or new lines; Logistics prices them later", () => {
