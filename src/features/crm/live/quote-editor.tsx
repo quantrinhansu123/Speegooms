@@ -210,6 +210,12 @@ function FreightCostEditor({
   );
 }
 
+/** Tiêu đề dòng chi phí theo mặt hàng: "STT 1 · Tên mặt hàng", lấy theo dòng hàng hiện tại. */
+function itemFeeTitle(stt: string, line: QuoteLine): string {
+  const name = line.productName?.trim() || line.spec?.trim().split("\n")[0] || "";
+  return name ? `STT ${stt} · ${name}` : `STT ${stt}`;
+}
+
 function LogisticsFeesEditor({
   children,
   notes,
@@ -272,7 +278,7 @@ function LogisticsFeesEditor({
       return;
     }
     if (fees.length >= 30) return;
-    setNotes({ ...notes, logisticsFees: [...fees, emptyFee({ label: quoteItemFeeLabel("vi", stt, line.spec), itemStt: stt, ...patch })] });
+    setNotes({ ...notes, logisticsFees: [...fees, emptyFee({ label: quoteItemFeeLabel("vi", stt, line.productName?.trim() || line.spec), itemStt: stt, ...patch })] });
   };
   const addFee = () => {
     if (fees.length >= 30) return;
@@ -306,7 +312,7 @@ function LogisticsFeesEditor({
             <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
             {items.map(({ stt, line }) => {
               const fee = fees.find((item) => item.itemStt === stt);
-              const label = fee?.label || quoteItemFeeLabel("vi", stt, line.spec);
+              const label = itemFeeTitle(stt, line);
               return (
                 <div key={stt} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_8rem] sm:items-end">
                   <p className="text-sm font-medium" title={label}>{label}</p>
@@ -399,6 +405,33 @@ function LogisticsFeesEditor({
       {children}
       <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
+      {items.length > 0 && (
+        <div className="grid gap-3">
+          <div>
+            <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
+            <p className="text-sm text-muted-foreground">Mỗi mặt hàng của đơn có một dòng báo giá logistics, tính theo loại tiền cước ({freightCurrency}).</p>
+          </div>
+          {items.map(({ stt, line }) => {
+            const fee = fees.find((item) => item.itemStt === stt);
+            const label = itemFeeTitle(stt, line);
+            return (
+              <div key={stt} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] sm:items-end">
+                <p className="text-sm font-medium" title={label}>{label}</p>
+                <Field label={"Số tiền / ghi chú (" + (fee?.currency?.trim() || freightCurrency) + ")"} htmlFor={fieldId("item-fee-value-" + stt)}>
+                  <Input
+                    id={fieldId("item-fee-value-" + stt)}
+                    value={moneyText(fee?.value ?? "")}
+                    disabled={!canEdit}
+                    onChange={(event) => patchItemFee(stt, line, { value: formatMoneyInput(event.target.value) })}
+                    placeholder="Số tiền hoặc mô tả"
+                  />
+                </Field>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -411,11 +444,11 @@ function LogisticsFeesEditor({
             </Button>
           ) : null}
         </div>
-        {fees.length === 0 ? (
+        {generalFees.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
             Chưa có phí chung. Bấm Thêm phí chung để nhập.
           </p>
-        ) : fees.map((fee, index) => (
+        ) : generalFees.map(({ fee, index }) => (
           <div key={index} className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-end">
             <Field label="Tên chi phí" htmlFor={fieldId("fee-label-" + index)}>
               <Input
