@@ -2448,6 +2448,13 @@ export function QuoteEditor({
     })));
   };
 
+  /** Bàn Logistics đặt ô này dưới cùng (sau Tổng chi phí và Thanh toán); các bàn khác giữ ở đầu tab. */
+  const opsExtraField = (
+    <Field label="Ghi chú thêm cho Sale" htmlFor={fieldId("logistics-ops-extra")} hint="Ví dụ tách lô vận chuyển, dời lịch. Sale xem được ghi chú này.">
+      <Textarea id={fieldId("logistics-ops-extra")} rows={3} value={notes.opsExtra} disabled={mode !== "full"} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
+    </Field>
+  );
+
   const sheet = (
     <>
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
@@ -3066,9 +3073,7 @@ export function QuoteEditor({
             onChange={patchOrderLinePackages}
           />}
 
-          <Field label="Ghi chú thêm cho Sale" htmlFor={fieldId("logistics-ops-extra")} hint="Ví dụ tách lô vận chuyển, dời lịch. Sale xem được ghi chú này.">
-            <Textarea id={fieldId("logistics-ops-extra")} rows={3} value={notes.opsExtra} disabled={mode !== "full"} onChange={(event) => setNotes({ ...notes, opsExtra: event.target.value })} />
-          </Field>
+          {desk !== "logistics" && opsExtraField}
 
           {desk === "logistics" && <div className="grid gap-3 sm:grid-cols-2">{validityField("logistics-note-valid")}</div>}
 
@@ -3209,6 +3214,7 @@ export function QuoteEditor({
               commitNotes({ ...current, payment: { ...current.payment, quoteCurrency: currency, exchangeRate: null }, freight: { ...current.freight, currency }, logisticsFees: current.logisticsFees.map((fee) => ({ ...fee, currency })) });
             }}
           />
+          {desk === "logistics" && opsExtraField}
         </TabsContent>
 
 
