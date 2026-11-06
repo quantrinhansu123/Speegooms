@@ -20,7 +20,7 @@ import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSe
 import { RowMenu } from "./row-menu";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { QuoteTracking } from "./quote-tracking";
-import { missingLogisticsQuoteFields } from "./potential-quote-validation";
+import { missingQuoteFields } from "./potential-quote-validation";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge, QuoteStatusBadge } from "./status-badges";
@@ -181,9 +181,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       setFormError("Chọn loại khách");
       return;
     }
-    const missing = missingLogisticsQuoteFields({ ...draft, shippingMode: draft.shippingMode || null });
+    const missing = missingQuoteFields({ ...draft, shippingMode: draft.shippingMode || null });
     if (missing.length > 0) {
-      setFormError(`Cần nhập đủ thông tin Logistics trước khi lưu: ${missing.join(", ")}.`);
+      setFormError(`Cần nhập đủ thông tin trước khi lưu: ${missing.join(", ")}.`);
       return;
     }
     const parsed = updatePotentialSchema.safeParse({
@@ -238,14 +238,16 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
 
   const requestQuote = (row: PotentialRecord) => {
     if (!row.customerKind) {
-      setError("Chọn loại khách trước khi báo giá");
+      setError(undefined);
+      open(row);
+      setFormError("Chọn loại khách trước khi báo giá");
       return;
     }
-    const missing = missingLogisticsQuoteFields(row);
+    const missing = missingQuoteFields(row);
     if (missing.length > 0) {
       setError(undefined);
       open(row);
-      setFormError(`Cần nhập đủ thông tin Logistics trước khi báo giá: ${missing.join(", ")}.`);
+      setFormError(`Cần nhập đủ thông tin trước khi báo giá: ${missing.join(", ")}.`);
       return;
     }
     openOrderQuote(row);
@@ -443,13 +445,13 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Công ty" htmlFor="pot-company">
                 <Input id="pot-company" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
               </Field>
-              <Field label="Số điện thoại" htmlFor="pot-phone" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Số điện thoại" htmlFor="pot-phone" required>
                 <Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
               </Field>
               <Field label="Email" htmlFor="pot-email">
                 <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
               </Field>
-              <Field label="Nguồn" htmlFor="pot-brand" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Nguồn" htmlFor="pot-brand" required>
                 <NativeSelect id="pot-brand" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
                   <option value="">Chưa chọn</option>
                   {brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -466,7 +468,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   {customerKindOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Đối tượng" htmlFor="pot-type" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Đối tượng" htmlFor="pot-type" required>
                 <NativeSelect id="pot-type" value={draft.customerType} onChange={(event) => setDraft({ ...draft, customerType: event.target.value as Draft["customerType"] })}>
                   <option value="">Chưa chọn</option>
                   {customerTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -475,18 +477,18 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field
                 label="Hàng hóa"
                 htmlFor="pot-goods"
-                required={draft.customerKind === "LOGISTICS"}
+                required
                 hint={editing?.linkMess ? "Link từ mess" : editing?.messCode ? `Từ mess ${editing.messCode}` : undefined}
               >
                 <Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} />
               </Field>
-              <Field label="Số lượng" htmlFor="pot-qty" required={draft.customerKind === "LOGISTICS"}>
+              <Field label="Số lượng" htmlFor="pot-qty" required>
                 <Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} />
               </Field>
               <Field
                 label="Địa chỉ"
                 htmlFor="pot-address"
-                required={draft.customerKind === "LOGISTICS"}
+                required
                 hint={editing?.linkMess ? "Link từ mess" : undefined}
               >
                 <Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} />
@@ -494,7 +496,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field
                 label="Ghi chú sale"
                 htmlFor="pot-note"
-                required={draft.customerKind === "LOGISTICS"}
+                required
                 hint={editing?.linkMess ? "Link từ mess" : editing?.messCode ? `Từ mess ${editing.messCode}` : undefined}
               >
                 <Input id="pot-note" value={draft.saleNote} onChange={(event) => setDraft({ ...draft, saleNote: event.target.value })} />
@@ -502,7 +504,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field
                 label="Kênh chăm sóc"
                 htmlFor="pot-care"
-                required={draft.customerKind === "LOGISTICS"}
+                required
                 hint={editing?.linkMess ? "Link từ mess" : undefined}
               >
                 <NativeSelect id="pot-care" value={draft.careChannel} onChange={(event) => setDraft({ ...draft, careChannel: event.target.value as Draft["careChannel"] })}>

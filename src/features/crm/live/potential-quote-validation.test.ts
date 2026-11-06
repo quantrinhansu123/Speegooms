@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { missingLogisticsQuoteFields } from "./potential-quote-validation.ts";
+import { missingQuoteFields } from "./potential-quote-validation.ts";
 
 const complete = {
   customerKind: "LOGISTICS",
@@ -28,8 +28,8 @@ const complete = {
 };
 
 test("Logistics quote still requires weight and receiving address", () => {
-  assert.deepEqual(missingLogisticsQuoteFields(complete), []);
-  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, companyName: " ", weightKg: "  ", shipToAddress: null }), [
+  assert.deepEqual(missingQuoteFields(complete), []);
+  assert.deepEqual(missingQuoteFields({ ...complete, companyName: " ", weightKg: "  ", shipToAddress: null }), [
     "Trọng lượng",
     "Địa chỉ nhận hàng",
   ]);
@@ -37,7 +37,7 @@ test("Logistics quote still requires weight and receiving address", () => {
 
 test("Logistics quote accepts blank company and email", () => {
   for (const value of [null, "", "  "]) {
-    assert.deepEqual(missingLogisticsQuoteFields({ ...complete, companyName: value, email: value }), []);
+    assert.deepEqual(missingQuoteFields({ ...complete, companyName: value, email: value }), []);
   }
 });
 
@@ -61,7 +61,7 @@ test("only company and email are optional among logistics profile fields", () =>
     packageDimensions: "",
     logisticsClass: "",
   };
-  assert.deepEqual(missingLogisticsQuoteFields(blank), [
+  assert.deepEqual(missingQuoteFields(blank), [
     "Tên khách",
     "Số điện thoại",
     "Nguồn",
@@ -82,19 +82,24 @@ test("only company and email are optional among logistics profile fields", () =>
 });
 
 test("Logistics quote requires a shipping mode", () => {
-  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, shippingMode: null }), ["Phương thức vận chuyển"]);
+  assert.deepEqual(missingQuoteFields({ ...complete, shippingMode: null }), ["Phương thức vận chuyển"]);
 });
 
-test("Sourcing quote does not require Logistics details", () => {
-  assert.deepEqual(missingLogisticsQuoteFields({
+test("Sourcing quote requires profile fields but not Logistics details", () => {
+  assert.deepEqual(missingQuoteFields({
     ...complete,
     customerKind: "SOURCING",
-    companyName: null,
+    phone: "",
+    shippingMode: null,
+    weightKg: null,
+    logisticsClass: null,
+    packageDimensions: null,
+    shipToAddress: null,
     requirements: null,
-  }), []);
+  }), ["Số điện thoại"]);
 });
 
 test("FCL profile needs a container class but no per-package dimensions", () => {
-  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, logisticsClass: "FCL", packageDimensions: null }), []);
-  assert.deepEqual(missingLogisticsQuoteFields({ ...complete, logisticsClass: null }), ["LCL/FCL"]);
+  assert.deepEqual(missingQuoteFields({ ...complete, logisticsClass: "FCL", packageDimensions: null }), []);
+  assert.deepEqual(missingQuoteFields({ ...complete, logisticsClass: null }), ["LCL/FCL"]);
 });
