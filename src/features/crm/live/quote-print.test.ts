@@ -42,3 +42,21 @@ test("blank freight currency follows the common fee instead of the order currenc
   assert.match(html, /Tổng chi phí logistics \(USD\)[\s\S]*?893,15/);
   assert.doesNotMatch(html, /Tổng chi phí logistics \(VND\)/);
 });
+
+test("shipping surcharges print inside the shipping cost section, not under the product table", () => {
+  const html = quoteSheetHtml(input({
+    freight: { ...emptyQuoteFreight, rate: 3.5, total: 100, totalManual: true },
+    logisticsFees: [
+      { label: "Phụ phí địa chỉ", labelEn: "", value: "36", currency: "USD", itemStt: "" },
+      { label: "Mặt hàng 1 - Ghế", labelEn: "", value: "12", currency: "USD", itemStt: "1" },
+    ],
+  }));
+  const freightAt = html.indexOf("<section class=\"freight\">");
+  assert.ok(freightAt > 0);
+  const before = html.slice(0, freightAt);
+  const freightSection = html.slice(freightAt, html.indexOf("</section>", freightAt));
+  for (const label of ["Phụ phí địa chỉ", "Mặt hàng 1 - Ghế"]) {
+    assert.doesNotMatch(before, new RegExp(label));
+    assert.match(freightSection, new RegExp(label));
+  }
+});

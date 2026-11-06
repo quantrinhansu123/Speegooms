@@ -235,10 +235,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
         cbm: cbmCell,
       }, model.weightNote)
     : "";
-  const feeRows = model.fees.map((fee) => {
-    const cells = fee.amount != null ? amountCells(fee.currency, fee.amount) : { total: escapeHtml(fee.text), extra: {} };
-    return summaryRow(fee.label || t.logisticsFee, cells);
-  }).join("");
   const freightTotal = model.freight.total;
   const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
   const shippingRow = model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight
@@ -248,7 +244,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     `${t.feeSubtotal} (${sub.currency})`,
     amountCells(sub.currency, sub.amount),
   )).join("");
-  const summaryRows = [goodsRow, feeRows, shippingRow].filter(Boolean).join("");
+  const summaryRows = [goodsRow, shippingRow].filter(Boolean).join("");
   const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
   const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
   const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
@@ -264,11 +260,22 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ...(usesCbm ? [{ head: t.chargeableVolume, cell: freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM") }] : []),
     { head: t.freightTotal, cell: freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency) },
   ];
+  /**
+   * Phụ phí vận chuyển in trong phần Chi phí vận chuyển, cùng bảng cước: tên phí trải các cột đầu,
+   * số tiền nằm đúng cột Tổng chi phí để cân với tiền cước. Cước trọn gói chỉ có một cột thì tên và số tiền chung ô.
+   */
+  const feeAmount = (fee: QuoteSheetModel["fees"][number]) => (fee.amount != null ? numRow(fmt(fee.amount, 3), fee.currency) : escapeHtml(fee.text));
+  const feeRows = model.fees.map((fee) => {
+    const label = escapeHtml(fee.label || t.logisticsFee);
+    return freightColumns.length > 1
+      ? `<tr class="fee-row"><td class="fee-label" colspan="${freightColumns.length - 1}">${label}</td><td class="fee-value">${feeAmount(fee)}</td></tr>`
+      : `<tr class="fee-row"><td class="fee-value"><span class="fee-label-inline">${label}</span> ${feeAmount(fee)}</td></tr>`;
+  }).join("");
   const freightTable = `<section class="freight">
     <h2>${escapeHtml(t.freightTitle)}</h2>
     <table class="freight-table">
       <thead><tr>${freightColumns.map((column) => `<th>${escapeHtml(column.head)}</th>`).join("")}</tr></thead>
-      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr></tbody>
+      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr>${feeRows}</tbody>
     </table>
     <p class="freight-note">${escapeHtml(model.freight.note)}</p>
   </section>`;
@@ -713,6 +720,13 @@ export const quotePrintCss = `
   }
   table.freight-table .amt,
   table.freight-table .unit { color: #082A59; }
+  table.freight-table tr.fee-row td.fee-label {
+    background: #EEF3FA;
+    color: #082A59;
+    font-weight: 700;
+    text-align: left;
+  }
+  table.freight-table tr.fee-row .fee-label-inline { float: left; }
   .freight-note {
     margin: 4px 0 0;
     color: #334155;

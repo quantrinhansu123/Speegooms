@@ -249,16 +249,6 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
   }
   /** Tiền thêm có cột riêng; tiền khác vào cột Thành tiền kèm mã tiền ở cột Số tính giá. */
   const feeKey = (currency: string) => (model.extraCurrencies.includes(currency) ? `total-${currency}` : "total");
-  for (const fee of model.fees) {
-    const row = sumRow(fee.label || t.logisticsFee);
-    if (fee.amount != null) {
-      put(row, feeKey(fee.currency), fee.amount);
-      if (feeKey(fee.currency) === "total" && fee.currency !== model.currency) row.getCell(colOf("price")).value = fee.currency;
-    } else {
-      row.getCell(colOf("total")).value = fee.text;
-    }
-    r += 1;
-  }
   const freightTotal = model.freight.total;
   const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
   if (model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight) {
@@ -306,6 +296,23 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
   });
   boxRow(ws.getRow(r), 1, freightColumns.length);
   r += 1;
+  /** Phụ phí vận chuyển nằm trong phần Chi phí vận chuyển, ngay dưới bảng cước. */
+  const feeWidth = Math.max(freightColumns.length, 2);
+  for (const fee of model.fees) {
+    const row = ws.getRow(r);
+    if (feeWidth > 2) ws.mergeCells(r, 1, r, feeWidth - 1);
+    const label = row.getCell(1);
+    label.value = fee.label || t.logisticsFee;
+    label.font = { bold: true, color: { argb: NAVY } };
+    label.fill = { type: "pattern", pattern: "solid", fgColor: { argb: PALE } };
+    label.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    const value = row.getCell(feeWidth);
+    value.value = fee.amount != null ? `${fee.amount} ${fee.currency}` : fee.text;
+    value.font = { bold: true, color: { argb: NAVY } };
+    value.alignment = { horizontal: "right", vertical: "middle" };
+    boxRow(row, 1, feeWidth);
+    r += 1;
+  }
   text(r, 1, model.freight.note, { merge: last, color: "FF334155" });
   r += 1;
   for (const sub of model.feeSubtotals) {
