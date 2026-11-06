@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
+import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { LeadCreate } from "./lead-create";
@@ -168,6 +170,10 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  /** Logistics/Sourcing gửi báo giá thì Tình trạng báo giá đổi: tải lại mỗi 30 giây và ngay khi có thông báo mới. */
+  usePolling(load);
+  useNotificationRefresh(load);
 
   const open = (row: PotentialRecord) => {
     setEditing(row);
