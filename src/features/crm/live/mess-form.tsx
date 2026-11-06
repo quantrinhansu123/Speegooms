@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { packageMetrics } from "@/services/crm/quote-lines";
 import { MessOrderDialog } from "./quote-editor";
-import { customerTypeOptions, demandOptions, messageClassificationOptions, type MessageRecord } from "./types";
+import { orderSummary } from "./order-summary";
+import { brandOptions, careChannelOptions, customerTypeOptions, demandOptions, messageClassificationOptions, type MessageRecord } from "./types";
 
 export const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
 
@@ -49,6 +50,14 @@ export type MessDraft = {
   /** Chỉ dùng khi tạo khách tiềm năng với Nhu cầu Vận chuyển: mess thường chọn lúc bấm Chuyển. */
   shippingMode: "" | "AIR" | "SEA";
   logisticsClass: "" | "LCL" | "FCL";
+  brand: string;
+  careChannel: string;
+  quantityNote: string;
+  address: string;
+  packageDimensions: string;
+  weightKg: string;
+  shipToAddress: string;
+  convertReason: string;
 };
 
 export const emptyDraft: MessDraft = {
@@ -69,6 +78,14 @@ export const emptyDraft: MessDraft = {
   order: null,
   shippingMode: "",
   logisticsClass: "",
+  brand: "",
+  careChannel: "",
+  quantityNote: "",
+  address: "",
+  packageDimensions: "",
+  weightKg: "",
+  shipToAddress: "",
+  convertReason: "",
 };
 
 export function todayInput(): string {
@@ -108,6 +125,14 @@ export function draftFrom(row: MessageRecord): MessDraft {
     order: row.order ?? null,
     shippingMode: "",
     logisticsClass: "",
+    brand: "",
+    careChannel: "",
+    quantityNote: "",
+    address: "",
+    packageDimensions: "",
+    weightKg: "",
+    shipToAddress: "",
+    convertReason: "",
   };
 }
 
@@ -193,7 +218,7 @@ export function MessFormDialog({
                   {messageClassificationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
-              <Field label="Đối tượng" htmlFor="mess-type">
+              <Field label="Đối tượng" htmlFor="mess-type" required={lead}>
                 <NativeSelect id="mess-type" value={draft.customerType} onChange={(event) => update({ customerType: event.target.value as MessDraft["customerType"] })}>
                   <option value="">Chưa chọn</option>
                   {customerTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -230,7 +255,7 @@ export function MessFormDialog({
                   )}
                 </>
               )}
-              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2" hint="Chọn gợi ý hoặc gõ mới">
+              <Field label="Hàng hóa" htmlFor="mess-goods" className="sm:col-span-2" required={lead} hint="Chọn gợi ý hoặc gõ mới">
                 <Input id="mess-goods" list="mess-goods-options" value={draft.goods} onChange={(event) => update({ goods: event.target.value })} />
                 <datalist id="mess-goods-options">
                   {goodsOptions.map((item) => <option key={item} value={item} />)}
@@ -253,9 +278,21 @@ export function MessFormDialog({
                   <Input id="mess-link" value={draft.linkMess} placeholder="https://…" onChange={(event) => update({ linkMess: event.target.value })} />
                 </Field>
               )}
-              <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2">
+              <Field label="Ghi chú Sale" htmlFor="mess-note" className="sm:col-span-2" required={lead}>
                 <Textarea id="mess-note" value={draft.note} onChange={(event) => update({ note: event.target.value })} />
               </Field>
+              {lead && <>
+                <Field label="Nguồn" htmlFor="lead-brand" required><NativeSelect id="lead-brand" value={draft.brand} onChange={(event) => update({ brand: event.target.value })}><option value="">Chưa chọn</option>{brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
+                <Field label="Kênh chăm sóc" htmlFor="lead-care" required><NativeSelect id="lead-care" value={draft.careChannel} onChange={(event) => update({ careChannel: event.target.value })}><option value="">Chưa chọn</option>{careChannelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></Field>
+                <Field label="Số lượng" htmlFor="lead-quantity" required><Input id="lead-quantity" value={draft.quantityNote} onChange={(event) => update({ quantityNote: event.target.value })} /></Field>
+                <Field label="Địa chỉ" htmlFor="lead-address" required><Input id="lead-address" value={draft.address} onChange={(event) => update({ address: event.target.value })} /></Field>
+                {draft.demand === "SHIPPING" && <>
+                  {draft.logisticsClass !== "FCL" && <Field label="Kích thước kiện hàng" htmlFor="lead-dimensions" required><Input id="lead-dimensions" value={draft.packageDimensions} onChange={(event) => update({ packageDimensions: event.target.value })} /></Field>}
+                  <Field label="Trọng lượng" htmlFor="lead-weight" required><Input id="lead-weight" value={draft.weightKg} onChange={(event) => update({ weightKg: event.target.value })} /></Field>
+                  <Field label="Địa chỉ nhận hàng" htmlFor="lead-ship-to" required><Input id="lead-ship-to" value={draft.shipToAddress} onChange={(event) => update({ shipToAddress: event.target.value })} /></Field>
+                  <Field label="Lý do chuyển" htmlFor="lead-reason" required><Input id="lead-reason" value={draft.convertReason} onChange={(event) => update({ convertReason: event.target.value })} /></Field>
+                </>}
+              </>}
               {(canConvert || lead) && (
                 <div className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -291,7 +328,7 @@ export function MessFormDialog({
                   {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Quy cách đóng gói có thể bổ sung ở bước báo giá. Hàng biển FCL nhập ở form cước riêng nên không dùng thông tin này.</p>}
                 </div>
               )}
-              <Field label="Số điện thoại" htmlFor="mess-phone" hint="Chỉ nhập số">
+              <Field label="Số điện thoại" htmlFor="mess-phone" required={lead} hint="Chỉ nhập số">
                 <Input
                   id="mess-phone"
                   inputMode="numeric"
@@ -330,7 +367,7 @@ export function MessFormDialog({
         <MessOrderDialog
           order={draft.order}
           onClose={() => setOrderDialog(false)}
-          onSave={(order) => update({ order })}
+          onSave={(order) => { const summary = orderSummary(order); update({ order, quantityNote: draft.quantityNote || summary.quantityNote, packageDimensions: draft.packageDimensions || summary.packageDimensions, weightKg: draft.weightKg || summary.weightKg }); }}
         />
       )}
     </>

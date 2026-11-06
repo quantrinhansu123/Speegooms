@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { createMessageSchema, orderHasContent, type CrmLane } from "@speego/shared";
+import { convertMessageSchema, createMessageSchema, orderHasContent, type CrmLane } from "@speego/shared";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { crmPath } from "./lane";
-import { useMessConvert } from "./mess-convert";
+import { useMessConvert, type Details } from "./mess-convert";
 import { emptyDraft, marketPresets, MessFormDialog, todayInput, type MessDraft } from "./mess-form";
 import type { MessageRecord } from "./types";
 
@@ -59,6 +59,23 @@ export function LeadCreate({
       setFormError("Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
       return;
     }
+    const details: Details = {
+      phone: draft.phone, brand: draft.brand, customerType: draft.customerType,
+      careChannel: draft.careChannel, productInterest: draft.goods,
+      quantityNote: draft.quantityNote, address: draft.address, saleNote: draft.note,
+      requirements: [draft.goods, draft.painPoint, draft.note].filter(Boolean).join("\n\n"),
+      packageDimensions: draft.packageDimensions, weightKg: draft.weightKg,
+      shipToAddress: draft.shipToAddress, reason: draft.convertReason,
+    };
+    const conversion = convertMessageSchema.safeParse({
+      ...details,
+      shippingMode: draft.demand === "SHIPPING" ? draft.shippingMode : undefined,
+      logisticsClass: draft.demand === "SHIPPING" && draft.shippingMode === "SEA" ? draft.logisticsClass : undefined,
+    });
+    if (!conversion.success) {
+      setFormError(conversion.error.issues[0]?.message ?? "Thông tin khách tiềm năng chưa đầy đủ");
+      return;
+    }
     const parsed = createMessageSchema.safeParse({
       ...draft,
       saleName: user.name,
@@ -87,7 +104,7 @@ export function LeadCreate({
     setDraft(null);
     setPending(false);
     // Mess đã lưu: nếu bước chuyển lỗi, mess vẫn nằm ở trang Mess để Sale bấm Chuyển lại.
-    convert.openConvert(created, shippingMode, logisticsClass);
+    await convert.convertWith(created, shippingMode, logisticsClass, "", details);
     onDone();
   };
 
