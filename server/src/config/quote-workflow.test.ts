@@ -13,15 +13,17 @@ import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository"
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
 
-test("conversion reason is optional while customer requirements remain mandatory", () => {
+test("conversion requires complete potential information, including logistics fields", () => {
+  const base = { phone: "0123456789", brand: "LOGISTICS", customerType: "INDIVIDUAL", careChannel: "FACEBOOK", productInterest: "Hàng", quantityNote: "1", address: "Địa chỉ", saleNote: "Ghi chú", requirements: "Đơn hàng" };
   for (const reason of [undefined, "", "   ", "Khách cần mua hàng"]) {
-    const result = convertMessageSchema.parse({ requirements: "Đơn hàng", reason });
+    const result = convertMessageSchema.parse({ ...base, reason });
     assert.equal(result.reason, reason?.trim() ?? "");
   }
-  assert.equal(convertMessageSchema.safeParse({ requirements: " " }).success, false);
+  assert.equal(convertMessageSchema.safeParse({ ...base, requirements: " " }).success, false);
+  assert.equal(convertMessageSchema.safeParse({ ...base, quantityNote: " " }).success, false);
   assert.equal(customerKindSchema.safeParse("SOURCING_LOGISTICS").success, false);
-  assert.equal(convertMessageSchema.safeParse({ requirements: "Hàng biển", shippingMode: "SEA" }).success, false);
-  assert.equal(convertMessageSchema.safeParse({ requirements: "Hàng biển", shippingMode: "SEA", logisticsClass: "FCL" }).success, true);
+  assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA" }).success, false);
+  assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA", logisticsClass: "FCL", weightKg: "20", shipToAddress: "Địa chỉ", reason: "Có nhu cầu" }).success, true);
 });
 
 test("FCL charges include VAT and optional trucking only in the full total", () => {
