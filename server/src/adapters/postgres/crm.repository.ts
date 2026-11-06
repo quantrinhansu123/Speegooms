@@ -589,7 +589,7 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     sentQuote: null,
   };
   /** Thông tin đơn hàng Sourcing để Logistics luôn thấy dữ liệu đơn hàng, kể cả khi phiếu mới chuyển còn trống. */
-  const handoffOrder = sourcingHandoffOrder(base);
+  const handoffOrder = base.orders.find((order) => order.selected) ?? sourcingHandoffOrder(base);
   return {
     ...base,
     templateId: sheet.templateId,
@@ -599,7 +599,13 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     contractStatus: sheet.contractStatus,
     orders: sheet.orders.length === 0 && !sheet.sentQuote && handoffOrder
       ? [logisticsOrderFromSourcing(handoffOrder)]
-      : sheet.orders,
+      : sheet.orders.map((order) => order.id === handoffOrder?.id ? {
+        ...order,
+        lines: order.lines.map((line, index) => {
+          const source = handoffOrder.lines[index];
+          return source?.stt === line.stt ? { ...line, packages: source.packages, weightKg: source.weightKg, cbm: source.cbm } : line;
+        }),
+      } : order),
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,
