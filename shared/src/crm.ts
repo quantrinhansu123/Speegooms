@@ -133,8 +133,15 @@ export const updatePotentialSchema = z
   .superRefine(contact);
 
 export const convertMessageSchema = z.object({
+  phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(/^\d+$/, "Số điện thoại chỉ được chứa số"),
+  brand: leadBrandSchema,
+  customerType: customerTypeSchema,
+  careChannel: careChannelSchema,
+  productInterest: z.string().trim().min(1, "Nhập hàng hóa").max(500),
+  address: z.string().trim().min(1, "Nhập địa chỉ").max(300),
+  saleNote: z.string().trim().min(1, "Nhập ghi chú sale").max(2000),
   requirements: z.string().trim().min(1, "Nhập yêu cầu của khách").max(8000),
-  quantityNote: text(500).optional(),
+  quantityNote: z.string().trim().min(1, "Nhập số lượng").max(500),
   packageDimensions: text(500).optional(),
   weightKg: text(500).optional(),
   shippingMode: shippingModeSchema.optional(),
@@ -147,6 +154,10 @@ export const convertMessageSchema = z.object({
   )).max(20, "Tối đa 20 ảnh").default([]),
   reason: z.string().trim().max(2000).default(""),
 }).superRefine((input, ctx) => {
+  if (input.shippingMode && !input.weightKg?.trim()) ctx.addIssue({ code: "custom", message: "Nhập trọng lượng", path: ["weightKg"] });
+  if (input.shippingMode && !input.shipToAddress?.trim()) ctx.addIssue({ code: "custom", message: "Nhập địa chỉ nhận hàng", path: ["shipToAddress"] });
+  if (input.shippingMode && input.logisticsClass !== "FCL" && !input.packageDimensions?.trim()) ctx.addIssue({ code: "custom", message: "Nhập kích thước kiện hàng", path: ["packageDimensions"] });
+  if (input.shippingMode && !input.reason.trim()) ctx.addIssue({ code: "custom", message: "Nhập lý do chuyển", path: ["reason"] });
   if (input.shippingMode === "SEA" && !input.logisticsClass) {
     ctx.addIssue({ code: "custom", message: "Chọn LCL hoặc FCL", path: ["logisticsClass"] });
   }

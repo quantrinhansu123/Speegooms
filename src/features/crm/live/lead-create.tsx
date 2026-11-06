@@ -87,7 +87,7 @@ export function LeadCreate({
     setDraft(null);
     setPending(false);
     // Mess đã lưu: nếu bước chuyển lỗi, mess vẫn nằm ở trang Mess để Sale bấm Chuyển lại.
-    await convert.convertWith(created, shippingMode, logisticsClass, `Đã lưu mess ${created.messCode} nhưng chưa hoàn tất chuyển thành khách tiềm năng (có thể bấm Chuyển ở trang Mess): `);
+    convert.openConvert(created, shippingMode, logisticsClass);
     onDone();
   };
 

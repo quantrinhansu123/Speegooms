@@ -3,16 +3,20 @@
 import { useState } from "react";
 import { convertMessageSchema, orderHasContent, updateQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError, api } from "@/lib/api";
 import { withShippingMetrics } from "./mess-form";
 import { crmPath } from "./lane";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
-import type { MessageRecord, QuoteRecord } from "./types";
+import { brandOptions, careChannelOptions, customerTypeOptions, type MessageRecord, type QuoteRecord } from "./types";
 
 type Mode = "" | "AIR" | "SEA";
 type ShipClass = "" | "LCL" | "FCL";
+type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; packageDimensions: string; weightKg: string; shipToAddress: string; reason: string };
+const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", quantityNote: "", address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), packageDimensions: "", weightKg: "", shipToAddress: "", reason: "" });
 
 /**
  * Luồng chuyển mess thành khách tiềm năng: chọn đường bay/biển (Vận chuyển) → chuyển → tạo báo giá →
@@ -33,18 +37,18 @@ export function useMessConvert({
   setNotice: (message: string | undefined) => void;
 }) {
   const [convertPending, setConvertPending] = useState(false);
-  const [converting, setConverting] = useState<{ row: MessageRecord; mode: Mode; logisticsClass: ShipClass } | null>(null);
+  const [converting, setConverting] = useState<{ row: MessageRecord; mode: Mode; logisticsClass: ShipClass; details: Details } | null>(null);
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
 
-  const openConvert = (row: MessageRecord) => {
+  const openConvert = (row: MessageRecord, mode: Mode = "", logisticsClass: ShipClass = "") => {
     if (row.demand !== "SHIPPING" && row.demand !== "SOURCING") {
       setError("Chọn nhu cầu Tìm hàng hoặc Vận chuyển trước khi chuyển");
       return;
     }
-    setConverting({ row, mode: "", logisticsClass: "" });
+    setConverting({ row, mode, logisticsClass, details: detailsFrom(row) });
   };
 
   /** Mess đã có nháp thông tin đơn hàng: đưa vào báo giá vừa tạo để Sale không phải nhập lại. */
@@ -82,10 +86,9 @@ export function useMessConvert({
   };
 
   /** Trả về true khi mess đã chuyển thành khách tiềm năng. */
-  const convertWith = (row: MessageRecord, mode: Mode, logisticsClass: ShipClass, errorPrefix = ""): Promise<boolean> => {
-    const requirements = [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n") || `Chuyển từ mess ${row.messCode}`;
+  const convertWith = (row: MessageRecord, mode: Mode, logisticsClass: ShipClass, errorPrefix = "", details = detailsFrom(row)): Promise<boolean> => {
     const parsed = convertMessageSchema.safeParse({
-      requirements, images: [], reason: "",
+      ...details, images: [],
       shippingMode: row.demand === "SHIPPING" ? mode || undefined : undefined,
       logisticsClass: row.demand === "SHIPPING" && mode === "SEA" ? logisticsClass || undefined : undefined,
     });
@@ -188,8 +191,17 @@ export function useMessConvert({
   const dialogs = (
     <>
       <Dialog open={converting !== null} onOpenChange={(open) => { if (!open && !convertPending) setConverting(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Chuyển sang khách tiềm năng</DialogTitle></DialogHeader>
+          {converting && <div className="grid gap-3 sm:grid-cols-2">
+            {([['phone', 'Số điện thoại'], ['productInterest', 'Hàng hóa'], ['quantityNote', 'Số lượng'], ['address', 'Địa chỉ'], ['saleNote', 'Ghi chú sale']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
+            {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><NativeSelect id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
+            <Field label="Yêu cầu của khách" htmlFor="convert-requirements" required className="sm:col-span-2"><Textarea id="convert-requirements" value={converting.details.requirements} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, requirements: event.target.value } })} /></Field>
+            {converting.row.demand === 'SHIPPING' && <>
+              {([['weightKg', 'Trọng lượng'], ['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
+              {converting.logisticsClass !== 'FCL' && <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions" required><Input id="convert-dimensions" value={converting.details.packageDimensions} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, packageDimensions: event.target.value } })} /></Field>}
+            </>}
+          </div>}
           {converting?.row.demand === "SHIPPING" && (
             <div className="grid gap-4">
               <Field label="Phương thức vận chuyển" htmlFor="convert-mode" required>
@@ -208,7 +220,7 @@ export function useMessConvert({
           {error && <InlineAlert>{error}</InlineAlert>}
           <DialogFooter>
             <Button variant="outline" disabled={convertPending} onClick={() => setConverting(null)}>Hủy</Button>
-            <Button disabled={convertPending} onClick={() => { if (converting) void convertWith(converting.row, converting.mode, converting.logisticsClass); }}>{convertPending ? "Đang chuyển…" : "Chuyển"}</Button>
+            <Button disabled={convertPending} onClick={() => { if (converting) void convertWith(converting.row, converting.mode, converting.logisticsClass, "", converting.details); }}>{convertPending ? "Đang chuyển…" : "Chuyển"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

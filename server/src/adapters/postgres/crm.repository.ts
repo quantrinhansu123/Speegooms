@@ -1393,6 +1393,7 @@ export class PostgresCrmRepository implements CrmRepository {
       const message = locked.rows[0];
       if (!message) return "missing";
       if (message.status === "LOST") return "lost";
+      if (!message.demand) throw new AppError(400, "VALIDATION_ERROR", "Chọn nhu cầu trước khi chuyển");
       if (message.demand === "SHIPPING" && (!input.shippingMode || (input.shippingMode === "SEA" && !input.logisticsClass))) {
         throw new AppError(400, "VALIDATION_ERROR", "Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
       }
@@ -1412,15 +1413,17 @@ export class PostgresCrmRepository implements CrmRepository {
              nguon, ho_ten, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, tiem_nang, trang_thai, ma_tin_nhan,
              nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen,
              ghi_chu_so_luong, kich_thuoc_kien_hang, trong_luong_kg, dia_chi_gui, dia_chi_nhan,
-             phuong_thuc_van_chuyen, phan_loai, phan_loai_logistics
+             phuong_thuc_van_chuyen, phan_loai, phan_loai_logistics,
+             ten_cong_ty, dia_chi, thuong_hieu, kenh_cham_soc
            )
            values (
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
              $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12,
-             $13, $14, $15, $16, $17, $18, $19::text::crm.lead_classification, $19
+             $13, $14, $15, $16, $17, $18, $19::text::crm.lead_classification, $19,
+             null, $20, $21::text::crm.lead_brand, $22
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, message.phone, message.email, message.goods, kind, message.customer_type, message.note, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null],
+          [id, message.source, message.customer_name_raw, input.phone, message.email, input.productInterest, kind, input.customerType, input.saleNote, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null, input.address, input.brand, input.careChannel],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
@@ -1439,9 +1442,11 @@ export class PostgresCrmRepository implements CrmRepository {
                nhom_khach = coalesce($10::text::crm.customer_kind, nhom_khach),
                phuong_thuc_van_chuyen = coalesce($11, phuong_thuc_van_chuyen),
                phan_loai = case when $11::text is null then phan_loai else $12::text::crm.lead_classification end,
-               phan_loai_logistics = case when $11::text is null then phan_loai_logistics else $12 end
+               phan_loai_logistics = case when $11::text is null then phan_loai_logistics else $12 end,
+               so_dien_thoai = $13, san_pham_quan_tam = $14, loai_khach_hang = $15::text::crm.customer_type,
+               ghi_chu_ban_hang = $16, dia_chi = $17, thuong_hieu = $18::text::crm.lead_brand, kenh_cham_soc = $19
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null, input.phone, input.productInterest, input.customerType, input.saleNote, input.address, input.brand, input.careChannel],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
