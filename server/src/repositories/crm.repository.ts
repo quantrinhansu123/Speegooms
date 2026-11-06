@@ -263,7 +263,7 @@ export interface CrmRepository {
   updateQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "template">;
   updateQuoteOutcome(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteOutcomeInput): Promise<QuoteRecord | "missing" | "locked">;
   sendQuote(lane: CrmLane, desk: QuoteDesk, id: string, input: UpdateQuoteInput): Promise<QuoteRecord | "missing" | "empty" | "selection" | "template">;
-  returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | "missing" | "state">;
+  returnQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | "missing" | "state" | "contract">;
   listQuoteTemplates(desk: QuoteDesk): Promise<QuoteTemplateRecord[]>;
   createQuoteTemplate(desk: QuoteDesk, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "duplicate">;
   updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "missing" | "duplicate">;

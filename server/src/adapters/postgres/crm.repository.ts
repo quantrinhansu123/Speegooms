@@ -1867,6 +1867,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (desk === "logistics" && await this.sharedLogistics(lane, id)) return this.returnSharedLogistics(lane, id);
     const quote = await this.findQuote(lane, desk, id);
     if (!quote) return "missing" as const;
+    if (quote.contractStatus === "DA_TAO") return "contract" as const;
     if (quote.quoteStatus !== "DA_CO_BAO_GIA" && quote.quoteStatus !== "DA_CO_BAO_GIA_LAI") return "state" as const;
     await this.query(
       `update ${quoteTables[lane][desk]}
@@ -2362,6 +2363,7 @@ export class PostgresCrmRepository implements CrmRepository {
   private async returnSharedLogistics(lane: CrmLane, id: string) {
     const quote = await this.findQuote(lane, "logistics", id);
     if (!quote) return "missing" as const;
+    if (quote.contractStatus === "DA_TAO") return "contract" as const;
     if (quote.quoteStatus !== "DA_CO_BAO_GIA" && quote.quoteStatus !== "DA_CO_BAO_GIA_LAI") return "state" as const;
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}

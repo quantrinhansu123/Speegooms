@@ -1,5 +1,5 @@
 import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
-import { isCombinedSourcing, quoteAccessKind, quotePaymentSummary } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePaymentSummary } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -302,13 +302,36 @@ export class CrmService {
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
-    return result;
+    const reopened = await this.reopenLogisticsAfterSourcingChange(lane, desk, current, orders.find((order) => order.selected), actor);
+    return reopened ?? result;
+  }
+
+  /**
+   * KH Sourcing luồng gộp: Sourcing gửi lại với đơn hàng đổi phần ảnh hưởng tới cước thì báo giá Logistics đã gửi
+   * không còn khớp. Đưa phiếu Logistics về "Chưa có báo giá lại" và báo Logistics làm lại, để hợp đồng chờ cước mới.
+   */
+  private async reopenLogisticsAfterSourcingChange(
+    lane: CrmLane,
+    desk: QuoteDesk,
+    current: QuoteRecord,
+    sentOrder: UpdateQuoteInput["orders"][number] | undefined,
+    actor: PublicUser,
+  ): Promise<QuoteRecord | null> {
+    if (desk !== "sourcing" || !isCombinedSourcing(current) || !sentOrder) return null;
+    const logistics = current.logisticsSheet;
+    if (!logistics?.sentQuote || (logistics.quoteStatus !== "DA_CO_BAO_GIA" && logistics.quoteStatus !== "DA_CO_BAO_GIA_LAI")) return null;
+    if (!orderShippingChanged(current.sentQuote?.order, sentOrder)) return null;
+    const reopened = await this.ready().returnQuote(lane, "logistics", current.id);
+    if (typeof reopened === "string") return null;
+    await this.notifications?.notifyQuoteReturned(actor, lane, "logistics", reopened.code, reopened.id, quoteAccessKind(reopened));
+    return this.ready().findQuote(lane, "sourcing", current.id);
   }
 
   async returnQuote(lane: CrmLane, desk: QuoteDesk, id: string, actor?: PublicUser): Promise<QuoteRecord> {
     const result = await this.ready().returnQuote(lane, desk, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (result === "state") throw new AppError(409, "CONFLICT", "Báo giá chưa được vận hành gửi");
+    if (result === "contract") throw new AppError(409, "CONFLICT", "Báo giá đã tạo hợp đồng nên không gửi lại được. Xóa hoặc sửa hợp đồng trước.");
     if (actor) {
       await this.notifications?.notifyQuoteReturned(
         actor,
@@ -404,6 +427,10 @@ export class CrmService {
     input: CreateContractInput,
     actor?: PublicUser,
   ): Promise<ContractRecord> {
+    const source = await this.ready().findQuote(lane, "sourcing", quoteId) ?? await this.ready().findQuote(lane, "logistics", quoteId);
+    if (!source) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    const problems = contractQuoteProblems(source);
+    if (problems.length > 0) throw new AppError(409, "CONFLICT", contractQuoteMessage(problems));
     const result = await this.ready().createContract(lane, quoteId, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (actor) await this.notifications?.notifyContractCreated(actor, lane, result.code, result.id);

@@ -2,7 +2,7 @@
 
 import { quoteAmount } from "@speego/shared";
 
-import { isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -501,9 +501,17 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                         };
                       }),
                       ...(canCreateContract && row.contractStatus !== "DA_TAO"
-                        ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => setContractQuote(row) }]
+                        ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => {
+                            const problems = contractQuoteProblems(row);
+                            if (problems.length > 0) {
+                              setError(contractQuoteMessage(problems));
+                              return;
+                            }
+                            setContractQuote(row);
+                          } }]
                         : []),
-                      ...(isCombinedSourcing(row)
+                      // Đã tạo hợp đồng thì không gửi lại báo giá được nữa.
+                      ...(row.contractStatus === "DA_TAO" ? [] : isCombinedSourcing(row)
                         ? [
                           ...(canWrite && sentToSale(row.quoteStatus) ? [{ key: "return-sourcing", label: "Gửi lại Sourcing", icon: <RotateCcw />, onClick: () => setReturning(row) }] : []),
                           ...(canWrite && logistics && sentToSale(logistics.quoteStatus) ? [{ key: "return-logistics", label: "Gửi lại Logistics", icon: <RotateCcw />, onClick: () => setReturning(logistics) }] : []),

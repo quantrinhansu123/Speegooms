@@ -1,6 +1,6 @@
 "use client";
 
-import { formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -2036,6 +2036,8 @@ export function QuoteEditor({
   const sent = quoteStatus === "DA_CO_BAO_GIA" || quoteStatus === "DA_CO_BAO_GIA_LAI";
   /** Đang điều chỉnh (Sale trả về) thì chưa có hạn mới: hạn sẽ đếm lại khi gửi lại. */
   const validity = quoteStatus === "CHUA_CO_BAO_GIA_LAI" ? null : quoteValidity(quote.sentQuote);
+  /** Chỉ tạo hợp đồng khi đủ các báo giá đã gửi (server kiểm tra lại). */
+  const contractProblems = contractQuoteProblems(quote);
   const needsNewQuote = quoteStatus === "CHUA_CO_BAO_GIA_LAI";
   const fieldId = (name: string) => (embedded ? `${quote.id}-${name}` : name);
 
@@ -2380,9 +2382,18 @@ export function QuoteEditor({
       </Button>}
       {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
-      {!canSendQuote && onReturn && sent && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
+      {/* Đã tạo hợp đồng thì không gửi lại báo giá được nữa. */}
+      {!canSendQuote && onReturn && sent && contractStatus !== "DA_TAO" && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
       {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
-        <Button type="button" variant="outline" disabled={pending} onClick={() => void openContract()}>Chuyển Hợp đồng</Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending || contractProblems.length > 0}
+          title={contractProblems.length > 0 ? contractQuoteMessage(contractProblems) : undefined}
+          onClick={() => void openContract()}
+        >
+          Chuyển Hợp đồng
+        </Button>
       )}
       {!embedded && <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>}
       {(canEditContent || canEditLogisticsFees) && <Button type="button" disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
