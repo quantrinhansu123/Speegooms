@@ -67,6 +67,14 @@ export function lineAmount(l: { basis: PricingBasis; quantity: number | null; pr
 
 export const pricingBasisLabels: Record<PricingBasis, string> = { unit: "theo đơn vị", kg: "theo kg", m2: "theo m2", cbm: "theo CBM", lump: "trọn gói" };
 
+/**
+ * Cách tính giá được chọn mới. "theo m2" đã bỏ khỏi lựa chọn; dòng đã lưu theo m2 vẫn giữ nguyên
+ * (và hiện đúng lựa chọn đó) để không đổi giá đã chốt.
+ */
+export function selectablePricingBases(current: PricingBasis): PricingBasis[] {
+  return (Object.keys(pricingBasisLabels) as PricingBasis[]).filter((basis) => basis !== "m2" || current === "m2");
+}
+
 /** Số thập phân theo ngôn ngữ: tiếng Việt dùng dấu phẩy (30,5), tiếng Anh dùng dấu chấm (30.5). */
 const numberText = {
   vi: new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }),

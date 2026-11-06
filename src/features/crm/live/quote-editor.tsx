@@ -46,7 +46,7 @@ import { MoneyInput } from "@/components/shared/money-input";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
-import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
+import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, selectablePricingBases, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
 import { downloadQuoteExcel } from "./quote-excel";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
@@ -1531,7 +1531,7 @@ const OrderLines = memo(function OrderLines({
                   {showPricing && <td className="px-2 py-2">
                     <div className="grid w-28 gap-1">
                       <NativeSelect className="h-8 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={!canEditPricing} onChange={(event) => updateLine(index, { basis: event.target.value as PricingBasis })}>
-                        {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                        {selectablePricingBases(line.basis).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                       </NativeSelect>
                       <BasisMetricInput className="h-8" line={line} index={index} disabled={!canEditContent && !canEditPricing} onChange={(patch) => updateLine(index, patch)} />
                     </div>
@@ -3058,7 +3058,8 @@ export function QuoteEditor({
             lang={printLang}
             layout={desk === "logistics" ? "pricing" : "classic"}
           >
-          {mode === "full" && orders.length > 0 && (quote.customerKind !== "LOGISTICS" || canPriceAsLogistics) && (
+          {/* Bàn Logistics không còn nhập đơn giá trên thông tin đơn hàng có sẵn: ẩn khối này (bàn Sourcing giữ nguyên). */}
+          {desk !== "logistics" && mode === "full" && orders.length > 0 && (quote.customerKind !== "LOGISTICS" || canPriceAsLogistics) && (
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
               <p className="text-sm text-muted-foreground">
@@ -3090,7 +3091,7 @@ export function QuoteEditor({
                         <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
                         <td className="px-3 py-2">
                           <NativeSelect className="h-8 w-36 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={pending} onChange={(event) => patchOrderLine(order.id, index, { basis: event.target.value as PricingBasis })}>
-                            {(Object.keys(pricingBasisLabels) as PricingBasis[]).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
+                            {selectablePricingBases(line.basis).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                           </NativeSelect>
                         </td>
                         <td className="px-3 py-2">
