@@ -7,6 +7,7 @@ import {
   formatQuoteNumber,
   quoteAmount,
   quotePrintText,
+  shippingNoteText,
   type QuoteLine,
   type QuoteNotes,
   type QuoteSheetInput,
@@ -162,14 +163,14 @@ test("cước vận chuyển = giá cước × cân tính phí, ghi đè thì gi
   assert.equal(model.freight.total, 370);
   assert.equal(model.freight.chargeableKg, 148);
   assert.equal(model.freight.chargeableCbm, 1.25);
-  assert.equal(model.freight.note, quotePrintText.vi.freightNote);
+  assert.deepEqual(model.freight.notes, [shippingNoteText.vi.estimate]);
   const manual = buildQuoteSheetModel(input({
     lang: "en",
     notes: notes({ freight: { ...emptyQuoteFreight, rate: 2.5, total: 999, totalManual: true } }),
     freightMetrics: { chargeableKg: 148, cbm: 1.25 },
   }), deps);
   assert.equal(manual.freight.total, 999);
-  assert.equal(manual.freight.note, quotePrintText.en.freightNote);
+  assert.deepEqual(manual.freight.notes, [shippingNoteText.en.estimate]);
   assert.equal(manual.lines[0]?.unit, "pcs");
   const savedWithoutPackages = buildQuoteSheetModel(input({
     notes: notes({ freight: { ...emptyQuoteFreight, rate: 2.5, total: 370 } }),
@@ -304,4 +305,23 @@ test("số lượng ghi đơn vị dòng đầu ở tiêu đề, ô từng dòng
   const model = buildQuoteSheetModel(input({ lines: [line({ unit: "bộ" }), line({ stt: "2", unit: "cái" })] }), deps);
   assert.equal(model.quantityUnit, "bộ");
   assert.equal(buildQuoteSheetModel(input({ lang: "en", lines: [line({ unit: "cái" })] }), deps).quantityUnit, "pcs");
+});
+
+test("lưu ý dưới chi phí vận chuyển in theo các ô đã chọn, kèm dòng Khác", () => {
+  const picked = buildQuoteSheetModel(input({
+    notes: notes({ shippingNotes: ["measure", "prepay"], shippingNoteOther: "Giao hàng trong 10 ngày" }),
+  }), deps);
+  assert.deepEqual(picked.freight.notes, [shippingNoteText.vi.measure, shippingNoteText.vi.prepay, "Giao hàng trong 10 ngày"]);
+  assert.deepEqual(buildQuoteSheetModel(input({ notes: notes({ shippingNotes: [] }) }), deps).freight.notes, []);
+});
+
+test("phí theo mặt hàng chưa điền số tiền thì không in dòng", () => {
+  const model = buildQuoteSheetModel(input({
+    notes: notes({ logisticsFees: [
+      { label: "Mặt hàng 1 - Ghế", labelEn: "", value: "", currency: "", itemStt: "1" },
+      { label: "Mặt hàng 2 - Bàn", labelEn: "", value: "12", currency: "", itemStt: "2" },
+      { label: "Phụ phí địa chỉ", labelEn: "", value: "22", currency: "", itemStt: "" },
+    ] }),
+  }), deps);
+  assert.deepEqual(model.fees.map((fee) => fee.label), ["Mặt hàng 2 - Bàn", "Phụ phí địa chỉ"]);
 });

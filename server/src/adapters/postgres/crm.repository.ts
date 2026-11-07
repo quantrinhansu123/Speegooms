@@ -28,6 +28,8 @@ import {
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
+  shippingNoteKeys,
+  type ShippingNoteKey,
   type SaleContractPaymentInput,
   type SentQuote,
   type QuoteTemplateInput,
@@ -459,9 +461,18 @@ function asFreight(value: unknown): QuoteNotes["freight"] {
   };
 }
 
+/** Lưu ý dưới Chi phí vận chuyển: giữ đúng các key hợp lệ; chưa từng lưu thì bỏ trống để bản in dùng mặc định cũ. */
+function shippingNotesFrom(keys: unknown, other: unknown): Pick<QuoteNotes, "shippingNotes" | "shippingNoteOther"> {
+  const valid = new Set<string>(shippingNoteKeys);
+  return {
+    ...(Array.isArray(keys) ? { shippingNotes: keys.filter((key): key is ShippingNoteKey => typeof key === "string" && valid.has(key)) } : {}),
+    ...(typeof other === "string" ? { shippingNoteOther: other } : {}),
+  };
+}
+
 function asNotes(value: unknown): QuoteNotes {
   const row = value && typeof value === "object"
-    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; validityDays?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown; fcl?: unknown; payment?: unknown }
+    ? value as { totalLabel?: unknown; shippingLabel?: unknown; weightNote?: unknown; validityNote?: unknown; validityDays?: unknown; weightNoteEn?: unknown; validityNoteEn?: unknown; deposit?: unknown; depositEn?: unknown; logisticsFees?: unknown; opsExtra?: unknown; freight?: unknown; fcl?: unknown; payment?: unknown; shippingNotes?: unknown; shippingNoteOther?: unknown }
     : {};
   const deposit = asDeposit(row.deposit);
   return {
@@ -470,6 +481,7 @@ function asNotes(value: unknown): QuoteNotes {
     weightNote: textField(row.weightNote),
     validityNote: textField(row.validityNote),
     validityDays: typeof row.validityDays === "number" && Number.isInteger(row.validityDays) && row.validityDays >= 1 ? row.validityDays : null,
+    ...shippingNotesFrom(row.shippingNotes, row.shippingNoteOther),
     weightNoteEn: textField(row.weightNoteEn),
     validityNoteEn: textField(row.validityNoteEn),
     deposit,

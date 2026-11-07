@@ -247,8 +247,6 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
     if (model.weightNote) row.getCell(colOf("note")).value = model.weightNote;
     r += 1;
   }
-  /** Tiền thêm có cột riêng; tiền khác vào cột Thành tiền kèm mã tiền ở cột Số tính giá. */
-  const feeKey = (currency: string) => (model.extraCurrencies.includes(currency) ? `total-${currency}` : "total");
   const freightTotal = model.freight.total;
   const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
   if (model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight) {
@@ -313,11 +311,33 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
     boxRow(row, 1, feeWidth);
     r += 1;
   }
-  text(r, 1, model.freight.note, { merge: last, color: "FF334155" });
-  r += 1;
+  /** Tổng chi phí logistics theo loại tiền ngay dưới phụ phí: nhãn trải các cột đầu, số tiền ở cột Tổng chi phí, chỉ ô số tiền tô vàng. */
   for (const sub of model.feeSubtotals) {
-    put(sumRow(`${t.feeSubtotal} (${sub.currency})`), feeKey(sub.currency), sub.amount);
+    const row = ws.getRow(r);
+    if (feeWidth > 2) ws.mergeCells(r, 1, r, feeWidth - 1);
+    const label = row.getCell(1);
+    label.value = `${t.feeSubtotal} (${sub.currency})`;
+    label.font = { bold: true, color: { argb: NAVY } };
+    label.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    const value = row.getCell(feeWidth);
+    // Số thật để Excel cộng được; loại tiền đã ghi ở nhãn "(USD)".
+    value.value = sub.amount;
+    value.numFmt = NUMBER_FORMAT;
+    value.font = { bold: true, color: { argb: NAVY } };
+    value.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF200" } };
+    value.alignment = { horizontal: "right", vertical: "middle" };
+    boxRow(row, 1, feeWidth);
     r += 1;
+  }
+  /** Lưu ý đã chọn, dưới dòng Tổng chi phí logistics. */
+  if (model.freight.notes.length > 0) {
+    text(r, 1, `${model.freight.noteTitle}:`, { bold: true, merge: last, color: "FF334155" });
+    r += 1;
+    for (const note of model.freight.notes) {
+      text(r, 1, `• ${note}`, { merge: last, color: "FF334155" });
+      ws.getRow(r).getCell(1).alignment = { wrapText: true, vertical: "top" };
+      r += 1;
+    }
   }
   for (const line of model.deposit) {
     text(r, 1, line, { bold: true, color: NAVY, merge: last });

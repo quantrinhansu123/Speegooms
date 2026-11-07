@@ -1,5 +1,6 @@
 "use client";
 
+import { shippingNoteKeys, shippingNoteText, type ShippingNoteKey } from "@speego/shared";
 import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -161,7 +162,6 @@ function FreightCostEditor({
   /** Kg chỉ hiện cân tính phí, CBM chỉ hiện thể tích, trọn gói không cần cả hai (tiền cước nhập tay). */
   const usesKg = freight.basis === "kg" || freight.basis === "both";
   const usesCbm = freight.basis === "cbm" || freight.basis === "both";
-  const note = (lang === "en" ? quotePrintText.en : quotePrintText.vi).freightNote;
   const write = (next: QuoteNotes["freight"]) => {
     const shown = next.totalManual ? next.total : quoteFreightTotal(next, chargeableKg, chargeableCbm) ?? next.total;
     setNotes({
@@ -205,8 +205,58 @@ function FreightCostEditor({
           )}
         </Field>
       </div>
-      <p className="text-sm italic text-muted-foreground">{note}</p>
     </div>
+  );
+}
+
+/**
+ * Lưu ý in dưới dòng Tổng chi phí logistics: tick ô nào thì bản in hiện ô đó, kèm dòng Khác tự điền.
+ * Báo giá cũ chưa từng chọn thì mặc định tick "Dự kiến cân nặng…" như bản in trước đây.
+ */
+function ShippingNotesEditor({
+  notes,
+  setNotes,
+  canEdit,
+  lang,
+  fieldId,
+}: {
+  notes: QuoteNotes;
+  setNotes: (notes: QuoteNotes) => void;
+  canEdit: boolean;
+  lang: QuoteLang;
+  fieldId: (name: string) => string;
+}) {
+  const selected = notes.shippingNotes ?? ["estimate"];
+  const toggle = (key: ShippingNoteKey, checked: boolean) => {
+    const next = shippingNoteKeys.filter((item) => (item === key ? checked : selected.includes(item)));
+    setNotes({ ...notes, shippingNotes: next });
+  };
+  return (
+    <fieldset className="grid gap-2 border-t pt-3">
+      <legend className="font-semibold">Lưu ý (in dưới Tổng chi phí logistics)</legend>
+      {shippingNoteKeys.map((key) => (
+        <label key={key} className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 shrink-0 accent-primary"
+            checked={selected.includes(key)}
+            disabled={!canEdit}
+            onChange={(event) => toggle(key, event.target.checked)}
+          />
+          <span>{shippingNoteText[lang][key]}</span>
+        </label>
+      ))}
+      <Field label="Khác" htmlFor={fieldId("shipping-note-other")} hint="Để trống thì không in.">
+        <Textarea
+          id={fieldId("shipping-note-other")}
+          rows={2}
+          value={notes.shippingNoteOther ?? ""}
+          disabled={!canEdit}
+          onChange={(event) => setNotes({ ...notes, shippingNoteOther: event.target.value })}
+          placeholder="Lưu ý khác (nếu có)"
+        />
+      </Field>
+    </fieldset>
   );
 }
 
@@ -396,6 +446,7 @@ function LogisticsFeesEditor({
           <p className="text-sm text-muted-foreground">Tiền cước + phụ phí, cộng riêng theo từng loại tiền.</p>
           {totals.size ? [...totals].map(([code, amount]) => <p key={code} className="text-right font-semibold tabular-nums">{formatMoneyGrouped(amount)} {code}</p>) : <p className="text-sm text-muted-foreground">Chưa có số tiền.</p>}
         </div>
+        <ShippingNotesEditor notes={notes} setNotes={setNotes} canEdit={canEdit} lang={lang} fieldId={fieldId} />
       </div>
     );
   }
@@ -490,6 +541,7 @@ function LogisticsFeesEditor({
         <p className="text-sm text-muted-foreground">Tiền cước + phụ phí, cộng riêng theo từng loại tiền.</p>
         {totals.size ? [...totals].map(([code, amount]) => <p key={code} className="text-right font-semibold tabular-nums">{formatMoneyGrouped(amount)} {code}</p>) : <p className="text-sm text-muted-foreground">Chưa có số tiền.</p>}
       </div>
+        <ShippingNotesEditor notes={notes} setNotes={setNotes} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
       <div className="grid gap-3 [&_label]:text-base [&_input]:h-11 [&_input]:text-base">
         <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />

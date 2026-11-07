@@ -335,6 +335,10 @@ export const quotePaymentSchema = z.object({
   }
 });
 
+/** Lưu ý chọn sẵn dưới phần Chi phí vận chuyển; nội dung in theo ngôn ngữ ở quote-print-text. */
+export const shippingNoteKeys = ["measure", "estimate", "domesticCn", "prepay"] as const;
+export type ShippingNoteKey = (typeof shippingNoteKeys)[number];
+
 export const quoteNotesSchema = z.object({
   payment: quotePaymentSchema.optional(),
   totalLabel: text(300),
@@ -357,6 +361,10 @@ export const quoteNotesSchema = z.object({
   fcl: fclQuoteSchema.optional(),
   /** Bảng cước vận chuyển: giá cước, cân/thể tích tính phí và tổng. */
   freight: quoteFreightSchema.default(emptyQuoteFreight),
+  /** Các lưu ý in dưới Chi phí vận chuyển (chọn nhiều). Chưa có (báo giá cũ) thì in lưu ý dự kiến cân nặng như trước. */
+  shippingNotes: z.array(z.enum(shippingNoteKeys)).max(shippingNoteKeys.length).optional(),
+  /** Lưu ý khác do Logistics tự điền; rỗng thì không in. */
+  shippingNoteOther: text(1000).optional(),
   /** Ghi chú thêm của vận hành (tách lô, dời lịch…) để Sale xem. */
   opsExtra: text(2000).default(""),
 });

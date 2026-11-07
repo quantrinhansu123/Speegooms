@@ -32,6 +32,8 @@ export {
   quoteDeskSchema,
   quoteCurrencies,
   quoteCurrencySchema,
+  shippingNoteKeys,
+  type ShippingNoteKey,
   quoteLineImages,
   quoteOrderSchema,
   quoteStatusSchema,
@@ -115,6 +117,8 @@ export {
   quoteLangs,
   quotePrintText,
   quoteValidityText,
+  shippingNoteText,
+  shippingNoteTitle,
   type QuoteLang,
   type QuotePrintText,
 } from "./quote-print-text";

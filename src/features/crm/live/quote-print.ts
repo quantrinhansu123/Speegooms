@@ -201,13 +201,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const customerTable = kvTableWide([...metaRows, ...model.customerRows], 3, [t.customer, "—"]);
   const companyTable = kvTableWide(model.company.rows, 2);
 
-  /** Ô tổng theo loại tiền: tiền chính ở cột Tổng tiền hàng, tiền thêm ở cột riêng, tiền lạ kèm mã tiền. */
-  const amountCells = (currency: string, amount: number) => {
-    const text = fmt(amount);
-    if (currency === model.currency) return { total: numRow(text, currency), extra: {} };
-    if (model.extraCurrencies.includes(currency)) return { total: "", extra: { [currency]: numRow(text, currency) } };
-    return { total: numRow(text, currency), extra: {} };
-  };
 
   /** Dòng tổng: nhãn | tổng CBM (cột Kg/CBM/m2) | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
   const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string }, note = "") => {
@@ -240,10 +233,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const shippingRow = model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight
     ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
-  const subtotalRows = model.feeSubtotals.map((sub) => summaryRow(
-    `${t.feeSubtotal} (${sub.currency})`,
-    amountCells(sub.currency, sub.amount),
-  )).join("");
   const summaryRows = [goodsRow, shippingRow].filter(Boolean).join("");
   const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
   const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
@@ -271,13 +260,25 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
       ? `<tr class="fee-row"><td class="fee-label" colspan="${freightColumns.length - 1}">${label}</td><td class="fee-value">${feeAmount(fee)}</td></tr>`
       : `<tr class="fee-row"><td class="fee-value"><span class="fee-label-inline">${label}</span> ${feeAmount(fee)}</td></tr>`;
   }).join("");
+  /** Tổng chi phí logistics theo loại tiền: nhãn trải các cột đầu, số tiền đúng cột Tổng chi phí; chỉ ô số tiền tô vàng. */
+  const subtotalRows = model.feeSubtotals.map((sub) => {
+    const label = escapeHtml(`${t.feeSubtotal} (${sub.currency})`);
+    const amount = numRow(fmt(sub.amount), sub.currency);
+    return freightColumns.length > 1
+      ? `<tr class="sum-row"><td class="sum-row-label" colspan="${freightColumns.length - 1}">${label}</td><td class="sum-row-value">${amount}</td></tr>`
+      : `<tr class="sum-row"><td class="sum-row-value"><span class="fee-label-inline">${label}</span> ${amount}</td></tr>`;
+  }).join("");
+  /** Lưu ý đã chọn, in dưới dòng Tổng chi phí logistics. */
+  const freightNotes = model.freight.notes.length > 0
+    ? `<div class="freight-note"><strong>${escapeHtml(model.freight.noteTitle)}:</strong><ul>${model.freight.notes.map((note) => `<li>${escapeHtml(note).replaceAll("\n", "<br>")}</li>`).join("")}</ul></div>`
+    : "";
   const freightTable = `<section class="freight">
     <h2>${escapeHtml(t.freightTitle)}</h2>
     <table class="freight-table">
       <thead><tr>${freightColumns.map((column) => `<th>${escapeHtml(column.head)}</th>`).join("")}</tr></thead>
-      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr>${feeRows}</tbody>
+      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr>${feeRows}${subtotalRows}</tbody>
     </table>
-    <p class="freight-note">${escapeHtml(model.freight.note)}</p>
+    ${freightNotes}
   </section>`;
 
   const blankAfterTotal = colCount - COLUMNS_BEFORE_TOTAL - 1;
@@ -339,7 +340,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   ${depositRows ? `<table class="summary deposit">${colgroup}<tbody>${depositRows}</tbody></table>` : ""}
   </section>` : ""}
   ${freightTable}
-  ${subtotalRows ? `<section class="closing"><table class="summary">${colgroup}<tbody>${subtotalRows}</tbody></table></section>` : ""}
 
   ${input.compact ? "" : `
   <section class="payment-signatures">
@@ -726,13 +726,31 @@ export const quotePrintCss = `
     font-weight: 700;
     text-align: left;
   }
-  table.freight-table tr.fee-row .fee-label-inline { float: left; }
+  table.freight-table tr.fee-row .fee-label-inline,
+  table.freight-table tr.sum-row .fee-label-inline { float: left; }
+  /* Dòng Tổng chi phí logistics: chỉ ô số tiền tô vàng. */
+  table.freight-table tr.sum-row td.sum-row-label {
+    background: #fff;
+    color: #082A59;
+    font-weight: 700;
+    text-align: left;
+  }
+  table.freight-table tr.sum-row td.sum-row-value {
+    background: #FFF200;
+    color: #082A59;
+    font-weight: 700;
+  }
   .freight-note {
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     color: #334155;
     font-size: 9pt;
     font-style: italic;
   }
+  .freight-note ul {
+    margin: 2px 0 0;
+    padding-left: 18px;
+  }
+  .freight-note li { margin: 1px 0; }
 
   table.summary.deposit { margin-top: 10px; }
   table.summary.deposit td { padding: 4px 8px; }

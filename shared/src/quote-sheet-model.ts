@@ -1,6 +1,6 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
 import { quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency } from "./quote-amounts";
-import { formatQuoteNumber, quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, type QuoteLang, type QuotePrintText } from "./quote-print-text";
+import { formatQuoteNumber, quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, shippingNoteText, shippingNoteTitle, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
 export const quoteCompany = {
@@ -113,7 +113,10 @@ export interface QuoteSheetFreight {
   chargeableKg: number | null;
   chargeableCbm: number | null;
   total: number | null;
-  note: string;
+  /** Tiêu đề phần lưu ý ("Lưu ý" / "Notes"). */
+  noteTitle: string;
+  /** Các lưu ý đã chọn, in dưới dòng Tổng chi phí logistics. Rỗng thì không in phần lưu ý. */
+  notes: string[];
 }
 
 export interface QuoteSheetDeps {
@@ -183,7 +186,17 @@ export function quoteFreightTotal(freight: QuoteNotes["freight"], chargeableKg: 
   return kg == null && cbm == null ? null : round3(value);
 }
 
-function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"], note: string): QuoteSheetFreight {
+/**
+ * Lưu ý in dưới Chi phí vận chuyển theo các ô đã tick. Báo giá cũ chưa từng chọn thì giữ lưu ý dự kiến
+ * cân nặng như bản in trước đây. "Khác" in nguyên chữ người nhập.
+ */
+export function shippingNotesOf(notes: Pick<QuoteNotes, "shippingNotes" | "shippingNoteOther">, lang: QuoteLang): string[] {
+  const keys = notes.shippingNotes ?? ["estimate"];
+  const other = notes.shippingNoteOther?.trim() ?? "";
+  return [...keys.map((key) => shippingNoteText[lang][key]), ...(other ? [other] : [])];
+}
+
+function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"], lang: QuoteLang): QuoteSheetFreight {
   const stored = notes.freight ?? { rate: null, total: null, totalManual: false };
   const chargeableKg = metrics && metrics.chargeableKg > 0 ? metrics.chargeableKg : null;
   const chargeableCbm = metrics && metrics.cbm > 0 ? metrics.cbm : null;
@@ -196,7 +209,8 @@ function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"]
     chargeableKg,
     chargeableCbm,
     total: stored.totalManual ? stored.total : auto ?? stored.total,
-    note,
+    noteTitle: shippingNoteTitle[lang],
+    notes: shippingNotesOf(notes, lang),
   };
 }
 
@@ -278,12 +292,13 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
       currency: (fee.currency?.trim() || feeCurrency).toUpperCase(),
       itemStt: fee.itemStt?.trim() ?? "",
     }))
-    .filter((fee) => fee.label || fee.text);
+    // Phí theo mặt hàng chỉ in khi đã điền số tiền/ghi chú; tên dòng tự sinh nên không tính là có nội dung.
+    .filter((fee) => (fee.itemStt ? fee.text : fee.label || fee.text));
   const subtotalByCurrency = new Map<string, number>();
   for (const fee of fees) {
     if (fee.amount != null) subtotalByCurrency.set(fee.currency, round2((subtotalByCurrency.get(fee.currency) ?? 0) + fee.amount));
   }
-  const freight = freightOf(notes, input.freightMetrics, t.freightNote);
+  const freight = freightOf(notes, input.freightMetrics, lang);
   freight.currency = feeCurrency;
   if (freight.total != null) subtotalByCurrency.set(freight.currency, round2((subtotalByCurrency.get(freight.currency) ?? 0) + freight.total));
   const customer = input.customer;

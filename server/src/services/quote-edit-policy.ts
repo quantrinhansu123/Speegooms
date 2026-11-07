@@ -114,6 +114,8 @@ export function applyLogisticsDeskSave(
         opsExtra: input.notes.opsExtra,
         freight: input.notes.freight,
         fcl: input.notes.fcl,
+        shippingNotes: input.notes.shippingNotes,
+        shippingNoteOther: input.notes.shippingNoteOther,
         payment: input.notes.payment,
       },
     };
@@ -139,10 +141,13 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
       opsExtra: input.notes.opsExtra,
       freight: input.notes.freight,
       fcl: input.notes.fcl,
+      /** Lưu ý in dưới Chi phí vận chuyển do Logistics chọn. */
+      shippingNotes: input.notes.shippingNotes,
+      shippingNoteOther: input.notes.shippingNoteOther,
     },
   };
   return {
     ...input,
-    notes: { ...input.notes, logisticsFees: current.notes.logisticsFees, shippingLabel: current.notes.shippingLabel, freight: current.notes.freight ?? input.notes.freight },
+    notes: { ...input.notes, logisticsFees: current.notes.logisticsFees, shippingLabel: current.notes.shippingLabel, freight: current.notes.freight ?? input.notes.freight, shippingNotes: current.notes.shippingNotes, shippingNoteOther: current.notes.shippingNoteOther },
   };
 }

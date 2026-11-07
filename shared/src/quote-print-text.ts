@@ -155,6 +155,24 @@ export const quotePrintText: Record<QuoteLang, QuotePrintText> = {
   },
 };
 
+/** Nội dung các lưu ý chọn sẵn dưới phần Chi phí vận chuyển. */
+export const shippingNoteText: Record<QuoteLang, Record<"measure" | "estimate" | "domesticCn" | "prepay", string>> = {
+  vi: {
+    measure: "Báo giá này dựa trên các kích thước mà quý khách đã cung cấp. Khi hàng hóa về đến kho sẽ cân và đo lại thực tế, sau đó thông báo cho quý khách các số liệu chính xác cuối cùng.",
+    estimate: "Dự kiến thông tin cân nặng, thể tích có thể thay đổi theo thực tế.",
+    domesticCn: "Chi phí trên chưa bao gồm phí vận chuyển nội địa tại Trung Quốc (nếu có).",
+    prepay: "Thanh toán 100% phí vận chuyển trước khi tiến hành vận chuyển hàng hoá.",
+  },
+  en: {
+    measure: "This quotation is based on the dimensions you provided. When the goods arrive at our warehouse, they will be weighed and measured again, and we will inform you of the final figures.",
+    estimate: "Estimated weight and volume may change based on the actual shipment.",
+    domesticCn: "The above cost does not include domestic shipping within China (if any).",
+    prepay: "100% of the shipping cost must be paid before the goods are shipped.",
+  },
+};
+
+export const shippingNoteTitle: Record<QuoteLang, string> = { vi: "Lưu ý", en: "Notes" };
+
 /** Câu hiệu lực tự sinh từ số ngày: dùng cho dòng "Hiệu lực" trên bản in / PDF / Excel. */
 export function quoteValidityText(days: number, lang: QuoteLang): string {
   return lang === "en"
