@@ -8,7 +8,7 @@ import type pg from "pg";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmService } from "../services/crm.service";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import { accountingContractSchema, createContractSchema, createMessageSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
+import { accountingContractSchema, createContractSchema, createMessageSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, quoteVndAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
@@ -493,6 +493,9 @@ test("quote totals use costs, avoid double counting, and convert contract shippi
   input.notes.shippingLabel = "";
   input.notes.logisticsFees[0].value = "Chưa chốt";
   assert.equal(quoteAmount(input, "logistics").amount, null);
+  assert.deepEqual(quoteAmount(input, "logistics").gaps, ["Cảng: Chưa chốt"]);
+  input.notes.logisticsFees[0].value = "";
+  assert.equal(quoteAmount(input, "logistics").amount, 500000);
 });
 
 test("logistics total keeps the fee currency when freight currency was left blank", () => {
@@ -796,4 +799,11 @@ test("Service rejects an empty Sourcing hand-off with a clear rule error", async
     () => service.requestLogisticsQuote("vn", "quote", { role: "sourcing" } as PublicUser),
     (error: unknown) => error instanceof Error && (error as { status?: number }).status === 400,
   );
+});
+
+test("missing VND rate names the quote field that still needs a rate", () => {
+  const order = { id: "00000000-0000-4000-8000-000000000002", name: "A", selected: true, currency: "USD", rate: null, priceColumns: [], lines: [] };
+  const notes = { ...handoffInput().notes, totalLabel: "200", logisticsFees: [], freight: { rate: null, cbmRate: null, basis: "lump" as const, currency: "AUD", total: 100, totalManual: true, vndRate: null } };
+  assert.equal(quoteVndAmount({ orders: [order], notes }, "sourcing").rateGap, "Đơn hàng, ô Quy đổi VND: 1 USD =");
+  assert.equal(quoteVndAmount({ orders: [{ ...order, currency: "VND", rate: 25_000 }], notes }, "logistics").rateGap, "Chi phí vận chuyển, ô Quy đổi VND: 1 AUD =");
 });

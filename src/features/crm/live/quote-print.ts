@@ -234,7 +234,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
     : "";
   const summaryRows = [goodsRow, shippingRow].filter(Boolean).join("");
-  const freightCell = (amount: string, unit = "") => `<td>${amount || unit ? numRow(amount, unit) : ""}</td>`;
+  const freightCell = (amount: string, unit = "", total = false) => `<td${total ? ' class="freight-total"' : ""}>${amount || unit ? numRow(amount, unit) : ""}</td>`;
   const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
   const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
   const freightColumns: { head: string; cell: string }[] = [
@@ -247,7 +247,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     }]),
     ...(usesKg ? [{ head: t.chargeableWeight, cell: freightCell(model.freight.chargeableKg == null ? "" : fmt(model.freight.chargeableKg, 1), model.freight.chargeableKg == null ? "" : "kg") }] : []),
     ...(usesCbm ? [{ head: t.chargeableVolume, cell: freightCell(model.freight.chargeableCbm == null ? "" : fmt(model.freight.chargeableCbm, 3), model.freight.chargeableCbm == null ? "" : "CBM") }] : []),
-    { head: t.freightTotal, cell: freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency) },
+    { head: t.freightTotal, cell: freightCell(model.freight.total == null ? "" : fmt(model.freight.total, 3), model.freight.total == null ? "" : model.freight.currency, true) },
   ];
   /**
    * Phụ phí vận chuyển in trong phần Chi phí vận chuyển, cùng bảng cước: tên phí trải các cột đầu,
@@ -714,9 +714,14 @@ export const quotePrintCss = `
     font-weight: 700;
   }
   table.freight-table td:not(:empty) {
-    background: #FFF200;
     color: #082A59;
     font-weight: 700;
+  }
+  /* Chỉ cột Tổng chi phí tô vàng: tiền cước, phụ phí và dòng tổng. */
+  table.freight-table td.freight-total:not(:empty),
+  table.freight-table tr.fee-row td.fee-value,
+  table.freight-table tr.sum-row td.sum-row-value {
+    background: #FFF200;
   }
   table.freight-table .amt,
   table.freight-table .unit { color: #082A59; }

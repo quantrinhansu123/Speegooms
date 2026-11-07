@@ -8,7 +8,7 @@ type QuoteAmountSource = {
   sentQuote?: SentQuote | null;
 };
 
-type QuoteAmount = { amount: number | null; currency: string; rate: number | null };
+type QuoteAmount = { amount: number | null; currency: string; rate: number | null; /** Dòng làm tổng logistics không cộng được. Chỉ có khi amount là null. */ gaps?: string[] };
 
 export type FclQuote = NonNullable<QuoteNotes["fcl"]>;
 
@@ -71,16 +71,33 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
     const freightCurrency = resolvedFreightCurrency(notes, currency);
     const buckets = new Map<string, number>();
+    const named: { label: string; currency: string }[] = [];
+    const gaps: string[] = [];
     for (const fee of notes.logisticsFees) {
-      const feeAmount = quoteMoneyValue(fee.value);
-      if (feeAmount == null) return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency) };
+      const raw = fee.value.trim();
+      // Dòng phụ phí để trống (thường là dòng mặt hàng chưa nhập tiền) không tính. Chữ không phải số thì tổng chưa hợp lệ.
+      if (!raw) continue;
+      const label = fee.label.trim() || "Phụ phí";
+      const feeAmount = quoteMoneyValue(raw);
+      if (feeAmount == null) {
+        gaps.push(`${label}: ${raw}`);
+        continue;
+      }
       // Phụ phí không ghi loại tiền thì theo loại tiền cước.
       const code = (fee.currency?.trim() || freightCurrency).toUpperCase();
       buckets.set(code, (buckets.get(code) ?? 0) + feeAmount);
+      named.push({ label, currency: code });
     }
-    if (notes.freight.total != null) buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);
+    if (notes.freight.total != null) {
+      buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);
+      named.push({ label: "Cước", currency: freightCurrency });
+    }
     const only = buckets.size === 1 ? [...buckets][0] : undefined;
-    if (!only) return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency) };
+    if (gaps.length > 0 || !only) {
+      const mixed = !only && named.length > 0 ? [`Không cùng loại tiền: ${named.map((line) => `${line.label} (${line.currency})`).join(", ")}`] : [];
+      const missing = gaps.length === 0 && named.length === 0 ? ["Chưa có số tiền cước hoặc phụ phí"] : gaps;
+      return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency), gaps: [...missing, ...mixed] };
+    }
     const [totalCurrency, total] = only;
     return { amount: Math.round(total * 1000) / 1000, currency: totalCurrency, rate: logisticsRate(totalCurrency) };
   }
@@ -89,12 +106,21 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   return { amount, currency, rate: desk === "logistics" ? logisticsRate(currency) : currency === "VND" ? 1 : order?.rate ?? null };
 }
 
+/** Ô trên báo giá còn trống khiến chưa quy được số tiền này về VND. */
+function missingRatePlace(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics", currency: string): string {
+  const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
+  const fcl = desk === "logistics" && sheet?.shippingMode === "SEA" && sheet?.logisticsClass === "FCL" && notes?.fcl;
+  const where = desk === "sourcing" ? "Đơn hàng" : fcl ? "Bảng cước FCL" : "Chi phí vận chuyển";
+  return `${where}, ô Quy đổi VND: 1 ${currency} =`;
+}
+
 /** Tổng báo giá quy về VND (chỉ để hiển thị/báo cáo, không in ra phiếu). Null khi thiếu tỷ giá hoặc số tiền chưa hợp lệ. */
-export function quoteVndAmount(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics"): QuoteAmount & { vnd: number | null } {
+export function quoteVndAmount(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics"): QuoteAmount & { vnd: number | null; rateGap?: string } {
   const total = quoteAmount(sheet, desk);
   const rate = total.currency === "VND" ? 1 : total.rate;
   const vnd = total.amount == null || !rate ? null : Math.round(total.amount * rate);
-  return { ...total, vnd };
+  const rateGap = total.amount != null && total.currency !== "VND" && !rate ? missingRatePlace(sheet, desk, total.currency) : undefined;
+  return { ...total, vnd, rateGap };
 }
 
 export function shippingInCurrency(sheet: QuoteAmountSource | null | undefined, target: { currency: string; rate: number | null }): number | null {
