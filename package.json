@@ -7,6 +7,8 @@
     "dev:api": "pnpm --filter @speego/server dev",
     "dev:stack": "pnpm --parallel --filter fe-speego --filter @speego/server dev",
     "test:api": "pnpm --filter @speego/server test",
+    "screenshots:e54": "tsx scripts/screenshots/e54-quote-print.ts",
+    "screenshots:e55": "tsx scripts/screenshots/e55-sourcing-quantity.ts",
     "typecheck:api": "pnpm --filter @speego/server typecheck",
     "build": "next build",
     "start": "next start",
@@ -52,7 +54,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "playwright": "^1.65.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "packageManager": "pnpm@11.5.2"
