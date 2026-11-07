@@ -4,7 +4,7 @@ import { quoteVndAmount } from "@speego/shared";
 
 import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { industryCategoryOptions, reassignQuoteSchema, updateQuoteOutcomeSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -101,13 +101,51 @@ function quoteIssued(status: string | null | undefined): boolean {
   return status === "DA_CO_BAO_GIA" || status === "DA_CO_BAO_GIA_LAI";
 }
 
+/** Hộp hiện ngay khi rê chuột, không phụ thuộc chú thích của trình duyệt. */
+function HoverNote({ text, className, children }: { text: string; className?: string; children: ReactNode }) {
+  const [box, setBox] = useState<{ left: number; top: number } | null>(null);
+  return (
+    <span
+      className={cn("cursor-help underline decoration-dotted underline-offset-2", className)}
+      onMouseEnter={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setBox({ left: rect.left, top: rect.bottom + 4 });
+      }}
+      onMouseLeave={() => setBox(null)}
+    >
+      {children}
+      {box && (
+        <span
+          className="pointer-events-none fixed z-50 w-max max-w-xs whitespace-pre-line rounded-md border bg-popover px-2 py-1 text-left text-xs font-normal text-popover-foreground shadow"
+          style={{ left: box.left, top: box.top }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Các dòng làm tổng không cộng được, đã gom lúc tính tổng. */
+function IncompleteMoney({ gaps }: { gaps?: string[] }) {
+  const text = gaps?.filter(Boolean).join("\n") ?? "";
+  if (!text) return <>Chưa đủ số tiền</>;
+  return <HoverNote text={text}>Chưa đủ số tiền</HoverNote>;
+}
+
+/** Cột tổng VND: nêu đúng ô trên báo giá còn trống tỷ giá. */
+function MissingVndRates({ lines }: { lines: { label: string; place: string }[] }) {
+  const text = lines.map((line) => `${line.label}: ${line.place}`).join("\n");
+  return <HoverNote text={text} className="text-xs font-normal text-warning">Chưa đủ tỷ giá VND</HoverNote>;
+}
+
 /** Tổng báo giá hiển thị theo VND; báo giá ngoại tệ ghi thêm số gốc bên dưới (chỉ trên màn hình, không in). */
 function VndTotal({ total }: { total: ReturnType<typeof quoteVndAmount> }) {
   if (total.amount == null) return <>—</>;
   if (total.currency === "VND") return <>{formatMoney(total.amount, "VND")}</>;
   return (
     <span className="inline-flex flex-col">
-      {total.vnd != null ? <span>{formatMoney(total.vnd, "VND")}</span> : <span className="text-xs text-warning">Chưa có tỷ giá VND</span>}
+      {total.vnd != null ? <span>{formatMoney(total.vnd, "VND")}</span> : <HoverNote text={total.rateGap || `Chưa có tỷ giá 1 ${total.currency} = ? VND`} className="text-xs text-warning">Chưa có tỷ giá VND</HoverNote>}
       <span className="text-xs text-muted-foreground">{formatMoney(total.amount, total.currency)}</span>
     </span>
   );
@@ -487,11 +525,15 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   ) : <ValidityBadge sent={row.sentQuote} status={row.quoteStatus} />}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal?.amount == null ? "—" : <VndTotal total={sourcingTotal} />}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{!logisticsTotal ? "—" : logisticsTotal.amount == null ? "Chưa đủ số tiền" : <VndTotal total={logisticsTotal} />}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{!logisticsTotal ? "—" : logisticsTotal.amount == null ? <IncompleteMoney gaps={logisticsTotal.gaps} /> : <VndTotal total={logisticsTotal} />}</td>
                 <td className="px-3 py-3 whitespace-nowrap font-medium">{(() => {
                   const parts = [sourcingTotal, logisticsTotal].filter((item) => item?.amount != null);
                   if (parts.length === 0) return "—";
-                  if (parts.some((item) => item!.vnd == null)) return <span className="text-xs font-normal text-warning">Chưa đủ tỷ giá VND</span>;
+                  const missingRates = [
+                    sourcingTotal?.amount != null && sourcingTotal.vnd == null ? { label: "Sourcing", place: sourcingTotal.rateGap || `Đơn hàng, ô Quy đổi VND: 1 ${sourcingTotal.currency} =` } : null,
+                    logisticsTotal?.amount != null && logisticsTotal.vnd == null ? { label: "Logistics", place: logisticsTotal.rateGap || `Chi phí vận chuyển, ô Quy đổi VND: 1 ${logisticsTotal.currency} =` } : null,
+                  ].filter((item): item is { label: string; place: string } => item != null);
+                  if (missingRates.length > 0) return <MissingVndRates lines={missingRates} />;
                   return formatMoney(parts.reduce((sum, item) => sum + item!.vnd!, 0), "VND");
                 })()}</td>
                 <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
