@@ -2572,7 +2572,8 @@ export function QuoteEditor({
         </InlineAlert>
       )}
       <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
-        {!quoteStep && <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleFill ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        {/* Khối Logistics nhúng dưới khối Sourcing (xem/điền thông tin đơn ở RFQ) không lặp lại thanh tab Sale/Logistics: khối trên đã có. */}
+        {!quoteStep && !(embedded && desk === "logistics") && <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleFill ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {([
             ["sale", "Sale"],
             ["sourcing", "Sourcing"],
