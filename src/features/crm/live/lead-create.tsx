@@ -58,7 +58,7 @@ export function LeadCreate({
     const details: Details = {
       phone: draft.phone, brand: draft.brand, customerType: draft.customerType,
       careChannel: draft.careChannel, productInterest: draft.goods,
-      quantityNote: draft.quantityNote, address: draft.address, saleNote: draft.note,
+      quantityNote: draft.demand === "SHIPPING" ? draft.quantityNote : "", address: draft.address, saleNote: draft.note,
       requirements: [draft.goods, draft.painPoint, draft.note].filter(Boolean).join("\n\n"),
       packageDimensions: draft.packageDimensions, weightKg: draft.weightKg,
       shipToAddress: draft.shipToAddress, reason: draft.convertReason,

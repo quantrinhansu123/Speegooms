@@ -103,3 +103,14 @@ test("FCL profile needs a container class but no per-package dimensions", () => 
   assert.deepEqual(missingQuoteFields({ ...complete, logisticsClass: "FCL", packageDimensions: null }), []);
   assert.deepEqual(missingQuoteFields({ ...complete, logisticsClass: null }), ["LCL/FCL"]);
 });
+
+test("khách Sourcing không bắt buộc Số lượng, khách Logistics vẫn bắt buộc", async () => {
+  const { convertMessageSchema } = await import("@speego/shared");
+  assert.deepEqual(missingQuoteFields({ ...complete, customerKind: "SOURCING", quantityNote: "" }), []);
+  assert.ok(missingQuoteFields({ ...complete, quantityNote: "" }).includes("Số lượng"));
+  const base = { phone: "0900000000", brand: "SOURCING", customerType: "INDIVIDUAL", careChannel: "ZALO", productInterest: "Ghế", address: "HN", saleNote: "Ghi chú", requirements: "Yêu cầu" };
+  assert.equal(convertMessageSchema.safeParse(base).success, true);
+  const shipping = convertMessageSchema.safeParse({ ...base, shippingMode: "AIR", weightKg: "10", shipToAddress: "HCM", packageDimensions: "10x10x10", reason: "Cần gửi" });
+  assert.equal(shipping.success, false);
+  assert.ok(!shipping.success && shipping.error.issues.some((issue) => issue.path[0] === "quantityNote" && issue.message === "Nhập số lượng"));
+});

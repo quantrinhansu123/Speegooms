@@ -488,7 +488,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               >
                 <Input id="pot-goods" value={draft.productInterest} onChange={(event) => setDraft({ ...draft, productInterest: event.target.value })} />
               </Field>
-              <Field label="Số lượng" htmlFor="pot-qty" required>
+              <Field label="Số lượng" htmlFor="pot-qty" required={draft.customerKind === "LOGISTICS"}>
                 <Input id="pot-qty" value={draft.quantityNote} onChange={(event) => setDraft({ ...draft, quantityNote: event.target.value })} />
               </Field>
               <Field

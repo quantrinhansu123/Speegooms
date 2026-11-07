@@ -141,7 +141,8 @@ export const convertMessageSchema = z.object({
   address: z.string().trim().min(1, "Nhập địa chỉ").max(300),
   saleNote: z.string().trim().min(1, "Nhập ghi chú sale").max(2000),
   requirements: z.string().trim().min(1, "Nhập yêu cầu của khách").max(8000),
-  quantityNote: z.string().trim().min(1, "Nhập số lượng").max(500),
+  /** Chỉ bắt buộc với khách Logistics (có phương thức vận chuyển); đơn Sourcing ghi số lượng trên từng dòng hàng. */
+  quantityNote: text(500).optional(),
   packageDimensions: text(500).optional(),
   weightKg: text(500).optional(),
   shippingMode: shippingModeSchema.optional(),
@@ -154,6 +155,7 @@ export const convertMessageSchema = z.object({
   )).max(20, "Tối đa 20 ảnh").default([]),
   reason: z.string().trim().max(2000).default(""),
 }).superRefine((input, ctx) => {
+  if (input.shippingMode && !input.quantityNote?.trim()) ctx.addIssue({ code: "custom", message: "Nhập số lượng", path: ["quantityNote"] });
   if (input.shippingMode && !input.weightKg?.trim()) ctx.addIssue({ code: "custom", message: "Nhập trọng lượng", path: ["weightKg"] });
   if (input.shippingMode && !input.shipToAddress?.trim()) ctx.addIssue({ code: "custom", message: "Nhập địa chỉ nhận hàng", path: ["shipToAddress"] });
   if (input.shippingMode && input.logisticsClass !== "FCL" && !input.packageDimensions?.trim()) ctx.addIssue({ code: "custom", message: "Nhập kích thước kiện hàng", path: ["packageDimensions"] });

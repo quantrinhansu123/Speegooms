@@ -48,7 +48,7 @@ const requiredLogisticsFields = [
 export function missingQuoteFields(row: QuoteFields): string[] {
   const requiredFields = row.customerKind === "LOGISTICS"
     ? [...requiredQuoteFields, ...requiredLogisticsFields]
-    : requiredQuoteFields;
+    : requiredQuoteFields.filter(([field]) => field !== "quantityNote");
   const missing: string[] = requiredFields
     .filter(([field]) => !row[field]?.trim())
     .map(([, label]) => label);
