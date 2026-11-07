@@ -73,20 +73,32 @@ const receivedOn = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày không đúng định dạng")
   .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00+07:00`)), "Ngày không hợp lệ");
 
+/** Mess chỉ kiểm tra định dạng SĐT/email khi có nhập; không bắt buộc phải có. */
+function contactFormat(value: { phone: string; email: string }, ctx: z.RefinementCtx) {
+  if (value.phone && !/^\d+$/.test(value.phone)) {
+    ctx.addIssue({ code: "custom", message: "Số điện thoại chỉ được chứa số", path: ["phone"] });
+  }
+  if (value.email && !z.string().email().safeParse(value.email).success) {
+    ctx.addIssue({ code: "custom", message: "Email không đúng định dạng", path: ["email"] });
+  }
+}
+
 const messageFields = {
   customerName: z.string().trim().min(1, "Nhập tên khách").max(160),
   phone: text(30),
   email: text(160),
+  /** Nguồn (SPEEGO NAIL, SPEEGO US…). Khách tiềm năng chuyển từ mess dùng luôn nguồn này. */
+  brand: leadBrandSchema.optional(),
   goods: text(500),
   industry: industryCategorySchema.optional(),
   note: text(2000),
   demand: messageDemandSchema.optional(),
   customerType: customerTypeSchema.optional(),
   receivedOn: receivedOn.optional(),
-  market: text(160),
+  market: z.string().trim().min(1, "Nhập thị trường").max(160),
   classification: messageClassificationSchema.optional(),
   saleName: text(160),
-  painPoint: z.string().trim().min(1, "Nhập Pain-Point của KH").max(2000),
+  painPoint: text(2000),
   linkMess: text(500),
   /** Nháp thông tin sản phẩm/đơn hàng do Sale nhập trên mess. undefined: giữ nguyên, null: xóa. */
   order: z.lazy(() => quoteOrderSchema).nullish(),
@@ -96,9 +108,9 @@ const messageFields = {
  * `source: "OTHER"` (Khác): khách Sale tạo tay ở màn Khách hàng tiềm năng, không đến từ kênh quảng cáo/mess.
  * Bỏ trống thì giữ nguồn mặc định của mess.
  */
-export const createMessageSchema = z.object({ ...messageFields, source: z.literal("OTHER").optional() }).superRefine(contact);
+export const createMessageSchema = z.object({ ...messageFields, source: z.literal("OTHER").optional() }).superRefine(contactFormat);
 
-export const updateMessageSchema = z.object(messageFields).superRefine(contact);
+export const updateMessageSchema = z.object(messageFields).superRefine(contactFormat);
 
 export const updatePotentialSchema = z
   .object({
@@ -134,7 +146,8 @@ export const updatePotentialSchema = z
 
 export const convertMessageSchema = z.object({
   phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(/^\d+$/, "Số điện thoại chỉ được chứa số"),
-  brand: z.enum(leadBrandSchema.options, { error: "Chọn nguồn" }),
+  /** Bỏ trống thì lấy Nguồn đã chọn trên mess. */
+  brand: leadBrandSchema.optional(),
   customerType: z.enum(customerTypeSchema.options, { error: "Chọn đối tượng" }),
   careChannel: z.enum(careChannelSchema.options, { error: "Chọn kênh chăm sóc" }),
   productInterest: z.string().trim().min(1, "Nhập hàng hóa").max(500),
@@ -183,6 +196,9 @@ const uuidText = z.string().regex(
 );
 
 const amount = z.number().min(0, "Số không được âm").max(1_000_000_000).nullable();
+
+/** Tỷ giá quy đổi VND: số VND cho 1 đơn vị ngoại tệ. */
+const vndRate = z.number().finite().positive("Tỷ giá quy đổi VND phải lớn hơn 0").max(10_000_000).nullable();
 
 const dim = z.number().min(0, "Số không được âm").max(100_000);
 
@@ -289,9 +305,11 @@ export const quoteFreightSchema = z.object({
   /** Tổng chi phí. Khi totalManual = false, in sẽ tính rate × cân nặng tính phí. */
   total: amount,
   totalManual: z.boolean().default(false),
+  /** Số VND cho 1 đơn vị loại tiền chi phí logistics, để quy đổi tổng về VND (không in ra phiếu). */
+  vndRate: vndRate.optional(),
 });
 
-export const emptyQuoteFreight = { rate: null, cbmRate: null, basis: "kg" as const, currency: "", total: null, totalManual: false };
+export const emptyQuoteFreight = { rate: null, cbmRate: null, basis: "kg" as const, currency: "", total: null, totalManual: false, vndRate: null };
 
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({
@@ -585,15 +603,24 @@ export const contractPaymentLineSchema = z.object({
   amount: money,
   /** Loại tiền của lần chuyển khoản. Cùng danh sách với ô Tỷ giá trên đơn hàng. */
   currency: quoteCurrencySchema.default("VND"),
+  /**
+   * Tỷ giá của lần này: 1 đơn vị tiền hợp đồng = bao nhiêu đơn vị loại tiền khách trả (ví dụ HĐ USD, trả VND: 25.500).
+   * Riêng hợp đồng tính bằng VND thì ngược lại: 1 đơn vị loại tiền khách trả = bao nhiêu VND.
+   */
   exchangeRate: z.number().finite().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).nullable().default(null),
   paidOn: day,
   note: text(300),
   images: z.array(contractImage).max(10, "Tối đa 10 ảnh mỗi lần thanh toán").default([]),
 });
 
+/** Tỷ giá quy đổi VND theo từng loại tiền của hợp đồng (mã tiền → số VND cho 1 đơn vị). */
+export const contractVndRatesSchema = z.record(z.string().regex(/^[A-Z]{3}$/), z.number().finite().positive("Tỷ giá quy đổi VND phải lớn hơn 0").max(10_000_000));
+
 /** Sale cập nhật các lần thanh toán + ảnh bill theo từng lần; không sửa các cột thương mại khác. */
 export const saleContractPaymentSchema = z.object({
   payments: z.array(contractPaymentLineSchema).max(50, "Tối đa 50 lần thanh toán"),
+  /** Tỷ giá quy đổi VND của các khoản ngoại tệ trên hợp đồng. Bỏ trống thì giữ nguyên. */
+  vndRates: contractVndRatesSchema.optional(),
 });
 
 /** Một lần kế toán xác nhận số tiền (kèm ảnh về TK của lần đó). */

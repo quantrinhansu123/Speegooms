@@ -457,8 +457,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Email" htmlFor="pot-email">
                 <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
               </Field>
-              <Field label="Nguồn" htmlFor="pot-brand" required>
-                <NativeSelect id="pot-brand" value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
+              <Field label="Nguồn" htmlFor="pot-brand" required hint={editing?.messId && editing.brand ? `Lấy theo Nguồn trên mess ${editing.messCode ?? ""}`.trim() : undefined}>
+                <NativeSelect id="pot-brand" disabled={Boolean(editing?.messId && editing.brand)} value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
                   <option value="">Chưa chọn</option>
                   {brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>

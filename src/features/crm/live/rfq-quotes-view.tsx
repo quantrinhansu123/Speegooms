@@ -1,6 +1,6 @@
 "use client";
 
-import { quoteAmount } from "@speego/shared";
+import { quoteVndAmount } from "@speego/shared";
 
 import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
 
@@ -17,6 +17,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
@@ -95,6 +96,23 @@ function optionLabel(row: PotentialRecord): string {
   return `${row.leadCode} — ${row.fullName || "Chưa có tên"}${company}`;
 }
 
+/** Đã gửi báo giá thì mới có tổng. Nháp đơn hàng khi trạng thái còn "Chưa có báo giá" không tính. */
+function quoteIssued(status: string | null | undefined): boolean {
+  return status === "DA_CO_BAO_GIA" || status === "DA_CO_BAO_GIA_LAI";
+}
+
+/** Tổng báo giá hiển thị theo VND; báo giá ngoại tệ ghi thêm số gốc bên dưới (chỉ trên màn hình, không in). */
+function VndTotal({ total }: { total: ReturnType<typeof quoteVndAmount> }) {
+  if (total.amount == null) return <>—</>;
+  if (total.currency === "VND") return <>{formatMoney(total.amount, "VND")}</>;
+  return (
+    <span className="inline-flex flex-col">
+      {total.vnd != null ? <span>{formatMoney(total.vnd, "VND")}</span> : <span className="text-xs text-warning">Chưa có tỷ giá VND</span>}
+      <span className="text-xs text-muted-foreground">{formatMoney(total.amount, total.currency)}</span>
+    </span>
+  );
+}
+
 function viewableQuote(row: RfqQuoteRecord): RfqQuoteRecord {
   return printableRfqQuote(row) ?? row;
 }
@@ -109,9 +127,10 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
   const rowsWithTotals = useMemo(() => rows.map((row) => ({
     row,
-    sourcingTotal: row.desk === "sourcing" ? quoteAmount(row, "sourcing") : null,
-    logisticsTotal: row.desk === "logistics" ? quoteAmount(row, "logistics")
-      : row.logisticsSheet ? quoteAmount(logisticsQuote(row), "logistics") : null,
+    sourcingTotal: row.desk === "sourcing" && quoteIssued(row.quoteStatus) ? quoteVndAmount(row, "sourcing") : null,
+    logisticsTotal: row.desk === "logistics"
+      ? (quoteIssued(row.quoteStatus) ? quoteVndAmount(row, "logistics") : null)
+      : row.logisticsSheet && quoteIssued(logisticsQuote(row)?.quoteStatus) ? quoteVndAmount(logisticsQuote(row), "logistics") : null,
   })), [rows]);
   const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -179,7 +198,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     loadPotentials();
   }, [loadPotentials]);
 
-  useNotificationRefresh(loadQuotes);
+  /** Sourcing, Logistics hoặc Sale gửi qua lại: tải lại báo giá và khách tiềm năng mỗi 30 giây, và ngay khi có thông báo mới. */
+  usePolling(load);
+  useNotificationRefresh(load);
 
   const choices = potentials.filter((row) => {
     if (!draft) return false;
@@ -414,6 +435,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Sourcing</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng tiền Logistics</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng (VND)</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Lý do không/chưa chốt</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
@@ -422,7 +444,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
+              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
@@ -464,8 +486,14 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     </div>
                   ) : <ValidityBadge sent={row.sentQuote} status={row.quoteStatus} />}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal?.amount == null ? "—" : formatMoney(sourcingTotal.amount, sourcingTotal.currency)}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{!logisticsTotal ? "—" : logisticsTotal.amount == null ? "Chưa đủ số tiền" : formatMoney(logisticsTotal.amount, logisticsTotal.currency)}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{sourcingTotal?.amount == null ? "—" : <VndTotal total={sourcingTotal} />}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{!logisticsTotal ? "—" : logisticsTotal.amount == null ? "Chưa đủ số tiền" : <VndTotal total={logisticsTotal} />}</td>
+                <td className="px-3 py-3 whitespace-nowrap font-medium">{(() => {
+                  const parts = [sourcingTotal, logisticsTotal].filter((item) => item?.amount != null);
+                  if (parts.length === 0) return "—";
+                  if (parts.some((item) => item!.vnd == null)) return <span className="text-xs font-normal text-warning">Chưa đủ tỷ giá VND</span>;
+                  return formatMoney(parts.reduce((sum, item) => sum + item!.vnd!, 0), "VND");
+                })()}</td>
                 <td className="px-3 py-3"><ContractStatusBadge value={row.contractStatus} /></td>
                 <td className="max-w-72 px-3 py-3">
                   <div className="flex items-start gap-2">

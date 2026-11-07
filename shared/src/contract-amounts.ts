@@ -8,6 +8,8 @@ export type MoneyAmount = { currency: string; amount: number; converted?: number
 export type ContractAmounts = {
   product: MoneyAmount[];
   shipping: MoneyAmount[];
+  /** Tỷ giá quy đổi VND theo từng loại tiền (số VND cho 1 đơn vị). */
+  vndRates?: Record<string, number>;
 };
 
 type AmountSheet = {
@@ -87,7 +89,8 @@ export function paymentsInMain(paid: (MoneyAmount & { exchangeRate?: number | nu
   }
   return paid.map((line) => {
     if (line.currency !== main && line.exchangeRate != null && line.exchangeRate > 0) {
-      return { currency: main, amount: round2(line.amount / line.exchangeRate) };
+      // HĐ tính bằng VND: tỷ giá là số VND cho 1 đơn vị loại tiền nhận; còn lại: số đơn vị loại tiền nhận cho 1 đơn vị tiền HĐ.
+      return { currency: main, amount: round2(main === "VND" ? line.amount * line.exchangeRate : line.amount / line.exchangeRate) };
     }
     const rate = line.currency === main ? undefined : rates.get(line.currency);
     return rate ? { currency: main, amount: round2(line.amount * rate) } : { currency: line.currency, amount: line.amount };
@@ -113,5 +116,101 @@ export function remainderByCurrency(totals: MoneyAmount[], paidCurrency: string,
 export function contractAmountsFromQuote(sourcing: AmountSheet | null | undefined, logistics: AmountSheet | null | undefined): ContractAmounts {
   const product = productAmounts(selectedOrder(sourcing));
   const shipping = shippingAmount(logistics);
-  return { product, shipping: shipping ? [shipping] : [] };
+  return { product, shipping: shipping ? [shipping] : [], vndRates: quoteVndRates(sourcing, logistics) };
+}
+
+/** Tỷ giá VND lấy từ báo giá: tỷ giá đơn hàng cho tiền hàng, tỷ giá phần logistics cho chi phí vận chuyển. */
+export function quoteVndRates(sourcing: AmountSheet | null | undefined, logistics: AmountSheet | null | undefined): Record<string, number> {
+  const rates: Record<string, number> = {};
+  const order = selectedOrder(sourcing);
+  const orderCurrency = (order?.currency || "VND").toUpperCase();
+  if (orderCurrency !== "VND" && order?.rate) rates[orderCurrency] = order.rate;
+  for (const column of order?.priceColumns ?? []) if (column.currency !== "VND" && column.rate && !rates[column.currency]) rates[column.currency] = column.rate;
+  if (logistics?.notes) {
+    const shipping = quoteAmount({ ...logistics, orders: logistics.orders ?? [], notes: logistics.notes }, "logistics");
+    if (shipping.currency !== "VND" && shipping.rate) rates[shipping.currency] = shipping.rate;
+  }
+  return rates;
+}
+
+/** Tỷ giá quy đổi VND của hợp đồng: mã tiền → số VND cho 1 đơn vị. */
+export type VndRates = Record<string, number>;
+
+/**
+ * Một lần thu tiền (thanh toán của Sale hoặc xác nhận của Kế toán).
+ * `exchangeRate`: 1 đơn vị tiền hợp đồng = bao nhiêu đơn vị loại tiền nhận (HĐ USD, nhận VND: 25.500).
+ * Hợp đồng tính bằng VND thì ngược lại: 1 đơn vị loại tiền nhận = bao nhiêu VND.
+ */
+export type ReceivedLine = { currency: string; amount: number; exchangeRate?: number | null };
+
+/** Số VND cho 1 đơn vị loại tiền. VND = 1; chưa có tỷ giá trả null. */
+export function vndRateOf(currency: string, rates: VndRates | null | undefined): number | null {
+  if (currency === "VND") return 1;
+  const rate = rates?.[currency];
+  return rate != null && Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+/** Tổng một nhóm khoản quy về VND. Null khi có khoản ngoại tệ chưa có tỷ giá. */
+export function linesInVnd(lines: MoneyAmount[], rates: VndRates | null | undefined): number | null {
+  let total = 0;
+  for (const line of lines) {
+    const rate = vndRateOf(line.currency, rates);
+    if (rate == null) return null;
+    total += line.amount * rate;
+  }
+  return Math.round(total);
+}
+
+/** Một lần thu quy về loại tiền hợp đồng theo tỷ giá của chính lần đó. Null khi thiếu tỷ giá. */
+export function receivedLineInMain(line: ReceivedLine, main: string): number | null {
+  if (line.currency === main) return line.amount;
+  const rate = line.exchangeRate;
+  if (rate == null || !Number.isFinite(rate) || rate <= 0) return null;
+  return round2(main === "VND" ? line.amount * rate : line.amount / rate);
+}
+
+/** Tổng các lần thu quy về loại tiền hợp đồng. Null khi có lần ngoại tệ thiếu tỷ giá. */
+export function receivedInMain(lines: ReceivedLine[], main: string): number | null {
+  let total = 0;
+  for (const line of lines) {
+    if (!(line.amount > 0)) continue;
+    const value = receivedLineInMain(line, main);
+    if (value == null) return null;
+    total += value;
+  }
+  return round2(total);
+}
+
+/**
+ * Số liệu hợp đồng theo VND để làm báo cáo: tổng Sourcing, Logistics, tổng giá trị, đã thu, còn lại.
+ * Tính toán theo loại tiền hợp đồng: mỗi lần thu quy về tiền hợp đồng bằng tỷ giá của chính lần đó, còn lại = tổng - đã thu
+ * (cùng loại tiền hợp đồng), rồi mới đổi sang VND theo tỷ giá của hợp đồng. Nên khách trả đủ thì còn lại đúng bằng 0
+ * dù tỷ giá lúc trả khác lúc ký. Số "đã thu" hiển thị là số tiền thật nhận: lần trả bằng VND giữ nguyên số VND.
+ * Null khi thiếu tỷ giá.
+ */
+export function contractVndSummary(amounts: ContractAmounts, paid: ReceivedLine[], main: string) {
+  const rates = amounts.vndRates;
+  const product = linesInVnd(amounts.product, rates);
+  const shipping = linesInVnd(amounts.shipping, rates);
+  const total = product == null || shipping == null ? null : product + shipping;
+  const mainRate = vndRateOf(main, rates);
+  const paidMain = receivedInMain(paid, main);
+  let received: number | null = mainRate == null ? null : 0;
+  for (const line of paid) {
+    if (received == null) break;
+    if (!(line.amount > 0)) continue;
+    if (line.currency === "VND") { received += line.amount; continue; }
+    const value = receivedLineInMain(line, main);
+    received = value == null ? null : received + value * mainRate!;
+  }
+  if (received != null) received = Math.round(received);
+  const totals = totalsInMain(amounts, main);
+  const totalMain = totals.length === 1 && totals[0].currency === main ? totals[0].amount : null;
+  const remaining = totalMain != null && paidMain != null && mainRate != null
+    ? Math.round((totalMain - paidMain) * mainRate)
+    : total == null || received == null ? null : total - received;
+  /** Các loại tiền trên hợp đồng còn thiếu tỷ giá quy đổi VND. */
+  const missing = [...new Set([...amounts.product, ...amounts.shipping].map((line) => line.currency))]
+    .filter((currency) => vndRateOf(currency, rates) == null);
+  return { product, shipping, total, received, remaining, missing };
 }

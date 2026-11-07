@@ -19,6 +19,8 @@ export interface MessageRecord {
   saleName: string | null;
   painPoint: string | null;
   linkMess: string | null;
+  /** Nguồn của mess; khách tiềm năng chuyển từ mess lấy nguồn này. */
+  brand: string | null;
   /** Nháp thông tin sản phẩm/đơn hàng do Sale nhập trên mess. */
   order: QuoteOrder | null;
   receivedAt: string;

@@ -44,6 +44,7 @@ import {
   type QuoteTemplateRecord,
 } from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
+import { cn } from "@/lib/utils";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
@@ -162,6 +163,7 @@ function FreightCostEditor({
   /** Kg chỉ hiện cân tính phí, CBM chỉ hiện thể tích, trọn gói không cần cả hai (tiền cước nhập tay). */
   const usesKg = freight.basis === "kg" || freight.basis === "both";
   const usesCbm = freight.basis === "cbm" || freight.basis === "both";
+  const freightCurrency = freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND");
   const write = (next: QuoteNotes["freight"]) => {
     const shown = next.totalManual ? next.total : quoteFreightTotal(next, chargeableKg, chargeableCbm) ?? next.total;
     setNotes({
@@ -184,8 +186,12 @@ function FreightCostEditor({
           </NativeSelect>
         </Field>
         <Field label="Loại tiền cước" htmlFor={fieldId("freight-currency")}>
-          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes({ ...notes, freight: { ...freight, currency }, logisticsFees: (notes.logisticsFees ?? []).map((fee) => ({ ...fee, currency: "" })) })} />
+          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes({ ...notes, freight: { ...freight, currency, vndRate: currency === "VND" ? null : currency === order?.currency ? order.rate ?? null : null }, logisticsFees: (notes.logisticsFees ?? []).map((fee) => ({ ...fee, currency: "" })) })} />
         </Field>
+        {freightCurrency !== "VND" && <Field label={`Quy đổi VND: 1 ${freightCurrency} = ? VND`} htmlFor={fieldId("freight-vnd-rate")} hint="Chỉ để tổng hợp theo VND, không in ra phiếu">
+          <MoneyInput id={fieldId("freight-vnd-rate")} className={cn(freight.vndRate == null && "border-warning")} fractionDigits={4} value={freight.vndRate ?? null} disabled={!canEdit}
+            aria-label={`Tỷ giá quy đổi VND cho 1 ${freightCurrency}`} onValueChange={(vndRate) => setNotes({ ...notes, freight: { ...freight, vndRate: vndRate != null && vndRate > 0 ? vndRate : null } })} />
+        </Field>}
         {usesKg && <Field label="Giá cước / kg" htmlFor={fieldId("freight-rate")}>
           <MoneyInput id={fieldId("freight-rate")} fractionDigits={3} value={freight.rate} disabled={!canEdit} onValueChange={(rate) => write({ ...freight, rate })} aria-label="Giá cước / kg" />
         </Field>}
@@ -1232,20 +1238,42 @@ function PriceColumnPicker({
   orders,
   disabled,
   onSelect,
+  onRate,
 }: {
   orders: QuoteOrder[];
   disabled?: boolean;
   onSelect: (currency: string) => void;
+  /** Tỷ giá quy đổi VND của loại tiền đơn hàng (không in ra phiếu). */
+  onRate?: (rate: number | null) => void;
 }) {
   const selected = orders[0]?.currency || "VND";
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="font-medium">Tỷ giá</span>
-      <NativeSelect className="h-9 w-44" aria-label="Tỷ giá" disabled={disabled} value={selected} onChange={(event) => onSelect(event.target.value)}>
-        {quoteCurrencies.map((code) => (
-          <option key={code} value={code}>{code}</option>
-        ))}
-      </NativeSelect>
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="flex items-center gap-2 text-sm">
+        <span className="font-medium">Tỷ giá</span>
+        <NativeSelect className="h-9 w-44" aria-label="Tỷ giá" disabled={disabled} value={selected} onChange={(event) => onSelect(event.target.value)}>
+          {quoteCurrencies.map((code) => (
+            <option key={code} value={code}>{code}</option>
+          ))}
+        </NativeSelect>
+      </label>
+      {selected !== "VND" && onRate && (
+        <VndRateInput currency={selected} rate={orders[0]?.rate ?? null} disabled={disabled} onRate={onRate} />
+      )}
+    </div>
+  );
+}
+
+/** Ô quy đổi VND cho báo giá ngoại tệ: chỉ để tổng hợp báo cáo theo VND, không in ra phiếu. */
+function VndRateInput({ id, currency, rate, disabled, onRate }: { id?: string; currency: string; rate: number | null | undefined; disabled?: boolean; onRate: (rate: number | null) => void }) {
+  const inputId = id ?? `vnd-rate-${currency}`;
+  return (
+    <label htmlFor={inputId} className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="font-medium">Quy đổi VND: 1 {currency} =</span>
+      <MoneyInput id={inputId} className={cn("h-9 w-36", rate == null && "border-warning")} fractionDigits={4} value={rate ?? null} disabled={disabled}
+        aria-label={`Tỷ giá quy đổi VND cho 1 ${currency}`} onValueChange={(value) => onRate(value != null && value > 0 ? value : null)} />
+      <span className="text-muted-foreground">VND</span>
+      {rate == null && <span className="text-xs text-warning">Nhập để quy đổi tổng về VND</span>}
     </label>
   );
 }
@@ -1876,6 +1904,7 @@ function OrderDraftDialog({
                       orders={[order]}
                       disabled={!canEditOrderPrices}
                       onSelect={(currency) => commitOrder(selectRateColumn(orderRef.current, currency))}
+                      onRate={(rate) => commitOrder({ ...orderRef.current, rate })}
                     />
                 </div>
               )}
@@ -1927,19 +1956,22 @@ function OrderDraftDialog({
 }
 
 /**
- * Sale nhập nháp thông tin sản phẩm/đơn hàng ngay trên mess, trước khi bấm Chuyển.
- * Dùng lại form đơn hàng của bước báo giá: Tìm hàng nhập mặt hàng/ảnh/số lượng, Vận chuyển nhập thêm quy cách đóng gói. Sale không nhập giá.
+ * Nháp đơn hàng trên mess và trong hộp thoại chuyển.
+ * Tìm hàng: mặt hàng, hình ảnh, số lượng, quy cách, lưu ý. Không nhập giá, đóng gói, cân tính cước.
+ * Vận chuyển: thêm tên đơn, đơn vị, quy cách đóng gói và cân tính cước. Đóng gói không bắt buộc ở nháp; bước báo giá kiểm tra, trừ hàng biển FCL.
  */
-/** Nháp đơn hàng trên mess: cùng một form cho Tìm hàng lẫn Vận chuyển (cân tính cước, thông tin hàng hóa). Đóng gói không bắt buộc ở nháp, bước chuyển sẽ kiểm tra. */
 export function MessOrderDialog({
   order,
+  demand,
   onClose,
   onSave,
 }: {
   order: QuoteOrder | null;
+  demand: "SOURCING" | "SHIPPING";
   onClose: () => void;
   onSave: (order: QuoteOrder) => void;
 }) {
+  const sourcing = demand === "SOURCING";
   const [initial] = useState<QuoteOrder>(() => order ?? {
     id: crypto.randomUUID(),
     name: "",
@@ -1955,13 +1987,13 @@ export function MessOrderDialog({
       order={initial}
       shippingMode={null}
       pending={false}
-      sourcingSale={false}
-      pureLogistics
-      saleLogisticsOrder
-      showPackaging
+      sourcingSale={sourcing}
+      pureLogistics={!sourcing}
+      saleLogisticsOrder={!sourcing}
+      showPackaging={!sourcing}
       canEditContent
       canEditOrderPrices={false}
-      canEditPackaging
+      canEditPackaging={!sourcing}
       packagesOptional
       printLang="vi"
       quoteCode=""
@@ -3147,6 +3179,10 @@ export function QuoteEditor({
             shipmentEditable={canPriceAsLogistics}
             chargesEditable={canEditLogisticsFees}
           />}
+          {isFcl && (notes.payment?.quoteCurrency ?? "USD") !== "VND" && (
+            <VndRateInput id={fieldId("fcl-vnd-rate")} currency={notes.payment?.quoteCurrency ?? "USD"} rate={notes.freight.vndRate} disabled={!canEditLogisticsFees || pending}
+              onRate={(vndRate) => commitNotes({ ...notesRef.current, freight: { ...notesRef.current.freight, vndRate } })} />
+          )}
           {!isFcl && <LogisticsFeesEditor
             notes={notes}
             shippingMode={lead.shippingMode}
@@ -3167,7 +3203,8 @@ export function QuoteEditor({
                 {pureLogistics ? "Sale chỉ nhập thông tin đơn hàng; Logistics nhập đơn giá và thành tiền." : "Hàng hóa do Sale/Sourcing cung cấp."} Chọn tỷ giá (loại tiền), áp dụng cho mọi dòng; chọn cách tính giá theo đơn vị, kg, m2, CBM hoặc trọn gói; đơn giá nhập thế nào thì dùng thế đó, không quy đổi.
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))} />
+                <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))}
+                  onRate={(rate) => setOrders((current) => current.map((order) => ({ ...order, rate })))} />
               </div>
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">

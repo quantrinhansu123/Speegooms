@@ -49,6 +49,8 @@ export interface MessageRecord {
   saleName: string | null;
   painPoint: string | null;
   linkMess: string | null;
+  /** Nguồn của mess (SPEEGO NAIL, SPEEGO US…); khách tiềm năng lấy theo. */
+  brand: string | null;
   /** Nháp thông tin sản phẩm/đơn hàng của Sale; chuyển sang báo giá khi bấm Chuyển. */
   order: QuoteOrder | null;
   receivedAt: string;
@@ -212,7 +214,7 @@ export interface ContractRecord {
   productValue: number;
   shippingCost: number;
   /** Giá và cước theo loại tiền đã nhập. Không quy đổi chung. */
-  amounts: { product: { currency: string; amount: number; converted?: number }[]; shipping: { currency: string; amount: number; converted?: number }[] };
+  amounts: { product: { currency: string; amount: number; converted?: number }[]; shipping: { currency: string; amount: number; converted?: number }[]; vndRates?: Record<string, number> };
   totalValue: number;
   paidAmount: number;
   payments: ContractPaymentLine[];
