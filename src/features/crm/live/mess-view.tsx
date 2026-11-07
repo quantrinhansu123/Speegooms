@@ -8,7 +8,9 @@ import { InlineAlert } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-provider";
+import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { ApiError, api } from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
 import { formatDate } from "@/lib/format";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
@@ -20,7 +22,7 @@ import { RowMenu } from "./row-menu";
 import { zodFieldErrors } from "@/lib/zod-errors";
 import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
-import { customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
+import { brandOptions, customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
@@ -71,6 +73,10 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
     load();
   }, [load]);
 
+  /** Bàn khác chuyển hoặc sửa mess: tải lại mỗi 30 giây và ngay khi có thông báo mới. */
+  usePolling(load);
+  useNotificationRefresh(load);
+
   useEffect(() => {
     setKnownMarkets(marketPresets);
   }, [lane]);
@@ -96,6 +102,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       industry: draft.industry || undefined,
       customerType: draft.customerType || undefined,
       classification: draft.classification || undefined,
+      brand: draft.brand || undefined,
       // Chỉ Sale/Admin ghi nháp đơn hàng; vai trò khác không gửi để server giữ nguyên nháp cũ.
       order: canConvert ? draft.order : undefined,
     };
@@ -171,6 +178,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tên khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Nguồn</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nhu cầu</th>
@@ -185,13 +193,14 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
             {rows.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
                 <td className="px-3 py-3" title={row.customerName ?? undefined}>{row.customerName}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.receivedAt ? formatDate(dateInputFromIso(row.receivedAt)) : "—"}</td>
                 <td className="px-3 py-3">{row.market || "—"}</td>
+                <td className="whitespace-nowrap px-3 py-3">{brandOptions.find(([value]) => value === row.brand)?.[1] ?? "—"}</td>
                 <td className="px-3 py-3"><HeatBadge value={row.classification} /></td>
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="px-3 py-3"><DemandBadge value={row.demand} /></td>

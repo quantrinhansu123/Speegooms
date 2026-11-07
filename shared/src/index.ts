@@ -21,6 +21,7 @@ export {
   messageDemandSchema,
   contractPaymentFlags,
   contractPaymentLineSchema,
+  contractVndRatesSchema,
   opsContractSchema,
   opsStatusOptions,
   opsStatusSchema,
@@ -145,9 +146,17 @@ export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user
 export { isCombinedSourcing, quoteAccessKind, type QuoteWorkflow } from "./quote-workflow";
 export { logisticsOrderFromSourcing, orderHasContent, sourcingHandoffOrder } from "./quote-handoff";
 export { contractQuoteMessage, contractQuoteProblems, orderShippingChanged } from "./contract-readiness";
-export { fclChargeTotal, fclTotals, quoteAmount, quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency, shippingInCurrency, type FclQuote } from "./quote-amounts";
+export { fclChargeTotal, fclTotals, quoteAmount, quoteVndAmount, quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency, shippingInCurrency, type FclQuote } from "./quote-amounts";
 export {
   contractAmountsFromQuote,
+  contractVndSummary,
+  linesInVnd,
+  quoteVndRates,
+  receivedInMain,
+  receivedLineInMain,
+  vndRateOf,
+  type ReceivedLine,
+  type VndRates,
   productAmounts,
   remainderAfterPayments,
   remainderByCurrency,

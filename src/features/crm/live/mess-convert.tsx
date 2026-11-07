@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { convertMessageSchema, orderHasContent, updateQuoteSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { Plus } from "lucide-react";
+import { convertMessageSchema, orderHasContent, updateQuoteSchema, type CrmLane, type QuoteOrder, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApiError, api } from "@/lib/api";
-import { withShippingMetrics } from "./mess-form";
+import { orderLineCount, withShippingMetrics } from "./mess-form";
 import { orderSummary } from "./order-summary";
 import { crmPath } from "./lane";
-import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
+import { MessOrderDialog, QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { brandOptions, careChannelOptions, customerTypeOptions, type MessageRecord, type QuoteRecord } from "./types";
 import { zodFieldErrors } from "@/lib/zod-errors";
 
@@ -26,7 +27,7 @@ const convertFieldIds: Record<string, string> = {
   weightKg: "convert-weightKg", shipToAddress: "convert-shipToAddress", reason: "convert-reason",
   shippingMode: "convert-mode", logisticsClass: "convert-class",
 };
-const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", ...orderSummary(row.order), address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
+const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: row.brand ?? "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", ...orderSummary(row.order), address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
 
 /**
  * Luồng chuyển mess thành khách tiềm năng: chọn đường bay/biển (Vận chuyển) → chuyển → tạo báo giá →
@@ -47,7 +48,8 @@ export function useMessConvert({
   setNotice: (message: string | undefined) => void;
 }) {
   const [convertPending, setConvertPending] = useState(false);
-  const [converting, setConverting] = useState<{ row: MessageRecord; mode: Mode; logisticsClass: ShipClass; details: Details } | null>(null);
+  const [converting, setConverting] = useState<{ row: MessageRecord; mode: Mode; logisticsClass: ShipClass; details: Details; order: QuoteOrder | null } | null>(null);
+  const [orderDialog, setOrderDialog] = useState(false);
   const [orderQuote, setOrderQuote] = useState<QuoteRecord | null>(null);
   const [orderDesk, setOrderDesk] = useState<"sourcing" | "logistics">("logistics");
   const [orderPending, setOrderPending] = useState(false);
@@ -61,14 +63,15 @@ export function useMessConvert({
       return;
     }
     setFieldErrors({});
-    setConverting({ row, mode, logisticsClass, details: detailsFrom(row) });
+    setOrderDialog(false);
+    setConverting({ row, mode, logisticsClass, details: detailsFrom(row), order: row.order });
   };
 
-  /** Mess đã có nháp thông tin đơn hàng: đưa vào báo giá vừa tạo để Sale không phải nhập lại. */
-  const prefillOrder = async (row: MessageRecord, quote: QuoteRecord, desk: "sourcing" | "logistics", shippingMode: "AIR" | "SEA" | null): Promise<QuoteRecord | null> => {
-    if (!row.order || !orderHasContent(row.order)) return null;
+  /** Đơn nhập trong hộp thoại chuyển (hoặc nháp đã lưu trên mess): đưa vào báo giá vừa tạo để Sale không phải nhập lại. */
+  const prefillOrder = async (draft: QuoteOrder | null, quote: QuoteRecord, desk: "sourcing" | "logistics", shippingMode: "AIR" | "SEA" | null): Promise<QuoteRecord | null> => {
+    if (!draft || !orderHasContent(draft)) return null;
     // Nháp nhập khi chưa chọn đường bay/biển nên cân và CBM từng dòng phải tính lại theo hệ số của phương thức vừa chọn.
-    const order = shippingMode ? withShippingMetrics(row.order, shippingMode) : row.order;
+    const order = shippingMode ? withShippingMetrics(draft, shippingMode) : draft;
     const parsed = updateQuoteSchema.safeParse({
       templateId: quote.templateId,
       opsNote: quote.opsNote ?? "",
@@ -99,9 +102,11 @@ export function useMessConvert({
   };
 
   /** Trả về true khi mess đã chuyển thành khách tiềm năng. */
-  const convertWith = (row: MessageRecord, mode: Mode, logisticsClass: ShipClass, errorPrefix = "", details = detailsFrom(row)): Promise<boolean> => {
+  const convertWith = (row: MessageRecord, mode: Mode, logisticsClass: ShipClass, errorPrefix = "", details = detailsFrom(row), order: QuoteOrder | null = row.order): Promise<boolean> => {
     const parsed = convertMessageSchema.safeParse({
       ...details, images: [],
+      // Nguồn lấy theo mess; chỉ gửi khi mess chưa có nguồn.
+      brand: details.brand || undefined,
       // Đơn Sourcing không nhập Số lượng ở bước chuyển (số lượng nằm trên từng dòng hàng).
       quantityNote: row.demand === "SHIPPING" ? details.quantityNote : "",
       shippingMode: row.demand === "SHIPPING" ? mode || undefined : undefined,
@@ -109,6 +114,7 @@ export function useMessConvert({
     });
     /** Gom lỗi Zod và lỗi chọn phương thức theo từng ô để báo đỏ cùng lúc. */
     const errors: Record<string, string> = parsed.success ? {} : zodFieldErrors(parsed.error, convertFieldIds);
+    if (!details.brand) errors["convert-brand"] = "Chọn nguồn";
     if (row.demand === "SHIPPING" && !mode) errors["convert-mode"] = "Chọn đường bay hoặc đường biển";
     if (row.demand === "SHIPPING" && mode === "SEA" && !logisticsClass) errors["convert-class"] = "Chọn LCL hoặc FCL";
     if (!parsed.success || Object.keys(errors).length > 0) {
@@ -131,10 +137,10 @@ export function useMessConvert({
         const desk = body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing");
         // Hàng biển FCL dùng form cước riêng nên không đưa nháp đơn hàng sang.
         const skipDraft = mode === "SEA" && logisticsClass === "FCL";
-        const prefilled = skipDraft ? null : await prefillOrder(row, body.quote, desk, mode || null);
+        const prefilled = skipDraft ? null : await prefillOrder(order, body.quote, desk, mode || null);
         setOrderDesk(desk);
         setOrderQuote(prefilled ?? body.quote);
-        if (skipDraft && row.order && orderHasContent(row.order)) {
+        if (skipDraft && order && orderHasContent(order)) {
           setOrderError("Hàng biển FCL nhập ở form cước riêng nên thông tin sản phẩm đã nhập trên mess không được đưa sang. Hãy nhập lại ở đây.");
         }
         if (prefilled) await sendPrefilled(prefilled, desk);
@@ -207,13 +213,40 @@ export function useMessConvert({
 
   const dialogs = (
     <>
-      <Dialog open={converting !== null} onOpenChange={(open) => { if (!open && !convertPending) setConverting(null); }}>
+      <Dialog open={converting !== null} onOpenChange={(open) => { if (!open && !convertPending) { setOrderDialog(false); setConverting(null); } }}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Chuyển sang khách tiềm năng</DialogTitle></DialogHeader>
           {converting && <div className="grid gap-3 sm:grid-cols-2">
             {([['phone', 'Số điện thoại'], ['productInterest', 'Hàng hóa'], ['quantityNote', 'Số lượng'], ['address', 'Địa chỉ'], ['saleNote', 'Ghi chú sale']] as const).filter(([key]) => key !== 'quantityNote' || converting.row.demand === 'SHIPPING').map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
-            {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><NativeSelect id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
+            {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required hint={key === 'brand' && converting.row.brand ? 'Lấy theo Nguồn trên mess' : undefined}><NativeSelect id={`convert-${key}`} disabled={key === 'brand' && Boolean(converting.row.brand)} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
             <Field label="Yêu cầu của khách" htmlFor="convert-requirements" error={fieldErrors["convert-requirements"]} required className="sm:col-span-2"><Textarea id="convert-requirements" value={converting.details.requirements} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, requirements: event.target.value } })} /></Field>
+            <div className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Thông tin đơn hàng</p>
+                  <p className="text-sm text-muted-foreground">
+                    {orderLineCount(converting.order) > 0
+                      ? `Đã nhập ${orderLineCount(converting.order)} dòng hàng. Bấm Chuyển sẽ đưa đơn này sang báo giá.`
+                      : converting.row.demand === "SOURCING"
+                        ? "Tìm hàng: nhập mặt hàng, hình ảnh, số lượng, quy cách và lưu ý. Không nhập giá và đóng gói."
+                        : "Vận chuyển: nhập mặt hàng, số lượng, đơn vị và cân. Quy cách đóng gói có thể bổ sung ở bước báo giá."}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {orderLineCount(converting.order) > 0 && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setConverting({ ...converting, order: null })}>Xóa</Button>
+                  )}
+                  {converting.logisticsClass !== "FCL" && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => setOrderDialog(true)}>
+                      <Plus /> {orderLineCount(converting.order) > 0 ? "Sửa thông tin đơn hàng" : "Tạo thông tin đơn hàng"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {converting.row.demand === "SHIPPING" && converting.logisticsClass === "FCL" && (
+                <p className="text-xs text-muted-foreground">Hàng biển FCL nhập ở form cước riêng trên bước báo giá, nên không nhập đơn hàng ở bước này.</p>
+              )}
+            </div>
             {converting.row.demand === 'SHIPPING' && <>
               {([['weightKg', 'Trọng lượng'], ['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
               {converting.logisticsClass !== 'FCL' && <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions" error={fieldErrors["convert-dimensions"]} required><Input id="convert-dimensions" value={converting.details.packageDimensions} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, packageDimensions: event.target.value } })} /></Field>}
@@ -237,10 +270,32 @@ export function useMessConvert({
           {error && <InlineAlert>{error}</InlineAlert>}
           <DialogFooter>
             <Button variant="outline" disabled={convertPending} onClick={() => setConverting(null)}>Hủy</Button>
-            <Button disabled={convertPending} onClick={() => { if (converting) void convertWith(converting.row, converting.mode, converting.logisticsClass, "", converting.details); }}>{convertPending ? "Đang chuyển…" : "Chuyển"}</Button>
+            <Button disabled={convertPending} onClick={() => { if (converting) void convertWith(converting.row, converting.mode, converting.logisticsClass, "", converting.details, converting.order); }}>{convertPending ? "Đang chuyển…" : "Chuyển"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {orderDialog && converting && (
+        <MessOrderDialog
+          demand={converting.row.demand === "SOURCING" ? "SOURCING" : "SHIPPING"}
+          order={converting.order}
+          onClose={() => setOrderDialog(false)}
+          onSave={(order) => {
+            const summary = orderSummary(order);
+            setConverting((current) => current ? {
+              ...current,
+              order,
+              details: {
+                ...current.details,
+                quantityNote: current.details.quantityNote || summary.quantityNote,
+                packageDimensions: current.details.packageDimensions || summary.packageDimensions,
+                weightKg: current.details.weightKg || summary.weightKg,
+              },
+            } : current);
+            setOrderDialog(false);
+          }}
+        />
+      )}
 
       {orderQuote && (
         <QuoteEditor

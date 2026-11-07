@@ -1,5 +1,6 @@
 import {
   isCombinedSourcing,
+  quoteVndRates,
   fclQuoteSchema,
   quotePaymentSchema,
   paymentsInMain,
@@ -80,6 +81,7 @@ type MessageRow = {
   sale_name: string | null;
   pain_point: string | null;
   link_mess: string | null;
+  brand: string | null;
   order_info: unknown;
   received_at: Date | string;
   lead_id: string | null;
@@ -656,7 +658,7 @@ function messageSelect(message: string, potential: string): string {
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
-         m.thong_tin_don_hang as order_info,
+         m.thong_tin_don_hang as order_info, m.thuong_hieu::text as brand,
          m.nhan_luc as received_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
@@ -759,11 +761,23 @@ function amountsFromRow(row: ContractRow): ContractRecord["amounts"] {
   // Hợp đồng cũ lưu thêm giá sản phẩm quy đổi theo tỷ giá; chỉ giữ loại tiền chính của hợp đồng.
   const storedProduct = moneyParts(body?.product);
   const mainProduct = storedProduct?.filter((item) => item.currency === currency) ?? [];
+  const vndRates = vndRateMap((body as { vndRates?: unknown } | null)?.vndRates);
   return {
     product: mainProduct.length > 0 ? mainProduct : storedProduct ?? [{ currency, amount: moneyValue(row.product_value) }],
     shipping: moneyParts(body?.shipping) ?? [{ currency: shippingCurrency, amount: moneyValue(row.shipping_cost) }],
+    ...(vndRates ? { vndRates } : {}),
   };
 }
+
+function vndRateMap(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>).flatMap(([code, rate]) => {
+    const parsed = typeof rate === "number" || typeof rate === "string" ? Number(rate) : NaN;
+    return /^[A-Z]{3}$/.test(code) && Number.isFinite(parsed) && parsed > 0 ? [[code, parsed] as const] : [];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
 
 type ContractRow = {
   id: string;
@@ -1206,6 +1220,7 @@ function toMessage(row: MessageRow): MessageRecord {
     saleName: row.sale_name,
     painPoint: row.pain_point,
     linkMess: row.link_mess,
+    brand: row.brand,
     order: messageOrder(row.order_info),
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,
@@ -1299,12 +1314,13 @@ export class PostgresCrmRepository implements CrmRepository {
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang, nguon
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang, nguon,
+         thuong_hieu
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
          coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb,
-         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source)
+         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source), $17::text::crm.lead_brand
        )
        returning id::text as id`,
       [
@@ -1324,6 +1340,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.industry ?? null,
         input.order ? JSON.stringify(input.order) : null,
         input.source ?? null,
+        input.brand ?? null,
       ],
     );
     const id = inserted.rows[0]?.id;
@@ -1351,7 +1368,8 @@ export class PostgresCrmRepository implements CrmRepository {
          ghi_chu_van_de = $13,
          link_mess = $14,
          nganh_hang = $15,
-         thong_tin_don_hang = case when $16::boolean then $17::jsonb else thong_tin_don_hang end
+         thong_tin_don_hang = case when $16::boolean then $17::jsonb else thong_tin_don_hang end,
+         thuong_hieu = $18::text::crm.lead_brand
        where id = $1::uuid
        returning id::text as id`,
       [
@@ -1372,17 +1390,20 @@ export class PostgresCrmRepository implements CrmRepository {
         input.industry ?? null,
         input.order !== undefined,
         input.order ? JSON.stringify(input.order) : null,
+        input.brand ?? null,
       ],
     );
     if (!updated.rows[0]) return null;
+    // Khách tiềm năng lấy Nguồn theo mess gốc.
     await this.query(
       `update ${potentialTable} set
          ho_ten = $2,
          so_dien_thoai = $3,
          thu_dien_tu = $4,
-         san_pham_quan_tam = $5
+         san_pham_quan_tam = $5,
+         thuong_hieu = coalesce($6::text::crm.lead_brand, thuong_hieu)
        where ma_tin_nhan = $1::uuid and xoa_luc is null`,
-      [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods)],
+      [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods), input.brand ?? null],
     );
     return this.findMessage(lane, id);
   }
@@ -1402,8 +1423,8 @@ export class PostgresCrmRepository implements CrmRepository {
   async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
     return this.transaction(async (client) => {
-      const locked = await client.query<{ status: string; source: string; customer_name_raw: string | null; phone: string | null; email: string | null; goods: string | null; demand: string | null; customer_type: string | null; note: string | null }>(
-        `select trang_thai::text as status, nguon::text as source, ten_khach_hang_tho as customer_name_raw,
+      const locked = await client.query<{ status: string; source: string; customer_name_raw: string | null; phone: string | null; email: string | null; goods: string | null; demand: string | null; customer_type: string | null; note: string | null; brand: string | null }>(
+        `select trang_thai::text as status, nguon::text as source, ten_khach_hang_tho as customer_name_raw, thuong_hieu::text as brand,
                 so_dien_thoai as phone, thu_dien_tu as email, hang_hoa as goods, nhu_cau::text as demand,
                 loai_khach_hang::text as customer_type, ghi_chu as note
          from ${messageTable} where id = $1::uuid for update`,
@@ -1416,6 +1437,10 @@ export class PostgresCrmRepository implements CrmRepository {
       if (message.demand === "SHIPPING" && (!input.shippingMode || (input.shippingMode === "SEA" && !input.logisticsClass))) {
         throw new AppError(400, "VALIDATION_ERROR", "Chọn đường bay hoặc đường biển và loại LCL/FCL nếu đi biển");
       }
+      // Nguồn đi theo mess; chỉ nhận nguồn gửi lên khi mess chưa có.
+      const brand = message.brand ?? input.brand ?? null;
+      if (!brand) throw new AppError(400, "VALIDATION_ERROR", "Chọn Nguồn trên mess trước khi chuyển");
+      if (!message.brand) await client.query(`update ${messageTable} set thuong_hieu = $2::text::crm.lead_brand where id = $1::uuid`, [id, brand]);
 
       const existing = await client.query<PotentialRow>(
         `${potentialSelect(lane)} and l.ma_tin_nhan = $1::uuid`,
@@ -1442,7 +1467,7 @@ export class PostgresCrmRepository implements CrmRepository {
              null, $20, $21::text::crm.lead_brand, $22
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, input.phone, message.email, input.productInterest, kind, input.customerType, input.saleNote, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null, input.address, input.brand, input.careChannel],
+          [id, message.source, message.customer_name_raw, input.phone, message.email, input.productInterest, kind, input.customerType, input.saleNote, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null, input.address, brand, input.careChannel],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
@@ -1465,7 +1490,7 @@ export class PostgresCrmRepository implements CrmRepository {
                so_dien_thoai = $13, san_pham_quan_tam = $14, loai_khach_hang = $15::text::crm.customer_type,
                ghi_chu_ban_hang = $16, dia_chi = $17, thuong_hieu = $18::text::crm.lead_brand, kenh_cham_soc = $19
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null, input.phone, input.productInterest, input.customerType, input.saleNote, input.address, input.brand, input.careChannel],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null, input.phone, input.productInterest, input.customerType, input.saleNote, input.address, brand, input.careChannel],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
@@ -2015,9 +2040,12 @@ export class PostgresCrmRepository implements CrmRepository {
     const totalValue = shippingInMain == null ? productValue : Math.round((productValue + shippingInMain) * 100) / 100;
     input = { ...input, productValue, shippingCost, totalValue };
     if (input.paidAmount > input.totalValue) throw new AppError(400, "RULE", "Thanh toán vượt tổng hợp đồng");
+    // Tỷ giá quy đổi VND lấy theo báo giá; Sale bổ sung/sửa ở hợp đồng nếu còn thiếu.
+    const vndRates = quoteVndRates(pureLogistics ? null : source, sheet || null);
     const amounts = {
       product: productLines,
       shipping: [{ currency: shippingCurrency, amount: shippingCost, ...(shippingConverted != null ? { converted: shippingConverted } : {}) }],
+      ...(Object.keys(vndRates).length > 0 ? { vndRates } : {}),
     };
     await this.query(
       `insert into crm.hop_dong (
@@ -2114,7 +2142,9 @@ export class PostgresCrmRepository implements CrmRepository {
     const current = await this.findContractById(lane, id, "accounting");
     if (!current) return "missing" as const;
     if (!current.sentToAccountingAt) return "pending" as const;
-    if (input.confirmations.some((line) => line.currency && line.currency !== current.currency && !line.exchangeRate)) {
+    // Xác nhận bằng loại tiền khác hợp đồng cần tỷ giá của lần đó (dòng cũ giữ nguyên số tiền và loại tiền thì không bắt nhập lại).
+    if (input.confirmations.some((line, index) => line.amount > 0 && line.currency && line.currency !== current.currency && !line.exchangeRate &&
+      (current.confirmations[index]?.amount !== line.amount || current.confirmations[index]?.currency !== line.currency))) {
       throw new AppError(400, "VALIDATION", "Nhập tỷ giá cho khoản xác nhận khác loại tiền hợp đồng");
     }
     const confirmations = input.confirmations.filter(
@@ -2154,6 +2184,12 @@ export class PostgresCrmRepository implements CrmRepository {
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
     const current = await this.findContractById(lane, id, "sale");
     if (!current) return "missing" as const;
+    // Tỷ giá VND của hợp đồng: Sale có thể bổ sung/sửa; VND luôn bằng 1 nên không lưu.
+    const vndRates = { ...(current.amounts.vndRates ?? {}), ...(input.vndRates ?? {}) };
+    delete vndRates.VND;
+    const amounts = { ...current.amounts, vndRates };
+    // Khách được trả bằng bất kỳ loại tiền nào. Khác loại tiền hợp đồng thì cần tỷ giá của lần đó để quy về tiền hợp đồng
+    // (dòng cũ giữ nguyên số tiền và loại tiền thì không bắt nhập lại).
     if (input.payments.some((line, index) => line.amount > 0 && line.currency !== current.currency && !line.exchangeRate &&
       (current.payments[index]?.amount !== line.amount || current.payments[index]?.currency !== line.currency))) {
       throw new AppError(400, "VALIDATION", "Nhập tỷ giá cho khoản thanh toán khác loại tiền hợp đồng");
@@ -2161,14 +2197,16 @@ export class PostgresCrmRepository implements CrmRepository {
     const payments = input.payments.filter(
       (line) => line.amount > 0 || line.paidOn || line.note || line.images.length > 0,
     );
-    const totals = totalsInMain(current.amounts, current.currency);
-    const paidGroups = sumByCurrency([paymentsInMain(payments, current.amounts, current.currency)]);
-    if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0))) return "invalid" as const;
+    // So sánh trên loại tiền hợp đồng sau khi quy theo tỷ giá từng lần; cho phép lệch làm tròn 0,01.
+    const totals = totalsInMain(amounts, current.currency);
+    const paidGroups = sumByCurrency([paymentsInMain(payments, amounts, current.currency)]);
+    if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0) + 0.01)) return "invalid" as const;
     const paidAmount = paidGroups.find((group) => group.currency === current.currency)?.amount ?? 0;
     const updated = await this.query(
-      `update crm.hop_dong set so_tien_thanh_toan = $3
+      `update crm.hop_dong set so_tien_thanh_toan = $3,
+         khoan_tien = coalesce(khoan_tien, '{}'::jsonb) || jsonb_build_object('vndRates', $4::jsonb)
        where id = $1::uuid and tuyen = $2`,
-      [id, lane, paidAmount],
+      [id, lane, paidAmount, JSON.stringify(vndRates)],
     );
     if (!updated.rowCount) return "missing" as const;
     await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
@@ -2248,12 +2286,24 @@ export class PostgresCrmRepository implements CrmRepository {
   private async withMainTotal(lane: CrmLane, contract: ContractRecord, quotes = new Map<string, QuoteRecord | null>()): Promise<ContractRecord> {
     const main = contract.currency;
     let shipping = contract.amounts.shipping;
+    // Hợp đồng cũ chưa lưu tỷ giá VND: lấy theo báo giá gốc để vẫn quy VND được (Sale sửa được ở tab Thanh toán).
+    const currencies = [...contract.amounts.product, ...shipping].map((line) => line.currency);
+    let vndRates = contract.amounts.vndRates;
+    if (currencies.some((code) => code !== "VND" && !vndRates?.[code])) {
+      if (!quotes.has(contract.quoteId)) quotes.set(contract.quoteId, await this.findQuote(lane, "sourcing", contract.quoteId) ?? await this.findQuote(lane, "logistics", contract.quoteId));
+      const source = quotes.get(contract.quoteId) ?? null;
+      if (source) {
+        const pureLogistics = source.customerKind === "LOGISTICS";
+        const sheet = pureLogistics ? source : source.logisticsSheet && { ...source.logisticsSheet, shippingMode: source.shippingMode, logisticsClass: source.logisticsClass };
+        vndRates = { ...quoteVndRates(pureLogistics ? null : source, sheet || null), ...(vndRates ?? {}) };
+      }
+    }
     if (shipping.some((line) => line.currency !== main && line.converted == null)) {
       if (!quotes.has(contract.quoteId)) quotes.set(contract.quoteId, await this.findQuote(lane, "sourcing", contract.quoteId));
       const converted = convertedShipping(quotes.get(contract.quoteId) ?? null, main);
       if (converted != null && shipping.length === 1) shipping = [{ ...shipping[0], converted }];
     }
-    const amounts = { ...contract.amounts, shipping };
+    const amounts = { ...contract.amounts, shipping, ...(vndRates && Object.keys(vndRates).length > 0 ? { vndRates } : {}) };
     const totals = totalsInMain(amounts, main);
     if (totals.length !== 1 || totals[0].currency !== main) return { ...contract, amounts };
     const totalValue = totals[0].amount;

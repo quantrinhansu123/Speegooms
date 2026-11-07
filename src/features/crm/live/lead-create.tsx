@@ -53,6 +53,7 @@ export function LeadCreate({
     /** Gom mọi lỗi (Zod + kiểm tra riêng) theo từng ô để báo đỏ cùng lúc, không dừng ở lỗi đầu tiên. */
     const errors: Record<string, string> = {};
     if (!draft.demand) errors["mess-demand"] = "Chọn Nhu cầu: Tìm hàng (khách Sourcing) hoặc Vận chuyển (khách thuần Logistics)";
+    if (!draft.brand) errors["lead-brand"] = "Chọn nguồn";
     if (draft.demand === "SHIPPING" && !draft.shippingMode) errors["lead-mode"] = "Chọn đường bay hoặc đường biển";
     if (draft.demand === "SHIPPING" && draft.shippingMode === "SEA" && !draft.logisticsClass) errors["lead-class"] = "Chọn LCL hoặc FCL";
     const details: Details = {
@@ -65,6 +66,7 @@ export function LeadCreate({
     };
     const conversion = convertMessageSchema.safeParse({
       ...details,
+      brand: draft.brand || undefined,
       shippingMode: draft.demand === "SHIPPING" ? draft.shippingMode : undefined,
       logisticsClass: draft.demand === "SHIPPING" && draft.shippingMode === "SEA" ? draft.logisticsClass : undefined,
     });
@@ -77,6 +79,7 @@ export function LeadCreate({
       industry: draft.industry || undefined,
       customerType: draft.customerType || undefined,
       classification: draft.classification || undefined,
+      brand: draft.brand || undefined,
     });
     const fieldErrors = {
       ...(parsed.success ? {} : zodFieldErrors(parsed.error, messFieldIds)),

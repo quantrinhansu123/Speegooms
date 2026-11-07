@@ -61,27 +61,40 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   const order = sheet?.sentQuote?.order ?? sheet?.orders.find((item) => item.selected) ?? sheet?.orders[0];
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
   const currency = orderCurrencyOf(order);
-  if (!sheet || !notes) return { amount: 0, currency, rate: order?.rate ?? null };
-  if (desk === "logistics" && sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL" && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: notes.payment?.quoteCurrency ?? "USD", rate: order?.rate ?? null };
+  if (!sheet || !notes) return { amount: 0, currency, rate: currency === "VND" ? 1 : order?.rate ?? null };
+  /** Chi phí logistics ưu tiên tỷ giá VND nhập ở phần logistics, rồi mới tới tỷ giá của đơn hàng. */
+  const fcl = desk === "logistics" && sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL" && notes.fcl;
+  const logisticsCurrency = fcl ? notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(notes, currency);
+  const logisticsRate = (code: string) => code === "VND" ? 1
+    : (code === logisticsCurrency ? notes.freight?.vndRate : null) ?? rateOf(order, code);
+  if (fcl && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: logisticsCurrency, rate: logisticsRate(logisticsCurrency) };
   if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
     const freightCurrency = resolvedFreightCurrency(notes, currency);
     const buckets = new Map<string, number>();
     for (const fee of notes.logisticsFees) {
       const feeAmount = quoteMoneyValue(fee.value);
-      if (feeAmount == null) return { amount: null, currency: freightCurrency, rate: rateOf(order, freightCurrency) };
+      if (feeAmount == null) return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency) };
       // Phụ phí không ghi loại tiền thì theo loại tiền cước.
       const code = (fee.currency?.trim() || freightCurrency).toUpperCase();
       buckets.set(code, (buckets.get(code) ?? 0) + feeAmount);
     }
     if (notes.freight.total != null) buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);
     const only = buckets.size === 1 ? [...buckets][0] : undefined;
-    if (!only) return { amount: null, currency: freightCurrency, rate: rateOf(order, freightCurrency) };
+    if (!only) return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency) };
     const [totalCurrency, total] = only;
-    return { amount: Math.round(total * 1000) / 1000, currency: totalCurrency, rate: rateOf(order, totalCurrency) };
+    return { amount: Math.round(total * 1000) / 1000, currency: totalCurrency, rate: logisticsRate(totalCurrency) };
   }
   let amount = quoteMoneyValue(desk === "sourcing" ? notes.totalLabel : notes.shippingLabel);
   if (amount == null) amount = order?.lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0) ?? 0;
-  return { amount, currency, rate: order?.rate ?? null };
+  return { amount, currency, rate: desk === "logistics" ? logisticsRate(currency) : currency === "VND" ? 1 : order?.rate ?? null };
+}
+
+/** Tổng báo giá quy về VND (chỉ để hiển thị/báo cáo, không in ra phiếu). Null khi thiếu tỷ giá hoặc số tiền chưa hợp lệ. */
+export function quoteVndAmount(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics"): QuoteAmount & { vnd: number | null } {
+  const total = quoteAmount(sheet, desk);
+  const rate = total.currency === "VND" ? 1 : total.rate;
+  const vnd = total.amount == null || !rate ? null : Math.round(total.amount * rate);
+  return { ...total, vnd };
 }
 
 export function shippingInCurrency(sheet: QuoteAmountSource | null | undefined, target: { currency: string; rate: number | null }): number | null {

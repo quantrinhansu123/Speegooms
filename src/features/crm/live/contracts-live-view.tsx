@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, industryCategoryOptions, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, contractVndSummary, industryCategoryOptions, receivedLineInMain, vndRateOf, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -22,6 +22,7 @@ import {
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
 import { clipboardImageFiles } from "@/lib/clipboard-image";
 import { uploadImageFiles } from "@/lib/upload-image";
 import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } from "@/lib/format";
@@ -92,6 +93,10 @@ export type ContractRecord = {
   updatedAt: string;
 };
 
+/**
+ * `exchangeRate` của một lần thu: 1 đơn vị tiền hợp đồng = bao nhiêu đơn vị loại tiền nhận (HĐ USD, nhận VND: 25.500).
+ * Hợp đồng tính bằng VND thì ngược lại: 1 đơn vị loại tiền nhận = bao nhiêu VND.
+ */
 type PaymentDraft = { amount: string; currency: string; exchangeRate: string; paidOn: string; note: string; images: string[] };
 type ConfirmationDraft = { amount: string; currency: string; exchangeRate: string; note: string; images: string[] };
 
@@ -103,12 +108,26 @@ function emptyConfirmationDraft(currency: string): ConfirmationDraft {
   return { amount: "", currency, exchangeRate: "", note: "", images: [] };
 }
 
+/** Nhãn ô tỷ giá của một lần thu theo loại tiền hợp đồng và loại tiền nhận. */
+function rateLabel(main: string, currency: string): string {
+  return main === "VND" ? `1 ${currency} = ? VND` : `1 ${main} = ? ${currency}`;
+}
+
+function rateText(value: number | null | undefined): string {
+  return value == null ? "" : String(value);
+}
+
+function rateValue(value: string): number | null {
+  const parsed = parseMoneyInput(value);
+  return parsed != null && parsed > 0 ? parsed : null;
+}
+
 function confirmationDraftsFrom(contract: ContractRecord): ConfirmationDraft[] {
   if (contract.confirmations?.length) {
     return contract.confirmations.map((line) => ({
       amount: formatMoneyGrouped(line.amount),
       currency: line.currency || contract.currency,
-      exchangeRate: line.exchangeRate == null ? "" : String(line.exchangeRate),
+      exchangeRate: rateText(line.exchangeRate),
       note: line.note ?? "",
       images: line.images ?? [],
     }));
@@ -124,7 +143,7 @@ function paymentDraftsFrom(contract: ContractRecord): PaymentDraft[] {
     return contract.payments.map((line) => ({
       amount: formatMoneyGrouped(line.amount),
       currency: line.currency || contract.currency,
-      exchangeRate: line.exchangeRate == null ? "" : String(line.exchangeRate),
+      exchangeRate: rateText(line.exchangeRate),
       paidOn: line.paidOn ?? "",
       note: line.note ?? "",
       images: line.images ?? [],
@@ -188,15 +207,12 @@ const opsRoles: Role[] = ["admin", "van-hanh"];
 const accountingRoles: Role[] = ["admin", "ke-toan"];
 const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
-function money(value: number | null, currency: QuoteCurrency): string {
-  return value == null ? "—" : formatMoney(value, currency);
-}
-
 function enteredAmounts(row: ContractRecord): ContractAmounts {
   if (row.amounts?.product && row.amounts.shipping) return row.amounts;
   return {
     product: [{ currency: row.currency, amount: row.productValue }],
     shipping: [{ currency: row.currency, amount: row.shippingCost }],
+    vndRates: row.amounts?.vndRates,
   };
 }
 
@@ -222,6 +238,26 @@ function MoneyStack({ lines, main }: { lines: MoneyAmount[]; main?: string }) {
       ))}
     </span>
   );
+}
+
+/** Số tiền quy đổi VND; thiếu tỷ giá thì hiện số theo loại tiền gốc và nhắc nhập tỷ giá. */
+function VndMoney({ vnd, fallback }: { vnd: number | null; fallback: MoneyAmount[] }) {
+  if (vnd != null) return <>{formatMoney(vnd, "VND")}</>;
+  if (fallback.length === 0) return <>—</>;
+  return (
+    <span className="inline-flex flex-col gap-0.5 align-top">
+      <MoneyStack lines={fallback} />
+      <span className="text-xs text-warning">Chưa có tỷ giá VND</span>
+    </span>
+  );
+}
+
+/** Số liệu VND của hợp đồng trên danh sách: tổng Sourcing, Logistics, tổng, đã thu, còn lại. */
+function rowVnd(row: ContractRecord) {
+  const amounts = enteredAmounts(row);
+  const paidLines = row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [];
+  const summary = contractVndSummary(amounts, paidLines, row.currency);
+  return { amounts, paidLines, summary };
 }
 
 function shownStamp(value: string | null): string {
@@ -394,6 +430,8 @@ export function ContractsLiveView({
   const excel = useExcelImport({ kind: "contracts", lane, allLanes: canPick, enabled: canSale, onDone: () => { void load(); } });
 
   useEffect(() => { load(); }, [load]);
+  /** Sale, vận hành hoặc kế toán gửi qua lại: tải lại mỗi 30 giây và ngay khi có thông báo mới. */
+  usePolling(() => { void load(); });
   useNotificationRefresh(load);
 
   useEffect(() => {
@@ -504,6 +542,8 @@ export function ContractsLiveView({
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ngành hàng</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng tiền Sourcing</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng tiền Logistics</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng giá trị</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Đã thanh toán</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ảnh bill</th>
@@ -511,6 +551,7 @@ export function ContractsLiveView({
               <th className="min-w-40 px-3 py-2 font-medium whitespace-nowrap">Dục thanh toán để giao hàng</th>
               <th className="min-w-36 px-3 py-2 font-medium whitespace-nowrap">Đủ điều kiện đi hàng</th>
               <th className="min-w-36 px-3 py-2 font-medium whitespace-nowrap">Đủ điều kiện giao hàng</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Mã tracking</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Vận hành</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Kế toán</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Gửi lại</th>
@@ -519,12 +560,11 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
-              const amounts = enteredAmounts(row);
+              const { amounts, paidLines, summary } = rowVnd(row);
               const totals = totalsInMain(amounts, row.currency);
-              const paidLines = row.payments?.length ? row.payments : row.paidAmount > 0 ? [{ currency: row.currency, amount: row.paidAmount }] : [];
               const paidTotals = sumByCurrency([paidLines]);
               const remainders = remainderAfterPayments(totals, paymentsInMain(paidLines, amounts, row.currency));
               const flags = contractPaymentFlags({
@@ -550,8 +590,10 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={totals} /></td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={paidTotals} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.product} fallback={amounts.product} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.shipping} fallback={amounts.shipping} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.total} fallback={totals} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={paidLines.length === 0 ? null : summary.received} fallback={paidTotals} /></td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   {(() => {
                     const bills = billImagesOf(row);
@@ -567,7 +609,7 @@ export function ContractsLiveView({
                     );
                   })()}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap"><MoneyStack lines={remainders} /></td>
+                <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.remaining} fallback={remainders} /></td>
                 <td className="min-w-40 px-3 py-3">
                   <FlagCell active={flags.urgePayment} tone="danger" label={flags.urgePaymentLabel} />
                 </td>
@@ -577,6 +619,7 @@ export function ContractsLiveView({
                 <td className="min-w-36 px-3 py-3">
                   <FlagCell active={flags.eligibleToDeliver} tone="success" label={flags.eligibleToDeliverLabel} />
                 </td>
+                <td className="px-3 py-3 whitespace-nowrap" title={row.tracking || undefined}>{row.tracking || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   {row.opsStatus
                     ? <StatusBadge tone={opsStatusTone(row.opsStatus)}>{row.opsStatus}</StatusBadge>
@@ -716,6 +759,12 @@ export function ContractsLiveView({
   );
 }
 
+/** Ngoài danh sách chỉ hiện VND; chưa có tỷ giá để đổi sang VND thì hiện chữ vàng. */
+function VndOnly({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-warning">Chưa có tỷ giá VND</span>;
+  return <>{formatMoney(value, "VND")}</>;
+}
+
 function numberValue(value: string): number | null {
   return parseMoneyInput(value);
 }
@@ -754,24 +803,41 @@ function ContractDialog({
   const [accountingStatus, setAccountingStatus] = useState(contract.accountingStatus ?? "");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const savedAmounts = enteredAmounts(contract);
+  /** Tỷ giá quy đổi VND cho từng loại tiền ngoại tệ của hợp đồng (Sale sửa được). */
+  const contractCurrencies = [...new Set([...savedAmounts.product, ...savedAmounts.shipping].map((line) => line.currency))].filter((code) => code !== "VND");
+  const [vndRates, setVndRates] = useState<Record<string, string>>(() => Object.fromEntries(
+    contractCurrencies.map((code) => [code, rateText(vndRateOf(code, savedAmounts.vndRates))]),
+  ));
+  const draftRates = Object.fromEntries(Object.entries(vndRates).flatMap(([code, text]) => {
+    const rate = rateValue(text);
+    return rate == null ? [] : [[code, rate] as const];
+  }));
+  const amounts: ContractAmounts = canSale ? { ...savedAmounts, vndRates: { ...(savedAmounts.vndRates ?? {}), ...draftRates } } : savedAmounts;
   const draftPaid = payments.flatMap((line) => {
     const amount = numberValue(line.amount);
-    return amount == null ? [] : [{ currency: line.currency || contract.currency, amount, exchangeRate: Number(line.exchangeRate) || null }];
+    return amount == null ? [] : [{ currency: line.currency || contract.currency, amount, exchangeRate: rateValue(line.exchangeRate) }];
   });
   const savedPaid = contract.payments;
   const paidLines = canSale ? draftPaid : savedPaid;
-  const amounts = enteredAmounts(contract);
-  const paidTotals = sumByCurrency([paidLines]);
   const paidInMain = paymentsInMain(paidLines, amounts, contract.currency);
   const paidValue = sumByCurrency([paidInMain]).find((line) => line.currency === contract.currency)?.amount ?? 0;
-  const confirmedLines = confirmations.map((line) => ({ amount: numberValue(line.amount) ?? 0, currency: line.currency, exchangeRate: Number(line.exchangeRate) || null }));
-  const confirmedTotals = sumByCurrency([confirmedLines]);
+  const confirmedLines = confirmations.map((line) => ({ amount: numberValue(line.amount) ?? 0, currency: line.currency, exchangeRate: rateValue(line.exchangeRate) }));
   const confirmedValue = sumByCurrency([paymentsInMain(confirmedLines, amounts, contract.currency)])
     .find((line) => line.currency === contract.currency)?.amount ?? 0;
   const balanceValue = Math.max(0, contract.totalValue - paidValue);
   const amountTotals = totalsInMain(amounts, contract.currency);
-  const remainders = remainderAfterPayments(amountTotals, paidInMain);
   const currencies = amountTotals.map((item) => item.currency).join(", ") || contract.currency;
+  const vnd = contractVndSummary(amounts, paidLines, contract.currency);
+  /** Ngoài danh sách chỉ hiện VND: chưa có lần thu nào thì là 0 đ, còn thiếu tỷ giá thì null (hiện chữ vàng). */
+  const paidVnd = paidLines.some((line) => line.amount > 0) ? vnd.received : 0;
+  const confirmedVnd = confirmedLines.some((line) => line.amount > 0) ? contractVndSummary(amounts, confirmedLines, contract.currency).received : 0;
+  const lineVnd = (line: { amount: number; currency: string; exchangeRate: number | null }): number | null => {
+    if (line.currency === "VND") return Math.round(line.amount);
+    const inMain = receivedLineInMain({ ...line, currency: line.currency || contract.currency }, contract.currency);
+    const rate = vndRateOf(contract.currency, amounts.vndRates);
+    return inMain == null || rate == null ? null : Math.round(inMain * rate);
+  };
   const paymentFlags = contractPaymentFlags({
     totalValue: contract.totalValue,
     confirmedAmount: confirmedValue,
@@ -781,6 +847,19 @@ function ContractDialog({
     accountingStatus: accountingStatus || contract.accountingStatus,
     opsStatus,
   });
+  /** Đổi loại tiền nhận: điền sẵn tỷ giá tham khảo hôm nay (số VND của mỗi loại tiền); không lấy được thì Sale tự nhập. */
+  const suggestRate = async (currency: string, apply: (rate: string) => void) => {
+    const main = contract.currency;
+    if (currency === main) return apply("");
+    const vndPer = async (code: string) => code === "VND" ? 1 : (await api<{ rate: number }>(`/api/crm/exchange-rate?currency=${code}`)).rate;
+    try {
+      const [mainVnd, otherVnd] = await Promise.all([vndPer(main), vndPer(currency)]);
+      const rate = main === "VND" ? otherVnd : mainVnd / otherVnd;
+      if (Number.isFinite(rate) && rate > 0) apply(formatMoneyGrouped(rate, 4));
+    } catch {
+      // Không lấy được tỷ giá tham khảo: Sale tự nhập.
+    }
+  };
 
   const updatePayment = (index: number, patch: Partial<PaymentDraft>) => {
     setPayments((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
@@ -792,27 +871,32 @@ function ContractDialog({
 
   const saveCommercial = async (resendAfter: boolean) => {
     const parsed = saleContractPaymentSchema.safeParse({
-      payments: payments.map((line) => ({
-        amount: numberValue(line.amount) ?? 0,
-        currency: line.currency || contract.currency,
-        exchangeRate: line.currency === contract.currency ? null : Number(line.exchangeRate) || null,
-        paidOn: line.paidOn,
-        note: line.note,
-        images: line.images,
-      })),
+      payments: payments.map((line) => {
+        const currency = line.currency || contract.currency;
+        return {
+          amount: numberValue(line.amount) ?? 0,
+          currency,
+          exchangeRate: currency === contract.currency ? null : rateValue(line.exchangeRate),
+          paidOn: line.paidOn,
+          note: line.note,
+          images: line.images,
+        };
+      }),
+      vndRates: draftRates,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Thông tin thanh toán chưa đúng");
       return;
     }
-    if (parsed.data.payments.some((line, index) => line.amount > 0 && line.currency !== contract.currency && !line.exchangeRate &&
-      (contract.payments[index]?.amount !== line.amount || contract.payments[index]?.currency !== line.currency))) {
-      setError("Nhập tỷ giá cho khoản thanh toán khác loại tiền hợp đồng");
+    const missingRate = parsed.data.payments.find((line, index) => line.amount > 0 && line.currency !== contract.currency && !line.exchangeRate
+      && (contract.payments[index]?.amount !== line.amount || contract.payments[index]?.currency !== line.currency));
+    if (missingRate) {
+      setError(`Nhập tỷ giá (${rateLabel(contract.currency, missingRate.currency)}) cho khoản thanh toán bằng ${missingRate.currency}`);
       return;
     }
-    const over = sumByCurrency([paymentsInMain(parsed.data.payments, amounts, contract.currency)]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0));
+    const over = sumByCurrency([paymentsInMain(parsed.data.payments, amounts, contract.currency)]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0) + 0.01);
     if (over) {
-      setError(`Số tiền ${over.currency} lớn hơn tổng ${over.currency}`);
+      setError(`Tổng đã thanh toán (${over.currency}) lớn hơn tổng giá trị hợp đồng`);
       return;
     }
     setPending(true);
@@ -865,7 +949,7 @@ function ContractDialog({
       confirmations: confirmations.map((line) => ({
         amount: numberValue(line.amount) ?? Number.NaN,
         currency: line.currency,
-        exchangeRate: line.currency === contract.currency ? null : Number(line.exchangeRate) || null,
+        exchangeRate: line.currency === contract.currency ? null : rateValue(line.exchangeRate),
         note: line.note,
         images: line.images,
       })),
@@ -874,8 +958,10 @@ function ContractDialog({
       setError(parsed.error.issues[0]?.message ?? "Thông tin kế toán chưa đúng");
       return;
     }
-    if (parsed.data.confirmations.some((line) => line.currency !== contract.currency && !line.exchangeRate)) {
-      setError("Nhập tỷ giá cho khoản xác nhận khác loại tiền hợp đồng");
+    const missingRate = parsed.data.confirmations.find((line, index) => line.currency && line.currency !== contract.currency && !line.exchangeRate
+      && (contract.confirmations[index]?.amount !== line.amount || contract.confirmations[index]?.currency !== line.currency));
+    if (missingRate) {
+      setError(`Nhập tỷ giá (${rateLabel(contract.currency, missingRate.currency!)}) cho khoản xác nhận bằng ${missingRate.currency}`);
       return;
     }
     setPending(true);
@@ -963,7 +1049,7 @@ function ContractDialog({
         </p>
         {error && <InlineAlert>{error}</InlineAlert>}
         <Tabs defaultValue={defaultTab} className="min-h-0 flex-1 overflow-hidden">
-          <TabsList className="h-auto min-h-0 w-full flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
+          <TabsList className="h-auto min-h-0 w-full shrink-0 flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
             {([
               ["hop-dong", "Hợp đồng"],
               ["thanh-toan", "Thanh toán"],
@@ -980,7 +1066,7 @@ function ContractDialog({
             ))}
           </TabsList>
 
-          <TabsContent value="hop-dong" className="mt-3 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
+          <TabsContent value="hop-dong" className="mt-3 min-h-0 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
               <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
@@ -990,11 +1076,11 @@ function ContractDialog({
               <p className="sm:col-span-2"><span className="text-muted-foreground">Sản phẩm: </span>{contract.product || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} /></p>
-              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} /></p>
-              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} /></p>
-              <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} /></p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><VndOnly value={vnd.product} /></p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><VndOnly value={vnd.shipping} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><VndOnly value={vnd.total} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><VndOnly value={vnd.remaining} /></p>
+              <p><span className="text-muted-foreground">Đã thanh toán: </span><VndOnly value={paidVnd} /></p>
             </section>
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3">
               <div>
@@ -1012,7 +1098,7 @@ function ContractDialog({
             </section>
           </TabsContent>
 
-          <TabsContent value="thanh-toan" className="mt-3 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
+          <TabsContent value="thanh-toan" className="mt-3 min-h-0 max-h-[min(68vh,720px)] space-y-4 overflow-y-auto pr-1">
             <section className="grid gap-2 rounded-xl border p-4 sm:grid-cols-2">
               <h3 className="font-medium sm:col-span-2">Thông tin từ hợp đồng</h3>
               <p><span className="text-muted-foreground">Mã hợp đồng: </span>{contract.code}</p>
@@ -1023,22 +1109,36 @@ function ContractDialog({
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>
               <p><span className="text-muted-foreground">Số lượng: </span>{contract.quantity ?? "—"}</p>
               <p><span className="text-muted-foreground">Ngày ký: </span>{shownDate(contract.signedOn)}</p>
-              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><MoneyStack lines={amounts.product} /></p>
-              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><MoneyStack lines={amounts.shipping} main={contract.currency} /></p>
-              <p><span className="text-muted-foreground">Tổng giá trị: </span><MoneyStack lines={amountTotals} /></p>
-              <p><span className="text-muted-foreground">Còn lại: </span><MoneyStack lines={remainders} /></p>
+              <p><span className="text-muted-foreground">Giá trị sản phẩm: </span><VndOnly value={vnd.product} /></p>
+              <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><VndOnly value={vnd.shipping} /></p>
+              <p><span className="text-muted-foreground">Tổng giá trị: </span><VndOnly value={vnd.total} /></p>
+              <p><span className="text-muted-foreground">Còn lại: </span><VndOnly value={vnd.remaining} /></p>
             </section>
+            {canSale && contractCurrencies.length > 0 && (
+              <section className="space-y-3 rounded-xl border p-4">
+                <h3 className="font-medium">Tỷ giá quy đổi VND của hợp đồng</h3>
+                <p className="text-xs text-muted-foreground">Dùng để quy tổng giá trị và số đã thu về VND. Lấy sẵn theo báo giá, sửa được nếu tỷ giá thực tế khác.</p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {contractCurrencies.map((code) => (
+                    <Field key={code} label={`1 ${code} = ? VND`} htmlFor={`contract-vnd-${code}`} required>
+                      <Input id={`contract-vnd-${code}`} inputMode="decimal" value={vndRates[code] ?? ""}
+                        onChange={(event) => setVndRates((current) => ({ ...current, [code]: formatMoneyInput(event.target.value, 4) }))} />
+                    </Field>
+                  ))}
+                </div>
+              </section>
+            )}
             {canSale ? (
               <>
                 <section className="space-y-3 rounded-xl border p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                    <p className="text-sm text-muted-foreground">Tổng: <MoneyStack lines={paidTotals} /></p>
+                    <p className="text-sm text-muted-foreground">Tổng: <VndOnly value={paidVnd} /></p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng; ảnh bill gắn theo từng lần.</p>
+                  <p className="text-xs text-muted-foreground">Mỗi lần khách chuyển khoản là một dòng riêng; ảnh bill gắn theo từng lần. Khách trả bằng loại tiền nào cũng được, nhập tỷ giá quy đổi VND để tính số đã thu.</p>
                   {payments.map((line, index) => (
                     <div key={`pay-${index}`} className="space-y-3 rounded-lg border p-3">
-                      <div className="grid gap-2 sm:grid-cols-[1fr_8rem_1fr_1.4fr_auto]">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_8rem_1fr_1fr_1.4fr_auto]">
                         <Field label={`Số tiền lần ${index + 1}`} htmlFor={`contract-paid-${index}`}>
                           <Input
                             id={`contract-paid-${index}`}
@@ -1052,17 +1152,21 @@ function ContractDialog({
                             id={`contract-paid-currency-${index}`}
                             aria-label={`Loại tiền nhận lần ${index + 1}`}
                             value={line.currency || contract.currency}
-                            onChange={(event) => updatePayment(index, { currency: event.target.value, exchangeRate: "" })}
+                            onChange={(event) => {
+                              const currency = event.target.value;
+                              updatePayment(index, { currency, exchangeRate: "" });
+                              void suggestRate(currency, (exchangeRate) => updatePayment(index, { exchangeRate }));
+                            }}
                           >
                             {quoteCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
                           </NativeSelect>
                         </Field>
-                        {line.currency !== contract.currency && (
-                          <Field label={`1 ${contract.currency} = ${line.currency}`} htmlFor={`contract-paid-rate-${index}`} required>
-                            <Input id={`contract-paid-rate-${index}`} type="number" min="0" step="any" value={line.exchangeRate}
-                              onChange={(event) => updatePayment(index, { exchangeRate: event.target.value })} />
+                        {(line.currency || contract.currency) !== contract.currency ? (
+                          <Field label={`Tỷ giá: ${rateLabel(contract.currency, line.currency)}`} htmlFor={`contract-paid-rate-${index}`} required>
+                            <Input id={`contract-paid-rate-${index}`} inputMode="decimal" value={line.exchangeRate}
+                              onChange={(event) => updatePayment(index, { exchangeRate: formatMoneyInput(event.target.value, 4) })} />
                           </Field>
-                        )}
+                        ) : <div className="hidden sm:block" />}
                         <Field label="Ngày chuyển" htmlFor={`contract-paid-on-${index}`}>
                           <Input
                             id={`contract-paid-on-${index}`}
@@ -1146,7 +1250,7 @@ function ContractDialog({
             ) : (
               <section className="space-y-3 rounded-xl border p-4">
                 <h3 className="font-medium">Số tiền đã thanh toán</h3>
-                <p><span className="text-muted-foreground">Đã thanh toán: </span><MoneyStack lines={paidTotals} /></p>
+                <p><span className="text-muted-foreground">Đã thanh toán: </span><VndOnly value={paidVnd} /></p>
                 {aggregatePayments ? (
                   <div className="flex flex-wrap items-center gap-2">
                     {billImagesOf(contract).map((image, index) => (
@@ -1160,7 +1264,7 @@ function ContractDialog({
                     {contract.payments.map((line, index) => (
                       <li key={`view-pay-${index}`} className="space-y-2 rounded-lg border p-3 text-muted-foreground">
                         <p>
-                          Lần {index + 1}: {money(line.amount, line.currency || contract.currency)}
+                          Lần {index + 1}: <VndOnly value={lineVnd(line)} />
                           {line.paidOn ? ` · ${shownDate(line.paidOn)}` : ""}
                           {line.note ? ` · ${line.note}` : ""}
                         </p>
@@ -1183,7 +1287,7 @@ function ContractDialog({
             )}
           </TabsContent>
 
-          <TabsContent value="van-hanh" className="mt-3 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
+          <TabsContent value="van-hanh" className="mt-3 min-h-0 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
               <Field label="Trạng thái" htmlFor="ops-status">
                 <NativeSelect id="ops-status" value={opsStatus} disabled={!canOps} onChange={(event) => setOpsStatus(event.target.value)}>
@@ -1226,7 +1330,7 @@ function ContractDialog({
             </section>
           </TabsContent>
 
-          <TabsContent value="ke-toan" className="mt-3 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
+          <TabsContent value="ke-toan" className="mt-3 min-h-0 max-h-[min(68vh,720px)] overflow-y-auto pr-1">
             <section className="space-y-3 rounded-xl border p-4">
               {!contract.sentToAccountingAt && <p className="text-sm text-muted-foreground">Vận hành chưa gửi hợp đồng này.</p>}
               {contract.sentToAccountingAt && (
@@ -1240,7 +1344,7 @@ function ContractDialog({
                         ))}
                       </NativeSelect>
                     </Field>
-                    <p className="text-sm text-muted-foreground">Tổng xác nhận: <MoneyStack lines={confirmedTotals} /></p>
+                    <p className="text-sm text-muted-foreground">Tổng xác nhận: <VndOnly value={confirmedVnd} /></p>
                   </div>
                   <p className="text-xs text-muted-foreground">Mỗi lần xác nhận là một dòng riêng; ảnh về TK gắn theo từng lần (có thể nhiều ảnh).</p>
                   {confirmations.map((line, index) => (
@@ -1258,16 +1362,20 @@ function ContractDialog({
                         </Field>
                         <Field label="Loại tiền nhận" htmlFor={`acc-currency-${index}`}>
                           <NativeSelect id={`acc-currency-${index}`} value={line.currency} disabled={!canAccounting}
-                            onChange={(event) => updateConfirmation(index, { currency: event.target.value, exchangeRate: "" })}>
+                            onChange={(event) => {
+                              const currency = event.target.value;
+                              updateConfirmation(index, { currency, exchangeRate: "" });
+                              void suggestRate(currency, (exchangeRate) => updateConfirmation(index, { exchangeRate }));
+                            }}>
                             {quoteCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
                           </NativeSelect>
                         </Field>
-                        {line.currency !== contract.currency && (
-                          <Field label={`1 ${contract.currency} = ${line.currency}`} htmlFor={`acc-rate-${index}`} required>
-                            <Input id={`acc-rate-${index}`} type="number" min="0" step="any" value={line.exchangeRate}
-                              disabled={!canAccounting} onChange={(event) => updateConfirmation(index, { exchangeRate: event.target.value })} />
+                        {line.currency !== contract.currency ? (
+                          <Field label={`Tỷ giá: ${rateLabel(contract.currency, line.currency)}`} htmlFor={`acc-rate-${index}`} required>
+                            <Input id={`acc-rate-${index}`} inputMode="decimal" value={line.exchangeRate}
+                              disabled={!canAccounting} onChange={(event) => updateConfirmation(index, { exchangeRate: formatMoneyInput(event.target.value, 4) })} />
                           </Field>
-                        )}
+                        ) : <div className="hidden sm:block" />}
                         <Field label="Ghi chú" htmlFor={`acc-note-${index}`}>
                           <Input
                             id={`acc-note-${index}`}
