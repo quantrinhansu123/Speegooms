@@ -8,18 +8,6 @@ Ghi khi một quyết định nghiệp vụ, phát hiện khó tìm, giới hạ
 
 Khởi tạo từ những nguồn đã kiểm chứng trong task. Không cần audit toàn dự án hoặc chép lại tài liệu kiến trúc để tạo checkpoint đầu tiên.
 
-## Bắt buộc trước khi merge vào main
-
-Theo yêu cầu của người dùng, mỗi nhánh công việc phải có checkpoint được cập nhật trước khi merge vào `main`, kể cả thay đổi nhỏ. Ưu tiên cập nhật ghi chú cùng chủ đề; chỉ tạo file mới khi chưa có ghi chú phù hợp.
-
-Khi người dùng yêu cầu push:
-
-1. Trên nhánh công việc, ghi thay đổi đã làm, quyết định, commit/file nguồn, kết quả kiểm chứng và giới hạn còn lại; cập nhật mục lục nếu cần, rồi commit checkpoint cùng thay đổi liên quan.
-2. Pull `main` mới nhất rồi merge nhánh công việc vào `main`. Nếu xử lý conflict làm thay đổi hành vi hoặc kết quả kiểm chứng đã ghi, cập nhật checkpoint trước khi hoàn tất merge.
-3. Push `main`.
-
-Chỉ merge/push khi người dùng yêu cầu. Không ghi là đã merge hoặc đã push trước khi thao tác thực sự hoàn tất.
-
 ## Một file cho một chủ đề
 
 Đặt tại `<nghiệp-vụ>/<chủ-đề>.md`, tên rõ và ổn định. Cập nhật file hiện có khi cùng chủ đề; chỉ tách file nếu nội dung phục vụ các task khác nhau. Mục tiêu là một ghi chú ngắn dễ đọc, nhưng phải giữ đủ điều kiện và giới hạn để tránh hiểu sai.
