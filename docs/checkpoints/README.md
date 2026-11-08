@@ -4,9 +4,21 @@ Mục tiêu: giúp phiên làm việc sau tìm lại quyết định và bằng 
 
 ## Khi nào ghi
 
-Ghi khi một quyết định nghiệp vụ, phát hiện khó tìm, giới hạn hoặc việc chưa giải quyết có thể làm task sau chọn sai cách xử lý hay phải điều tra lại. Sửa nhỏ không có kiến thức cần giữ thì không tạo checkpoint.
+Ghi khi một quyết định nghiệp vụ, phát hiện khó tìm, giới hạn hoặc việc chưa giải quyết có thể làm task sau chọn sai cách xử lý hay phải điều tra lại. Giữa các lần merge, không cần tạo ghi chú cho từng chỉnh sửa nhỏ.
 
 Khởi tạo từ những nguồn đã kiểm chứng trong task. Không cần audit toàn dự án hoặc chép lại tài liệu kiến trúc để tạo checkpoint đầu tiên.
+
+## Bắt buộc trước khi merge vào main
+
+Theo yêu cầu của người dùng, mỗi nhánh công việc phải có checkpoint được cập nhật trước khi merge vào `main`, kể cả thay đổi nhỏ. Ưu tiên cập nhật ghi chú cùng chủ đề; chỉ tạo file mới khi chưa có ghi chú phù hợp.
+
+Khi người dùng yêu cầu push:
+
+1. Trên nhánh công việc, ghi thay đổi đã làm, quyết định, commit/file nguồn, kết quả kiểm chứng và giới hạn còn lại; cập nhật mục lục nếu cần, rồi commit checkpoint cùng thay đổi liên quan.
+2. Pull `main` mới nhất rồi merge nhánh công việc vào `main`. Nếu xử lý conflict làm thay đổi hành vi hoặc kết quả kiểm chứng đã ghi, cập nhật checkpoint trước khi hoàn tất merge.
+3. Push `main`.
+
+Chỉ merge/push khi người dùng yêu cầu. Không ghi là đã merge hoặc đã push trước khi thao tác thực sự hoàn tất.
 
 ## Một file cho một chủ đề
 
