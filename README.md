@@ -48,6 +48,8 @@ không sửa dữ liệu trình duyệt. Chưa thay thế E2E API hoặc kiểm 
 
 ## Màn hình và tài liệu
 
+- [Checkpoint cho agent](docs/checkpoints/INDEX.md): tìm quyết định và bằng chứng cũ theo chủ đề; chỉ đọc ghi chú liên quan đến task, đối chiếu code hiện tại trước khi áp dụng.
+
 - Dashboard riêng theo 9 vai trò: `/dashboard`.
 - CRM/Sales, Vận hành, Fulfillment, Kế toán, Marketing, Khiếu nại, HRM và Pháp chế dùng chung layout.
 - Tám báo cáo có date filter, search, sorting, pagination và CSV theo quyền/tuyến: `/reports`.
