@@ -249,7 +249,7 @@ function contractView(req: Request): ContractView {
   const role = req.user?.role;
   const allowed = (candidate: ContractView) => {
     if (candidate === "sale") return role === "admin" || role === "sale-vn" || role === "sale-global";
-    if (candidate === "ops") return role === "admin" || role === "van-hanh";
+    if (candidate === "ops") return role === "admin" || role === "van-hanh" || role === "sourcing";
     return role === "admin" || role === "ke-toan";
   };
   if (value === "sale" || value === "ops" || value === "accounting") {
@@ -257,7 +257,7 @@ function contractView(req: Request): ContractView {
     return value;
   }
   if (role === "ke-toan") return "accounting";
-  if (role === "van-hanh") return "ops";
+  if (role === "van-hanh" || role === "sourcing") return "ops";
   if (role === "sale-vn" || role === "sale-global" || role === "admin") return "sale";
   throw new AppError(403, "FORBIDDEN", "Không xem hợp đồng ở bên này");
 }
@@ -267,7 +267,7 @@ function resendTarget(req: Request): "ops" | "accounting" | "parties" {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const role = req.user?.role;
   if (value === "ops" && (role === "admin" || role === "sale-vn" || role === "sale-global")) return "ops";
-  if (value === "accounting" && (role === "admin" || role === "sale-vn" || role === "sale-global" || role === "van-hanh")) return "accounting";
+  if (value === "accounting" && (role === "admin" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing")) return "accounting";
   if (value === "parties" && role === "ke-toan") return "parties";
   throw new AppError(403, "FORBIDDEN", "Không gửi lại hợp đồng cho bên này");
 }

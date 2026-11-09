@@ -24,5 +24,6 @@ Read when changing Sourcing, Operations, Logistics navigation or route permissio
 - Role routes: `src/config/roles.ts`
 - Actions: `src/config/permissions.ts`
 - CRM server permissions: `server/src/config/permissions.ts`
+- CRM contract view and resend target checks: `server/src/controllers/crm.controller.ts` (`contractView`, `resendTarget`)
 - Contracts screen role gate: `src/features/crm/live/contracts-live-view.tsx` (`opsRoles`)
 - Quote desk scope: `shared/src/quote-access.ts` (`deskPolicy`)
