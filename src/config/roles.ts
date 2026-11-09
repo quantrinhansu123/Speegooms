@@ -1,4 +1,3 @@
-import { canViewReport, reportConfig, type ReportKey } from "./reports";
 import { navigation } from "@/config/navigation";
 import type { NavGroup } from "@/types/navigation";
 import type { Department, Role } from "@/types/role";
@@ -105,9 +104,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
 const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
 
 export function canAccess(role: Role, href: string): boolean {
-  if (href === "/demo-guide" || href.startsWith("/demo-guide/")) return true;
-  if (href === "/cai-dat") return true;
-  if (href === "/reports" || href.startsWith("/reports/")) return (Object.keys(reportConfig) as ReportKey[]).some((key) => canViewReport(role, key));
+  if (["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
   if (TRACKING_HREF.test(href)) {
     return role === "admin" || role === "ban-gd" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing" || role === "logistics";
   }
@@ -118,6 +115,7 @@ export function canAccess(role: Role, href: string): boolean {
 /** Menu sidebar đã lọc theo vai trò (cả mục con); bỏ mục/nhóm rỗng. */
 export function navigationForRole(role: Role): NavGroup[] {
   return navigation
+    .filter((g) => role === "admin" || !g.items.some((item) => item.href === "/cai-dat" || item.href === "/reports"))
     .map((g) => ({
       ...g,
       items: g.items

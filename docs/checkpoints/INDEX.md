@@ -4,6 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |
 | Cấu trúc ghi chú, cách tìm context cũ, phạm vi chia sẻ | [Tổ chức checkpoint](project/context-notes.md) | `9b17d04` + quyết định 2026-11-08 |

@@ -4,8 +4,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { SessionProvider } from "@/features/auth/session-provider";
 import { SidebarNav } from "./sidebar-nav";
-import { navigationForRole, roleConfig } from "@/config/roles";
+import { canAccess, navigationForRole, roleConfig } from "@/config/roles";
 import type { Role } from "@/types/role";
+
+test("Only admin sees system and executive menus or opens their restricted pages", () => {
+  for (const role of Object.keys(roleConfig) as Role[]) {
+    const groups = navigationForRole(role).map((group) => group.label);
+    for (const label of ["Hệ thống", "Điều hành"]) assert.equal(groups.includes(label), role === "admin", `${role}: ${label}`);
+    for (const path of ["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"]) {
+      for (const suffix of ["", "/example"]) assert.equal(canAccess(role, path + suffix), role === "admin", `${role}: ${path + suffix}`);
+    }
+    assert.equal(canAccess(role, "/dashboard"), true, role);
+  }
+});
 
 for (const role of ["van-hanh", "sourcing"] as const) {
   test(`Sourcing stays expanded on its list and detail pages for ${role}`, () => {
