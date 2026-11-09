@@ -50,7 +50,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
     label: "Sale Global",
     dashboard: "department",
     department: "sale-global",
-    modules: ["/dashboard", "/crm", "/sale-global", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai", "/sale-viet-nam/data-lanh"],
+    modules: ["/dashboard", "/crm", "/sale-global", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai"],
   },
   "van-hanh": {
     label: "Vận hành",

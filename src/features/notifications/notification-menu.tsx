@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/features/auth/session-provider";
+import type { Role } from "@/types/role";
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead, markNotificationRead } from "./api";
 import { dispatchNotificationsChanged } from "./notifications-changed";
 import { OPEN_CONTRACT_EVENT, type OpenContractDetail } from "./open-contract";
@@ -25,11 +27,12 @@ function formatWhen(iso: string): string {
 }
 
 /** Gắn `id` / `lane` vào href để mở đúng hợp đồng (kể cả thông báo cũ chỉ lưu list path). */
-function resolveHref(item: AppNotification): string {
+export function resolveHref(item: AppNotification, role: Role): string {
   if (!item.href) return item.href;
   if (!item.refId) return item.href;
   try {
     const url = new URL(item.href, "http://local");
+    if (item.refType === "data-lanh" && role === "sale-global") url.pathname = "/sale-global/data-lanh";
     url.searchParams.set("id", item.refId);
     if (item.lane) url.searchParams.set("lane", item.lane);
     return `${url.pathname}${url.search}`;
@@ -45,6 +48,7 @@ function badgeLabel(count: number): string {
 
 export function NotificationMenu() {
   const router = useRouter();
+  const user = useSession();
   const [open, setOpen] = useState(false);
   const [count, setCountState] = useState(0);
   /** `null` cho tới lần poll đầu: lần đầu chỉ ghi nhận, không phát sự kiện. */
@@ -111,7 +115,7 @@ export function NotificationMenu() {
         /* vẫn điều hướng */
       }
     }
-    const href = resolveHref(item);
+    const href = resolveHref(item, user.role);
     if (href) router.push(href);
     if ((item.refType === "contract" || item.refType === "quote" || item.refType === "data-lanh" || item.refType === "potential") && item.refId) {
       window.dispatchEvent(
