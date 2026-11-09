@@ -1,4 +1,4 @@
-import type { CreateDataLanhInput, DataLanhRecord, UpdateDataLanhInput } from "@speego/shared";
+import { facebookStatuses, hasActiveTelesale, type CreateDataLanhInput, type DataLanhRecord, type UpdateDataLanhInput } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
 
@@ -105,21 +105,46 @@ export class PostgresDataLanhRepository {
 
   /** internId = người đang thao tác (null = Admin/Ban GĐ): chỉ sửa được khách được giao hoặc bàn giao cho mình; dòng khác coi như không tồn tại. */
   async update(id: string, input: UpdateDataLanhInput, internId: string | null): Promise<DataLanhRecord | null> {
-    // Tên cột lấy từ bảng cố định ở trên, giá trị luôn đi qua tham số; trường không gửi thì không đụng tới.
-    const params: unknown[] = [id, internId];
-    const sets = (Object.keys(editableColumns) as (keyof typeof editableColumns)[])
-      .filter((key) => input[key] !== undefined)
-      .map((key) => {
-        params.push(input[key]?.trim() || null);
-        return `${editableColumns[key]} = $${params.length}`;
-      });
-    const updated = await this.pool.query(
-      `update crm.data_lanh set ${[...sets, "cap_nhat_luc = now()"].join(", ")}
-       where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`,
-      params,
-    );
-    if (!updated.rowCount) return null;
-    return (await this.pool.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0] ?? null;
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const current = (await client.query<Row>(`${select} where d.id = $1::uuid and ($2::text is null or d.intern_id = $2 or d.sale_care_id = $2) for update of d`, [id, internId])).rows[0];
+      if (!current) {
+        await client.query("rollback");
+        return null;
+      }
+      const patch = { ...input };
+      // A caller may have opened the transfer dialog before another user saved a call result.
+      if (patch.facebookStatus === facebookStatuses[6] && hasActiveTelesale(current.telesale_status)) {
+        patch.telesaleStatus = current.telesale_status;
+      }
+      const nextFacebook = patch.facebookStatus === undefined ? current.facebook_status : patch.facebookStatus;
+      const nextTelesale = patch.telesaleStatus === undefined ? current.telesale_status : patch.telesaleStatus;
+      if ((patch.facebookStatus !== undefined || patch.telesaleStatus !== undefined) && nextFacebook === facebookStatuses[6] && !hasActiveTelesale(nextTelesale)) {
+        throw new AppError(422, "VALIDATION_ERROR", "Chọn kết quả gọi Telesale trước khi chuyển khách từ Facebook.");
+      }
+      // Tên cột lấy từ bảng cố định ở trên, giá trị luôn đi qua tham số; trường không gửi thì không đụng tới.
+      const params: unknown[] = [id, internId];
+      const sets = (Object.keys(editableColumns) as (keyof typeof editableColumns)[])
+        .filter((key) => patch[key] !== undefined)
+        .map((key) => {
+          params.push(patch[key]?.trim() || null);
+          return `${editableColumns[key]} = $${params.length}`;
+        });
+      await client.query(
+        `update crm.data_lanh set ${[...sets, "cap_nhat_luc = now()"].join(", ")}
+         where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`,
+        params,
+      );
+      const row = (await client.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0] ?? null;
+      await client.query("commit");
+      return row;
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**
