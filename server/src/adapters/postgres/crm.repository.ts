@@ -1309,18 +1309,25 @@ export class PostgresCrmRepository implements CrmRepository {
     return result.rows.map(toMessage);
   }
 
-  async createMessage(lane: CrmLane, input: CreateMessageInput): Promise<MessageRecord> {
+  async messageCreator(lane: CrmLane, id: string): Promise<string | null | "missing"> {
+    const { message: messageTable } = laneTables[lane];
+    const result = await this.query<{ creator: string | null }>(`select nguoi_tao_id as creator from ${messageTable} where id = $1::uuid`, [id]);
+    const row = result.rows[0];
+    return row ? row.creator : "missing";
+  }
+
+  async createMessage(lane: CrmLane, input: CreateMessageInput, creatorId?: string): Promise<MessageRecord> {
     const { message: messageTable } = laneTables[lane];
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
          nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang, nguon,
-         thuong_hieu
+         thuong_hieu, nguoi_tao_id
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
          coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb,
-         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source), $17::text::crm.lead_brand
+         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source), $17::text::crm.lead_brand, $18
        )
        returning id::text as id`,
       [
@@ -1341,6 +1348,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.order ? JSON.stringify(input.order) : null,
         input.source ?? null,
         input.brand ?? null,
+        creatorId ?? null,
       ],
     );
     const id = inserted.rows[0]?.id;

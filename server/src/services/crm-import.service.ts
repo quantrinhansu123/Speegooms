@@ -37,21 +37,21 @@ export class CrmImportService {
     return buildTemplate(kind);
   }
 
-  async importWorkbook(kind: ImportKind, buffer: Buffer, scope: readonly CrmLane[]): Promise<ImportResult> {
+  async importWorkbook(kind: ImportKind, buffer: Buffer, scope: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
     if (scope.length === 0) throw new AppError(400, "VALIDATION_ERROR", "Chọn tuyến Việt Nam hoặc Global");
     const book = await this.workbook(buffer);
-    if (kind === "messages") return this.writeMessages(book, scope);
+    if (kind === "messages") return this.writeMessages(book, scope, creatorId);
     if (kind === "potentials") return this.writePotentials(book, scope);
     if (kind === "quotes") return this.writeQuotes(book, scope);
     return this.writeContracts(book, scope);
   }
 
-  private async writeMessages(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[]): Promise<ImportResult> {
+  private async writeMessages(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
     const plan = this.planned(() => planMessages(book, scope));
     const result = tally(plan);
     for (const row of plan.rows) {
       try {
-        const saved = await this.store.saveMessage(row);
+        const saved = await this.store.saveMessage(row, creatorId);
         result[saved] += 1;
       } catch (error) {
         addError(result, { sheet: row.sheet, row: row.row, message: explain(error) });

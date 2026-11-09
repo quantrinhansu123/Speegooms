@@ -12,6 +12,8 @@ export interface MessageListSearch extends ListSearch {
   demand: string;
   customerType: string;
   market: string;
+  /** Chỉ lấy mess do người này tạo. Đặt ở service theo vai trò, không đọc từ query string. */
+  creatorId?: string;
 }
 
 export interface PotentialListSearch extends ListSearch {
@@ -68,7 +70,8 @@ export function messageSearch(input: MessageListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("m.phan_loai::text"), input.classification))
     .add(new ExactMatchCriterion(sql("m.nhu_cau::text"), input.demand))
     .add(new ExactMatchCriterion(sql("m.loai_khach_hang::text"), input.customerType))
-    .add(new ExactMatchCriterion(sql("m.thi_truong"), input.market));
+    .add(new ExactMatchCriterion(sql("m.thi_truong"), input.market))
+    .add(new ExactMatchCriterion(sql("m.nguoi_tao_id"), input.creatorId ?? ""));
 }
 
 export function potentialSearch(input: PotentialListSearch): SearchBuilder {

@@ -32,7 +32,7 @@ export type StoredQuoteLink = {
 export class PostgresCrmImportStore {
   constructor(private readonly pool: pg.Pool) {}
 
-  async saveMessage(row: PlannedMessage): Promise<"created" | "updated"> {
+  async saveMessage(row: PlannedMessage, creatorId?: string): Promise<"created" | "updated"> {
     const table = tables[row.lane].message;
     const found = await this.query<{ id: string }>(
       `select id::text as id from ${table} where ma_tham_chieu_ngoai = $1 limit 1`,
@@ -78,12 +78,12 @@ export class PostgresCrmImportStore {
     await this.query(
       `insert into ${table} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, ma_tham_chieu_ngoai
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, ma_tham_chieu_ngoai, nguoi_tao_id
        ) values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14
+         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15
        )`,
-      params,
+      [...params, creatorId ?? null],
     );
     return "created";
   }

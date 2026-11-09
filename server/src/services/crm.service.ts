@@ -52,6 +52,8 @@ export interface QuoteTracking {
   contracts: ContractRecord[];
 }
 
+type MessageActor = { id: string; role: Role };
+
 export class CrmService {
   constructor(
     private readonly crm: CrmRepository | null,
@@ -63,12 +65,20 @@ export class CrmService {
     return this.importer().template(kind);
   }
 
-  importWorkbook(kind: ImportKind, file: Buffer, lanes: readonly CrmLane[]): Promise<ImportResult> {
-    return this.importer().importWorkbook(kind, file, lanes);
+  importWorkbook(kind: ImportKind, file: Buffer, lanes: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
+    return this.importer().importWorkbook(kind, file, lanes, creatorId);
   }
 
-  listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
-    return this.ready().listMessages(lane, search);
+  /** Mess chỉ người tạo xem được; Admin xem tất cả. Không truyền actor = nội bộ, không lọc. */
+  listMessages(lane: CrmLane, search: MessageListSearch, actor?: MessageActor): Promise<MessageRecord[]> {
+    return this.ready().listMessages(lane, actor && actor.role !== "admin" ? { ...search, creatorId: actor.id } : search);
+  }
+
+  /** Người không phải Admin chạm mess của người khác thì coi như không thấy (404, không lộ sự tồn tại). */
+  private async assertMessageAccess(lane: CrmLane, id: string, actor?: MessageActor): Promise<void> {
+    if (!actor || actor.role === "admin") return;
+    const creator = await this.ready().messageCreator(lane, id);
+    if (creator !== "missing" && creator !== actor.id) throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
   }
 
   /** Chỉ vai trò được chuyển mess mới ghi nháp thông tin đơn hàng; vai trò khác bị bỏ qua, không ghi đè nháp cũ. */
@@ -78,23 +88,26 @@ export class CrmService {
     return rest as T;
   }
 
-  createMessage(lane: CrmLane, input: CreateMessageInput, role?: Role): Promise<MessageRecord> {
-    return this.ready().createMessage(lane, this.withOrderDraft(input, role));
+  createMessage(lane: CrmLane, input: CreateMessageInput, role?: Role, creatorId?: string): Promise<MessageRecord> {
+    return this.ready().createMessage(lane, this.withOrderDraft(input, role), creatorId);
   }
 
-  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput, role?: Role): Promise<MessageRecord> {
+  async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput, role?: Role, actor?: MessageActor): Promise<MessageRecord> {
+    await this.assertMessageAccess(lane, id, actor);
     const row = await this.ready().updateMessage(lane, id, this.withOrderDraft(input, role));
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     return row;
   }
 
-  async deleteMessage(lane: CrmLane, id: string): Promise<void> {
+  async deleteMessage(lane: CrmLane, id: string, actor?: MessageActor): Promise<void> {
+    await this.assertMessageAccess(lane, id, actor);
     const result = await this.ready().deleteMessage(lane, id);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "linked") throw new AppError(409, "CONFLICT", "Hãy xóa khách hàng tiềm năng của mess này trước");
   }
 
-  async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
+  async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput, actor?: MessageActor): Promise<{ message: MessageRecord; potential: PotentialRecord }> {
+    await this.assertMessageAccess(lane, id, actor);
     const result = await this.ready().convertMessage(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "lost") throw new AppError(409, "CONFLICT", "Mess đã mất, không chuyển được");

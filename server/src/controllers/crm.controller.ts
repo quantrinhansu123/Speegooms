@@ -77,24 +77,24 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   listMessages = async (req: Request, res: Response) => {
-    res.status(200).json({ messages: await this.crm.listMessages(laneOf(req), readMessageSearch(req)) });
+    res.status(200).json({ messages: await this.crm.listMessages(laneOf(req), readMessageSearch(req), actorOf(req)) });
   };
 
   createMessage = async (req: Request, res: Response) => {
-    res.status(201).json({ message: await this.crm.createMessage(laneOf(req), req.body, roleOf(req)) });
+    res.status(201).json({ message: await this.crm.createMessage(laneOf(req), req.body, roleOf(req), actorOf(req).id) });
   };
 
   updateMessage = async (req: Request, res: Response) => {
-    res.status(200).json({ message: await this.crm.updateMessage(laneOf(req), one(req.params.id), req.body, roleOf(req)) });
+    res.status(200).json({ message: await this.crm.updateMessage(laneOf(req), one(req.params.id), req.body, roleOf(req), actorOf(req)) });
   };
 
   deleteMessage = async (req: Request, res: Response) => {
-    await this.crm.deleteMessage(laneOf(req), one(req.params.id));
+    await this.crm.deleteMessage(laneOf(req), one(req.params.id), actorOf(req));
     res.status(204).end();
   };
 
   convertMessage = async (req: Request, res: Response) => {
-    res.status(200).json(await this.crm.convertMessage(laneOf(req), one(req.params.id), req.body));
+    res.status(200).json(await this.crm.convertMessage(laneOf(req), one(req.params.id), req.body, actorOf(req)));
   };
 
   listPotentials = async (req: Request, res: Response) => {
@@ -239,7 +239,7 @@ export class CrmController {
     const kind = importKindOf(req.params.kind);
     assertImport(req, kind);
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new AppError(400, "VALIDATION_ERROR", "Chọn file Excel");
-    res.status(200).json(await this.crm.importWorkbook(kind, req.body, importLanes(req)));
+    res.status(200).json(await this.crm.importWorkbook(kind, req.body, importLanes(req), actorOf(req).id));
   };
 }
 
