@@ -15,7 +15,9 @@ const isActive = (pathname: string, href: string) =>
 
 function NavEntry({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const pathname = usePathname() ?? "";
-  const active = isActive(pathname, item.href);
+  const active = item.children
+    ? pathname === item.href || item.children.some((child) => isActive(pathname, child.href))
+    : isActive(pathname, item.href);
   const [expansion, setExpansion] = useState<{ pathname: string; open: boolean }>();
   const open = expansion?.pathname === pathname ? expansion.open : active;
   const submenuId = useId();
