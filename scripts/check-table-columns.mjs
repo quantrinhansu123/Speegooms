@@ -97,6 +97,25 @@ try {
   assert.equal(await wide.getByRole("columnheader").count(), 5);
   const dataLanh = page.locator("#data-lanh");
   await dataLanh.locator("#dl-channel").selectOption("facebook");
+  const statusGroup = dataLanh.getByRole("group", { name: /Lọc trạng thái/ });
+  const allStatuses = count => statusGroup.getByRole("button", { name: `Tất cả (${count})`, exact: true });
+  await allStatuses(3).waitFor();
+  assert.equal(await statusGroup.getByRole("button", { name: /^1\..*\(0\)$/ }).count(), 1);
+  await statusGroup.getByRole("button", { name: "3. Đang chat / Trao đổi nhu cầu (1)", exact: true }).click();
+  assert.equal(await dataLanh.locator("tbody tr").count(), 1);
+  assert.equal(await allStatuses(3).count(), 1);
+  await allStatuses(3).click();
+  await dataLanh.locator("#dl-q").fill("Khách chuyển mới");
+  await allStatuses(1).waitFor();
+  await dataLanh.locator("#dl-q").fill("");
+  await dataLanh.locator("#dl-intern").selectOption("__none");
+  await allStatuses(0).waitFor();
+  assert.equal(await statusGroup.getByRole("button", { name: /\(0\)$/ }).count(), await statusGroup.getByRole("button").count());
+  await dataLanh.locator("#dl-intern").selectOption("");
+  await dataLanh.locator("#dl-channel").selectOption("telesale");
+  await allStatuses(1).waitFor();
+  assert.equal(await statusGroup.getByRole("button", { name: "8. Chốt đơn thành công (1)", exact: true }).count(), 1);
+  await dataLanh.locator("#dl-channel").selectOption("facebook");
   const facebook = name => dataLanh.getByRole("combobox", { name: "Trạng thái chăm Facebook · " + name, exact: true });
   const telesale = name => dataLanh.getByRole("combobox", { name: "Trạng thái Telesale · " + name, exact: true });
   const transferValue = "6. Đã gọi --> chuyển Telesale";
@@ -118,7 +137,10 @@ try {
   await dialog.waitFor({ state: "hidden" });
   assert.equal(await facebook("Khách chuyển mới").count(), 0);
   assert.equal(await dataLanh.locator("#dl-channel").inputValue(), "facebook");
+  assert.equal(await allStatuses(2).count(), 1);
   await dataLanh.locator("#dl-channel").selectOption("telesale");
+  await allStatuses(2).waitFor();
+  assert.equal(await statusGroup.getByRole("button", { name: "1. Không nghe máy (Lần 1-2) (1)", exact: true }).count(), 1);
   assert.equal(await telesale("Khách chuyển mới").inputValue(), "1. Không nghe máy (Lần 1-2)");
   await dataLanh.locator("#dl-channel").selectOption("facebook");
   await facebook("Khách đã gọi").selectOption(transferValue);
@@ -135,6 +157,7 @@ try {
   assert.deepEqual(errors, []);
   console.log("Table column filters: passed (both shared tables, default selection, hiding, restore, independent tables, empty rows, pagination, dynamic columns, minimum one column)");
   console.log("Data lạnh transfer UI: passed (cancel, required result, retry after failure, transfer, keep current filter, preserve existing result, recover legacy transfer)");
+  console.log("Data lạnh status counts: passed (Facebook, Telesale, zero counts, search, assignee, status selection, transfer updates)");
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

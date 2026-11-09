@@ -65,14 +65,15 @@ export function DataLanhView() {
   const interns = useMemo(() => [...new Map(rows.filter((r) => r.internId).map((r) => [r.internId!, r.internName ?? r.internId!])).entries()], [rows]);
   const unassigned = rows.filter((r) => !r.internId).length;
 
-  const shown = useMemo(() => {
+  const statusRows = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     return rows.filter((r) => {
       if (q && ![r.fullName, r.company, r.phone, r.facebookLink, r.market, r.saleCareName].some((v) => v?.toLowerCase().includes(q))) return false;
       if (filters.intern === UNASSIGNED ? r.internId : filters.intern && r.internId !== filters.intern) return false;
-      return matchesDataLanhStatus(r, filters.channel, filters.status);
+      return matchesDataLanhStatus(r, filters.channel, "");
     });
-  }, [rows, filters]);
+  }, [rows, filters.q, filters.intern, filters.channel]);
+  const shown = useMemo(() => statusRows.filter((r) => matchesDataLanhStatus(r, filters.channel, filters.status)), [statusRows, filters.channel, filters.status]);
 
   // Đổi bộ lọc thì về trang 1.
   const paging = usePagination(shown, PAGE_SIZE, JSON.stringify(filters));
@@ -235,7 +236,7 @@ export function DataLanhView() {
         <div role="group" aria-label={filters.channel === "facebook" ? "Lọc trạng thái Facebook" : "Lọc trạng thái Telesale"} className="mb-4 flex gap-2 overflow-x-auto pb-2">
           {["", ...statusOptions].map((status) => (
             <Button key={status} type="button" variant={filters.status === status ? "default" : "outline"} aria-pressed={filters.status === status} onClick={() => setFilters({ ...filters, status })}>
-              {status || "Tất cả"}
+              {status || "Tất cả"} ({statusRows.filter((r) => matchesDataLanhStatus(r, filters.channel, status)).length})
             </Button>
           ))}
         </div>
