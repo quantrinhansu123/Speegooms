@@ -3,6 +3,9 @@ import type { Role } from "@/types/role";
 import type { StatusTone } from "@/types/status";
 import type { PaymentKind, PaymentPurpose, PaymentStatus, SettlementStatus } from "@/types/accounting";
 
+/** Công nợ / Quyết toán chưa nối DB: không liệt kê hợp đồng demo của CRM. Đặt true để xem lại dữ liệu demo. */
+export const accountingUsesDemoContracts = false;
+
 export const paymentKindLabels: Record<PaymentKind, string> = { "nha-cung-cap": "Nhà cung cấp", "doi-tac-van-chuyen": "Đối tác vận chuyển" };
 
 export const paymentPurposeLabels: Record<PaymentPurpose, string> = {

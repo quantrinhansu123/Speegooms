@@ -9,13 +9,15 @@ import type { Contract, Customer } from "../../types/crm.ts";
 import type { OpsSnapshot } from "../../types/ops.ts";
 
 const read = (p: string) => JSON.parse(readFileSync(new URL(`../../mocks/${p}.json`, import.meta.url), "utf8"));
+// Dữ liệu kế toán demo đã gỡ khỏi app (src/mocks/accounting rỗng); bộ kiểm tra này giữ bản gốc trong fixtures/.
+const readFixture = (p: string) => JSON.parse(readFileSync(new URL(`./fixtures/${p}.json`, import.meta.url), "utf8"));
 const crm = { contracts: camelizeKeys<Contract[]>(read("crm/contracts")), customers: camelizeKeys<Customer[]>(read("crm/customers")) };
 const ops = camelizeKeys<OpsSnapshot>({
   suppliers: read("ops/suppliers"), partners: read("ops/partners"), requests: read("ops/requests"), supplier_quotes: read("ops/supplier-quotes"), pos: read("ops/pos"),
   orders: read("ops/orders"), shipments: read("ops/shipments"), tracking_events: read("ops/tracking-events"), documents: read("ops/documents"), history: read("ops/history"),
 });
 const acc = camelizeKeys<AccountingSnapshot>({
-  statement_lines: read("accounting/statement-lines"), customer_receipts: read("accounting/customer-receipts"), payments: read("accounting/payments"), settlements: read("accounting/settlements"),
+  statement_lines: readFixture("statement-lines"), customer_receipts: readFixture("customer-receipts"), payments: readFixture("payments"), settlements: readFixture("settlements"),
 });
 const TODAY = "2026-10-28";
 const contractOf = new Map(crm.contracts.map((c) => [c.orderId, c]));

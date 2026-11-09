@@ -4,6 +4,8 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Data lạnh: chia vòng tròn, bàn giao Sale care, quyền xem | [Data lạnh](crm/data-lanh.md) | `5569cff` + xóa demo, 2026-11-09 |
+| Dữ liệu demo đã gỡ, trang chưa nối DB hiện trống | [Demo đã gỡ](project/demo-data-removed.md) | sau `5569cff`, 2026-11-09 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |
