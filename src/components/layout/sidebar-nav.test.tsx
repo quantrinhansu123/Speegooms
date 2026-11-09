@@ -6,6 +6,30 @@ import { SessionProvider } from "@/features/auth/session-provider";
 import { SidebarNav } from "./sidebar-nav";
 import { canAccess, navigationForRole, roleConfig } from "@/config/roles";
 import type { Role } from "@/types/role";
+import { getBreadcrumbs } from "@/config/navigation";
+import { isImplemented } from "@/config/modules";
+
+test("Customer data appears under each sales team's own menu and breadcrumb", () => {
+  for (const [role, bases] of [
+    ["sale-global", ["/sale-global"]],
+    ["sale-vn", ["/sale-viet-nam"]],
+    ["sale-intern", ["/sale-viet-nam"]],
+    ["admin", ["/sale-viet-nam", "/sale-global"]],
+    ["ban-gd", ["/sale-viet-nam", "/sale-global"]],
+  ] as const) {
+    const items = navigationForRole(role).flatMap((group) => group.items);
+    const links = items.flatMap((item) => item.children ?? []).filter((item) => item.title === "Data khách hàng");
+    assert.deepEqual(links.map((item) => item.href), bases.map((base) => `${base}/data-lanh`), role);
+    for (const base of bases) {
+      const href = `${base}/data-lanh`;
+      assert.equal(canAccess(role, href), true);
+      assert.equal(isImplemented(href), true);
+      assert.deepEqual(getBreadcrumbs(href).slice(1).map((crumb) => crumb.href), [base, href]);
+    }
+  }
+  assert.equal(canAccess("sale-global", "/sale-viet-nam/data-lanh"), false);
+  assert.equal(canAccess("sale-vn", "/sale-global/data-lanh"), false);
+});
 
 test("Only admin sees system and executive menus or opens their restricted pages", () => {
   for (const role of Object.keys(roleConfig) as Role[]) {
