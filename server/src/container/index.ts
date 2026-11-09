@@ -5,10 +5,12 @@ import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudin
 import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { PostgresCrmImportStore } from "../adapters/postgres/crm-import.store";
+import { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
 import { PostgresKeToanRepository } from "../adapters/postgres/ke-toan.repository";
 import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
 import { AuthController } from "../controllers/auth.controller";
 import { CrmController } from "../controllers/crm.controller";
+import { DataLanhController } from "../controllers/data-lanh.controller";
 import { HealthController } from "../controllers/health.controller";
 import { KeToanController } from "../controllers/ke-toan.controller";
 import { NotificationController } from "../controllers/notification.controller";
@@ -39,6 +41,7 @@ export interface AppContainer {
   securityController: SecurityController;
   userAdminController: UserAdminController;
   crmController: CrmController;
+  dataLanhController: DataLanhController;
   keToanController: KeToanController;
   notificationController: NotificationController;
   uploadController: UploadController;
@@ -77,6 +80,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
       notificationService,
       crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
     )),
+    dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null),
     keToanController: new KeToanController(new KeToanService(pool ? new PostgresKeToanRepository(pool) : null)),
     notificationController: new NotificationController(notificationService),
     uploadController: new UploadController(cloudinary),

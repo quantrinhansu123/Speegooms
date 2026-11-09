@@ -68,6 +68,7 @@ export const navigation: NavGroup[] = [
           { title: "Báo giá (RFQ)", href: "/sale-viet-nam/rfq" },
           { title: "Hợp đồng", href: "/sale-viet-nam/hop-dong" },
           { title: "Sales MKT Intern", href: "/sale-viet-nam/sales-mkt-intern" },
+          { title: "Data lạnh", href: "/sale-viet-nam/data-lanh" },
         ],
       },
       {

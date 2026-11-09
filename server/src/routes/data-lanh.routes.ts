@@ -1,0 +1,18 @@
+import { Router } from "express";
+import { createDataLanhSchema, updateDataLanhSchema } from "@speego/shared";
+import type { AppContainer } from "../container";
+import { asyncHandler } from "../lib/async-handler";
+import { requirePermission } from "../middlewares/authorize";
+import { validate } from "../middlewares/validate";
+
+export function dataLanhRoutes(container: AppContainer) {
+  const router = Router();
+  const c = container.dataLanhController;
+  router.use(container.authenticate);
+  router.get("/", requirePermission("datalanh.read"), asyncHandler(c.list));
+  router.post("/", requirePermission("datalanh.assign"), validate({ body: createDataLanhSchema }), asyncHandler(c.create));
+  router.post("/assign", requirePermission("datalanh.assign"), asyncHandler(c.assign));
+  router.patch("/:id", requirePermission("datalanh.work"), validate({ body: updateDataLanhSchema }), asyncHandler(c.update));
+  router.delete("/:id", requirePermission("datalanh.delete"), asyncHandler(c.remove));
+  return router;
+}
