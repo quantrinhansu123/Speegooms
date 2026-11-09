@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { SessionProvider } from "@/features/auth/session-provider";
 import { SidebarNav } from "./sidebar-nav";
+import { navigationForRole, roleConfig } from "@/config/roles";
+import type { Role } from "@/types/role";
 
 for (const role of ["van-hanh", "sourcing"] as const) {
   test(`Sourcing stays expanded on its list and detail pages for ${role}`, () => {
@@ -27,3 +29,28 @@ for (const role of ["van-hanh", "sourcing"] as const) {
     }
   });
 }
+
+test("Horizontal navigation keeps the same role-filtered entries and marks active Sourcing", () => {
+  for (const role of Object.keys(roleConfig) as Role[]) {
+    const html = renderToStaticMarkup(
+      <PathnameContext.Provider value="/van-hanh/po/example">
+        <SessionProvider user={{ id: "test", name: "Test", email: "test@example.com", role, department: "", title: "" }}>
+          <SidebarNav horizontal />
+        </SessionProvider>
+      </PathnameContext.Provider>,
+    );
+    const entries = [...html.matchAll(/<(button|a)\b([^>]*)>([\s\S]*?)<\/\1>/g)];
+    const expected = navigationForRole(role).flatMap((group) => group.items);
+    assert.equal(entries.length, expected.length, role);
+    expected.forEach((item, index) => {
+      const [, element, attributes, content] = entries[index];
+      assert.ok(content.includes(item.title.replaceAll("&", "&amp;")), `${role}: ${item.title}`);
+      assert.equal(element, item.children ? "button" : "a");
+      if (item.children) assert.ok(attributes.includes('aria-haspopup="menu"'));
+      else assert.ok(attributes.includes(`href="${item.href}"`));
+      if (item.title === "Sourcing" && item.children?.some((child) => child.href === "/van-hanh/po")) {
+        assert.ok(attributes.includes("bg-sidebar-accent"), role);
+      }
+    });
+  }
+});
