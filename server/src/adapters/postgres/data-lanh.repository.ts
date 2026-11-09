@@ -157,7 +157,7 @@ export class PostgresDataLanhRepository {
       await client.query("begin");
       await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_assign'))");
       const interns = (await client.query<{ id: string }>(`select nguoi_dung_id as id from crm.data_lanh_nguoi_nhan order by thu_tu`)).rows.map((r) => r.id);
-      if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có danh sách người nhận data lạnh");
+      if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có danh sách người nhận data khách hàng");
       const last = (await client.query<{ id: string }>(`select intern_id as id from crm.data_lanh where giao_luc is not null and intern_id is not null order by giao_luc desc, stt desc limit 1`)).rows[0];
       const start = last ? (interns.indexOf(last.id) + 1) % interns.length : 0;
       const rows = (await client.query<{ id: string }>(`select id::text as id from crm.data_lanh where intern_id is null order by stt`)).rows;

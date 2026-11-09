@@ -12,7 +12,7 @@ export class DataLanhController {
   ) {}
 
   private ready(): PostgresDataLanhRepository {
-    if (!this.repo) throw new AppError(503, "UNAVAILABLE", "Data lạnh cần kết nối Postgres");
+    if (!this.repo) throw new AppError(503, "UNAVAILABLE", "Data khách hàng cần kết nối Postgres");
     return this.repo;
   }
 

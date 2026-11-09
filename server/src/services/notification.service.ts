@@ -80,12 +80,12 @@ export class NotificationService {
     });
   }
 
-  /** Sale được chọn làm Sale care nhận thông báo trên chuông; bấm vào mở đúng khách trong Data lạnh. */
+  /** Sale được chọn làm Sale care nhận thông báo trên chuông; bấm vào mở đúng khách trong Data khách hàng. */
   async notifyDataLanhHandover(actor: PublicUser, saleId: string, customerName: string, rowId: string): Promise<void> {
     if (!this.notifications || saleId === actor.id) return;
     await this.notifications.createMany([saleId], {
       type: "datalanh.handover",
-      title: "Bàn giao khách data lạnh",
+      title: "Bàn giao data khách hàng",
       body: `${actor.name} bàn giao khách ${customerName} để bạn care tiếp.`,
       href: recordHref("/sale-viet-nam/data-lanh", rowId),
       refType: "data-lanh",

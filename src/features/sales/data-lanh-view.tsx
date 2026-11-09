@@ -30,7 +30,7 @@ type EditField = (typeof editFields)[number];
 /** id = null là đang thêm khách mới. */
 type EditDraft = { id: string | null; name: string } & Record<EditField, string>;
 
-/** Data lạnh: khách cũ chia vòng tròn cho từng người; mỗi người chỉ thấy khách của mình, Admin và Ban GĐ thấy tất cả. */
+/** Data khách hàng: khách cũ chia vòng tròn cho từng người; mỗi người chỉ thấy khách của mình, Admin và Ban GĐ thấy tất cả. */
 export function DataLanhView() {
   const user = useSession();
   const canAssign = user.role === "admin";
@@ -54,7 +54,7 @@ export function DataLanhView() {
   const load = useCallback(() => {
     api<{ rows: DataLanhRecord[] }>("/api/data-lanh")
       .then((body) => setRows(body.rows))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được data lạnh"));
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được data khách hàng"));
   }, []);
   useEffect(load, [load]);
   useEffect(() => {
@@ -195,7 +195,7 @@ export function DataLanhView() {
   return (
     <>
       <PageHeader
-        title="Data lạnh"
+        title="Data khách hàng"
         description={seesAll ? "Khách cũ chia vòng tròn cho từng người. Mỗi người cập nhật trạng thái chăm Facebook và Telesale cho khách của mình." : "Khách cũ được giao hoặc bàn giao cho bạn. Cập nhật trạng thái chăm Facebook và Telesale sau khi liên hệ."}
         actions={canAssign && (
           <>
@@ -255,7 +255,7 @@ export function DataLanhView() {
             </tr>
           </thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{rows.length ? "Không có kết quả." : "Chưa có data lạnh."}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{rows.length ? "Không có kết quả." : "Chưa có data khách hàng."}</td></tr>}
             {paging.slice.map((row) => {
               const history = [row.history, row.note].filter(Boolean).join(" · ");
               return (
@@ -384,7 +384,7 @@ export function DataLanhView() {
         onOpenChange={(open) => { if (!open) setRemoving(null); }}
         destructive
         title="Xóa khách?"
-        description={removing ? `${removing.fullName ?? `STT ${removing.stt}`}${removing.company ? ` · ${removing.company}` : ""} sẽ bị xóa khỏi data lạnh và không khôi phục được. Nếu chỉ là khách sai số, hãy chọn trạng thái "Sai tệp" thay vì xóa.` : ""}
+        description={removing ? `${removing.fullName ?? `STT ${removing.stt}`}${removing.company ? ` · ${removing.company}` : ""} sẽ bị xóa khỏi data khách hàng và không khôi phục được. Nếu chỉ là khách sai số, hãy chọn trạng thái "Sai tệp" thay vì xóa.` : ""}
         confirmLabel="Xóa"
         onConfirm={remove}
       />
