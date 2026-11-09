@@ -80,7 +80,7 @@ Màn hình: `/crm/leads`, `/crm/khach-hang`, `/crm/rfq`, `/crm/bao-gia`, `/crm/h
 
 ## Vận hành (giai đoạn 4)
 
-Màn hình dưới `/van-hanh/*` (mỗi mục có trang chi tiết `[id]`): Sourcing – Báo giá (yêu cầu tìm nguồn, so sánh báo giá nhà cung cấp), Nhà cung cấp, Purchase Order (tiến độ + QC), Đơn hàng (7 tab), Logistics – Lô hàng (6 mốc, tracking, chi phí) và Chứng từ. Fulfillment vẫn là trang giữ chỗ. Vai trò thao tác: Vận hành và Admin; Ban GĐ chỉ xem.
+Màn hình dưới `/van-hanh/*` (mỗi mục có trang chi tiết `[id]`): menu Sourcing gồm Báo giá, Hợp đồng/Đơn hàng, Nhà cung cấp và Purchase Order (tiến độ + QC); menu Vận hành gồm Logistics – Báo giá, Logistics – Lô hàng (6 mốc, tracking, chi phí) và Chứng từ. Vai trò Sourcing và Vận hành cùng truy cập nghiệp vụ; Vận hành được vào Logistics. Fulfillment vẫn là trang giữ chỗ.
 
 **Liên kết với CRM:** đơn hàng Vận hành chính là hợp đồng CRM đã ký (`order_id`), nên khách hàng, RFQ, báo giá, cọc đều đọc từ CRM store (không sao chép). Chọn báo giá nhà cung cấp sẽ gọi `returnPrices` bên CRM để RFQ chuyển sang "Đã có giá". Seed `mocks/ops/*.json` sinh từ chính dữ liệu CRM (213 yêu cầu tìm nguồn, 113 PO đúng bằng số hợp đồng đã cọc, 90 lô hàng).
 
@@ -89,7 +89,7 @@ Màn hình dưới `/van-hanh/*` (mỗi mục có trang chi tiết `[id]`): Sour
 **Cấu trúc:** `types/ops.ts` (DTO + model, dùng lại `Camelize`), `services/ops/{repository,rules}.ts`, `features/operations/{store,hooks,ops-shell}` và `components/*`, `config/operations.ts` (nhãn, checklist, quyền). `buildOrderViews()` dựng danh sách đơn: giai đoạn suy ra từ cọc, bàn giao, PO, lô hàng; cảnh báo thiếu thông tin, quá hạn, chờ xác nhận. Kiểm tra bằng `pnpm check:ops`.
 
 **Luật nghiệp vụ được cưỡng chế (cả ở UI lẫn trong thao tác của store):**
-- Không đặt xưởng khi Kế toán chưa xác nhận "Đã cọc" (`canPlacePo`, kiểm lại khi tạo PO, đặt xưởng và chuyển bước PO). Vận hành chỉ nhận bàn giao khi đã cọc; thiếu mục nào thì trả lại Sale kèm lý do.
+- Không đặt xưởng khi Kế toán chưa xác nhận "Đã cọc" (`canPlacePo`, kiểm lại khi tạo PO, đặt xưởng và chuyển bước PO). Sourcing/Vận hành chỉ nhận bàn giao khi đã cọc; thiếu mục nào thì trả lại Sale kèm lý do.
 - PO chỉ báo "Hàng sẵn sàng" khi QC mọi mục Đạt hoặc Không áp dụng; lô hàng chỉ tạo khi PO sẵn sàng; mốc lô hàng hoàn thành tuần tự, ngày thực tế không ở tương lai.
 - Mọi thao tác ghi người làm và thời điểm vào lịch sử (đơn, yêu cầu tìm nguồn).
 

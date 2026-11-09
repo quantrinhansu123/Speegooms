@@ -85,7 +85,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               <p className="text-xs text-muted-foreground">Giá trị hợp đồng</p>
               <p className="tabular text-2xl font-semibold text-primary">{formatMoney(contract.value, contract.currency)}</p>
             </div>
-            <Field label="Phụ trách Vận hành" htmlFor="od-assignee">
+            <Field label="Phụ trách" htmlFor="od-assignee">
               <NativeSelect id="od-assignee" disabled={!writable} value={state.assigneeId} onChange={(e) => run(actions.assignOrder(orderId, e.target.value))}>
                 <option value="">Chưa phân công</option>
                 {ops.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

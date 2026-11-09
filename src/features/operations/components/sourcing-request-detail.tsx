@@ -245,7 +245,7 @@ export function SourcingRequestDetail({ requestId }: { requestId: string }) {
 
       {req.status === "da-chon" && (
         <InlineAlert tone="success" className="mt-6">
-          Đã chọn xưởng và trả giá cho Sale. {contract ? <>Bước tiếp theo: tạo PO ở đơn <Link className="font-mono underline" href={`/van-hanh/don-hang/${contract.orderId}`}>{contract.orderId}</Link> (chỉ đặt xưởng được khi Kế toán đã xác nhận Đã cọc).</> : "Khi khách chấp nhận báo giá và có hợp đồng, Vận hành tạo PO."}
+          Đã chọn xưởng và trả giá cho Sale. {contract ? <>Bước tiếp theo: tạo PO ở đơn <Link className="font-mono underline" href={`/van-hanh/don-hang/${contract.orderId}`}>{contract.orderId}</Link> (chỉ đặt xưởng được khi Kế toán đã xác nhận Đã cọc).</> : "Khi khách chấp nhận báo giá và có hợp đồng, Sourcing tạo PO."}
         </InlineAlert>
       )}
 

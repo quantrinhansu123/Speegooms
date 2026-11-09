@@ -35,10 +35,10 @@ export function OrdersView() {
     {
       key: "people",
       header: "Phụ trách",
-      exportValue: (o) => `VH: ${staffName(o.state.assigneeId)} · Sale: ${staffName(o.contract.ownerId)}`,
+      exportValue: (o) => `Phụ trách: ${staffName(o.state.assigneeId)} · Sale: ${staffName(o.contract.ownerId)}`,
       cell: (o) => (
         <div className="text-xs">
-          <p>VH: {staffName(o.state.assigneeId)}</p>
+          <p>Phụ trách: {staffName(o.state.assigneeId)}</p>
           <p className="text-muted-foreground">Sale: {staffName(o.contract.ownerId)}</p>
         </div>
       ),

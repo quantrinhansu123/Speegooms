@@ -6,7 +6,7 @@ export const actionPermissions = {
   "lead.write": sales, "rfq.write": sales, "quote.write": sales, "contract.write": sales, "deposit.request": sales,
   "deposit.confirm": ["ke-toan"], "board.approve": ["ban-gd", "admin"],
   "quote.review": ["sale-vn", "sale-global", "ban-gd", "admin"],
-  "ops.write": ["van-hanh", "admin"], "price.return": ["van-hanh", "admin"],
+  "ops.write": ["van-hanh", "sourcing", "admin"], "price.return": ["van-hanh", "sourcing", "admin"],
   "wh.write": ["van-hanh", "admin"], "inquiry.create": sales,
   "pay.create": ["van-hanh", "ke-toan", "admin"], "pay.pay": ["ke-toan"], "ledger.write": ["ke-toan", "admin"],
   "payroll.write": ["ke-toan", "admin"], "expense.write": ["ke-toan", "admin"],

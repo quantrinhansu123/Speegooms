@@ -13,8 +13,8 @@ import type { OrderView } from "@/services/ops/rules";
 import { useOps } from "../hooks";
 
 /**
- * Checklist bàn giao Sale → Vận hành theo phiếu bàn giao trong tài liệu.
- * Vận hành tích từng mục; đủ thì nhận, thiếu thì trả lại Sale kèm lý do (không bắt đầu). Chỉ nhận khi đã có "Đã cọc".
+ * Checklist bàn giao Sale → Sourcing theo phiếu bàn giao trong tài liệu.
+ * Sourcing/Vận hành tích từng mục; đủ thì nhận, thiếu thì trả lại Sale kèm lý do (không bắt đầu). Chỉ nhận khi đã có "Đã cọc".
  */
 export function HandoverCard({ view }: { view: OrderView }) {
   const { actions, can, staffName } = useOps();
@@ -31,7 +31,7 @@ export function HandoverCard({ view }: { view: OrderView }) {
 
   return (
     <SectionCard
-      title="Bàn giao Sale → Vận hành"
+      title="Bàn giao Sale → Sourcing"
       description={`${checked}/${handoverItems.length} mục đã có`}
       action={<StatusBadge tone={done ? "success" : handover.status === "tra-lai" ? "danger" : "warning"}>{done ? "Đã nhận" : handover.status === "tra-lai" ? "Đã trả lại Sale" : "Chờ xác nhận"}</StatusBadge>}
     >

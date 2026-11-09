@@ -83,15 +83,22 @@ export const navigation: NavGroup[] = [
         ],
       },
       {
+        title: "Sourcing",
+        href: "/van-hanh/sourcing-bao-gia",
+        icon: Compass,
+        children: [
+          { title: "Sourcing – Báo giá", href: "/van-hanh/sourcing-bao-gia" },
+          { title: "Hợp đồng", href: "/van-hanh/don-hang" },
+          { title: "Nguồn hàng-xưởng", href: "/van-hanh/nha-cung-cap" },
+          { title: "Đơn mua xưởng", href: "/van-hanh/po" },
+        ],
+      },
+      {
         title: "Vận hành",
         href: "/van-hanh",
         icon: Truck,
         children: [
-          { title: "Sourcing – Báo giá", href: "/van-hanh/sourcing-bao-gia" },
           { title: "Logistics – Báo giá", href: "/van-hanh/logistics-bao-gia" },
-          { title: "Hợp đồng", href: "/van-hanh/don-hang" },
-          { title: "Nguồn hàng-xưởng", href: "/van-hanh/nha-cung-cap" },
-          { title: "Đơn mua xưởng", href: "/van-hanh/po" },
           { title: "Logistics – Lô hàng", href: "/van-hanh/logistics" },
           { title: "Chứng từ", href: "/van-hanh/chung-tu" },
         ],

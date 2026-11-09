@@ -203,7 +203,7 @@ const accountingStatusOptions = [
   ["CHUA_HOAN_THANH_THANH_TOAN", "Chưa hoàn thành thanh toán"],
 ] as const;
 
-const opsRoles: Role[] = ["admin", "van-hanh"];
+const opsRoles: Role[] = ["admin", "van-hanh", "sourcing"];
 const accountingRoles: Role[] = ["admin", "ke-toan"];
 const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
 
