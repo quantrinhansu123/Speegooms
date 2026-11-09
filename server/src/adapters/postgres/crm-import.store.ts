@@ -1,6 +1,7 @@
 import type { CrmLane } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
+import { crmActor } from "../../lib/crm-actor";
 import type { PlannedMessage, PlannedPotential } from "../../services/crm-import-sheets";
 
 const tables = {
@@ -339,6 +340,7 @@ export class PostgresCrmImportStore {
 
   private async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     try {
+      if (crmActor.getStore() && /^\s*(insert|update|delete|with)\b/i.test(sql)) return await this.transaction((client) => client.query<T>(sql, [...params]));
       return await this.pool.query<T>(sql, [...params]);
     } catch (cause) {
       throw dbError(cause);
@@ -349,6 +351,8 @@ export class PostgresCrmImportStore {
     const client = await this.pool.connect();
     try {
       await client.query("begin");
+      const actor = crmActor.getStore();
+      if (actor) await client.query("select set_config('app.crm_actor_id', $1, true)", [actor.id]);
       const result = await fn(client);
       await client.query("commit");
       return result;
@@ -367,7 +371,8 @@ function dbError(cause: unknown): Error {
     const code = String((cause as { code: unknown }).code);
     const message = String((cause as { message?: unknown }).message ?? "").split("\n")[0] ?? "";
     if (code === "23505") return new AppError(409, "CONFLICT", "Dữ liệu bị trùng");
-    if (code === "23514" || code === "42501") return new AppError(400, "RULE", message.slice(0, 200) || "Dữ liệu không hợp lệ");
+    if (code === "42501") return new AppError(403, "FORBIDDEN", message.slice(0, 200) || "Bạn chỉ có quyền xem");
+    if (code === "23514") return new AppError(400, "RULE", message.slice(0, 200) || "Dữ liệu không hợp lệ");
     if (code === "22P02") return new AppError(400, "VALIDATION_ERROR", "Giá trị không hợp lệ");
   }
   return new AppError(500, "INTERNAL", "Không ghi được dữ liệu");

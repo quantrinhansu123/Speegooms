@@ -114,6 +114,7 @@ export const updateMessageSchema = z.object(messageFields).superRefine(contactFo
 
 export const updatePotentialSchema = z
   .object({
+    handlerId: z.string().trim().min(1).max(160).optional(),
     fullName: z.string().trim().min(1, "Nhập tên khách").max(160),
     companyName: text(160),
     phone: text(30),
@@ -145,6 +146,7 @@ export const updatePotentialSchema = z
   .superRefine(contact);
 
 export const convertMessageSchema = z.object({
+  handlerId: z.string().trim().min(1).max(160).optional(),
   phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(/^\d+$/, "Số điện thoại chỉ được chứa số"),
   /** Bỏ trống thì lấy Nguồn đã chọn trên mess. */
   brand: leadBrandSchema.optional(),

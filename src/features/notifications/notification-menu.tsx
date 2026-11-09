@@ -113,7 +113,7 @@ export function NotificationMenu() {
     }
     const href = resolveHref(item);
     if (href) router.push(href);
-    if ((item.refType === "contract" || item.refType === "quote" || item.refType === "data-lanh") && item.refId) {
+    if ((item.refType === "contract" || item.refType === "quote" || item.refType === "data-lanh" || item.refType === "potential") && item.refId) {
       window.dispatchEvent(
         new CustomEvent<OpenContractDetail>(OPEN_CONTRACT_EVENT, {
           detail: { id: item.refId, lane: item.lane, refType: item.refType },

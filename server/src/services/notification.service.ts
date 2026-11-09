@@ -94,6 +94,16 @@ export class NotificationService {
     });
   }
 
+  async notifyCrmHandover(actor: Pick<PublicUser, "id" | "name">, lane: CrmLane, id: string, name: string, handlerId: string): Promise<void> {
+    if (!this.notifications || handlerId === actor.id) return;
+    await this.notifications.createMany([handlerId], {
+      type: "crm.handover", title: "Bàn giao khách tiềm năng",
+      body: `${actor.name} bàn giao khách ${name} để bạn tiếp tục xử lý.`,
+      href: recordHref(lane === "vn" ? "/sale-viet-nam/tiem-nang" : "/sale-global/tiem-nang", id, lane),
+      refType: "potential", refId: id, actorId: actor.id,
+    });
+  }
+
   async notifyQuoteSent(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quoteCode: string, quoteId: string): Promise<void> {
     const saleRole: Role = lane === "vn" ? "sale-vn" : "sale-global";
     await this.notifyRoles({

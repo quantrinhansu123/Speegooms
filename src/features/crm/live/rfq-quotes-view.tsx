@@ -6,7 +6,7 @@ import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logist
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { industryCategoryOptions, reassignQuoteSchema, updateQuoteOutcomeSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { canHandleCrm, industryCategoryOptions, reassignQuoteSchema, updateQuoteOutcomeSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -485,6 +485,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
+              const canHandleRow = canHandleCrm(user, row);
+              const canWriteRow = canWrite && canHandleRow;
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
               const printSource = printableRfqQuote(row) ?? (logistics ? printableRfqQuote(logistics) : null);
               return (
@@ -542,7 +544,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     <span className="min-w-0 flex-1 truncate" title={row.contractStatus === "DA_TAO" ? undefined : row.nonCloseReason ?? undefined}>
                       {row.contractStatus === "DA_TAO" ? "—" : row.nonCloseReason || "—"}
                     </span>
-                    {canWrite && row.contractStatus !== "DA_TAO" && (
+                    {canWriteRow && row.contractStatus !== "DA_TAO" && (
                       <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => openOutcomeEditor(row)} aria-label={`Sửa lý do chưa chốt ${row.code}`}>
                         <Pencil /> Sửa
                       </Button>
@@ -554,7 +556,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <RowMenu
                     label={`Thao tác ${row.code}`}
                     items={[
-                      { key: "view", label: canContent ? "Xem / điền thông tin đơn" : "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
+                      { key: "view", label: canContent && canHandleRow ? "Xem / điền thông tin đơn" : "Xem báo giá", icon: <Eye />, onClick: () => { setError(undefined); setViewing(row); } },
                       ...quoteOutputActions.map((action) => {
                         const Icon = quoteOutputIcon[action];
                         return {
@@ -570,7 +572,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                           },
                         };
                       }),
-                      ...(canCreateContract && row.contractStatus !== "DA_TAO"
+                      ...(canCreateContract && canHandleRow && row.contractStatus !== "DA_TAO"
                         ? [{ key: "contract", label: "Chuyển Hợp đồng", icon: <FilePlus />, onClick: () => {
                             const problems = contractQuoteProblems(row);
                             if (problems.length > 0) {
@@ -583,13 +585,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                       // Đã tạo hợp đồng thì không gửi lại báo giá được nữa.
                       ...(row.contractStatus === "DA_TAO" ? [] : isCombinedSourcing(row)
                         ? [
-                          ...(canWrite && sentToSale(row.quoteStatus) ? [{ key: "return-sourcing", label: "Gửi lại Sourcing", icon: <RotateCcw />, onClick: () => setReturning(row) }] : []),
-                          ...(canWrite && logistics && sentToSale(logistics.quoteStatus) ? [{ key: "return-logistics", label: "Gửi lại Logistics", icon: <RotateCcw />, onClick: () => setReturning(logistics) }] : []),
+                          ...(canWriteRow && sentToSale(row.quoteStatus) ? [{ key: "return-sourcing", label: "Gửi lại Sourcing", icon: <RotateCcw />, onClick: () => setReturning(row) }] : []),
+                          ...(canWriteRow && logistics && sentToSale(logistics.quoteStatus) ? [{ key: "return-logistics", label: "Gửi lại Logistics", icon: <RotateCcw />, onClick: () => setReturning(logistics) }] : []),
                         ]
-                        : canWrite && sentToSale(row.quoteStatus)
+                        : canWriteRow && sentToSale(row.quoteStatus)
                           ? [{ key: "return", label: "Gửi lại báo giá", icon: <RotateCcw />, onClick: () => setReturning(row) }]
                           : []),
-                      ...(canWrite ? [
+                      ...(canWriteRow ? [
                         { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
                       ] : []),
                     ]}

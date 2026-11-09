@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
+import { canHandleCrm, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineAlert } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -221,7 +221,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3"><MessageStatusBadge status={row.status} leadCode={row.leadCode} /></td>
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-1.5">
-                    {canConvert && row.status !== "LOST" && (
+                    {canConvert && canHandleCrm(user, row) && row.status !== "LOST" && (
                       <Button
                         size="sm"
                         title="Điền thông tin báo giá"
@@ -236,7 +236,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
                     <RowMenu
                       label={`Thao tác ${row.messCode}`}
                       items={[
-                        ...(canWrite
+                        ...(canWrite && canHandleCrm(user, row)
                           ? [
                               { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => {
                                 setEditingId(row.id);

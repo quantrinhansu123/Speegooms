@@ -1,4 +1,5 @@
 export { updateRoleSchema, type UpdateRoleInput } from "./admin";
+export { canHandleCrm, type CrmHandler, type CrmActivity } from "./crm-handover";
 export { loginSchema, type LoginInput } from "./auth";
 export {
   contractQuoteStatusSchema,

@@ -5,11 +5,15 @@ import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
 import type { AppContainer } from "../container";
+import { crmActor } from "../lib/crm-actor";
 
 export function crmRoutes(container: AppContainer) {
   const router = Router();
   const crm = container.crmController;
   router.use(container.authenticate);
+  router.use((req, _res, next) => req.user ? crmActor.run(req.user, next) : next());
+  router.get("/sales", requireAnyPermission(["message.convert", "potential.write"]), asyncHandler(crm.listSales));
+  router.get("/potentials/:id/history", requirePermission("potential.read"), asyncHandler(crm.potentialHistory));
   router.get("/exchange-rate", requireAnyPermission(["quote.read", "quote.rfq"]), asyncHandler(async (req, res) => {
     const currency = typeof req.query.currency === "string" ? req.query.currency.toUpperCase() : "";
     res.json(await exchangeRate(currency));

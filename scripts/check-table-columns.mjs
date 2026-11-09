@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { createRequire } from "node:module";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { chromium } from "playwright";
 
-const require = createRequire(new URL("../server/package.json", import.meta.url));
-const { build } = require("esbuild");
+import { bundleFixture } from "./browser-fixture.mjs";
 const fixture = `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -54,25 +50,10 @@ function App() {
 }
 createRoot(document.getElementById("app")).render(<App />);
 `;
-const bundle = await build({ absWorkingDir: process.cwd(), tsconfigRaw: { compilerOptions: { jsx: "react-jsx" } }, stdin: { contents: fixture, resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"development"' },
-  // Resolve through Node so the native bundler need not enumerate restricted parent directories on Windows.
-  plugins: [{ name: "node-resolution", setup(builder) {
-    builder.onResolve({ filter: /.*/ }, args => {
-      const localRequire = createRequire(path.isAbsolute(args.importer) ? args.importer : path.join(process.cwd(), "package.json"));
-      const specifier = args.path.startsWith("@/") ? path.join(process.cwd(), "src", args.path.slice(2)) : args.path;
-      let resolved;
-      for (const suffix of ["", ".tsx", ".ts", "/index.tsx", "/index.ts"]) {
-        try { resolved = localRequire.resolve(specifier + suffix); break; } catch { /* Try the next TypeScript extension. */ }
-      }
-      if (!resolved) throw new Error(`Cannot resolve ${args.path} from ${args.importer}`);
-      return { path: resolved, namespace: "node-source" };
-    });
-    builder.onLoad({ filter: /.*/, namespace: "node-source" }, async args => ({ contents: await readFile(args.path, "utf8"), loader: args.path.endsWith(".tsx") ? "tsx" : args.path.endsWith(".ts") ? "ts" : args.path.endsWith(".json") ? "json" : "js", resolveDir: path.dirname(args.path) }));
-  } }],
-});
+const bundle = await bundleFixture(fixture);
 const server = createServer((req, res) => {
   res.setHeader("Content-Type", req.url === "/app.js" ? "application/javascript" : "text/html; charset=utf-8");
-  res.end(req.url === "/app.js" ? bundle.outputFiles[0].text : '<style>section{width:900px;margin:20px}th,td{padding:8px;border:1px solid #ddd}table{border-collapse:collapse}button{margin:4px}[data-slot="dropdown-menu-content"]{background:white;max-height:320px;overflow:auto;padding:8px;border:1px solid #ddd}[data-slot="dropdown-menu-checkbox-item"]{padding:5px}[data-slot="dialog-content"]{position:fixed;z-index:100;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;width:400px}[data-slot="dialog-overlay"]{position:fixed;inset:0;z-index:99;background:#0002}</style><div id="app"></div><script src="/app.js"></script>');
+  res.end(req.url === "/app.js" ? bundle : '<style>section{width:900px;margin:20px}th,td{padding:8px;border:1px solid #ddd}table{border-collapse:collapse}button{margin:4px}[data-slot="dropdown-menu-content"]{background:white;max-height:320px;overflow:auto;padding:8px;border:1px solid #ddd}[data-slot="dropdown-menu-checkbox-item"]{padding:5px}[data-slot="dialog-content"]{position:fixed;z-index:100;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;width:400px}[data-slot="dialog-overlay"]{position:fixed;inset:0;z-index:99;background:#0002}</style><div id="app"></div><script src="/app.js"></script>');
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let browser;

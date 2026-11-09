@@ -15,6 +15,8 @@ import { crmPath } from "./lane";
 import { MessOrderDialog, QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { brandOptions, careChannelOptions, customerTypeOptions, type MessageRecord, type QuoteRecord } from "./types";
 import { zodFieldErrors } from "@/lib/zod-errors";
+import { useSession } from "@/features/auth/session-provider";
+import { CrmHandoverField } from "./crm-handover-field";
 
 type Mode = "" | "AIR" | "SEA";
 type ShipClass = "" | "LCL" | "FCL";
@@ -47,6 +49,8 @@ export function useMessConvert({
   setError: (message: string | undefined) => void;
   setNotice: (message: string | undefined) => void;
 }) {
+  const user = useSession();
+  const [handlerId, setHandlerId] = useState("");
   const [convertPending, setConvertPending] = useState(false);
   const [converting, setConverting] = useState<{ row: MessageRecord; mode: Mode; logisticsClass: ShipClass; details: Details; order: QuoteOrder | null } | null>(null);
   const [orderDialog, setOrderDialog] = useState(false);
@@ -64,6 +68,7 @@ export function useMessConvert({
     }
     setFieldErrors({});
     setOrderDialog(false);
+    setHandlerId("");
     setConverting({ row, mode, logisticsClass, details: detailsFrom(row), order: row.order });
   };
 
@@ -105,6 +110,7 @@ export function useMessConvert({
   const convertWith = (row: MessageRecord, mode: Mode, logisticsClass: ShipClass, errorPrefix = "", details = detailsFrom(row), order: QuoteOrder | null = row.order): Promise<boolean> => {
     const parsed = convertMessageSchema.safeParse({
       ...details, images: [],
+      handlerId: handlerId || undefined,
       // Nguồn lấy theo mess; chỉ gửi khi mess chưa có nguồn.
       brand: details.brand || undefined,
       // Đơn Sourcing không nhập Số lượng ở bước chuyển (số lượng nằm trên từng dòng hàng).
@@ -131,8 +137,17 @@ export function useMessConvert({
       method: "POST",
       body: JSON.stringify(parsed.data),
     })
-      .then((converted) => api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${converted.potential.id}/quotes`, lane), { method: "POST" }))
+      .then((converted) => {
+        if (handlerId && handlerId !== user.id) {
+          setConverting(null);
+          setNotice("Đã chuyển thành khách tiềm năng và bàn giao cho Sale nhận tiếp tục xử lý.");
+          load();
+          return null;
+        }
+        return api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${converted.potential.id}/quotes`, lane), { method: "POST" });
+      })
       .then(async (body) => {
+        if (!body) return true;
         setConverting(null);
         const desk = body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing");
         // Hàng biển FCL dùng form cước riêng nên không đưa nháp đơn hàng sang.
@@ -218,6 +233,7 @@ export function useMessConvert({
           <DialogHeader><DialogTitle>Chuyển sang khách tiềm năng</DialogTitle></DialogHeader>
           {converting && <div className="grid gap-3 sm:grid-cols-2">
             {([['phone', 'Số điện thoại'], ['productInterest', 'Hàng hóa'], ['quantityNote', 'Số lượng'], ['address', 'Địa chỉ'], ['saleNote', 'Ghi chú sale']] as const).filter(([key]) => key !== 'quantityNote' || converting.row.demand === 'SHIPPING').map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
+            <div className="sm:col-span-2"><CrmHandoverField id="convert-handler" lane={lane} value={handlerId} onChange={setHandlerId} disabled={convertPending} /></div>
             {([['brand', 'Nguồn', brandOptions], ['customerType', 'Đối tượng', customerTypeOptions], ['careChannel', 'Kênh chăm sóc', careChannelOptions]] as const).map(([key, label, options]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required hint={key === 'brand' && converting.row.brand ? 'Lấy theo Nguồn trên mess' : undefined}><NativeSelect id={`convert-${key}`} disabled={key === 'brand' && Boolean(converting.row.brand)} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })}><option value="">Chưa chọn</option>{options.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</NativeSelect></Field>)}
             <Field label="Yêu cầu của khách" htmlFor="convert-requirements" error={fieldErrors["convert-requirements"]} required className="sm:col-span-2"><Textarea id="convert-requirements" value={converting.details.requirements} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, requirements: event.target.value } })} /></Field>
             <div className="grid gap-2 rounded-lg border p-3 sm:col-span-2">

@@ -76,6 +76,14 @@ function deskOf(req: Request): QuoteDesk {
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
+  listSales = async (req: Request, res: Response) => {
+    res.json({ sales: await this.crm.listSales(laneOf(req)) });
+  };
+
+  potentialHistory = async (req: Request, res: Response) => {
+    res.json({ history: await this.crm.potentialHistory(laneOf(req), one(req.params.id), roleOf(req)) });
+  };
+
   listMessages = async (req: Request, res: Response) => {
     res.status(200).json({ messages: await this.crm.listMessages(laneOf(req), readMessageSearch(req), actorOf(req)) });
   };
@@ -102,7 +110,7 @@ export class CrmController {
   };
 
   updatePotential = async (req: Request, res: Response) => {
-    res.status(200).json({ potential: await this.crm.updatePotential(laneOf(req), one(req.params.id), req.body) });
+    res.status(200).json({ potential: await this.crm.updatePotential(laneOf(req), one(req.params.id), req.body, actorOf(req)) });
   };
 
   getQuoteTracking = async (req: Request, res: Response) => {

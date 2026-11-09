@@ -40,6 +40,7 @@ import {
   type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import type pg from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { AppError, InfrastructureError } from "../../lib/errors";
 import { COMBINED_HANDED_OFF_SQL, isLogisticsHandedOff, LOGISTICS_SHEET_UNSEEDED_SQL, mergeHandoffSql } from "./logistics-handoff";
 import type {
@@ -50,6 +51,7 @@ import type {
 } from "../../search/crm-list-search";
 import { contractSearch, messageSearch, potentialSearch, quoteSearch } from "../../search/crm-list-search";
 import { sql } from "../../search/sql-expression";
+import { crmActor } from "../../lib/crm-actor";
 import type {
   ContractRecord,
   ContractView,
@@ -64,6 +66,7 @@ import type {
 } from "../../repositories/crm.repository";
 
 type MessageRow = {
+  handler_id: string | null; handler_name: string | null;
   id: string;
   mess_code: string;
   source: string;
@@ -89,6 +92,7 @@ type MessageRow = {
 };
 
 type PotentialRow = {
+  handler_id: string | null; handler_name: string | null;
   id: string;
   lead_code: string;
   mess_id: string | null;
@@ -148,6 +152,7 @@ const quoteTables = {
 } as const;
 
 type QuoteRow = {
+  handler_id: string | null; handler_name: string | null;
   id: string;
   code: string;
   potential_id: string;
@@ -243,6 +248,7 @@ function quoteSelect(
     : "";
   return `
   select q.id::text as id, q.ma_hien_thi as code,
+         l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
          q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
          l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow,
@@ -539,6 +545,7 @@ function asSent(value: unknown): SentQuote | null {
 
 function toQuote(row: QuoteRow): QuoteRecord {
   return {
+    handlerId: row.handler_id, handlerName: row.handler_name,
     id: row.id,
     code: row.code,
     potentialId: row.potential_id,
@@ -653,6 +660,7 @@ function toTemplate(row: TemplateRow): QuoteTemplateRecord {
 function messageSelect(message: string, potential: string): string {
   return `
   select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
+         l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
          m.ten_khach_hang_tho as customer_name_raw, m.so_dien_thoai as phone, m.thu_dien_tu as email,
          m.trang_thai::text as status, m.hang_hoa as goods, m.nganh_hang as industry, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
@@ -670,6 +678,7 @@ function potentialSelect(lane: CrmLane): string {
   const { message, potential, sourcing, logistics } = quoteTables[lane];
   return `
   select l.id::text as id, l.ma_tiem_nang as lead_code,
+         l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
          l.ma_tin_nhan::text as mess_id, m.ma_hien_thi as mess_code,
          l.ho_ten as full_name, l.ten_cong_ty as company_name,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nguon::text as source,
@@ -1203,6 +1212,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
 
 function toMessage(row: MessageRow): MessageRecord {
   return {
+    handlerId: row.handler_id, handlerName: row.handler_name,
     id: row.id,
     messCode: row.mess_code,
     source: row.source,
@@ -1246,6 +1256,7 @@ function toPotential(row: PotentialRow): PotentialRecord {
   return {
     id: row.id,
     leadCode: row.lead_code,
+    handlerId: row.handler_id, handlerName: row.handler_name,
     messId: row.mess_id,
     messCode: row.mess_code,
     fullName: row.full_name,
@@ -1290,14 +1301,29 @@ function raise(cause: unknown): never {
     const message = String((cause as { message?: unknown }).message ?? "").split("\n")[0] ?? "";
     if (code === "23505") throw new AppError(409, "CONFLICT", "Dữ liệu bị trùng");
     if (code === "23503") throw new AppError(409, "CONFLICT", "Mess đang gắn với khách hàng tiềm năng");
-    if (code === "23514" || code === "42501") throw new AppError(400, "RULE", message.slice(0, 200) || "Dữ liệu không hợp lệ");
+    if (code === "42501") throw new AppError(403, "FORBIDDEN", message.slice(0, 200) || "Bạn chỉ có quyền xem");
+    if (code === "23514") throw new AppError(400, "RULE", message.slice(0, 200) || "Dữ liệu không hợp lệ");
     if (code === "22P02") throw new AppError(400, "VALIDATION_ERROR", "Giá trị không hợp lệ");
   }
   throw new InfrastructureError("database query failed", { cause });
 }
 
 export class PostgresCrmRepository implements CrmRepository {
+  private readonly connection = new AsyncLocalStorage<pg.PoolClient>();
   constructor(private readonly pool: pg.Pool) {}
+
+  async listSales(lane: CrmLane) {
+    return (await this.query<{ id: string; name: string }>("select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro = $1 order by ho_ten", [lane === "vn" ? "sale-vn" : "sale-global"])).rows;
+  }
+
+  async potentialHistory(lane: CrmLane, id: string, allowedKinds: readonly string[] | null = null) {
+    const filter = kindClause(allowedKinds, 3);
+    return (await this.query<import("@speego/shared").CrmActivity>(`select id::text, ten_nguoi_thao_tac as "actorName", hanh_dong as action, loai as entity,
+      ten_nguoi_cu as "previousHandlerName", ten_nguoi_moi as "handlerName", to_char(tao_luc at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "createdAt"
+      from crm.lich_su_xu_ly where tuyen = $1 and khach_id = $2::uuid
+      and exists (select 1 from ${laneTables[lane].potential} l where l.id = $2::uuid and l.xoa_luc is null ${filter.sql})
+      order by tao_luc desc, id desc limit 100`, [lane, id, ...filter.values])).rows;
+  }
 
   async listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
@@ -1466,16 +1492,16 @@ export class PostgresCrmRepository implements CrmRepository {
              nhom_khach, loai_khach_hang, ghi_chu_ban_hang, yeu_cau_khach, anh_yeu_cau, ly_do_chuyen,
              ghi_chu_so_luong, kich_thuoc_kien_hang, trong_luong_kg, dia_chi_gui, dia_chi_nhan,
              phuong_thuc_van_chuyen, phan_loai, phan_loai_logistics,
-             ten_cong_ty, dia_chi, thuong_hieu, kenh_cham_soc
+             ten_cong_ty, dia_chi, thuong_hieu, kenh_cham_soc, nguoi_xu_ly_id
            )
            values (
              $2::crm.lead_source, $3, $4, $5, $6, 'POTENTIAL'::crm.potential_status, 'NEW', $1::uuid,
              $7::text::crm.customer_kind, $8::text::crm.customer_type, $9, $10, $11::jsonb, $12,
              $13, $14, $15, $16, $17, $18, $19::text::crm.lead_classification, $19,
-             null, $20, $21::text::crm.lead_brand, $22
+             null, $20, $21::text::crm.lead_brand, $22, $23
            )
            returning id::text as id`,
-          [id, message.source, message.customer_name_raw, input.phone, message.email, input.productInterest, kind, input.customerType, input.saleNote, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null, input.address, brand, input.careChannel],
+          [id, message.source, message.customer_name_raw, input.phone, message.email, input.productInterest, kind, input.customerType, input.saleNote, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), input.shippingMode ?? null, input.logisticsClass ?? null, input.address, brand, input.careChannel, input.handlerId ?? null],
         );
         const leadId = inserted.rows[0]?.id;
         if (!leadId) throw new InfrastructureError("insert lead returned no row");
@@ -1496,9 +1522,10 @@ export class PostgresCrmRepository implements CrmRepository {
                phan_loai = case when $11::text is null then phan_loai else $12::text::crm.lead_classification end,
                phan_loai_logistics = case when $11::text is null then phan_loai_logistics else $12 end,
                so_dien_thoai = $13, san_pham_quan_tam = $14, loai_khach_hang = $15::text::crm.customer_type,
-               ghi_chu_ban_hang = $16, dia_chi = $17, thuong_hieu = $18::text::crm.lead_brand, kenh_cham_soc = $19
+               ghi_chu_ban_hang = $16, dia_chi = $17, thuong_hieu = $18::text::crm.lead_brand, kenh_cham_soc = $19,
+               nguoi_xu_ly_id = coalesce($20, nguoi_xu_ly_id)
            where id = $1::uuid`,
-          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null, input.phone, input.productInterest, input.customerType, input.saleNote, input.address, brand, input.careChannel],
+          [potential.id, requirements, imagesJson, reason, blank(input.quantityNote), blank(input.packageDimensions), blank(input.weightKg), blank(input.shipFromAddress), blank(input.shipToAddress), kind, input.shippingMode ?? null, input.logisticsClass ?? null, input.phone, input.productInterest, input.customerType, input.saleNote, input.address, brand, input.careChannel, input.handlerId ?? null],
         );
         const loaded = await client.query<PotentialRow>(`${potentialSelect(lane)} and l.id = $1::uuid`, [potential.id]);
         potential = loaded.rows[0] ?? potential;
@@ -1579,7 +1606,8 @@ export class PostgresCrmRepository implements CrmRepository {
          anh_yeu_cau = coalesce($22::jsonb, anh_yeu_cau),
          ly_do_chuyen = coalesce($23, ly_do_chuyen),
          kich_thuoc_kien_hang = case when $24::text is null then kich_thuoc_kien_hang else nullif(btrim($24), '') end,
-         phuong_thuc_van_chuyen = coalesce($25, phuong_thuc_van_chuyen)
+         phuong_thuc_van_chuyen = coalesce($25, phuong_thuc_van_chuyen),
+         nguoi_xu_ly_id = coalesce($26, nguoi_xu_ly_id)
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
        returning id::text as id`,
       [
@@ -1608,6 +1636,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.convertReason === undefined ? null : blank(input.convertReason),
         input.packageDimensions ?? null,
         input.shippingMode ?? null,
+        input.handlerId ?? null,
       ],
     );
     if (!updated.rows[0]) return null;
@@ -2005,7 +2034,9 @@ export class PostgresCrmRepository implements CrmRepository {
     return contracts;
   }
 
-  async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput) {
+  async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing"> {
+    // Handler checks must roll back the contract too if ownership changes while saving.
+    if (crmActor.getStore() && !this.connection.getStore()) return this.transaction(() => this.createContract(lane, quoteId, input));
     const tables = quoteTables[lane];
     const found = await this.query<{ code: string }>(
       `select ma_hien_thi as code from ${tables.sourcing} where id = $1::uuid
@@ -2454,6 +2485,9 @@ export class PostgresCrmRepository implements CrmRepository {
 
   private async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {
     try {
+      const connection = this.connection.getStore();
+      if (connection) return await connection.query<T>(sql, [...params]);
+      if (crmActor.getStore() && /^\s*(insert|update|delete|with)\b/i.test(sql)) return await this.transaction((client) => client.query<T>(sql, [...params]));
       return await this.pool.query<T>(sql, [...params]);
     } catch (cause) {
       raise(cause);
@@ -2461,10 +2495,14 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   private async transaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+    const existing = this.connection.getStore();
+    if (existing) return fn(existing);
     const client = await this.pool.connect();
     try {
       await client.query("begin");
-      const result = await fn(client);
+      const actor = crmActor.getStore();
+      if (actor) await client.query("select set_config('app.crm_actor_id', $1, true)", [actor.id]);
+      const result = await this.connection.run(client, () => fn(client));
       await client.query("commit");
       return result;
     } catch (cause) {

@@ -11,7 +11,7 @@
     "build": "node scripts/build.mjs",
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm run build && tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts src/search/search-builder.test.ts src/search/ke-toan-list-search.test.ts src/config/data-lanh-transfer.test.ts src/config/quote-access.test.ts src/config/quote-workflow.test.ts src/config/quote-sheet.test.ts src/config/quote-payment.test.ts src/config/quote-validity.test.ts src/config/contract-readiness.test.ts src/config/logistics-handoff.test.ts src/config/potential-quote-status.test.ts src/services/exchange-rate.service.test.ts src/services/crm-import-sheets.test.ts && node --test scripts/vercel-entry.test.mjs",
+    "test": "pnpm run build && tsx --test src/config/env.test.ts src/middlewares/xss.test.ts src/services/password.service.test.ts src/app.security.test.ts src/search/search-builder.test.ts src/search/ke-toan-list-search.test.ts src/config/crm-handover.test.ts src/config/data-lanh-transfer.test.ts src/config/quote-access.test.ts src/config/quote-workflow.test.ts src/config/quote-sheet.test.ts src/config/quote-payment.test.ts src/config/quote-validity.test.ts src/config/contract-readiness.test.ts src/config/logistics-handoff.test.ts src/config/potential-quote-status.test.ts src/services/exchange-rate.service.test.ts src/services/crm-import-sheets.test.ts && node --test scripts/vercel-entry.test.mjs",
     "seed": "tsx src/scripts/seed-users.ts",
     "migrate": "tsx src/scripts/migrate.ts",
     "perf": "tsx src/scripts/perf-check.ts"

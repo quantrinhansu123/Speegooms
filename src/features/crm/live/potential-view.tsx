@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
-import { canEditQuoteDesk, industryCategoryOptions, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, canHandleCrm, industryCategoryOptions, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,6 +14,8 @@ import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
+import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
+import { CrmHandoverField } from "./crm-handover-field";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { LeadCreate } from "./lead-create";
@@ -29,6 +31,7 @@ import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassB
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const POTENTIAL_FOCUS = { refTypes: ["potential"] };
 const sourceOptions = [
   ["ADS", "ADS"],
   ["GG", "GG"],
@@ -73,6 +76,7 @@ function MessLinkedCell({ value, linkMess, className }: { value: string | null; 
 }
 
 type Draft = {
+  handlerId: string;
   fullName: string;
   companyName: string;
   phone: string;
@@ -101,6 +105,7 @@ type Draft = {
 
 function draftFrom(row: PotentialRecord): Draft {
   return {
+    handlerId: row.handlerId ?? "",
     fullName: row.fullName ?? "",
     companyName: row.companyName ?? "",
     phone: row.phone ?? "",
@@ -145,6 +150,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [orderPending, setOrderPending] = useState(false);
   const [orderError, setOrderError] = useState<string>();
   const canPrice = canEditQuoteDesk(user.role, "logistics");
+  const highlightId = useFocusRow(rows, lane, canPick, setLane, POTENTIAL_FOCUS);
+  const canEditSelected = canWrite && Boolean(editing && canHandleCrm(user, editing));
   const filters = useAppliedSearch({ q: "", from: "", to: "", source: "", potential: "", customerKind: "", customerType: "" });
 
   const load = useCallback(() => {
@@ -182,7 +189,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   };
 
   const save = () => {
-    if (!editing || !draft) return;
+    if (!editing || !draft || !canEditSelected) return;
     if (!draft.customerKind) {
       setFormError("Chọn loại khách");
       return;
@@ -194,6 +201,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
     }
     const parsed = updatePotentialSchema.safeParse({
       ...draft,
+      handlerId: draft.handlerId && draft.handlerId !== editing.handlerId ? draft.handlerId : undefined,
       customerKind: draft.customerKind || undefined,
       customerType: draft.customerType || undefined,
       brand: draft.brand || undefined,
@@ -394,9 +402,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           <tbody>
             {rows.length === 0 && <tr><td colSpan={25} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
             {rows.map((row) => (
-              <tr key={row.id} className="border-b last:border-0">
+              <tr key={row.id} data-row-id={row.id} className={`border-b last:border-0 ${highlightId === row.id ? FOCUS_ROW_CLASS : ""}`}>
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
-                <td className="px-3 py-3" title={row.fullName ?? undefined}>{row.fullName}</td>
+                <td className="px-3 py-3" title={row.fullName ?? undefined}>{row.fullName}{row.handlerName && <p className="mt-1 text-xs text-muted-foreground">Xử lý: {row.handlerName}</p>}</td>
                 <td className="px-3 py-3">{row.companyName || "—"}</td>
                 <td className="px-3 py-3">{row.phone || "—"}</td>
                 <td className="px-3 py-3">{row.email || "—"}</td>
@@ -422,13 +430,13 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <td className="px-3 py-3">
                   <RowMenu
                     label={`Thao tác ${row.leadCode}`}
-                    items={canWrite ? [
+                    items={canWrite && canHandleCrm(user, row) ? [
                       { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => requestQuote(row) },
                       { key: "edit", label: "Sửa", icon: <Pencil />, onClick: () => open(row) },
                       { key: "delete", label: "Xóa", icon: <Trash2 />, destructive: true, onClick: () => setRemoving(row) },
                     ] : canPrice && row.customerKind === "LOGISTICS" ? [
                       { key: "prices", label: "Nhập giá", icon: <FileText />, onClick: () => openOrderQuote(row) },
-                    ] : []}
+                    ] : [{ key: "view", label: "Xem và lịch sử xử lý", icon: <FileText />, onClick: () => open(row) }]}
                   />
                 </td>
               </tr>
@@ -440,10 +448,10 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       <Dialog open={draft !== null} onOpenChange={(openDialog) => { if (!openDialog) { setDraft(null); setEditing(null); } }}>
         <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Sửa khách hàng tiềm năng</DialogTitle>
+            <DialogTitle>{canEditSelected ? "Sửa khách hàng tiềm năng" : "Chi tiết khách hàng tiềm năng"}</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="grid max-h-[min(68vh,720px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+            <fieldset disabled={!canEditSelected || pending} className="grid min-w-0 max-h-[min(68vh,720px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
               {formError && <div className="sm:col-span-2"><InlineAlert>{formError}</InlineAlert></div>}
               <Field label="Tên khách" htmlFor="pot-name" required>
                 <Input id="pot-name" value={draft.fullName} onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} />
@@ -457,12 +465,13 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field label="Email" htmlFor="pot-email">
                 <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
               </Field>
-              <Field label="Nguồn" htmlFor="pot-brand" required hint={editing?.messId && editing.brand ? `Lấy theo Nguồn trên mess ${editing.messCode ?? ""}`.trim() : undefined}>
+              <div className="space-y-3"><Field label="Nguồn" htmlFor="pot-brand" required hint={editing?.messId && editing.brand ? `Lấy theo Nguồn trên mess ${editing.messCode ?? ""}`.trim() : undefined}>
                 <NativeSelect id="pot-brand" disabled={Boolean(editing?.messId && editing.brand)} value={draft.brand} onChange={(event) => setDraft({ ...draft, brand: event.target.value as Draft["brand"] })}>
                   <option value="">Chưa chọn</option>
                   {brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
+              <CrmHandoverField id="pot-handler" lane={lane} value={draft.handlerId} onChange={(handlerId) => setDraft({ ...draft, handlerId })} potentialId={editing?.id} handlerName={editing?.handlerName} disabled={!canEditSelected || pending} /></div>
               <Field label="Giai đoạn" htmlFor="pot-stage" required>
                 <NativeSelect id="pot-stage" value={draft.potential} onChange={(event) => setDraft({ ...draft, potential: event.target.value as Draft["potential"] })}>
                   {potentialOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -570,11 +579,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <RequirementImageSlider key={editing?.id} images={draft.requirementImages} />
                 </div>
               )}
-            </div>
+            </fieldset>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDraft(null); setEditing(null); }}>Hủy</Button>
-            <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>
+            {canEditSelected && <Button disabled={pending} onClick={save}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

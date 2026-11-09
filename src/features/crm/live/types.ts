@@ -1,7 +1,7 @@
-import type { IndustryCategory, QuoteWorkflow } from "@speego/shared";
+import type { CrmHandler, IndustryCategory, QuoteWorkflow } from "@speego/shared";
 import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
 
-export interface MessageRecord {
+export interface MessageRecord extends CrmHandler {
   id: string;
   messCode: string;
   source: string;
@@ -28,7 +28,7 @@ export interface MessageRecord {
   leadCode: string | null;
 }
 
-export interface PotentialRecord {
+export interface PotentialRecord extends CrmHandler {
   id: string;
   leadCode: string;
   messId: string | null;
@@ -117,7 +117,7 @@ export interface RfqQuoteRecord extends QuoteRecord {
   desk: "sourcing" | "logistics";
 }
 
-export interface QuoteRecord {
+export interface QuoteRecord extends CrmHandler {
   id: string;
   code: string;
   potentialId: string;

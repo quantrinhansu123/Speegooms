@@ -45,6 +45,8 @@ import {
 } from "./types";
 import { MoneyInput } from "@/components/shared/money-input";
 import { cn } from "@/lib/utils";
+import { canHandleCrm } from "@speego/shared";
+import { useSession } from "@/features/auth/session-provider";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
@@ -2061,7 +2063,8 @@ export function QuoteEditor({
   /** Bước báo giá ngay sau khi chuyển mess: chỉ điền đơn, không sửa hồ sơ khách. */
   quoteStep?: boolean;
 }) {
-  const mode: QuoteEditMode = editMode ?? (canEdit ? "full" : "none");
+  const canProcess = canHandleCrm(useSession(), quote);
+  const mode: QuoteEditMode = canProcess ? editMode ?? (canEdit ? "full" : "none") : "none";
   const pureLogistics = quote.customerKind === "LOGISTICS";
   const showPackaging = desk === "sourcing" || desk === "logistics" || !isCombinedSourcing(quote);
   const canSendQuote = mode === "full";
@@ -2153,7 +2156,7 @@ export function QuoteEditor({
     </Field>
   );
 
-  const canSaveSale = Boolean(onSaveSale) && (desk !== "logistics" || pureLogistics);
+  const canSaveSale = canProcess && Boolean(onSaveSale) && (desk !== "logistics" || pureLogistics);
 
   useEffect(() => {
     setLead(quote);
@@ -2467,8 +2470,8 @@ export function QuoteEditor({
       {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
       {/* Đã tạo hợp đồng thì không gửi lại báo giá được nữa. */}
-      {!canSendQuote && onReturn && sent && contractStatus !== "DA_TAO" && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
-      {allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
+      {canProcess && !canSendQuote && onReturn && sent && contractStatus !== "DA_TAO" && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
+      {canProcess && allowContract && !embedded && lane && contractStatus !== "DA_TAO" && (
         <Button
           type="button"
           variant="outline"
@@ -2552,6 +2555,7 @@ export function QuoteEditor({
 
   const sheet = (
     <>
+      {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
       {printLang === "en" && (
         <InlineAlert tone={enMissing.length > 0 ? "warning" : "info"}>
@@ -2566,7 +2570,7 @@ export function QuoteEditor({
           Sale điền ảnh, số lượng ở Sourcing. Sourcing nhập thông tin đơn hàng và đóng gói; Logistics chỉ nhập chi phí logistics. Mua hàng bổ sung thuộc tính chi tiết từ xưởng; vận hành điền đơn giá để báo giá.
         </InlineAlert>
       )}
-      {onHandoffLogistics && !pureLogistics && (
+      {canProcess && onHandoffLogistics && !pureLogistics && (
         <InlineAlert>
           Sale nhập thông tin đơn hàng (ảnh, số lượng, quy cách, đóng gói) ở phần Sale. Logistics nhập chi phí logistics. Nút chuyển logistics nằm ở phần thông tin đơn hàng của Sale.
         </InlineAlert>
@@ -2835,10 +2839,10 @@ export function QuoteEditor({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-base font-medium">Thông tin đơn hàng</h3>
               <div className="flex flex-wrap gap-2">
-                {onHandoffSourcing && (
+                {canProcess && onHandoffSourcing && (
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferSourcing(); }}>Chuyển Sourcing</Button>
                 )}
-                {onHandoffLogistics && (
+                {canProcess && onHandoffLogistics && (
                   <Button type="button" variant="outline" disabled={pending} onClick={() => { void transferLogistics(); }}>Chuyển logistics</Button>
                 )}
                 {canEditContent && <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>}

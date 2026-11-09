@@ -52,7 +52,7 @@ export interface QuoteTracking {
   contracts: ContractRecord[];
 }
 
-type MessageActor = { id: string; role: Role };
+type MessageActor = { id: string; role: Role; name?: string };
 
 export class CrmService {
   constructor(
@@ -111,6 +111,7 @@ export class CrmService {
     const result = await this.ready().convertMessage(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
     if (result === "lost") throw new AppError(409, "CONFLICT", "Mess đã mất, không chuyển được");
+    if (actor && input.handlerId) await this.notifications?.notifyCrmHandover({ id: actor.id, name: actor.name ?? "Nhân viên" }, lane, result.potential.id, result.potential.fullName ?? result.potential.leadCode, input.handlerId).catch(() => undefined);
     return result;
   }
 
@@ -120,9 +121,13 @@ export class CrmService {
     return this.ready().listPotentials(lane, { ...search, allowedKinds });
   }
 
-  async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord> {
+  listSales(lane: CrmLane) { return this.ready().listSales(lane); }
+  potentialHistory(lane: CrmLane, id: string, role: Role) { return this.ready().potentialHistory(lane, id, visibleCustomerKinds(role)); }
+
+  async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput, actor?: PublicUser): Promise<PotentialRecord> {
     const row = await this.ready().updatePotential(lane, id, input);
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
+    if (actor && input.handlerId) await this.notifications?.notifyCrmHandover(actor, lane, row.id, row.fullName ?? row.leadCode, input.handlerId).catch(() => undefined);
     return row;
   }
 

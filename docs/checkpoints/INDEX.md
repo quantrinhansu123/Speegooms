@@ -4,6 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
 | Data lạnh: bộ lọc, chuyển Facebook 6 sang Telesale, tích hợp bàn giao Sale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | `7f653b5` + merge `5569cff`, 2026-11-09 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |

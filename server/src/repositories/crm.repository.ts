@@ -1,4 +1,4 @@
-import type { QuoteWorkflow } from "@speego/shared";
+import type { CrmHandler, QuoteWorkflow } from "@speego/shared";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -31,7 +31,7 @@ export type { CrmLane, QuoteDesk };
 
 export type ContractView = "sale" | "ops" | "accounting";
 
-export interface MessageRecord {
+export interface MessageRecord extends CrmHandler {
   id: string;
   messCode: string;
   source: string;
@@ -58,7 +58,7 @@ export interface MessageRecord {
   leadCode: string | null;
 }
 
-export interface PotentialRecord {
+export interface PotentialRecord extends CrmHandler {
   id: string;
   leadCode: string;
   messId: string | null;
@@ -97,7 +97,7 @@ export interface PotentialRecord {
   createdAt: string;
 }
 
-export interface QuoteRecord {
+export interface QuoteRecord extends CrmHandler {
   id: string;
   code: string;
   potentialId: string;
@@ -241,6 +241,8 @@ export interface ContractRecord {
 }
 
 export interface CrmRepository {
+  listSales(lane: CrmLane): Promise<{ id: string; name: string }[]>;
+  potentialHistory(lane: CrmLane, id: string, allowedKinds?: readonly string[] | null): Promise<import("@speego/shared").CrmActivity[]>;
   listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]>;
   createMessage(lane: CrmLane, input: CreateMessageInput, creatorId?: string): Promise<MessageRecord>;
   /** Người tạo mess: id, null nếu chưa rõ, "missing" nếu không có mess. */
