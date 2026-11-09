@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { FilterableTable } from "./filterable-table"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -12,7 +13,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       tabIndex={0}
       className="relative w-full overflow-x-auto"
     >
-      <table
+      <FilterableTable
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}

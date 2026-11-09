@@ -28,6 +28,10 @@ export const telesaleStatuses = [
   "10. Sai tệp / Đã đổi nghề / Sang tiệm",
 ] as const;
 
+export function hasActiveTelesale(status: string | null | undefined): status is (typeof telesaleStatuses)[number] {
+  return telesaleStatuses.slice(1).some((value) => value === status);
+}
+
 export const customerClasses = ["Đã mua hàng", "Đã liên hệ, chưa mua", "Chưa liên hệ"] as const;
 
 const customerFields = {

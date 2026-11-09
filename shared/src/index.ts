@@ -171,6 +171,7 @@ export {
   customerClasses,
   facebookStatuses,
   telesaleStatuses,
+  hasActiveTelesale,
   createDataLanhSchema,
   updateDataLanhSchema,
   type CreateDataLanhInput,

@@ -7,6 +7,7 @@ import { MoneyInput } from "@/components/shared/money-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Table } from "@/components/ui/table";
 import { formatMoney } from "@/lib/format";
 
 const chargeNames = [
@@ -49,7 +50,7 @@ export function FclQuoteForm({ value, onChange, shipmentEditable, chargesEditabl
       {chargesEditable && <Button type="button" variant="outline" size="sm" disabled={value.charges.length >= 30} onClick={() => onChange({ ...value, charges: [...value.charges, { name: "", rate: null, quantity: 1, unit: value.volume || "cont", vatAmount: 0, note: "", optional: false }] })}><Plus />Thêm phí</Button>}
     </div>
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] text-sm">
+      <Table className="w-full min-w-[900px] text-sm">
         <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">STT</th><th className="p-2">Tên chi phí</th><th className="p-2">Đơn giá</th><th className="p-2">Số lượng</th><th className="p-2">Đơn vị</th><th className="p-2">VAT 8% (số tiền {currency})</th><th className="p-2">Thành tiền</th><th className="p-2">Ghi chú</th><th className="p-2">Phí tùy chọn</th><th className="p-2" /></tr></thead>
         <tbody>{value.charges.map((row, index) => {
           const patch = (next: Partial<typeof row>) => onChange({ ...value, charges: value.charges.map((item, i) => i === index ? { ...item, ...next } : item) });
@@ -66,7 +67,7 @@ export function FclQuoteForm({ value, onChange, shipmentEditable, chargesEditabl
             <td className="p-2">{chargesEditable && <Button type="button" variant="ghost" size="icon-sm" aria-label={`Xóa phí ${index + 1}`} onClick={() => onChange({ ...value, charges: value.charges.filter((_, i) => i !== index) })}><Trash2 /></Button>}</td>
           </tr>;
         })}</tbody>
-      </table>
+      </Table>
     </div>
     <div className="grid gap-1 text-right font-medium"><p>Tổng chưa gồm phí tùy chọn: {formatMoney(totals.base, currency)}</p><p>Tổng gồm tất cả chi phí: {formatMoney(totals.all, currency)}</p></div>
     <Field label="Lưu ý" htmlFor="fcl-notes"><Textarea id="fcl-notes" rows={3} value={value.notes} disabled={!chargesEditable} onChange={(event) => onChange({ ...value, notes: event.target.value })} /></Field>

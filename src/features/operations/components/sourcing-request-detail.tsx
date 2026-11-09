@@ -6,6 +6,7 @@ import { ArrowLeft, Check, Eye, Plus, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { SectionCard } from "@/components/shared/section-card";
@@ -188,7 +189,7 @@ export function SourcingRequestDetail({ requestId }: { requestId: string }) {
             <EmptyState title="Chưa có báo giá" description="Thêm báo giá từ các xưởng để so sánh." className="py-8" />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-sm">
+              <Table className="w-full min-w-[34rem] text-sm">
                 <caption className="sr-only">So sánh báo giá của các nhà cung cấp</caption>
                 <thead>
                   <tr className="border-y bg-muted/60 text-left">
@@ -237,7 +238,7 @@ export function SourcingRequestDetail({ requestId }: { requestId: string }) {
                     ))}
                   </tr>
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
         </SectionCard>

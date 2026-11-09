@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Shuffle, Trash2 } from "lucide-react";
-import { customerClasses, facebookStatuses, telesaleStatuses, type DataLanhRecord } from "@speego/shared";
+import { customerClasses, facebookStatuses, hasActiveTelesale, telesaleStatuses, type DataLanhRecord } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Pagination } from "@/components/shared/pagination";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
@@ -16,6 +16,7 @@ import { usePagination } from "@/features/crm/hooks";
 import { FilterSelect } from "@/features/crm/live/list-search-bar";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { ApiError, api } from "@/lib/api";
+import { matchesDataLanhStatus, type StatusChannel } from "./data-lanh-filters";
 
 const UNASSIGNED = "__none";
 const PAGE_SIZE = 50;
@@ -24,7 +25,6 @@ const editFields = ["fullName", "company", "phone", "facebookLink", "market", "s
 type EditField = (typeof editFields)[number];
 /** id = null là đang thêm khách mới. */
 type EditDraft = { id: string | null; name: string } & Record<EditField, string>;
-const asOptions = (list: readonly string[]) => list.map((value) => [value, value] as const);
 
 /** Data lạnh: khách cũ chia vòng tròn cho Sales Intern, intern cập nhật trạng thái chăm Facebook / Telesale. */
 export function DataLanhView() {
@@ -40,7 +40,10 @@ export function DataLanhView() {
   const [editing, setEditing] = useState<EditDraft | null>(null);
   const [editError, setEditError] = useState<string>();
   const [saving, setSaving] = useState(false);
-  const [filters, setFilters] = useState({ q: "", intern: "", facebook: "", telesale: "" });
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [transfer, setTransfer] = useState<{ row: DataLanhRecord; status: string } | null>(null);
+  const [filters, setFilters] = useState({ q: "", intern: "", channel: "" as StatusChannel, status: "" });
+  const statusOptions = (filters.channel === "facebook" ? facebookStatuses : telesaleStatuses).slice(1);
 
   const load = useCallback(() => {
     api<{ rows: DataLanhRecord[] }>("/api/data-lanh")
@@ -57,9 +60,7 @@ export function DataLanhView() {
     return rows.filter((r) => {
       if (q && ![r.fullName, r.company, r.phone, r.facebookLink, r.market].some((v) => v?.toLowerCase().includes(q))) return false;
       if (filters.intern === UNASSIGNED ? r.internId : filters.intern && r.internId !== filters.intern) return false;
-      if (filters.facebook && r.facebookStatus !== filters.facebook) return false;
-      if (filters.telesale && r.telesaleStatus !== filters.telesale) return false;
-      return true;
+      return matchesDataLanhStatus(r, filters.channel, filters.status);
     });
   }, [rows, filters]);
 
@@ -78,11 +79,20 @@ export function DataLanhView() {
       .finally(() => setAssigning(false));
   };
 
-  const setStatus = (row: DataLanhRecord, patch: { facebookStatus: string | null } | { telesaleStatus: string | null }) => {
+  const setStatus = async (row: DataLanhRecord, patch: { facebookStatus?: string | null; telesaleStatus?: string | null }) => {
     setError(undefined);
-    api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}`, { method: "PATCH", body: JSON.stringify(patch) })
-      .then((res) => setRows((current) => current.map((r) => (r.id === row.id ? res.row : r))))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không lưu được trạng thái"));
+    setStatusSaving(true);
+    try {
+      const res = await api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+      setRows((current) => current.map((r) => (r.id === row.id ? res.row : r)));
+      if (patch.facebookStatus === facebookStatuses[6]) setNotice(`Đã chuyển ${row.fullName ?? `STT ${row.stt}`} sang Telesale.`);
+      return true;
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : "Không lưu được trạng thái");
+      return false;
+    } finally {
+      setStatusSaving(false);
+    }
   };
 
   const openEdit = (row: DataLanhRecord) => {
@@ -134,14 +144,19 @@ export function DataLanhView() {
       <NativeSelect
         aria-label={`${kind === "facebook" ? "Trạng thái chăm Facebook" : "Trạng thái Telesale"} · ${row.fullName ?? row.stt}`}
         value={value}
-        disabled={!canWork || !row.internId}
+        disabled={!canWork || !row.internId || statusSaving}
         onChange={(event) => {
           const next = event.target.value || null;
+          if (kind === "facebook" && next === facebookStatuses[6] && !hasActiveTelesale(row.telesaleStatus)) {
+            setError(undefined);
+            setTransfer({ row, status: "" });
+            return;
+          }
           setStatus(row, kind === "facebook" ? { facebookStatus: next } : { telesaleStatus: next });
         }}
       >
-        <option value="">Chưa cập nhật</option>
-        {list.map((item) => <option key={item} value={item}>{item}</option>)}
+        <option value="" disabled={kind === "telesale" && row.facebookStatus === facebookStatuses[6] && hasActiveTelesale(row.telesaleStatus)}>Chưa cập nhật</option>
+        {list.map((item) => <option key={item} value={item} disabled={kind === "telesale" && row.facebookStatus === facebookStatuses[6] && hasActiveTelesale(row.telesaleStatus) && item === telesaleStatuses[0]}>{item}</option>)}
       </NativeSelect>
     );
   };
@@ -162,7 +177,7 @@ export function DataLanhView() {
       />
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
-      <div className="mb-4 flex flex-wrap items-end gap-3 lg:flex-nowrap">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
         <div className="w-full shrink-0 sm:w-64">
           <label htmlFor="dl-q" className="mb-1.5 block text-sm font-medium">Tìm kiếm</label>
           <div className="relative">
@@ -171,17 +186,29 @@ export function DataLanhView() {
           </div>
         </div>
         {user.role !== "sale-intern" && (
-          <div className="min-w-36 flex-1">
+          <div className="w-fit max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full">
             <FilterSelect id="dl-intern" label="Intern" value={filters.intern} onChange={(intern) => setFilters({ ...filters, intern })} options={[[UNASSIGNED, "Chưa giao"], ...interns]} />
           </div>
         )}
-        <div className="min-w-44 flex-1">
-          <FilterSelect id="dl-fb" label="Trạng thái Facebook" value={filters.facebook} onChange={(facebook) => setFilters({ ...filters, facebook })} options={asOptions(facebookStatuses)} />
-        </div>
-        <div className="min-w-44 flex-1">
-          <FilterSelect id="dl-tele" label="Trạng thái Telesale" value={filters.telesale} onChange={(telesale) => setFilters({ ...filters, telesale })} options={asOptions(telesaleStatuses)} />
+        <div className="w-fit max-w-full">
+          <Field label="Trạng thái" htmlFor="dl-channel">
+            <NativeSelect id="dl-channel" className="block w-auto max-w-full" value={filters.channel} onChange={(event) => setFilters({ ...filters, channel: event.target.value as StatusChannel, status: "" })}>
+              <option value="">Tất cả</option>
+              <option value="facebook">Trạng thái Facebook</option>
+              <option value="telesale">Trạng thái Telesale</option>
+            </NativeSelect>
+          </Field>
         </div>
       </div>
+      {filters.channel && (
+        <div role="group" aria-label={filters.channel === "facebook" ? "Lọc trạng thái Facebook" : "Lọc trạng thái Telesale"} className="mb-4 flex gap-2 overflow-x-auto pb-2">
+          {["", ...statusOptions].map((status) => (
+            <Button key={status} type="button" variant={filters.status === status ? "default" : "outline"} aria-pressed={filters.status === status} onClick={() => setFilters({ ...filters, status })}>
+              {status || "Tất cả"}
+            </Button>
+          ))}
+        </div>
+      )}
       <p className="mb-2 text-sm text-muted-foreground">
         {shown.length}/{rows.length} khách
         {user.role !== "sale-intern" && ` · Chưa giao: ${unassigned}`}
@@ -236,6 +263,27 @@ export function DataLanhView() {
           </tbody>
         </table>
       </TableHScroll>
+      <Dialog open={transfer !== null} onOpenChange={(open) => { if (!open && !statusSaving) setTransfer(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chuyển khách sang Telesale</DialogTitle>
+            <DialogDescription>Chọn kết quả gọi cho {transfer?.row.fullName ?? `STT ${transfer?.row.stt}`}. Sau khi lưu, khách sẽ rời nhóm Facebook và hiện trong nhóm Telesale.</DialogDescription>
+          </DialogHeader>
+          {error && <InlineAlert>{error}</InlineAlert>}
+          <Field label="Kết quả gọi" htmlFor="dl-transfer-status">
+            <NativeSelect id="dl-transfer-status" value={transfer?.status ?? ""} disabled={statusSaving} onChange={(event) => setTransfer((current) => current ? { ...current, status: event.target.value } : null)}>
+              <option value="">Chọn kết quả gọi</option>
+              {telesaleStatuses.slice(1).map((status) => <option key={status} value={status}>{status}</option>)}
+            </NativeSelect>
+          </Field>
+          <DialogFooter>
+            <Button variant="outline" disabled={statusSaving} onClick={() => setTransfer(null)}>Hủy</Button>
+            <Button disabled={statusSaving || !hasActiveTelesale(transfer?.status)} onClick={async () => {
+              if (transfer && hasActiveTelesale(transfer.status) && await setStatus(transfer.row, { facebookStatus: facebookStatuses[6], telesaleStatus: transfer.status })) setTransfer(null);
+            }}>{statusSaving ? "Đang chuyển…" : "Chuyển sang Telesale"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
