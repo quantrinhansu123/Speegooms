@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
+import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { usePagination } from "@/features/crm/hooks";
 import { FilterSelect } from "@/features/crm/live/list-search-bar";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
@@ -19,6 +20,9 @@ import { ApiError, api } from "@/lib/api";
 
 const UNASSIGNED = "__none";
 const PAGE_SIZE = 50;
+// Phải là hằng cố định: useFocusRow đăng ký lại mỗi khi tham số đổi, hàm/obj tạo mới mỗi lần render gây vòng lặp.
+const noop = () => undefined;
+const FOCUS_OPTIONS = { refTypes: ["data-lanh"] };
 
 const editFields = ["fullName", "company", "phone", "facebookLink", "market", "segment", "address", "interest", "customerClass", "history", "note"] as const;
 type EditField = (typeof editFields)[number];
@@ -26,16 +30,18 @@ type EditField = (typeof editFields)[number];
 type EditDraft = { id: string | null; name: string } & Record<EditField, string>;
 const asOptions = (list: readonly string[]) => list.map((value) => [value, value] as const);
 
-/** Data lạnh: khách cũ chia vòng tròn cho Sales Intern, intern cập nhật trạng thái chăm Facebook / Telesale. */
+/** Data lạnh: khách cũ chia vòng tròn cho từng người; mỗi người chỉ thấy khách của mình, Admin và Ban GĐ thấy tất cả. */
 export function DataLanhView() {
   const user = useSession();
-  const canAssign = user.role === "admin" || user.role === "sale-vn";
+  const canAssign = user.role === "admin";
   const canDelete = user.role === "admin";
-  const canWork = canAssign || user.role === "sale-intern";
+  const canWork = user.role !== "ban-gd";
+  const seesAll = user.role === "admin" || user.role === "ban-gd";
   const [rows, setRows] = useState<DataLanhRecord[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [assigning, setAssigning] = useState(false);
+  const [sales, setSales] = useState<{ id: string; name: string }[]>([]);
   const [removing, setRemoving] = useState<DataLanhRecord | null>(null);
   const [editing, setEditing] = useState<EditDraft | null>(null);
   const [editError, setEditError] = useState<string>();
@@ -48,6 +54,10 @@ export function DataLanhView() {
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được data lạnh"));
   }, []);
   useEffect(load, [load]);
+  useEffect(() => {
+    if (!canWork) return;
+    api<{ sales: { id: string; name: string }[] }>("/api/data-lanh/sales").then((body) => setSales(body.sales)).catch(() => undefined);
+  }, [canWork]);
 
   const interns = useMemo(() => [...new Map(rows.filter((r) => r.internId).map((r) => [r.internId!, r.internName ?? r.internId!])).entries()], [rows]);
   const unassigned = rows.filter((r) => !r.internId).length;
@@ -55,7 +65,7 @@ export function DataLanhView() {
   const shown = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (q && ![r.fullName, r.company, r.phone, r.facebookLink, r.market].some((v) => v?.toLowerCase().includes(q))) return false;
+      if (q && ![r.fullName, r.company, r.phone, r.facebookLink, r.market, r.saleCareName].some((v) => v?.toLowerCase().includes(q))) return false;
       if (filters.intern === UNASSIGNED ? r.internId : filters.intern && r.internId !== filters.intern) return false;
       if (filters.facebook && r.facebookStatus !== filters.facebook) return false;
       if (filters.telesale && r.telesaleStatus !== filters.telesale) return false;
@@ -66,12 +76,33 @@ export function DataLanhView() {
   // Đổi bộ lọc thì về trang 1.
   const paging = usePagination(shown, PAGE_SIZE, JSON.stringify(filters));
 
+  // Bấm thông báo trên chuông: tô vàng khách được bàn giao và nhảy tới đúng trang.
+  const highlightId = useFocusRow(rows, "vn", false, noop, FOCUS_OPTIONS);
+  const setPage = paging.setPage;
+  useEffect(() => {
+    if (!highlightId) return;
+    const index = shown.findIndex((r) => r.id === highlightId);
+    if (index >= 0) setPage(Math.floor(index / PAGE_SIZE) + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ nhảy trang khi có dòng mới cần tô
+  }, [highlightId]);
+
+  const handover = (row: DataLanhRecord, saleId: string) => {
+    if (!saleId) return;
+    setError(undefined);
+    api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}/handover`, { method: "POST", body: JSON.stringify({ saleId }) })
+      .then((res) => {
+        setRows((current) => current.map((r) => (r.id === res.row.id ? res.row : r)));
+        setNotice(`Đã bàn giao ${res.row.fullName ?? `STT ${res.row.stt}`} cho ${res.row.saleCareName}. Thông báo đã gửi lên chuông của Sale.`);
+      })
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không bàn giao được"));
+  };
+
   const assign = () => {
     setAssigning(true);
     setError(undefined);
     api<{ assigned: number; interns: number }>("/api/data-lanh/assign", { method: "POST", body: JSON.stringify({}) })
       .then((res) => {
-        setNotice(res.assigned ? `Đã chia ${res.assigned} khách vòng tròn cho ${res.interns} intern` : "Không còn khách nào chưa giao");
+        setNotice(res.assigned ? `Đã chia ${res.assigned} khách vòng tròn cho ${res.interns} người` : "Không còn khách nào chưa giao");
         load();
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không chia được data"))
@@ -108,7 +139,7 @@ export function DataLanhView() {
       .then((res) => {
         setEditing(null);
         if (creating) {
-          setNotice(`Đã thêm khách STT ${res.row.stt}. Khách chưa giao, bấm "Chia vòng tròn" để giao cho intern.`);
+          setNotice(`Đã thêm khách STT ${res.row.stt}. Khách chưa giao, bấm "Chia vòng tròn" để giao cho người phụ trách.`);
           load();
         } else {
           setRows((current) => current.map((r) => (r.id === res.row.id ? res.row : r)));
@@ -150,7 +181,7 @@ export function DataLanhView() {
     <>
       <PageHeader
         title="Data lạnh"
-        description={user.role === "sale-intern" ? "Khách cũ được giao cho bạn. Cập nhật trạng thái chăm Facebook và Telesale sau khi liên hệ." : "Khách cũ chia vòng tròn cho Sales Intern. Intern cập nhật trạng thái chăm Facebook và Telesale."}
+        description={seesAll ? "Khách cũ chia vòng tròn cho từng người. Mỗi người cập nhật trạng thái chăm Facebook và Telesale cho khách của mình." : "Khách cũ được giao hoặc bàn giao cho bạn. Cập nhật trạng thái chăm Facebook và Telesale sau khi liên hệ."}
         actions={canAssign && (
           <>
             <Button variant="outline" onClick={openCreate}><Plus /> Thêm khách</Button>
@@ -170,9 +201,9 @@ export function DataLanhView() {
             <Input id="dl-q" className="pl-9" value={filters.q} placeholder="Tên, tiệm, SĐT, Facebook…" onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
           </div>
         </div>
-        {user.role !== "sale-intern" && (
+        {seesAll && (
           <div className="min-w-36 flex-1">
-            <FilterSelect id="dl-intern" label="Intern" value={filters.intern} onChange={(intern) => setFilters({ ...filters, intern })} options={[[UNASSIGNED, "Chưa giao"], ...interns]} />
+            <FilterSelect id="dl-intern" label="Phụ trách" value={filters.intern} onChange={(intern) => setFilters({ ...filters, intern })} options={[[UNASSIGNED, "Chưa giao"], ...interns]} />
           </div>
         )}
         <div className="min-w-44 flex-1">
@@ -184,24 +215,24 @@ export function DataLanhView() {
       </div>
       <p className="mb-2 text-sm text-muted-foreground">
         {shown.length}/{rows.length} khách
-        {user.role !== "sale-intern" && ` · Chưa giao: ${unassigned}`}
-        {user.role !== "sale-intern" && interns.map(([id, name]) => ` · ${name}: ${rows.filter((r) => r.internId === id).length}`).join("")}
+        {seesAll && ` · Chưa giao: ${unassigned}`}
+        {seesAll && interns.map(([id, name]) => ` · ${name}: ${rows.filter((r) => r.internId === id).length}`).join("")}
       </p>
       <TableHScroll>
-        <table className="w-full min-w-[1900px] text-sm">
+        <table className="w-full min-w-[2150px] text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
-              {["STT", "Khách hàng", "Tiệm / Công ty", "SĐT", "Facebook", "Thị trường", "Mảng KD", "Phân loại", "Lịch sử CSKH", "Intern", "Trạng thái chăm Facebook", "Trạng thái Telesale", "Thao tác"].map((head) => (
+              {["STT", "Khách hàng", "Tiệm / Công ty", "SĐT", "Facebook", "Thị trường", "Mảng KD", "Phân loại", "Lịch sử CSKH", "Phụ trách", "Trạng thái chăm Facebook", "Trạng thái Telesale", "Bàn giao Sale care", "Thao tác"].map((head) => (
                 <th key={head} className="whitespace-nowrap px-3 py-2 font-medium">{head}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={13} className="px-3 py-8 text-center text-muted-foreground">{rows.length ? "Không có kết quả." : "Chưa có data lạnh."}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{rows.length ? "Không có kết quả." : "Chưa có data lạnh."}</td></tr>}
             {paging.slice.map((row) => {
               const history = [row.history, row.note].filter(Boolean).join(" · ");
               return (
-                <tr key={row.id} className="border-b align-top last:border-0">
+                <tr key={row.id} data-row-id={row.id} className={`border-b align-top last:border-0${highlightId === row.id ? ` ${FOCUS_ROW_CLASS}` : ""}`}>
                   <td className="px-3 py-3 whitespace-nowrap">{row.stt}</td>
                   <td className="px-3 py-3 font-medium">{row.fullName || "—"}</td>
                   <td className="px-3 py-3">{row.company || "—"}</td>
@@ -216,6 +247,17 @@ export function DataLanhView() {
                   <td className="px-3 py-3 whitespace-nowrap">{row.internName ?? <span className="text-muted-foreground">Chưa giao</span>}</td>
                   <td className="min-w-64 px-3 py-2">{statusSelect(row, "facebook")}</td>
                   <td className="min-w-64 px-3 py-2">{statusSelect(row, "telesale")}</td>
+                  <td className="min-w-48 px-3 py-2">
+                    <NativeSelect
+                      aria-label={`Bàn giao Sale care · ${row.fullName ?? row.stt}`}
+                      value={row.saleCareId ?? ""}
+                      disabled={!canWork}
+                      onChange={(event) => handover(row, event.target.value)}
+                    >
+                      <option value="" disabled>Chưa bàn giao</option>
+                      {sales.map((sale) => <option key={sale.id} value={sale.id}>{sale.name}</option>)}
+                    </NativeSelect>
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       {canWork && (

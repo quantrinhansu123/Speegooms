@@ -80,7 +80,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
       notificationService,
       crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
     )),
-    dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null),
+    dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null, notificationService),
     keToanController: new KeToanController(new KeToanService(pool ? new PostgresKeToanRepository(pool) : null)),
     notificationController: new NotificationController(notificationService),
     uploadController: new UploadController(cloudinary),

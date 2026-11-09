@@ -80,6 +80,20 @@ export class NotificationService {
     });
   }
 
+  /** Sale được chọn làm Sale care nhận thông báo trên chuông; bấm vào mở đúng khách trong Data lạnh. */
+  async notifyDataLanhHandover(actor: PublicUser, saleId: string, customerName: string, rowId: string): Promise<void> {
+    if (!this.notifications || saleId === actor.id) return;
+    await this.notifications.createMany([saleId], {
+      type: "datalanh.handover",
+      title: "Bàn giao khách data lạnh",
+      body: `${actor.name} bàn giao khách ${customerName} để bạn care tiếp.`,
+      href: recordHref("/sale-viet-nam/data-lanh", rowId),
+      refType: "data-lanh",
+      refId: rowId,
+      actorId: actor.id,
+    });
+  }
+
   async notifyQuoteSent(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quoteCode: string, quoteId: string): Promise<void> {
     const saleRole: Role = lane === "vn" ? "sale-vn" : "sale-global";
     await this.notifyRoles({

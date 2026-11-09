@@ -1,25 +1,46 @@
 import type { Request, Response } from "express";
 import type { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
 import { AppError } from "../lib/errors";
+import type { NotificationService } from "../services/notification.service";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class DataLanhController {
-  constructor(private readonly repo: PostgresDataLanhRepository | null) {}
+  constructor(
+    private readonly repo: PostgresDataLanhRepository | null,
+    private readonly notifications: NotificationService | null = null,
+  ) {}
 
   private ready(): PostgresDataLanhRepository {
     if (!this.repo) throw new AppError(503, "UNAVAILABLE", "Data lạnh cần kết nối Postgres");
     return this.repo;
   }
 
-  /** Intern chỉ thấy và sửa dòng của mình; các vai trò khác thấy tất cả. */
+  /** Admin và Ban GĐ thấy tất cả; người khác chỉ thấy khách được giao hoặc được bàn giao cho mình. */
   private scope(req: Request): string | null {
     if (!req.user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
-    return req.user.role === "sale-intern" ? req.user.id : null;
+    return req.user.role === "admin" || req.user.role === "ban-gd" ? null : req.user.id;
   }
 
   list = async (req: Request, res: Response) => {
     res.status(200).json({ rows: await this.ready().list(this.scope(req)) });
+  };
+
+  sales = async (_req: Request, res: Response) => {
+    res.status(200).json({ sales: await this.ready().listSales() });
+  };
+
+  handover = async (req: Request, res: Response) => {
+    const actor = req.user;
+    if (!actor) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+    const raw = req.params.id;
+    const id = Array.isArray(raw) ? raw[0] : raw;
+    if (!id || !UUID.test(id)) throw new AppError(404, "NOT_FOUND", "Không tìm thấy");
+    const row = await this.ready().handover(id, req.body.saleId, actor.id, this.scope(req));
+    if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy");
+    // Thông báo lỗi không làm hỏng việc bàn giao đã lưu.
+    await this.notifications?.notifyDataLanhHandover(actor, req.body.saleId, row.fullName ?? `STT ${row.stt}`, row.id).catch(() => undefined);
+    res.status(200).json({ row });
   };
 
   create = async (req: Request, res: Response) => {

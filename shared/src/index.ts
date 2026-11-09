@@ -172,6 +172,7 @@ export {
   facebookStatuses,
   telesaleStatuses,
   createDataLanhSchema,
+  handoverDataLanhSchema,
   updateDataLanhSchema,
   type CreateDataLanhInput,
   type DataLanhRecord,

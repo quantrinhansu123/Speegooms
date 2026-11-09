@@ -8,6 +8,7 @@ type Row = {
   address: string | null; interest: string | null; history: string | null; note: string | null;
   intern_id: string | null; intern_name: string | null; facebook_status: string | null;
   telesale_status: string | null; assigned_at: Date | null;
+  sale_care_id: string | null; sale_care_name: string | null; handed_over_at: Date | null;
 };
 
 const select = `
@@ -15,8 +16,10 @@ const select = `
          d.link_facebook as facebook_link, d.thi_truong as market, d.mang_kinh_doanh as segment,
          d.phan_loai_khach as customer_class, d.dia_chi as address, d.quan_tam as interest,
          d.lich_su_cskh as history, d.ghi_chu as note, d.intern_id, u.ho_ten as intern_name,
-         d.trang_thai_facebook as facebook_status, d.trang_thai_telesale as telesale_status, d.giao_luc as assigned_at
-  from crm.data_lanh d left join public.nguoi_dung u on u.ma_nguoi_dung = d.intern_id`;
+         d.trang_thai_facebook as facebook_status, d.trang_thai_telesale as telesale_status, d.giao_luc as assigned_at,
+         d.sale_care_id, s.ho_ten as sale_care_name, d.ban_giao_luc as handed_over_at
+  from crm.data_lanh d left join public.nguoi_dung u on u.ma_nguoi_dung = d.intern_id
+  left join public.nguoi_dung s on s.ma_nguoi_dung = d.sale_care_id`;
 
 const editableColumns = {
   facebookStatus: "trang_thai_facebook",
@@ -39,14 +42,15 @@ const toRecord = (r: Row): DataLanhRecord => ({
   market: r.market, segment: r.segment, customerClass: r.customer_class, address: r.address, interest: r.interest,
   history: r.history, note: r.note, internId: r.intern_id, internName: r.intern_name,
   facebookStatus: r.facebook_status, telesaleStatus: r.telesale_status, assignedAt: r.assigned_at?.toISOString() ?? null,
+  saleCareId: r.sale_care_id, saleCareName: r.sale_care_name, handedOverAt: r.handed_over_at?.toISOString() ?? null,
 });
 
 export class PostgresDataLanhRepository {
   constructor(private readonly pool: pg.Pool) {}
 
-  /** internId = chỉ lấy dòng giao cho intern đó; null = tất cả. */
+  /** internId = chỉ lấy khách giao hoặc bàn giao cho người đó; null = tất cả. */
   async list(internId: string | null): Promise<DataLanhRecord[]> {
-    const result = await this.pool.query<Row>(`${select} where ($1::text is null or d.intern_id = $1) order by d.stt limit 2000`, [internId]);
+    const result = await this.pool.query<Row>(`${select} where ($1::text is null or d.intern_id = $1 or d.sale_care_id = $1) order by d.stt limit 2000`, [internId]);
     return result.rows.map(toRecord);
   }
 
@@ -73,12 +77,33 @@ export class PostgresDataLanhRepository {
     return (await this.pool.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0]!;
   }
 
+  /** Các Sale có thể nhận bàn giao. */
+  async listSales(): Promise<{ id: string; name: string }[]> {
+    const result = await this.pool.query<{ id: string; name: string }>(`select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro in ('sale-vn', 'sale-global') order by ho_ten`);
+    return result.rows;
+  }
+
+  /**
+   * Bàn giao khách cho Sale care. internId = người thao tác (null = Admin/Ban GĐ), chỉ bàn giao được khách của mình.
+   * Trả null nếu không thấy dòng. Có thể bàn giao lại cho Sale khác.
+   */
+  async handover(id: string, saleId: string, actorId: string, internId: string | null): Promise<DataLanhRecord | null> {
+    const sale = (await this.pool.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global')`, [saleId])).rows[0];
+    if (!sale) throw new AppError(400, "VALIDATION_ERROR", "Chọn Sale care hợp lệ");
+    const current = (await this.pool.query<{ sale_care_id: string | null }>(
+      `select sale_care_id from crm.data_lanh where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`, [id, internId])).rows[0];
+    if (!current) return null;
+    if (current.sale_care_id === saleId) throw new AppError(409, "CONFLICT", "Khách này đã được bàn giao cho Sale đó");
+    await this.pool.query(`update crm.data_lanh set sale_care_id = $2, ban_giao_luc = now(), ban_giao_boi = $3, cap_nhat_luc = now() where id = $1::uuid`, [id, saleId, actorId]);
+    return (await this.pool.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0] ?? null;
+  }
+
   async remove(id: string): Promise<boolean> {
     const result = await this.pool.query(`delete from crm.data_lanh where id = $1::uuid`, [id]);
     return (result.rowCount ?? 0) > 0;
   }
 
-  /** internId = giới hạn trong dòng của intern; dòng không thuộc intern đó coi như không tồn tại. */
+  /** internId = người đang thao tác (null = Admin/Ban GĐ): chỉ sửa được khách được giao hoặc bàn giao cho mình; dòng khác coi như không tồn tại. */
   async update(id: string, input: UpdateDataLanhInput, internId: string | null): Promise<DataLanhRecord | null> {
     // Tên cột lấy từ bảng cố định ở trên, giá trị luôn đi qua tham số; trường không gửi thì không đụng tới.
     const params: unknown[] = [id, internId];
@@ -90,7 +115,7 @@ export class PostgresDataLanhRepository {
       });
     const updated = await this.pool.query(
       `update crm.data_lanh set ${[...sets, "cap_nhat_luc = now()"].join(", ")}
-       where id = $1::uuid and ($2::text is null or intern_id = $2)`,
+       where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`,
       params,
     );
     if (!updated.rowCount) return null;
@@ -98,7 +123,7 @@ export class PostgresDataLanhRepository {
   }
 
   /**
-   * Chia vòng tròn các dòng chưa giao cho intern (theo id), bắt đầu từ intern kế sau người được giao gần nhất.
+   * Chia vòng tròn các dòng chưa giao cho danh sách người nhận (theo thu_tu), bắt đầu từ người kế sau người được giao gần nhất.
    * Dòng đã giao không bị đụng tới. Trả về số dòng đã chia.
    */
   async assignRoundRobin(): Promise<{ assigned: number; interns: number }> {
@@ -106,8 +131,8 @@ export class PostgresDataLanhRepository {
     try {
       await client.query("begin");
       await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_assign'))");
-      const interns = (await client.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where vai_tro = 'sale-intern' order by ma_nguoi_dung`)).rows.map((r) => r.id);
-      if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có tài khoản Sales Intern để chia");
+      const interns = (await client.query<{ id: string }>(`select nguoi_dung_id as id from crm.data_lanh_nguoi_nhan order by thu_tu`)).rows.map((r) => r.id);
+      if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có danh sách người nhận data lạnh");
       const last = (await client.query<{ id: string }>(`select intern_id as id from crm.data_lanh where giao_luc is not null and intern_id is not null order by giao_luc desc, stt desc limit 1`)).rows[0];
       const start = last ? (interns.indexOf(last.id) + 1) % interns.length : 0;
       const rows = (await client.query<{ id: string }>(`select id::text as id from crm.data_lanh where intern_id is null order by stt`)).rows;

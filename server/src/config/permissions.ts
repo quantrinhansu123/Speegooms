@@ -2,13 +2,15 @@ import type { Role } from "@speego/shared";
 
 export const permissions = {
   "user.role.assign": ["admin"],
-  "datalanh.read": ["admin", "ban-gd", "sale-vn", "sale-intern"],
+  "datalanh.read": ["admin", "ban-gd", "sale-vn", "sale-global", "sale-intern"],
   /** Giao lại / chia vòng tròn data lạnh. */
   /** Xóa khách khỏi data lạnh (không hoàn tác). */
   "datalanh.delete": ["admin"],
-  "datalanh.assign": ["admin", "sale-vn"],
+  /** Bàn giao khách cho Sale care (intern chỉ dòng của mình). */
+  "datalanh.handover": ["admin", "sale-vn", "sale-global", "sale-intern"],
+  "datalanh.assign": ["admin"],
   /** Cập nhật trạng thái chăm FB / Telesale (intern chỉ dòng của mình). */
-  "datalanh.work": ["admin", "sale-vn", "sale-intern"],
+  "datalanh.work": ["admin", "sale-vn", "sale-global", "sale-intern"],
   "message.read": ["admin", "ban-gd", "marketing", "sale-vn", "sale-global"],
   "message.write": ["admin", "marketing", "sale-vn", "sale-global"],
   "message.convert": ["admin", "sale-vn", "sale-global"],

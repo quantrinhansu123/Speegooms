@@ -60,6 +60,10 @@ export const createDataLanhSchema = z
   .refine((v) => Boolean(v.fullName?.trim() || v.phone?.trim()), "Nhập tên khách hoặc số điện thoại");
 export type CreateDataLanhInput = z.infer<typeof createDataLanhSchema>;
 
+/** Bàn giao khách cho một Sale cụ thể để care tiếp. */
+export const handoverDataLanhSchema = z.object({ saleId: z.string().trim().min(1, "Chọn Sale care").max(64) });
+export type HandoverDataLanhInput = z.infer<typeof handoverDataLanhSchema>;
+
 export type DataLanhRecord = {
   id: string;
   stt: number;
@@ -79,4 +83,7 @@ export type DataLanhRecord = {
   facebookStatus: string | null;
   telesaleStatus: string | null;
   assignedAt: string | null;
+  saleCareId: string | null;
+  saleCareName: string | null;
+  handedOverAt: string | null;
 };
