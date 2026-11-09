@@ -5,10 +5,13 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Header } from "./header";
 import { BrandWatermark } from "./brand-watermark";
 import { Sidebar } from "./sidebar";
+import { SidebarNav } from "./sidebar-nav";
+import { cn } from "@/lib/utils";
 import { RouteGate } from "@/components/shared/route-gate";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [horizontal, setHorizontal] = useState(false);
   return (
     <div className="fixed inset-0 overflow-clip">
       <a
@@ -17,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Bỏ qua điều hướng
       </a>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border lg:block">
+      <aside className={cn("fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border", !horizontal && "lg:block")}>
         <Sidebar />
       </aside>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -27,9 +30,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar onNavigate={() => setMenuOpen(false)} />
         </SheetContent>
       </Sheet>
-      <div className="relative flex h-dvh w-full min-w-0 flex-col lg:pl-64">
+      <div className={cn("relative flex h-dvh w-full min-w-0 flex-col", !horizontal && "lg:pl-64")}>
         <BrandWatermark />
-        <Header onOpenMenu={() => setMenuOpen(true)} />
+        <Header onOpenMenu={() => setMenuOpen(true)} horizontal={horizontal} onToggleNavigation={() => setHorizontal(!horizontal)} />
+        {horizontal && <div className="relative z-20 hidden shrink-0 border-b bg-sidebar lg:block"><SidebarNav horizontal /></div>}
         <main id="main" tabIndex={-1} className="workspace-scroll relative z-10 min-h-0 w-full min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
           <RouteGate>{children}</RouteGate>
         </main>

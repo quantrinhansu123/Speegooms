@@ -9,11 +9,12 @@ import { isImplemented } from "@/config/modules";
 import { useSession } from "@/features/auth/session-provider";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types/navigation";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const isActive = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
-function NavEntry({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function NavEntry({ item, onNavigate, horizontal = false }: { item: NavItem; onNavigate?: () => void; horizontal?: boolean }) {
   const pathname = usePathname() ?? "";
   const active = item.children
     ? pathname === item.href || item.children.some((child) => isActive(pathname, child.href))
@@ -32,6 +33,27 @@ function NavEntry({ item, onNavigate }: { item: NavItem; onNavigate?: () => void
   const indicator = active && (
     <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brand-orange" />
   );
+
+  if (horizontal && item.children) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger className={cn(base, tone)}>
+          {indicator}
+          <Icon aria-hidden className="size-4 shrink-0" />
+          <span>{item.title}</span>
+          {tag && <span className="text-xs text-warning">{tag}</span>}
+          <ChevronDown aria-hidden className="size-4 shrink-0" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-64">
+          {item.children.map((child) => (
+            <DropdownMenuItem key={child.href} render={<Link href={child.href} />} onClick={onNavigate} aria-current={pathname === child.href ? "page" : undefined} className={cn(pathname === child.href && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground")}>
+              {child.title}{!isImplemented(child.href) && <span className="text-xs text-warning">· Chưa triển khai</span>}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   if (!item.children) {
     return (
@@ -100,18 +122,18 @@ function NavEntry({ item, onNavigate }: { item: NavItem; onNavigate?: () => void
   );
 }
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({ onNavigate, horizontal = false }: { onNavigate?: () => void; horizontal?: boolean }) {
   const { role } = useSession();
   return (
-    <nav aria-label="Điều hướng chính" className="sidebar-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
+    <nav aria-label="Điều hướng chính" className={horizontal ? "flex max-h-[30dvh] flex-wrap gap-x-4 gap-y-2 overflow-y-auto px-4 py-2" : "sidebar-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4"}>
       {navigationForRole(role).map((group) => (
-        <div key={group.label}>
-          <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div key={group.label} className={horizontal ? "flex flex-wrap items-center gap-1" : undefined}>
+          <p className={horizontal ? "px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground" : "px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"}>
             {group.label}
           </p>
-          <div className="space-y-0.5">
+          <div className={horizontal ? "flex flex-wrap items-center gap-1" : "space-y-0.5"}>
             {group.items.map((item) => (
-              <NavEntry key={item.href} item={item} onNavigate={onNavigate} />
+              <div key={item.href} className={horizontal ? "shrink-0" : undefined}><NavEntry item={item} onNavigate={onNavigate} horizontal={horizontal} /></div>
             ))}
           </div>
         </div>
