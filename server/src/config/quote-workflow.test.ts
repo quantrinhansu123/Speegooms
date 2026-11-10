@@ -12,6 +12,7 @@ import { accountingContractSchema, createContractSchema, createMessageSchema, co
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
 import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
+import { orderPackageMetrics } from "../../../src/services/crm/quote-lines";
 
 test("conversion requires complete potential information, including logistics fields", () => {
   const base = { phone: "0123456789", brand: "LOGISTICS", customerType: "INDIVIDUAL", careChannel: "FACEBOOK", productInterest: "Hàng", quantityNote: "1", address: "Địa chỉ", saleNote: "Ghi chú", requirements: "Đơn hàng" };
@@ -213,14 +214,16 @@ test("message product draft is saved, kept on edits without it, and cleared expl
     industry: null, demand: "SOURCING", customer_type: null, note: null, market: null, classification: null, sale_name: null,
     pain_point: "Cần tư vấn", link_mess: null, order_info: messageOrder, received_at: new Date(), lead_id: null, lead_code: null,
   };
-  const repository = new PostgresCrmRepository({
+  const pool = {
     query: async (sql: string, values: unknown[]) => {
       calls.push({ sql, values });
       if (sql.includes("insert into crm.tin_nhan") || sql.includes("update crm.tin_nhan")) return { rowCount: 1, rows: [{ id: "message" }] };
       if (sql.includes("select m.id")) return { rowCount: 1, rows: [row] };
       return { rowCount: 0, rows: [] };
     },
-  } as unknown as pg.Pool);
+    connect: async () => ({ query: pool.query, release() {} }),
+  };
+  const repository = new PostgresCrmRepository(pool as unknown as pg.Pool);
   const created = await repository.createMessage("vn", createMessageSchema.parse({ ...messageInput, order: messageOrder }));
   assert.equal(created.order?.lines[0]?.productName, "Gạch men");
   const insert = calls.find((call) => call.sql.includes("insert into crm.tin_nhan"));
@@ -235,6 +238,73 @@ test("message product draft is saved, kept on edits without it, and cleared expl
   await repository.updateMessage("vn", "message", updateMessageSchema.parse({ ...messageInput, order: null }));
   update = calls.find((call) => call.sql.includes("update crm.tin_nhan"));
   assert.deepEqual([update?.values[15], update?.values[16]], [true, null]);
+});
+
+test("message edits load current quote products without exposing operation prices", async () => {
+  const order = { ...messageOrder, rate: 25000, priceColumns: [{ currency: "USD" }],
+    lines: [{ ...messageOrder.lines[0], productName: "Current product", weightKg: 25, quantity: 2, pricePerSet: 12 }] };
+  const repository = new PostgresCrmRepository({
+    query: async () => ({ rows: [{ received_at: new Date(), order_info: messageOrder, order_lines: [order] }] }),
+  } as unknown as pg.Pool);
+  const [message] = await repository.listMessages("global", { q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
+  assert.equal(message.order?.lines[0].productName, "Current product");
+  assert.equal(message.order?.lines[0].pricePerSet, null);
+  assert.deepEqual(message.order?.priceColumns, []);
+  assert.equal(message.order?.rate, null);
+  assert.equal(orderPackageMetrics(message.order!.lines, "SEA").chargeableKg, 50);
+});
+
+test("saving message products updates the linked quote atomically and preserves pricing and other options", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    for (const desk of ["sourcing", "logistics"] as const) {
+      for (const action of ["edit", "new", "clear", "omit", "failure"] as const) {
+        const calls: { sql: string; values: unknown[] }[] = [];
+        const current = createMessageSchema.parse({ ...messageInput, order: { ...messageOrder,
+          lines: [{ ...messageOrder.lines[0], weightKg: 0, quantity: 2, pricePerSet: 12 }] } }).order!;
+        const other = { ...current, id: "00000000-0000-4000-8000-000000000010", selected: false };
+        const suffix = lane === "vn" ? "viet_nam" : "global";
+        const table = `crm.bao_gia_${desk}_${suffix}`;
+        const pool = {
+          query: async (sql: string, values: unknown[] = []) => {
+            calls.push({ sql, values });
+            if (sql.includes("for update of q") && sql.includes(`from ${table} q`)) return { rows: [{
+              id: "quote", customer_kind: desk === "sourcing" ? "SOURCING" : "LOGISTICS", quote_workflow: "SOURCING",
+              order_lines: action === "new" ? [] : [current, other], created_at: new Date(),
+              quote_status: "CHUA_CO_BAO_GIA", contract_status: "CHUA_TAO",
+            }] };
+            if (sql.startsWith(`update ${table}`) && action === "failure") throw new Error("quote write failed");
+            if (sql.includes("select m.id")) return { rows: [{ received_at: new Date(), order_info: current }] };
+            if (sql.includes(`update crm.tin_nhan_${suffix}`)) return { rows: [{ id: "message" }] };
+            return { rows: [], rowCount: 0 };
+          },
+          connect: async () => ({ query: pool.query, release() {} }),
+        };
+        const repo = new PostgresCrmRepository(pool as unknown as pg.Pool);
+        const input = updateMessageSchema.parse({ ...messageInput, order: action === "omit" ? undefined : action === "clear" ? null : {
+          ...current, lines: [{ ...current.lines[0], productName: "Updated product", weightKg: 25, pricePerSet: 999 }],
+        } });
+        if (action === "failure") {
+          await assert.rejects(repo.updateMessage(lane, "message", input));
+          assert.equal(calls.at(-1)?.sql, "rollback");
+          assert.ok(!calls.some((call) => call.sql === "commit"));
+          continue;
+        }
+        await repo.updateMessage(lane, "message", input);
+        assert.equal(calls[0].sql, "begin");
+        assert.equal(calls.at(-1)?.sql, "commit");
+        const writes = calls.filter((call) => call.sql.startsWith("update crm.bao_gia_"));
+        if (action === "omit") { assert.equal(writes.length, 0); continue; }
+        assert.equal(writes.length, 1);
+        assert.equal(writes[0].sql, `update ${table} set chi_tiet_don_hang = $2::jsonb where id = $1::uuid`);
+        const orders = JSON.parse(String(writes[0].values[1]));
+        if (action === "clear") { assert.deepEqual(orders, [other]); continue; }
+        assert.equal(orders[0].lines[0].productName, "Updated product");
+        assert.equal(orders[0].lines[0].pricePerSet, action === "new" ? null : 12);
+        assert.equal(orderPackageMetrics(orders[0].lines, "SEA").chargeableKg, 50);
+        if (action === "edit") assert.deepEqual(orders[1], other);
+      }
+    }
+  }
 });
 
 test("Sale content updates preserve Logistics packaging for the new workflow", async () => {

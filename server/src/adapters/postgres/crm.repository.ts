@@ -52,6 +52,7 @@ import type {
 import { contractSearch, messageSearch, potentialSearch, quoteSearch } from "../../search/crm-list-search";
 import { sql } from "../../search/sql-expression";
 import { crmActor } from "../../lib/crm-actor";
+import { preserveQuotePrices } from "../../services/quote-edit-policy";
 import type {
   ContractRecord,
   ContractView,
@@ -86,6 +87,7 @@ type MessageRow = {
   link_mess: string | null;
   brand: string | null;
   order_info: unknown;
+  order_lines: unknown;
   received_at: Date | string;
   lead_id: string | null;
   lead_code: string | null;
@@ -651,7 +653,8 @@ function toTemplate(row: TemplateRow): QuoteTemplateRecord {
   };
 }
 
-function messageSelect(message: string, potential: string): string {
+function messageSelect(lane: CrmLane): string {
+  const { message, potential, sourcing, logistics } = quoteTables[lane];
   return `
   select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
          l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
@@ -661,10 +664,14 @@ function messageSelect(message: string, potential: string): string {
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
          m.thong_tin_don_hang as order_info, m.thuong_hieu::text as brand,
+         case when l.nhom_khach = 'LOGISTICS' and l.phan_loai_logistics is distinct from 'FCL'
+           then lq.chi_tiet_don_hang when l.nhom_khach = 'SOURCING' then sq.chi_tiet_don_hang end as order_lines,
          m.nhan_luc as received_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
   left join ${potential} l on l.ma_tin_nhan = m.id and l.xoa_luc is null
+  left join ${sourcing} sq on sq.ma_khach_hang_tiem_nang = l.id and l.nhom_khach = 'SOURCING'
+  left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = l.id and l.nhom_khach = 'LOGISTICS'
 `;
 }
 
@@ -1205,6 +1212,7 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
 }
 
 function toMessage(row: MessageRow): MessageRecord {
+  const quoteOrder = sourcingHandoffOrder({ orders: asOrders(row.order_lines) });
   return {
     handlerId: row.handler_id, handlerName: row.handler_name,
     id: row.id,
@@ -1225,7 +1233,9 @@ function toMessage(row: MessageRow): MessageRecord {
     painPoint: row.pain_point,
     linkMess: row.link_mess,
     brand: row.brand,
-    order: messageOrder(row.order_info),
+    order: quoteOrder
+      ? { ...logisticsOrderFromSourcing(quoteOrder), rate: null, priceColumns: [] }
+      : messageOrder(row.order_info),
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,
     leadCode: row.lead_code,
@@ -1320,10 +1330,9 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const compiled = messageSearch(search).build();
     const result = await this.query<MessageRow>(
-      `${messageSelect(messageTable, potentialTable)} where true ${compiled.sql} order by m.tao_luc desc limit 200`,
+      `${messageSelect(lane)} where true ${compiled.sql} order by m.tao_luc desc limit 200`,
       compiled.values,
     );
     return result.rows.map(toMessage);
@@ -1379,6 +1388,7 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null> {
+    if (!this.connection.getStore()) return this.transaction(() => this.updateMessage(lane, id, input));
     const { message: messageTable, potential: potentialTable } = laneTables[lane];
     const updated = await this.query<{ id: string }>(
       `update ${messageTable} set
@@ -1433,6 +1443,36 @@ export class PostgresCrmRepository implements CrmRepository {
        where ma_tin_nhan = $1::uuid and xoa_luc is null`,
       [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods), input.brand ?? null],
     );
+    if (input.order !== undefined) {
+      const tables = quoteTables[lane];
+      for (const desk of ["sourcing", "logistics"] as const) {
+        const result = await this.query<QuoteRow>(
+          `${quoteSelect(tables[desk], tables.potential, tables.message, null, desk === "sourcing")}
+           and l.ma_tin_nhan = $1::uuid and l.nhom_khach::text = $2
+           and (l.nhom_khach = 'SOURCING' or l.phan_loai_logistics is distinct from 'FCL') for update of q`,
+          [id, desk === "sourcing" ? "SOURCING" : "LOGISTICS"],
+        );
+        for (const row of result.rows) {
+          const current = toQuote(row);
+          const target = current.orders.find((order) => order.id === input.order?.id)
+            ?? sourcingHandoffOrder({ orders: current.orders });
+          const replacement = input.order ? { ...input.order, id: target?.id ?? input.order.id } : null;
+          const orders = current.orders.flatMap((order) => {
+            if (order.id !== target?.id) return [order];
+            return replacement ? [replacement] : [];
+          });
+          if (!target && replacement) orders.push(replacement);
+          const { orders: content } = preserveQuotePrices(current, {
+            ...current, opsNote: current.opsNote ?? "", orders,
+            quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
+            contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
+          });
+          // Chỉ đổi nội dung; giữ giá, ghi chú vận hành và bản báo giá đã gửi.
+          await this.query(`update ${tables[desk]} set chi_tiet_don_hang = $2::jsonb where id = $1::uuid`,
+            [current.id, JSON.stringify(content)]);
+        }
+      }
+    }
     return this.findMessage(lane, id);
   }
 
@@ -1529,7 +1569,7 @@ export class PostgresCrmRepository implements CrmRepository {
         await client.query(`update ${messageTable} set trang_thai = 'CONVERTED' where id = $1::uuid`, [id]);
       }
 
-      const refreshed = await client.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.id = $1::uuid`, [id]);
+      const refreshed = await client.query<MessageRow>(`${messageSelect(lane)} where m.id = $1::uuid`, [id]);
       const row = refreshed.rows[0];
       if (!row) throw new InfrastructureError("message missing after convert");
       return { message: toMessage(row), potential: toPotential(potential) };
@@ -2472,8 +2512,7 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   private async findMessage(lane: CrmLane, id: string): Promise<MessageRecord | null> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
-    const result = await this.query<MessageRow>(`${messageSelect(messageTable, potentialTable)} where m.id = $1::uuid`, [id]);
+    const result = await this.query<MessageRow>(`${messageSelect(lane)} where m.id = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? toMessage(row) : null;
   }
