@@ -233,18 +233,25 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       .finally(() => setPending(false));
   };
 
-  const openOrderQuote = (row: PotentialRecord) => {
+  const openOrderQuote = (row: PotentialRecord, openForm = true) => {
     setError(undefined);
     setNotice(undefined);
     setOrderError(undefined);
     const request = canWrite
-      ? api<{ quote: QuoteRecord; desk?: "sourcing" | "logistics" }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
+      ? api<{ quote: QuoteRecord; desk: "sourcing" | "logistics"; created: boolean }>(crmPath(`/api/crm/potentials/${row.id}/quotes`, lane), { method: "POST" })
       : api<{ quote: QuoteRecord }>(crmPath(`/api/crm/potentials/${row.id}/logistics-quote`, lane));
     void request
       .then((body) => {
         const desk = "desk" in body && (body.desk === "sourcing" || body.desk === "logistics") ? body.desk : "logistics";
-        setOrderDesk(desk);
-        setOrderQuote(body.quote);
+        if (openForm) {
+          setOrderDesk(desk);
+          setOrderQuote(body.quote);
+        }
+        if ("created" in body && body.created) {
+          setNotice(`Đã gửi yêu cầu báo giá cho ${desk === "sourcing" ? "Sourcing" : "Logistics"}`);
+        } else if (!openForm) {
+          setNotice("Khách đã có phiếu báo giá. Xem tại tab Báo giá (RFQ).");
+        }
         load();
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không mở được báo giá"));
@@ -264,7 +271,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       setFormError(`Cần nhập đủ thông tin trước khi báo giá: ${missing.join(", ")}.`);
       return;
     }
-    openOrderQuote(row);
+    openOrderQuote(row, false);
   };
 
   const saveOrderPart = (input: UpdateQuoteInput, orderContent: boolean) => {

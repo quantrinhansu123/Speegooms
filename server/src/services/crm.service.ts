@@ -181,11 +181,14 @@ export class CrmService {
   async requestQuote(
     lane: CrmLane,
     potentialId: string,
-    _actor?: PublicUser,
+    actor?: PublicUser,
   ): Promise<{ quote: QuoteRecord; created: boolean; desk: QuoteDesk }> {
     const result = await this.ready().requestQuote(lane, potentialId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
+    if (result.created && actor) {
+      await this.notifications?.notifyQuoteRequested(actor, lane, result.desk, result.quote.code, result.quote.id, quoteAccessKind(result.quote));
+    }
     return result;
   }
 
