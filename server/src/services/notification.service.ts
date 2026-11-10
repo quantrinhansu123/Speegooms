@@ -81,12 +81,12 @@ export class NotificationService {
     customerKind?: string | null,
   ): Promise<void> {
     await this.notifyRoles({
-      roles: quoteNotifyRoles(desk, customerKind),
+      roles: quoteNotifyRoles(desk, customerKind).filter((role) => role === "admin" || role === "van-hanh"),
       excludeUserId: actor.id,
       draft: {
         type: "quote.request",
-        title: "Yêu cầu báo giá mới",
-        body: `${actor.name} yêu cầu báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
+        title: "Yêu cầu báo giá chưa được phân công",
+        body: `${actor.name} yêu cầu báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}). Chưa có người nhận; kiểm tra Chia đơn và bàn giao lại.`,
         href: recordHref(deskPath(desk), quoteId, lane),
         lane,
         refType: "quote",
@@ -153,20 +153,23 @@ export class NotificationService {
     quoteCode: string,
     quoteId: string,
     customerKind?: string | null,
+    assigneeId?: string,
   ): Promise<void> {
-    await this.notifyRoles({
-      roles: quoteNotifyRoles(desk, customerKind),
+    const draft: NotificationDraft = {
+      type: "quote.return",
+      title: "Yêu cầu làm lại báo giá",
+      body: `${actor.name} gửi lại báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
+      href: recordHref(deskPath(desk), quoteId, lane),
+      lane,
+      refType: "quote",
+      refId: quoteId,
+      actorId: actor.id,
+    };
+    if (assigneeId) await this.notifyUsers([assigneeId], draft);
+    else await this.notifyRoles({
+      roles: quoteNotifyRoles(desk, customerKind).filter((role) => role === "admin" || role === "van-hanh"),
       excludeUserId: actor.id,
-      draft: {
-        type: "quote.return",
-        title: "Yêu cầu làm lại báo giá",
-        body: `${actor.name} gửi lại báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}).`,
-        href: recordHref(deskPath(desk), quoteId, lane),
-        lane,
-        refType: "quote",
-        refId: quoteId,
-        actorId: actor.id,
-      },
+      draft,
     });
   }
 

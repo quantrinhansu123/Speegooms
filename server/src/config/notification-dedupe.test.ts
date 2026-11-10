@@ -35,3 +35,23 @@ test("không bật skipIfUnread thì vẫn gửi cho tất cả", async () => {
   await new PostgresNotificationRepository(pool).createMany(["a", "b"], { ...draft, skipIfUnread: false });
   assert.deepEqual(inserted, ["a", "b"]);
 });
+
+test("phiếu gộp cùng mã vẫn báo riêng cho hai bàn", async () => {
+  const unread = new Set<string>();
+  const pool = {
+    query: async (sql: string, params: unknown[]) => {
+      if (/^\s*select/i.test(sql)) {
+        assert.match(sql, /duong_dan = \$5/);
+        return { rows: unread.has(String(params[4])) ? [{ id: "worker" }] : [] };
+      }
+      unread.add(String(params[5]));
+      return { rows: [{ id: "notification" }] };
+    },
+  } as unknown as pg.Pool;
+  const repository = new PostgresNotificationRepository(pool);
+  const sourcing = { ...draft, href: "/van-hanh/sourcing-bao-gia?id=q1&lane=vn" };
+  const logistics = { ...draft, href: "/van-hanh/logistics-bao-gia?id=q1&lane=vn" };
+  assert.equal(await repository.createMany(["worker"], sourcing), 1);
+  assert.equal(await repository.createMany(["worker"], logistics), 1);
+  assert.equal(await repository.createMany(["worker"], logistics), 0);
+});

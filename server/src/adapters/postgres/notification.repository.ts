@@ -111,8 +111,9 @@ export class PostgresNotificationRepository implements NotificationRepository {
     if (draft.skipIfUnread && draft.refType && draft.refId && recipientIds.length > 0) {
       const unread = await this.query<{ id: string }>(
         `select nguoi_nhan_id as id from app.thong_bao
-         where da_xem = false and loai = $1 and tham_chieu_loai = $2 and tham_chieu_id = $3 and nguoi_nhan_id = any($4::text[])`,
-        [draft.type, draft.refType, draft.refId, recipientIds],
+         where da_xem = false and loai = $1 and tham_chieu_loai = $2 and tham_chieu_id = $3 and nguoi_nhan_id = any($4::text[])
+           and duong_dan = $5`,
+        [draft.type, draft.refType, draft.refId, recipientIds, draft.href],
       );
       const skip = new Set(unread.rows.map((row) => row.id));
       recipientIds = recipientIds.filter((id) => !skip.has(id));
