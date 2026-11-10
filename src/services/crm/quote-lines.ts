@@ -41,10 +41,15 @@ export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | nu
 }
 
 /** Tổng đóng gói của cả đơn: cộng số đã làm tròn của từng dòng nên khớp với số hiển thị ở mỗi dòng. */
-export function orderPackageMetrics(lines: { packages: PackageSpec[] }[], mode: "AIR" | "SEA" | null = null) {
+export function orderPackageMetrics(lines: { packages: PackageSpec[]; weightKg?: number | null; cbm?: number | null; quantity?: number | null }[], mode: "AIR" | "SEA" | null = null) {
   const total = { count: 0, cbm: 0, volumetricKg: 0, actualKg: 0, chargeableKg: 0 };
   for (const line of lines) {
-    if (line.packages.length === 0) continue;
+    if (line.packages.length === 0) {
+      const quantity = line.quantity ?? 1;
+      total.chargeableKg += ceilHalf((line.weightKg ?? 0) * quantity);
+      total.cbm += (line.cbm ?? 0) * quantity;
+      continue;
+    }
     const m = packageMetrics(line.packages, mode);
     total.count += m.count;
     total.cbm += m.cbm;

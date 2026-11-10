@@ -16,7 +16,7 @@ export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
   const metrics = orderPackageMetrics(input.lines, input.shippingMode);
   return buildQuoteSheetModel({
     ...input,
-    freightMetrics: metrics.count > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,
+    freightMetrics: metrics.chargeableKg > 0 || metrics.cbm > 0 ? { chargeableKg: metrics.chargeableKg, cbm: metrics.cbm } : null,
   }, { packagesSpec: (line, lang) => packagesText(line.packages, lang, input.shippingMode) });
 }
 

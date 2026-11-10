@@ -20,7 +20,7 @@ test("conversion requires complete potential information, including logistics fi
     assert.equal(result.reason, reason?.trim() ?? "");
   }
   assert.equal(convertMessageSchema.safeParse({ ...base, requirements: " " }).success, false);
-  assert.equal(convertMessageSchema.safeParse({ ...base, quantityNote: " " }).success, false);
+  assert.equal(convertMessageSchema.safeParse({ ...base, quantityNote: " " }).success, true);
   assert.equal(customerKindSchema.safeParse("SOURCING_LOGISTICS").success, false);
   assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA" }).success, false);
   assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA", logisticsClass: "FCL", weightKg: "20", shipToAddress: "Địa chỉ", reason: "Có nhu cầu" }).success, true);
@@ -182,7 +182,7 @@ test("Sale can still hand a filled sourcing order to Sourcing", async () => {
 });
 
 const messageInput = {
-  customerName: "Khách", phone: "0900000000", email: "", goods: "Gạch", note: "", market: "", saleName: "Sale", painPoint: "Cần tư vấn",
+  customerName: "Khách", phone: "0900000000", email: "", goods: "Gạch", note: "", market: "Mỹ", saleName: "Sale", painPoint: "Cần tư vấn",
   linkMess: "", demand: "SOURCING" as const,
 };
 const messageOrder = {
@@ -520,6 +520,63 @@ test("Logistics uses current Sourcing packaging while preserving shipping prices
     assert.equal(quote?.orders[0].lines[0].pricePerSet, existing ? 77 : null);
     assert.deepEqual(quote?.orders[0].lines[0].packages, currentSource.lines[0].packages);
   }
+});
+
+test("Logistics follows edited, reordered and added Sourcing lines while retaining its prices", async () => {
+  const input = handoffInput();
+  const old = input.orders[0];
+  const shipping = logisticsOrderFromSourcing(old);
+  shipping.lines[0].pricePerSet = 77;
+  const source = structuredClone(old);
+  Object.assign(source.lines[0], { productName: "New goods", quantity: 24, spec: "New spec", note: "New note" });
+  source.lines.unshift({ ...structuredClone(source.lines[0]), stt: "2", productName: "Added goods" });
+  for (const lane of ["vn", "global"] as const) {
+    const repository = new PostgresCrmRepository({ query: async (sql: string) => ({ rowCount: 1, rows: sql.includes("bao_gia_sourcing") ? [{
+      customer_kind: "SOURCING", quote_workflow: "COMBINED", created_at: new Date(), order_lines: [source],
+      logistics_sheet: { ...input, orders: [shipping], handoffAt: "test" },
+    }] : [] }) } as unknown as pg.Pool);
+    const quote = await repository.findQuote(lane, "logistics", "quote");
+    assert.equal(quote?.orders[0].lines.length, 2);
+    assert.equal(quote?.orders[0].lines[0].productName, "Added goods");
+    assert.equal(quote?.orders[0].lines[0].pricePerSet, null);
+    assert.equal(quote?.orders[0].lines[1].pricePerSet, 77);
+    assert.equal(quote?.orders[0].lines[1].quantity, 24);
+    assert.equal(quote?.orders[0].lines[1].spec, "New spec");
+    assert.equal(quote?.orders[0].lines[1].note, "New note");
+  }
+  const removed = logisticsOrderFromSourcing({ ...source, lines: [] }, shipping);
+  assert.deepEqual(removed.lines, []);
+  assert.equal(logisticsOrderFromSourcing({ ...source, id: "new-order" }, shipping).lines[1].pricePerSet, null);
+});
+
+test("Sale notes survive a Sourcing content save without changing operating fees", () => {
+  const input = handoffInput();
+  const current = { ...input, customerKind: "SOURCING", quoteWorkflow: "COMBINED" } as QuoteRecord;
+  const edited = structuredClone(input);
+  edited.notes.weightNote = "25 kg";
+  edited.notes.deposit = ["Deposit instruction"];
+  edited.notes.freight.total = 999;
+  const saved = preserveQuotePrices(current, edited);
+  assert.equal(saved.notes.weightNote, "25 kg");
+  assert.deepEqual(saved.notes.deposit, edited.notes.deposit);
+  assert.deepEqual(saved.notes.freight, current.notes.freight);
+});
+
+test("FCL handoff validates the shipment form and manual kg can hand off without packages", async () => {
+  const input = handoffInput();
+  const current = { ...input, id: "quote", code: "BG", customerKind: "LOGISTICS", shippingMode: "SEA", logisticsClass: "FCL",
+    orders: [], notes: { ...input.notes, fcl: { to: "", pol: "", pod: "", etd: "", stuffingDate: "", weight: "25 kg", volume: "1 x 40HC", commodity: "Clothes", charges: [], notes: "" } },
+  } as unknown as QuoteRecord;
+  const service = new CrmService({ findQuote: async () => current } as unknown as CrmRepository);
+  const actor = { id: "sale", role: "sale-vn" } as PublicUser;
+  assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);
+  current.notes.fcl!.volume = "";
+  await assert.rejects(service.handoffLogisticsOrder("vn", "quote", actor), { status: 400 });
+  current.logisticsClass = "LCL";
+  current.orders = input.orders;
+  assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);
+  current.orders[0].lines[0].weightKg = null;
+  await assert.rejects(service.handoffLogisticsOrder("vn", "quote", actor), { status: 400 });
 });
 
 test("quote totals use costs, avoid double counting, and convert contract shipping explicitly", () => {

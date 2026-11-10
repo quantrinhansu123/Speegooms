@@ -1,11 +1,15 @@
 import { quoteLineImages, type QuoteLine, type QuoteOrder } from "./crm";
 
 /** Carry product information across desks; transport pricing is entered independently. */
-export function logisticsOrderFromSourcing(order: QuoteOrder): QuoteOrder {
+export function logisticsOrderFromSourcing(order: QuoteOrder, previous?: QuoteOrder): QuoteOrder {
   return {
     ...order,
     selected: true,
-    lines: order.lines.map((line) => ({ ...line, pricePerSet: null, lineTotal: null, lineTotalManual: false, prices: [], basis: "unit" })),
+    lines: order.lines.map((line) => {
+      const price = previous?.id === order.id ? previous.lines.find((item) => item.stt === line.stt) : undefined;
+      return { ...line, pricePerSet: price?.pricePerSet ?? null, lineTotal: price?.lineTotal ?? null,
+        lineTotalManual: price?.lineTotalManual ?? false, prices: price?.prices ?? [], basis: price?.basis ?? "unit" };
+    }),
   };
 }
 

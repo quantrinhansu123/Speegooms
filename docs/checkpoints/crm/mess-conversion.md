@@ -6,6 +6,9 @@
 
 ## Hành vi cần giữ
 
+- Cập nhật 2026-11-10 trên `fix/optional-customer-address` (nền `d9e300b`): địa chỉ khách/công ty được để trống khi chuyển mess hoặc tạo khách trực tiếp; bỏ dấu bắt buộc trên các form liên quan và bỏ chặn địa chỉ trống khi yêu cầu báo giá. Giữ giới hạn 300 ký tự và giữ bắt buộc `shipToAddress` cho khách Vận chuyển. Test tại `potential-quote-validation.test.ts` kiểm tra cả hai nhóm và địa chỉ nhận hàng còn bắt buộc.
+- Nhãn address trên hai form chuyển mess/tạo khách trực tiếp đổi thành “Địa chỉ gửi hàng” theo yêu cầu. Đây là đổi nhãn, không đổi cột lưu và không backfill shipFromAddress. Các màn hồ sơ khác vẫn dùng address như trước.
+
 - Tạo/sửa mess yêu cầu `market` khác rỗng. Số điện thoại/email của mess chỉ kiểm tra định dạng nếu có nhập; bước chuyển đổi có schema riêng và yêu cầu số điện thoại.
 - Sourcing ghi số lượng trên từng dòng hàng. UI chuyển đổi không yêu cầu `quantityNote` cho Sourcing; schema chỉ bắt buộc trường này khi có `shippingMode`.
 - Với Logistics, UI nhận diện qua `row.demand === "SHIPPING"` và yêu cầu chọn phương thức. Schema kiểm tra số lượng, trọng lượng, địa chỉ nhận, lý do chuyển; FCL được bỏ kích thước kiện. SEA cần LCL/FCL, AIR không dùng phân loại đó.

@@ -130,7 +130,7 @@ function notesWithFreight(notes: QuoteNotes, orders: QuoteOrder[], shippingMode:
   const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
   if (freight.totalManual) return { ...notes, freight };
-  const total = quoteFreightTotal(freight, metrics.count > 0 ? metrics.chargeableKg : null, metrics.count > 0 ? metrics.cbm : null) ?? freight.total;
+  const total = quoteFreightTotal(freight, metrics.chargeableKg > 0 ? metrics.chargeableKg : null, metrics.cbm > 0 ? metrics.cbm : null) ?? freight.total;
   if (total === freight.total && notes.freight) return notes;
   return {
     ...notes,
@@ -158,8 +158,8 @@ function FreightCostEditor({
 }) {
   const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight ?? { rate: null, total: null, totalManual: false };
-  const chargeableKg = metrics.count > 0 ? metrics.chargeableKg : null;
-  const chargeableCbm = metrics.count > 0 ? metrics.cbm : null;
+  const chargeableKg = metrics.chargeableKg > 0 ? metrics.chargeableKg : null;
+  const chargeableCbm = metrics.cbm > 0 ? metrics.cbm : null;
   const autoTotal = quoteFreightTotal(freight, chargeableKg, chargeableCbm);
   const total = freight.totalManual ? freight.total : autoTotal ?? freight.total;
   /** Kg chỉ hiện cân tính phí, CBM chỉ hiện thể tích, trọn gói không cần cả hai (tiền cước nhập tay). */
@@ -311,7 +311,7 @@ function LogisticsFeesEditor({
   const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => !fee.itemStt || !itemKeys.has(fee.itemStt));
   const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight;
-  const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.count ? metrics.chargeableKg : null, metrics.count ? metrics.cbm : null) ?? freight.total;
+  const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.chargeableKg > 0 ? metrics.chargeableKg : null, metrics.cbm > 0 ? metrics.cbm : null) ?? freight.total;
   const totals = new Map<string, number>();
   for (const fee of fees) {
     const value = quoteMoneyValue(fee.value);
@@ -575,7 +575,7 @@ function OrderPackagesBlock({
     <div className="grid gap-3">
       <div>
         <h3 className="text-base font-medium">Quy cách đóng gói theo dòng hàng</h3>
-        <p className="text-sm text-muted-foreground">Điền số kiện · D × R × C · kg/kiện cho từng dòng để tính cước và báo giá vận chuyển.</p>
+        <p className="text-sm text-muted-foreground">Nhập đóng gói để tính cân từ kiện, hoặc nhập cân tính cước (kg mỗi đơn vị) trong thông tin đơn hàng. Có đóng gói thì ưu tiên số liệu kiện.</p>
       </div>
       {orders.length === 0 && (
         <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">{emptyHint ?? "Chưa có thông tin đơn hàng — tạo ở tab Sourcing trước."}</p>
@@ -591,6 +591,7 @@ function OrderPackagesBlock({
               shippingMode={shippingMode}
               lineLabel={`STT ${line.stt || lineIndex + 1}`}
               canEdit={canEdit}
+              optional={line.weightKg != null && line.weightKg > 0}
               onChange={(packages) => onChange(order.id, lineIndex, packages)}
             />
           ))}
@@ -1208,10 +1209,10 @@ function orderDraftSchema(options: { requirePackages: boolean }) {
     }
     if (options.requirePackages) {
       order.lines.forEach((line, index) => {
-        if (!filledLine(line) || line.packages.length > 0) return;
+        if (!filledLine(line) || line.packages.length > 0 || (line.weightKg != null && line.weightKg > 0)) return;
         ctx.addIssue({
           code: "custom",
-          message: "Nhập quy cách đóng gói (số kiện, kích thước, kg/kiện)",
+          message: "Nhập quy cách đóng gói hoặc cân tính cước (kg mỗi đơn vị)",
           path: ["lines", index, "packages"],
         });
       });
@@ -1638,7 +1639,7 @@ const OrderLines = memo(function OrderLines({
                   {!brief && (
                     <td className="px-2 py-2 align-top">
                       <div className="grid w-28 gap-1">
-                        <DraftQuantity className="h-8" placeholder="kg" aria-label={`${pureLogistics ? "Cân tính cước" : "Trọng lượng"} dòng ${index + 1} (kg)`} aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
+                        <DraftQuantity className="h-8" placeholder="kg/đơn vị" aria-label={`${pureLogistics ? "Cân tính cước" : "Trọng lượng"} dòng ${index + 1} (kg mỗi đơn vị)`} aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent || line.packages.length > 0} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
                         <InputError message={errors[`line.${index}.weight`]} />
                       </div>
                     </td>
@@ -2032,6 +2033,7 @@ export function QuoteEditor({
   onHandoffSourcing,
   saleOrder = false,
   quoteStep = false,
+  onReload,
 }: {
   quote: QuoteRecord;
   templates: QuoteTemplateRecord[];
@@ -2062,6 +2064,7 @@ export function QuoteEditor({
   saleOrder?: boolean;
   /** Bước báo giá ngay sau khi chuyển mess: chỉ điền đơn, không sửa hồ sơ khách. */
   quoteStep?: boolean;
+  onReload?: () => void;
 }) {
   const canProcess = canHandleCrm(useSession(), quote);
   const mode: QuoteEditMode = canProcess ? editMode ?? (canEdit ? "full" : "none") : "none";
@@ -2301,7 +2304,7 @@ export function QuoteEditor({
   };
 
   const transferLogistics = async (nextOrders: QuoteOrder[] = orders) => {
-    if (nextOrders.length === 0) {
+    if (!isFcl && nextOrders.length === 0) {
       setFormError("Nhập thông tin đơn hàng trước khi chuyển logistics");
       return;
     }
@@ -2555,6 +2558,7 @@ export function QuoteEditor({
 
   const sheet = (
     <>
+      {onReload && <InlineAlert tone="info">Phiếu có dữ liệu mới. Tải lại sẽ bỏ các thay đổi chưa lưu trong form này. <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onReload}>Tải dữ liệu mới</Button></InlineAlert>}
       {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
       {printLang === "en" && (
@@ -2889,7 +2893,7 @@ export function QuoteEditor({
                     const quantityText = orderQuantityText(order.lines);
                     const specText = orderSpecText(order.lines);
                     const noteText = orderNoteText(order.lines);
-                    const packed = packageMetrics(order.lines.flatMap((line) => line.packages), lead.shippingMode);
+                    const packed = orderPackageMetrics(order.lines, lead.shippingMode);
                     return (
                       <tr key={order.id} className="border-b last:border-0">
                         <td className="px-3 py-2">
@@ -3012,7 +3016,7 @@ export function QuoteEditor({
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.packageCount > 0 ? money(totals.packageCount) : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.cbm > 0 ? totals.cbm : "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">{totals.weighed ? money(totals.weight) : "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right">{packed.count > 0 ? money(packed.chargeableKg) : "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">{packed.chargeableKg > 0 ? money(packed.chargeableKg) : "—"}</td>
                         <td className="min-w-40 max-w-xs px-3 py-2">
                           {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
                         </td>
@@ -3156,7 +3160,7 @@ export function QuoteEditor({
               <p className="text-xs text-muted-foreground">Thông tin tham chiếu từ bản Sourcing đã gửi. Sourcing cung cấp thông tin hàng và đóng gói. Logistics nhập chi phí logistics bên dưới.</p>
             </section>
           )}
-          {!pureLogistics && <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
+          <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
             <h3 className="font-semibold sm:col-span-2">Thông tin logistics từ tiềm năng</h3>
             {logisticsLeadFacts.map(([label, value]) => (
               <p key={label} className={label.startsWith("Quy cách") || label.startsWith("Địa chỉ") ? "sm:col-span-2" : undefined}>
@@ -3164,7 +3168,7 @@ export function QuoteEditor({
                 <span className="font-medium whitespace-pre-wrap">{value}</span>
               </p>
             ))}
-          </div>}
+          </div>
 
           {showPackaging && quote.customerKind !== "LOGISTICS" && <OrderPackagesBlock
             orders={orders}
