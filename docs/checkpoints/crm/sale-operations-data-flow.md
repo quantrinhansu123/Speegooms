@@ -16,6 +16,19 @@
 - Địa chỉ hồ sơ được để trống khi chuyển mess/tạo khách và khi yêu cầu báo giá; địa chỉ nhận hàng vẫn bắt buộc cho khách Vận chuyển. Theo yêu cầu người dùng, nhãn ô address ở form chuyển mess/tạo khách trực tiếp là “Địa chỉ gửi hàng”; chỉ đổi nhãn, vẫn lưu address của hồ sơ, chưa chuyển dữ liệu sang shipFromAddress.
 - Giới hạn đăng nhập chỉ tính lần thất bại (10 lần/15 phút), giữ giới hạn request chung. Đã kiểm tra 12 lần đăng nhập đúng liên tiếp qua local.
 
+## Bổ sung: sửa sản phẩm trên mess đồng bộ báo giá
+
+- Đối chiếu 2026-11-10, nhánh `fix/mess-product-sync` từ main `6e9e885`; chưa triển khai.
+- Nguồn thay đổi: `server/src/adapters/postgres/crm.repository.ts` (`messageSelect`, `toMessage`, `updateMessage`); test hồi quy tại `server/src/config/quote-workflow.test.ts`, được commit cùng checkpoint này.
+- Nguyên nhân: sản phẩm nhập trong bước chuyển mess có thể chỉ nằm ở báo giá, không nằm trong `thong_tin_don_hang` của mess; trước đây sửa mess chỉ cập nhật hồ sơ khách, không cập nhật `chi_tiet_don_hang` của báo giá.
+- `messageSelect`/`toMessage` ưu tiên mẫu hiện tại của báo giá liên quan (mẫu đang chọn, rồi mẫu có nội dung), sau đó mới dùng nháp mess. Giá, thành tiền, giá ngoại tệ và tỷ giá vận hành không trả về qua sản phẩm mess.
+- `updateMessage` lưu mess, hồ sơ và nội dung mẫu báo giá liên quan trong cùng transaction. Chỉ đồng bộ khi payload có `order`; bỏ trường này giữ nguyên báo giá. `null` xóa mẫu tương ứng, không xóa các mẫu khác. Dùng `preserveQuotePrices` để giữ quyền sở hữu giá/đóng gói hiện có; chỉ ghi cột nội dung đơn, không đổi phí, ghi chú, trạng thái hoặc bản đã gửi.
+- Áp dụng cả hai tuyến và hai nhóm khách. FCL vẫn dùng form lô hàng riêng, không đồng bộ nháp sản phẩm mess vào form cước FCL. Sourcing kết hợp vẫn giữ đóng gói do vận hành sở hữu.
+- Trọng lượng dạng chữ trên hồ sơ không được tự chuyển thành cân tính cước. Với cân tay, `weightKg` vẫn là kg mỗi đơn vị; tổng 50 kg cho số lượng 2 tương ứng 25 kg/đv. Chưa có kích thước thì không kết luận được cân sau quy đổi thể tích.
+- Kiểm chứng: 86 test quote-workflow/logistics-handoff/quote-access/quote-sheet/quote-payment qua; API typecheck qua. Test mới kiểm tra nạp lại sản phẩm, không lộ giá, sửa/thêm/xóa/bỏ qua order, giữ mẫu khác và rollback trên cả hai tuyến/bàn. Đọc dữ liệu thật xác nhận sản phẩm cũ được nạp lại; 5 câu SQL được EXPLAIN trong transaction READ ONLY, mô phỏng cân tay ra 50 kg; không ghi production.
+- API build và test Vercel entry qua; thêm test quyền bàn giao qua, test DB bàn giao bỏ qua vì chưa cấu hình DB local riêng cho test.
+- Giới hạn: chưa thử lưu bằng UI production, chưa sửa dữ liệu cân cũ, chưa kiểm tra chỉnh sửa đồng thời nhiều người. Form mở sẵn cần Tải dữ liệu mới. Không thay đổi snapshot báo giá đã gửi hoặc hợp đồng.
+
 ## Nguồn
 
 - src/services/crm/quote-lines.ts: packageMetrics, orderPackageMetrics.
