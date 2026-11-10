@@ -618,15 +618,9 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     opsNote: sheet.opsNote,
     quoteStatus: sheet.quoteStatus,
     contractStatus: sheet.contractStatus,
-    orders: sheet.orders.length === 0 && !sheet.sentQuote && handoffOrder
-      ? [logisticsOrderFromSourcing(handoffOrder)]
-      : sheet.orders.map((order) => order.id === handoffOrder?.id ? {
-        ...order,
-        lines: order.lines.map((line, index) => {
-          const source = handoffOrder.lines[index];
-          return source?.stt === line.stt ? { ...line, packages: source.packages, weightKg: source.weightKg, cbm: source.cbm } : line;
-        }),
-      } : order),
+    orders: handoffOrder
+      ? [logisticsOrderFromSourcing(handoffOrder, sheet.orders.find((order) => order.id === handoffOrder.id))]
+      : sheet.orders,
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,

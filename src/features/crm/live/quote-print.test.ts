@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultQuoteBank, emptyQuoteFreight, type QuoteSheetInput } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
+import { buildQuoteSheet } from "./quote-sheet";
 
 const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   customer: { customerName: null, companyName: null, address: null, phone: null, email: null },
@@ -14,6 +15,19 @@ const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
     freight: emptyQuoteFreight,
     ...notes,
   },
+});
+
+test("manual Sale kg reaches printed freight and packaged lines take priority", () => {
+  const source = input({ freight: { ...emptyQuoteFreight, basis: "kg", rate: 12 } });
+  source.lines = [{ stt: "1", productName: "Goods", quantity: 2, weightKg: 25, packages: [], spec: "", note: "", image: "", images: [],
+    pricePerSet: null, lineTotal: null, lineTotalManual: false, unit: "set", basis: "unit", cbm: null, areaM2: null, specEn: "", noteEn: "", attrs: [], prices: [] }];
+  let model = buildQuoteSheet(source);
+  assert.equal(model.freight.chargeableKg, 50);
+  assert.equal(model.freight.total, 600);
+  source.lines[0].packages = [{ count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 20 }];
+  model = buildQuoteSheet(source);
+  assert.equal(model.freight.chargeableKg, 20);
+  assert.equal(model.freight.total, 240);
 });
 
 test("print shows freight in the final logistics total with its currency", () => {

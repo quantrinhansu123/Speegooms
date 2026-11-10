@@ -68,7 +68,8 @@ export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInpu
     quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
     contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
     orders,
-    notes: current.notes,
+    notes: { ...current.notes, weightNote: input.notes.weightNote, weightNoteEn: input.notes.weightNoteEn,
+      totalLabel: input.notes.totalLabel, deposit: input.notes.deposit, depositEn: input.notes.depositEn },
     bank: current.bank,
   };
 }

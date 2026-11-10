@@ -35,13 +35,13 @@ test("Logistics quote still requires weight and receiving address", () => {
   ]);
 });
 
-test("Logistics quote accepts blank company and email", () => {
+test("Logistics quote accepts blank company, email and customer address", () => {
   for (const value of [null, "", "  "]) {
-    assert.deepEqual(missingQuoteFields({ ...complete, companyName: value, email: value }), []);
+    assert.deepEqual(missingQuoteFields({ ...complete, companyName: value, email: value, address: value }), []);
   }
 });
 
-test("only company and email are optional among logistics profile fields", () => {
+test("other logistics profile fields remain required", () => {
   const blank = {
     ...complete,
     fullName: "",
@@ -69,7 +69,6 @@ test("only company and email are optional among logistics profile fields", () =>
     "Đối tượng",
     "Hàng hóa",
     "Số lượng",
-    "Địa chỉ",
     "Ghi chú sale",
     "Kênh chăm sóc",
     "Trọng lượng",
@@ -83,6 +82,19 @@ test("only company and email are optional among logistics profile fields", () =>
 
 test("Logistics quote requires a shipping mode", () => {
   assert.deepEqual(missingQuoteFields({ ...complete, shippingMode: null }), ["Phương thức vận chuyển"]);
+});
+
+test("conversion accepts a blank customer address but still requires a shipping destination", async () => {
+  const { convertMessageSchema } = await import("@speego/shared");
+  const base = { phone: "0900000000", customerType: "INDIVIDUAL", careChannel: "ZALO", productInterest: "Goods", address: "", saleNote: "Note", requirements: "Requirements" };
+  assert.equal(convertMessageSchema.safeParse(base).success, true);
+  assert.deepEqual(missingQuoteFields({ ...complete, customerKind: "SOURCING", address: "" }), []);
+  const shipping = { ...base, shippingMode: "AIR", weightKg: "10", quantityNote: "1", packageDimensions: "10x10x10", reason: "Ship", shipToAddress: "Destination" };
+  assert.equal(convertMessageSchema.safeParse(shipping).success, true);
+  const missingDestination = convertMessageSchema.safeParse({ ...shipping, shipToAddress: "" });
+  assert.equal(missingDestination.success, false);
+  assert.ok(!missingDestination.success && missingDestination.error.issues.some((issue) => issue.path[0] === "shipToAddress"));
+  assert.equal(convertMessageSchema.safeParse({ ...base, address: "x".repeat(301) }).success, false);
 });
 
 test("Sourcing quote requires profile fields but not Logistics details", () => {

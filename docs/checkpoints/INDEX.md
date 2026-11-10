@@ -16,6 +16,10 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 | Cấu trúc ghi chú, cách tìm context cũ, phạm vi chia sẻ | [Tổ chức checkpoint](project/context-notes.md) | `9b17d04` + quyết định 2026-11-08 |
 | CRM: mess → khách tiềm năng; Sourcing/Logistics; số lượng, thị trường, dữ liệu nháp, validation | [Chuyển đổi mess](crm/mess-conversion.md) | `8ea86e4`, 2026-11-08 |
 
+## Luồng dữ liệu báo giá
+
+- Sale nhập nhưng Sourcing/Logistics thiếu cân, thấy hàng cũ, FCL chuyển bị chặn, địa chỉ tùy chọn và giới hạn đăng nhập: [Sale → vận hành](crm/sale-operations-data-flow.md), nền `d9e300b`, giao trên `fix/optional-customer-address`, 2026-11-10; chưa xác nhận deployment.
+
 ## Cách tra cứu
 
 - Mỗi dòng là một chủ đề, không phải một phiên chat. Chỉ thêm thư mục nghiệp vụ khi có ghi chú thực tế.

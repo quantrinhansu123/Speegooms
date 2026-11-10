@@ -76,6 +76,10 @@ assert.deepEqual([30.4, 30.6, 30, 30.5, 30.51, 0.1, 148].map(ceilHalf), [30.5, 3
 const perLine = { count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 10.2 };
 assert.equal(packageMetrics([perLine]).chargeableKg, 10.5);
 assert.equal(orderPackageMetrics([{ packages: [perLine] }, { packages: [perLine] }]).chargeableKg, 21);
+assert.equal(orderPackageMetrics([{ packages: [], weightKg: 25, quantity: 2 }]).chargeableKg, 50);
+assert.equal(orderPackageMetrics([{ packages: [perLine], weightKg: 999, quantity: 2 }]).chargeableKg, 10.5);
+assert.equal(orderPackageMetrics([{ packages: [], weightKg: 25, quantity: 2 }, { packages: [perLine] }]).chargeableKg, 60.5);
+assert.equal(orderPackageMetrics([{ packages: [], weightKg: 25, quantity: 0 }]).chargeableKg, 0);
 assert.equal(lineAmount({ basis: "kg", quantity: 4, price: 2, weightKg: 1190, cbm: null }), 9520); // Võ Hải Triều
 assert.equal(lineAmount({ basis: "unit", quantity: 5, price: 2137, weightKg: null, cbm: null }), 10685);
 assert.equal(lineAmount({ basis: "unit", quantity: 3, price: 0.035, weightKg: null, cbm: null }), 0.105);

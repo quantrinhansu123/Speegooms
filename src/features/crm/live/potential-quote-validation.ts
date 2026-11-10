@@ -32,7 +32,6 @@ const requiredQuoteFields = [
   ["customerType", "Đối tượng"],
   ["productInterest", "Hàng hóa"],
   ["quantityNote", "Số lượng"],
-  ["address", "Địa chỉ"],
   ["saleNote", "Ghi chú sale"],
   ["careChannel", "Kênh chăm sóc"],
 ] as const;

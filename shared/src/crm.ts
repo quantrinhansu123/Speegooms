@@ -153,7 +153,7 @@ export const convertMessageSchema = z.object({
   customerType: z.enum(customerTypeSchema.options, { error: "Chọn đối tượng" }),
   careChannel: z.enum(careChannelSchema.options, { error: "Chọn kênh chăm sóc" }),
   productInterest: z.string().trim().min(1, "Nhập hàng hóa").max(500),
-  address: z.string().trim().min(1, "Nhập địa chỉ").max(300),
+  address: text(300),
   saleNote: z.string().trim().min(1, "Nhập ghi chú sale").max(2000),
   requirements: z.string().trim().min(1, "Nhập yêu cầu của khách").max(8000),
   /** Chỉ bắt buộc với khách Logistics (có phương thức vận chuyển); đơn Sourcing ghi số lượng trên từng dòng hàng. */

@@ -63,6 +63,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [templateError, setTemplateError] = useState<string>();
   const [removingTemplate, setRemovingTemplate] = useState<QuoteTemplateRecord | null>(null);
   const [editing, setEditing] = useState<QuoteRecord | null>(null);
+  const [editorVersion, setEditorVersion] = useState(0);
+  const latest = editing ? rows.find((row) => row.id === editing.id) : undefined;
   const [output, setOutput] = useState<{ action: QuoteOutputAction; row: QuoteRecord } | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
   const [modeFilter, setModeFilter] = useState("");
@@ -296,7 +298,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
 
       {editing && (
         <QuoteEditor
-          key={editing.id}
+          key={`${editing.id}-${editorVersion}`}
+          onReload={latest && JSON.stringify(latest) !== JSON.stringify(editing) ? () => { setEditing(latest); setEditorVersion((value) => value + 1); } : undefined}
           quote={editing}
           templates={templates}
           editMode={editMode}

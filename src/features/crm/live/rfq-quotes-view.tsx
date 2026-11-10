@@ -2,7 +2,7 @@
 
 import { quoteVndAmount } from "@speego/shared";
 
-import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing, sourcingHandoffOrder } from "@speego/shared";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Eye, FilePlus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -46,6 +46,7 @@ const deskTitles = {
 function logisticsQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
   const sheet = row.logisticsSheet;
   if (!sheet) return null;
+  const order = row.orders.find((item) => item.selected) ?? sourcingHandoffOrder(row);
   return {
     ...row,
     desk: "logistics",
@@ -54,9 +55,8 @@ function logisticsQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
     opsNote: sheet.opsNote,
     quoteStatus: sheet.quoteStatus,
     contractStatus: sheet.contractStatus,
-    orders: sheet.orders.length === 0 && !sheet.sentQuote && row.sentQuote
-      ? [logisticsOrderFromSourcing(row.sentQuote.order)] : sheet.orders,
-    sourcingContext: row.sentQuote ? { order: row.sentQuote.order, opsNote: row.opsNote } : null,
+    orders: order ? [logisticsOrderFromSourcing(order, sheet.orders.find((item) => item.id === order.id))] : sheet.orders,
+    sourcingContext: order ? { order, opsNote: row.opsNote } : null,
     notes: sheet.notes,
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,
@@ -177,6 +177,10 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<RfqQuoteRecord | null>(null);
   const [viewing, setViewing] = useState<RfqQuoteRecord | null>(null);
+  const [editorVersion, setEditorVersion] = useState(0);
+  const latest = viewing ? rows.find((row) => row.id === viewing.id && row.desk === viewing.desk) : undefined;
+  const reload = latest && JSON.stringify(latest) !== JSON.stringify(viewing)
+    ? () => { setViewing(latest); setEditorVersion((value) => value + 1); } : undefined;
   const [output, setOutput] = useState<{ action: QuoteOutputAction; source: QuotePdfSource } | null>(null);
   const [contractQuote, setContractQuote] = useState<RfqQuoteRecord | null>(null);
   const [outcomeQuote, setOutcomeQuote] = useState<RfqQuoteRecord | null>(null);
@@ -693,7 +697,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   : viewing;
                 return (
                   <QuoteEditor
-                    key={`${viewing.id}-${desk}-${quote.sentQuote?.sentAt ?? quote.quoteStatus}`}
+                    key={`${viewing.id}-${desk}-${quote.sentQuote?.sentAt ?? quote.quoteStatus}-${editorVersion}`}
+                    onReload={reload}
                     embedded
                     heading={`${title} · ${viewing.code}`}
                     quote={{ ...source, id: viewing.id }}
@@ -718,7 +723,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
 
       {viewing && !isCombinedSourcing(viewing) && (
         <QuoteEditor
-          key={`${viewing.id}-${viewing.sentQuote?.sentAt ?? viewing.quoteStatus}`}
+          key={`${viewing.id}-${viewing.sentQuote?.sentAt ?? viewing.quoteStatus}-${editorVersion}`}
+          onReload={reload}
           quote={canContent ? viewing : viewableQuote(viewing)}
           templates={[]}
           editMode={contentEditMode}

@@ -510,7 +510,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
               <Field
                 label="Địa chỉ"
                 htmlFor="pot-address"
-                required
                 hint={editing?.linkMess ? "Link từ mess" : undefined}
               >
                 <Input id="pot-address" value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} />

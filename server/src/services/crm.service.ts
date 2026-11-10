@@ -220,8 +220,13 @@ export class CrmService {
     const quote = await this.ready().findQuote(lane, "logistics", quoteId);
     if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (quote.customerKind !== "LOGISTICS") throw new AppError(409, "CONFLICT", "Chỉ khách thuần logistics mới chuyển theo luồng này");
-    if (quote.orders.length === 0 || quote.orders.some((order) => order.lines.length === 0 || order.lines.some((line) => line.packages.length === 0))) {
-      throw new AppError(400, "RULE", "Nhập đủ thông tin đơn hàng, gồm quy cách đóng gói từng dòng, trước khi chuyển logistics");
+    if (quote.shippingMode === "SEA" && quote.logisticsClass === "FCL") {
+      const fcl = quote.notes.fcl;
+      if (!fcl?.commodity.trim() || !fcl.weight.trim() || !fcl.volume.trim()) {
+        throw new AppError(400, "RULE", "Nhập hàng hóa, trọng lượng và số lượng/loại container trước khi chuyển logistics");
+      }
+    } else if (quote.orders.length === 0 || quote.orders.some((order) => order.lines.length === 0 || order.lines.some((line) => line.packages.length === 0 && !(line.weightKg != null && line.weightKg > 0)))) {
+      throw new AppError(400, "RULE", "Nhập đơn hàng và quy cách đóng gói hoặc cân tính cước mỗi dòng trước khi chuyển logistics");
     }
     await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", quote.code, quote.id, quote.customerKind);
     return quote;
