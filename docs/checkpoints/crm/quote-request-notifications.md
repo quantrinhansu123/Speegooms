@@ -14,6 +14,18 @@
 
 ## Kiểm chứng và giới hạn
 
+### Giữ tuyến khi mở yêu cầu từ thông báo (2026-11-10)
+
+- Nền `80d8451`, nhánh sửa `fix/logistics-lane-persistence`; trạng thái deploy cần kiểm tra riêng với hệ thống hosting.
+- Lỗi đã xác minh: `useCrmLane` mặc định Việt Nam; thông báo đổi sang Global qua `useFocusRow`, rồi `clearOpenContractParams` xóa `id` và `lane`. Tải lại quay về Việt Nam nên đơn Global không hiện trong danh sách, không phải bằng chứng mất dữ liệu.
+- `src/features/crm/live/lane.tsx`: giữ tuyến của người dùng trong `sessionStorage`, tách theo `user.id`; ưu tiên `lane` hợp lệ từ URL, sau đó tuyến đã lưu, cuối cùng Việt Nam. Khôi phục sau hydration; Sale hoặc trang cố định tuyến vẫn giữ khóa. Trình duyệt chặn storage vẫn đổi tuyến được nhưng không nhớ sau reload.
+- Hook dùng chung cho Báo giá vận hành, RFQ, Khách tiềm năng, Mess và Hợp đồng. Không thay đổi bộ lọc/phân quyền API; storage chỉ giữ lựa chọn tuyến trong cùng tab.
+- Test trình duyệt Edge headless `node --test src/features/crm/live/lane.test.mjs`: qua; chạy hook thật và sự kiện thông báo, kiểm tra reload, mở từ menu, ưu tiên URL, đổi thủ công, tách tài khoản, khóa Sale/trang, dữ liệu lưu không hợp lệ và storage bị chặn. Test dùng esbuild có sẵn qua tsx và Playwright; cần Edge đã cài.
+- Frontend typecheck (`next typegen` và `tsc --noEmit`), ESLint hai file thay đổi và `git diff --check`: qua. Chạy CLI trực tiếp từ node_modules vì pnpm trong worktree yêu cầu cài lại dependencies.
+- Chưa thử giao dịch Sale → API → DB trên production; kiểm tra này tập trung vào lỗi giữ tuyến phía giao diện.
+
+### Kiểm chứng bản gửi thông báo trước đó
+
 - `pnpm.cmd typecheck` và `pnpm.cmd typecheck:api`: qua.
 - Trước push, đã chạy lại cả hai typecheck và 11 test tập trung trên bản merge với main `2865c57`: đều qua; staged diff check qua.
 - Test tập trung quote-request, handoff và quote-access: 11/11 qua; bao gồm hai tuyến, hai nhóm khách, hai workflow và mở lại phiếu không gửi trùng.
