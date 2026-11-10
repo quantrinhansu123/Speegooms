@@ -1,11 +1,23 @@
 # Thông báo yêu cầu báo giá từ khách tiềm năng
 
 - Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, người nhận thông báo và danh sách báo giá vận hành.
-- Đối chiếu: 2026-11-10, commit sửa `8c10a13` trên nhánh `fix/rfq-send-request`, nền `5dd894a`; đã ghép với main `2865c57` không có xung đột.
+- Đối chiếu mới nhất: 2026-11-10, commit sửa `458f231` trên nhánh `fix/quote-assignment-scope`, nền main `84be9d3`. Các kết quả RFQ/giữ tuyến phía dưới thuộc revision được ghi ở từng mục.
+
+## Phân công và quyền theo người nhận (2026-11-10)
+
+- Main đã có chia xoay vòng từ `abe5a9a`: `crm.chia_don` lưu người phụ trách theo `(tuyen, ban, bao_gia_id)`. Seed migration 048 cấu hình Logistics: Dương Thị Thanh Thảo / Trịnh Ngọc Quốc Anh; Sourcing: Trần Thị Hương Thanh / Hoàng Thị Kim Anh. Seed nối theo tên người dùng đang có trong DB; đây là cấu hình nguồn, chưa xác nhận danh sách/phiếu thực tế production. Off tay hoặc nghỉ phép cả ngày đã duyệt thì bỏ qua; phiếu đã chia giữ nguyên người.
+- Hai lỗi đã xác minh ở code nền: danh sách/sửa báo giá chỉ kiểm tra vai trò và nhóm khách, chưa dùng phân công; Sourcing gửi lần đầu đã tự bàn giao dữ liệu Logistics trong repository nhưng service không chia người/thông báo cho bước tự động này.
+- Sau sửa, danh tính request từ `crmActor` giới hạn nhân viên `sourcing` / `logistics` vào các phiếu được chia cho chính họ tại bàn tương ứng vai trò, theo đúng tuyến. Lọc ID ở SQL trước limit 200, áp dụng cả tracking và đường mở phiếu Logistics từ khách; sửa/gửi/chuyển Logistics cũng kiểm tra phân công, trả 404 khi ngoài phạm vi. Logistics xem phần Sourcing vẫn phải vượt qua desk/kind policy, đồng thời có phân công Logistics cùng mã phiếu. API assignees không trả mã phiếu ngoài phạm vi nhân viên.
+- Admin, Vận hành (`van-hanh`), Ban giám đốc giữ phạm vi quản lý hiện có. Danh sách Khách tiềm năng và Hợp đồng/Đơn hàng sau ký vẫn theo chính sách riêng hiện có; thay đổi này giới hạn phiếu báo giá vận hành, không phải audit quyền toàn CRM.
+- Tạo RFQ mới và bàn giao rõ ràng dùng cùng cơ chế chia người + thông báo riêng. Lần gửi đầu của Sourcing COMBINED cũng gọi cơ chế này cho Logistics; không cần bấm thêm để nhận thông báo. Trả lại/làm lại báo giá gửi đúng người phụ trách. Không chia được hoặc nguồn chia lỗi thì chỉ báo Admin/Vận hành; phiếu chưa chia không hiện cho nhân viên. Dùng Chia đơn kiểm tra người nhận/off rồi bàn giao lại để xử lý phiếu cũ/chưa chia; không tự backfill hay chạy migration production.
+- Chống trùng thông báo chưa đọc bao gồm `duong_dan`, tránh gộp nhầm Sourcing và Logistics khi phiếu gộp dùng cùng mã và cùng người nhận. Mở lại RFQ đã có vẫn không tự gửi lại thông báo; bàn giao rõ ràng vẫn gửi lại theo cơ chế chống trùng.
+- Nguồn: `server/src/services/crm.service.ts` (`assignedQuoteIds`, `assertQuoteAssignment`, `sendQuote`, `notifyQuoteReturn`), `server/src/search/crm-list-search.ts` (`QuoteListSearch.quoteIds`), `server/src/controllers/chia-don.controller.ts`, `server/src/services/notification.service.ts`, `server/src/adapters/postgres/notification.repository.ts`, `server/src/adapters/postgres/chia-don.repository.ts`, `server/db/migrations/048_chia_don.sql`, `src/features/crm/live/quotes-view.tsx`.
+- Kiểm chứng: toàn bộ danh sách test trong script `test:api` chạy qua trực tiếp bằng tsx: 163 qua / 1 DB integration bỏ qua; build API và test native Vercel entry qua; typecheck API và frontend (`next typegen` + `tsc --noEmit`) qua; diff check qua. Test mới trong `chia-don-service.test.ts` và `notification-dedupe.test.ts` kiểm tra phạm vi, chặn sửa/gửi/chuyển qua ID người khác, tracking, endpoint assignees, tự bàn giao, thông báo đúng người/đúng bàn và fallback quản lý.
+- Chưa kiểm tra trình duyệt, API/DB production hoặc DB integration thật cho bản sửa này; chưa xác nhận deployment production. Lưu phiếu, phân công và thông báo vẫn là các thao tác DB riêng; lỗi thông báo sau khi lưu cần bàn giao lại, chưa có outbox/retry bền vững. Các kiểm chứng local DB phía dưới không thay thế giới hạn này.
 
 ## Quyết định và nguồn
 
-- `CrmService.requestQuote` gửi thông báo ngay khi repository tạo phiếu mới và có actor. Dùng `quoteAccessKind` để giữ phạm vi người nhận theo workflow LEGACY/COMBINED. Không tạo phiếu Logistics cho khách Sourcing kết hợp ở bước này.
+- `CrmService.requestQuote` gửi thông báo ngay khi repository tạo phiếu mới và có actor. Người nhận hiện theo phân công ở mục trên; `quoteAccessKind` vẫn giữ nhóm khách theo workflow LEGACY/COMBINED. Không tạo phiếu Logistics cho khách Sourcing kết hợp ở bước này.
 - Mở lại phiếu (`created: false`) không gửi thêm thông báo. Không cần bấm Chuyển Sourcing/Logistics để nhận thông báo đầu tiên; các thao tác bàn giao rõ ràng hiện có vẫn dùng được và có thể gửi thông báo mới.
 - Endpoint tạo phiếu được dùng chung bởi Khách tiềm năng, tạo RFQ và chuyển Mess; những nơi này đều nhận hành vi gửi thông báo lúc tạo mới. Import gọi thẳng repository nên không phát thông báo hàng loạt.
 - Màn Khách tiềm năng hiện thông báo xác nhận sau khi API thành công. Danh sách vận hành dùng lại `usePolling` mỗi 30 giây, bên cạnh sự kiện từ chuông, để không phụ thuộc hoàn toàn vào số thông báo chưa đọc.

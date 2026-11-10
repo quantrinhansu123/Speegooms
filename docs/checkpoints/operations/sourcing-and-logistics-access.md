@@ -18,6 +18,7 @@ Read when changing Sourcing, Operations, Logistics navigation or route permissio
 - Sourcing and Vận hành both retain route access to contracts/orders, suppliers, and POs. Sourcing also has the `ops.write` and `price.return` actions needed by those screens.
 - The Vận hành role keeps access to Logistics routes through its `/van-hanh` module prefix. The separate Logistics role keeps its existing quote-desk scope.
 - Route and action permissions in `src/config` are frontend demo controls; real authorization must also be enforced by the backend.
+- Quote ownership is now additionally enforced for individual Sourcing/Logistics roles by request identity and `crm.chia_don`; see [quote assignment and notifications](../crm/quote-request-notifications.md). This affects quote desks/tracking/direct writes; contract/order routes retain their separate policy.
 - The CRM contracts screen also uses server permissions `contract.read`, `contract.ops`, and `contract.resend`; Sourcing is included in those permissions.
 
 ## Source paths

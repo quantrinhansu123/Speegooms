@@ -4,7 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
-| Sale yêu cầu báo giá, thông báo Sourcing/Logistics, đơn Global mất khỏi danh sách sau reload | [Thông báo yêu cầu báo giá](crm/quote-request-notifications.md) | nền `80d8451` + giữ tuyến theo tài khoản/tab, 2026-11-10 |
+| Gán người báo giá, quyền xem phiếu của Sourcing/Logistics, thông báo yêu cầu/tự bàn giao/làm lại, giữ tuyến sau reload | [Thông báo yêu cầu báo giá](crm/quote-request-notifications.md) | `458f231`, 2026-11-10 |
 | Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
 | Data khách hàng: menu Việt Nam/Global, thông báo bàn giao, bộ lọc và số lượng Facebook/Telesale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | nền `fd545d5` + phân nhóm/reset FB, 2026-11-10 |
