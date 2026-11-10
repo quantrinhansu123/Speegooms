@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createProposalSchema, decideProposalSchema, deleteProposalsSchema, saveProposalTemplateSchema } from "@speego/shared";
+import { createProposalCommentSchema, createProposalSchema, decideProposalSchema, deleteProposalsSchema, saveProposalTemplateSchema } from "@speego/shared";
 import type { AppContainer } from "../container";
 import { asyncHandler } from "../lib/async-handler";
 import { requirePermission } from "../middlewares/authorize";
@@ -18,6 +18,7 @@ export function deXuatRoutes(container: AppContainer) {
   router.put("/templates/:id", requirePermission("proposal.template"), validate({ body: saveProposalTemplateSchema }), asyncHandler(c.saveTemplate));
   router.delete("/templates/:id", requirePermission("proposal.template"), asyncHandler(c.removeTemplate));
   router.post("/delete", validate({ body: deleteProposalsSchema }), asyncHandler(c.removeFinished));
+  router.post("/:id/comments", validate({ body: createProposalCommentSchema }), asyncHandler(c.comment));
   router.post("/:id/decision", validate({ body: decideProposalSchema }), asyncHandler(c.decide));
   return router;
 }

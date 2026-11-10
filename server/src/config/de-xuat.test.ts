@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { leaveDayCount, proposalDetailSchemas, proposalPeriodRange } from "@speego/shared";
+import { createProposalCommentSchema, leaveDayCount, proposalDetailSchemas, proposalPeriodRange } from "@speego/shared";
 
 test("chu kỳ hạn mức: tuần bắt đầu thứ Hai, tháng, năm", () => {
   const sunday = new Date(2026, 10, 15); // CN 15/11/2026
@@ -20,4 +20,11 @@ test("trường riêng từng loại đề xuất", () => {
   assert.equal(proposalDetailSchemas["di-muon-ve-som"].safeParse({ date: "2026-02-30", type: "di-muon", time: "09:10" }).success, false);
   assert.equal(proposalDetailSchemas["thanh-toan"].safeParse({ amount: 0, payee: "A" }).success, false);
   assert.equal(proposalDetailSchemas["nghi-phep"].safeParse({ startDate: "2026-11-12", endDate: "2026-11-10", leaveType: "phep-nam", duration: "full" }).success, false);
+});
+
+test("góp ý: không đủ điều kiện bắt buộc có lý do", () => {
+  assert.equal(createProposalCommentSchema.safeParse({ verdict: "khong-du-dieu-kien", reason: "  " }).success, false);
+  assert.equal(createProposalCommentSchema.safeParse({ verdict: "khong-du-dieu-kien", reason: "Thiếu chứng từ" }).success, true);
+  assert.equal(createProposalCommentSchema.safeParse({ verdict: "du-dieu-kien" }).success, true);
+  assert.equal(createProposalCommentSchema.safeParse({ verdict: "khac", reason: "x" }).success, false);
 });

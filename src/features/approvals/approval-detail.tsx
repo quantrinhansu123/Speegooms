@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { ArrowLeft, Check, Paperclip, ShieldCheck, X } from "lucide-react";
-import type { ProposalDecision, ProposalRecord } from "@speego/shared";
+import { proposalVerdictLabels, proposalVerdicts, type ProposalDecision, type ProposalRecord, type ProposalVerdict } from "@speego/shared";
 import { InlineAlert } from "@/components/shared/form-fields";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Avatar, detailRows, formatDateTime, isMyTurn, statusMeta } from "./approval-shared";
 
@@ -18,15 +19,31 @@ const stepLook = {
   "cho": { label: "Chờ đến lượt", dot: "bg-muted text-muted-foreground" },
 };
 
-export function ApprovalDetail({ row, me, onBack, onDecide, deciding, error }: {
+export function ApprovalDetail({ row, me, onBack, onChanged, onDecide, deciding, error }: {
   row: ProposalRecord;
   me: { id: string; name: string; role: string };
   onBack: () => void;
+  /** Tải lại danh sách sau khi góp ý. */
+  onChanged: () => void;
   onDecide: (decision: ProposalDecision, comment: string) => void;
   deciding: boolean;
   error?: string;
 }) {
   const [rejecting, setRejecting] = useState(false);
+  const [verdict, setVerdict] = useState<ProposalVerdict>("du-dieu-kien");
+  const [reason, setReason] = useState("");
+  const [sending, setSending] = useState(false);
+  const [commentError, setCommentError] = useState<string>();
+  const canComment = row.status === "cho-duyet" && (me.role === "admin" || row.requesterId === me.id || row.followers.some((f) => f.id === me.id) || row.steps.some((s) => s.approverId === me.id));
+
+  const sendComment = () => {
+    setSending(true);
+    setCommentError(undefined);
+    api(`/api/de-xuat/${row.id}/comments`, { method: "POST", body: JSON.stringify({ verdict, reason }) })
+      .then(() => { setReason(""); setVerdict("du-dieu-kien"); onChanged(); })
+      .catch((err: unknown) => setCommentError(err instanceof ApiError ? err.message : "Không gửi được góp ý"))
+      .finally(() => setSending(false));
+  };
   const [comment, setComment] = useState("");
   const mine = isMyTurn(row, me.id);
   const canDecide = row.status === "cho-duyet" && (mine || me.role === "admin");
@@ -102,6 +119,42 @@ export function ApprovalDetail({ row, me, onBack, onDecide, deciding, error }: {
             );
           })}
         </ol>
+      </section>
+
+      <section className="rounded-xl border bg-card p-5 shadow-xs">
+        <h2 className="mb-3 text-lg font-semibold">Góp ý ({row.comments.length})</h2>
+        {row.comments.length === 0 && <p className="mb-3 text-sm text-muted-foreground">Chưa có góp ý nào.</p>}
+        <ul className="mb-3 space-y-3">
+          {row.comments.map((c) => (
+            <li key={c.id} className="flex items-start gap-3">
+              <Avatar name={c.authorName} size={28} />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm">
+                  <b>{c.authorName}</b>
+                  <StatusBadge tone={c.verdict === "du-dieu-kien" ? "success" : "danger"}>{proposalVerdictLabels[c.verdict]}</StatusBadge>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(c.createdAt)}</span>
+                </p>
+                {c.reason && <p className="mt-1 whitespace-pre-wrap text-sm">Lý do: {c.reason}</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
+        {canComment && (
+          <div className="space-y-3 rounded-lg border bg-muted/40 p-3">
+            <fieldset className="flex flex-wrap gap-4" aria-label="Kết luận góp ý">
+              {proposalVerdicts.map((v) => (
+                <label key={v} className="flex items-center gap-2 text-sm font-medium">
+                  <input type="radio" name="verdict" checked={verdict === v} onChange={() => setVerdict(v)} />
+                  {proposalVerdictLabels[v]}
+                </label>
+              ))}
+            </fieldset>
+            <Textarea aria-label="Lý do" rows={3} maxLength={2000} value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder={verdict === "khong-du-dieu-kien" ? "Lý do không đủ điều kiện (bắt buộc)" : "Lý do (không bắt buộc)"} />
+            {commentError && <InlineAlert>{commentError}</InlineAlert>}
+            <Button type="button" disabled={sending} onClick={sendComment}>{sending ? "Đang gửi..." : "Gửi góp ý"}</Button>
+          </div>
+        )}
       </section>
 
       {row.followers.length > 0 && (

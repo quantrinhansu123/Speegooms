@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, CheckCircle2, Inbox, Paperclip, Plus, Search, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, Eye, Inbox, Paperclip, Plus, Search, Trash2 } from "lucide-react";
 import type { ProposalDecision, ProposalRecord, ProposalTemplateRecord, ProposalUser } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -42,7 +42,7 @@ export function ApprovalsView() {
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [tab, setTab] = useState<Tab>("inbox");
-  const [filter, setFilter] = useState<"todo" | "done">("todo");
+  const [filter, setFilter] = useState<"todo" | "watch" | "done">("todo");
   const [screen, setScreen] = useState<Screen>({ name: "list" });
   const [search, setSearch] = useState("");
   const [deciding, setDeciding] = useState(false);
@@ -76,7 +76,7 @@ export function ApprovalsView() {
 
   const reload = () => loadRows().catch((err: unknown) => setError(errorText(err, "Không tải lại được danh sách")));
 
-  const { todo, done } = useMemo(() => {
+  const { todo, watch, done } = useMemo(() => {
     const me = user.id;
     const mine = (r: ProposalRecord) => r.steps.some((s) => s.approverId === me);
     const base = tab === "inbox" ? rows.filter((r) => mine(r) || r.followers.some((f) => f.id === me))
@@ -84,11 +84,13 @@ export function ApprovalsView() {
     const pending = base.filter((r) => !isFinished(r));
     // Gửi đến: "Cần làm" là đề xuất đang đến lượt mình; "Hoàn thành" là đề xuất mình đã xử lý hoặc đang theo dõi và đã xong.
     const todo = tab === "inbox" ? pending.filter((r) => isMyTurn(r, me)) : pending;
+    // Đang theo dõi: đề xuất còn chờ mà mình là người theo dõi hoặc người duyệt ở bước sau (chưa đến lượt).
+    const watch = tab === "inbox" ? pending.filter((r) => !isMyTurn(r, me)) : [];
     const done = tab === "inbox" ? base.filter((r) => r.steps.some((s) => s.approverId === me && s.decision) || (isFinished(r) && r.followers.some((f) => f.id === me))) : base.filter(isFinished);
-    return { todo, done };
+    return { todo, watch, done };
   }, [rows, tab, user.id]);
 
-  const active = (filter === "todo" ? todo : done).filter((r) => matchesQuery(search, `${r.subject} ${r.content} ${r.code} ${r.requesterName}`));
+  const active = (filter === "todo" ? todo : filter === "watch" ? watch : done).filter((r) => matchesQuery(search, `${r.subject} ${r.content} ${r.code} ${r.requesterName}`));
   const canDelete = filter === "done" && (tab === "sent" || (tab === "admin" && user.role === "admin"));
 
   const decide = (row: ProposalRecord, decision: ProposalDecision, comment = "") => {
@@ -131,7 +133,7 @@ export function ApprovalsView() {
   }
   if (shownScreen.name === "detail") {
     const row = rows.find((r) => r.id === shownScreen.id);
-    if (row) return <ApprovalDetail row={row} me={user} onBack={back} deciding={deciding} error={error} onDecide={(decision, comment) => decide(row, decision, comment)} />;
+    if (row) return <ApprovalDetail row={row} me={user} onBack={back} onChanged={() => void reload()} deciding={deciding} error={error} onDecide={(decision, comment) => decide(row, decision, comment)} />;
   }
 
   const tabs: [Tab, string][] = [["inbox", "Gửi đến"], ["sent", "Gửi đi"], ...(canReview ? [["admin", "Quản trị"] as [Tab, string]] : []), ["templates", "Mẫu yêu cầu"], ...(canReview ? [["stats", "Thống kê"] as [Tab, string]] : [])];
@@ -168,6 +170,7 @@ export function ApprovalsView() {
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Button variant={filter === "todo" ? "default" : "outline"} onClick={() => setFilter("todo")}><Inbox /> {tab === "inbox" ? "Cần làm" : "Đang xử lý"} ({todo.length})</Button>
+            {tab === "inbox" && <Button variant={filter === "watch" ? "default" : "outline"} onClick={() => setFilter("watch")}><Eye /> Theo dõi ({watch.length})</Button>}
             <Button variant={filter === "done" ? "default" : "outline"} onClick={() => setFilter("done")}><CheckCircle2 /> {tab === "admin" ? "Đã xong" : "Hoàn thành"} ({done.length})</Button>
             {canDelete && active.length > 0 && (
               <div className="ml-auto flex items-center gap-3 text-sm">
