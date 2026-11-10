@@ -25,6 +25,7 @@ import {
 } from "@speego/shared";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
+import { crmActor } from "../lib/crm-actor";
 import {
   emptyListSearch,
   type ContractListSearch,
@@ -60,12 +61,12 @@ export class CrmService {
     private readonly crm: CrmRepository | null,
     private readonly notifications: NotificationService | null = null,
     private readonly imports: CrmImportService | null = null,
-    private readonly assignment: Pick<PostgresAssignmentRepository, "assign"> | null = null,
+    private readonly assignment: Pick<PostgresAssignmentRepository, "assign" | "assignees"> | null = null,
   ) {}
 
   /**
    * Báo giá mới cho Vận hành: chia xoay vòng cho một người (bỏ qua người đang off) và chỉ người đó nhận thông báo.
-   * Không chia được (chưa có danh sách, mọi người đang off) thì báo cả nhóm như trước để không sót đơn.
+   * Không chia được (chưa có danh sách, mọi người đang off) thì báo Admin / Vận hành xử lý.
    */
   private async notifyQuoteRequest(
     actor: PublicUser,
@@ -77,6 +78,25 @@ export class CrmService {
     const assignee = await this.assignment?.assign(lane, desk, quote.id).catch(() => null);
     if (assignee) await this.notifications?.notifyQuoteAssigned(actor, assignee.id, lane, desk, quote.code, quote.id);
     else await this.notifications?.notifyQuoteRequested(actor, lane, desk, quote.code, quote.id, kind);
+  }
+
+  /** Dùng danh tính request, cùng nguồn với quyền và lịch sử CRM ở repository. */
+  private async assignedQuoteIds(lane: CrmLane): Promise<string[] | undefined> {
+    const actor = crmActor.getStore();
+    if (!actor || (actor.role !== "sourcing" && actor.role !== "logistics")) return undefined;
+    if (!this.assignment) throw new AppError(503, "UNAVAILABLE", "Chia đơn cần kết nối Postgres");
+    const assignees = await this.assignment.assignees(lane, actor.role);
+    return Object.keys(assignees).filter((id) => assignees[id].id === actor.id);
+  }
+
+  private async assertQuoteAssignment(lane: CrmLane, id: string): Promise<void> {
+    const ids = await this.assignedQuoteIds(lane);
+    if (ids && !ids.includes(id)) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+  }
+
+  private async notifyQuoteReturn(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quote: QuoteRecord): Promise<void> {
+    const assignee = await this.assignment?.assign(lane, desk, quote.id).catch(() => null);
+    await this.notifications?.notifyQuoteReturned(actor, lane, desk, quote.code, quote.id, quoteAccessKind(quote), assignee?.id);
   }
 
   importTemplate(kind: ImportKind): Promise<{ name: string; body: Buffer }> {
@@ -154,9 +174,11 @@ export class CrmService {
     if (!ok) throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
   }
 
-  listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, role: Role): Promise<QuoteRecord[]> {
+  async listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, role: Role): Promise<QuoteRecord[]> {
     this.assertDeskView(role, desk);
-    return this.ready().listQuotes(lane, desk, search, visibleKindsForDesk(role, desk));
+    const quoteIds = await this.assignedQuoteIds(lane);
+    if (quoteIds?.length === 0) return [];
+    return this.ready().listQuotes(lane, desk, { ...search, quoteIds }, visibleKindsForDesk(role, desk));
   }
 
   listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]> {
@@ -174,6 +196,7 @@ export class CrmService {
   /** Kiểm tra quyền sửa bàn và quyền với nhóm khách của bản ghi. */
   private async assertQuoteEdit(lane: CrmLane, desk: QuoteDesk, id: string, role: Role): Promise<QuoteRecord> {
     this.assertDeskEdit(role, desk);
+    await this.assertQuoteAssignment(lane, id);
     const quote = await this.ready().findQuote(lane, desk, id);
     if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     if (!canViewQuote(role, desk, quoteAccessKind(quote))) {
@@ -227,6 +250,7 @@ export class CrmService {
     if (!quote || quote.customerKind !== "LOGISTICS") {
       throw new AppError(404, "NOT_FOUND", "Sale chưa tạo thông tin đơn hàng");
     }
+    await this.assertQuoteAssignment(lane, quote.id);
     if (!canViewQuote(role, "logistics", quoteAccessKind(quote))) {
       throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
     }
@@ -266,7 +290,7 @@ export class CrmService {
     sourcingQuoteId: string,
     actor: PublicUser,
   ): Promise<{ quote: QuoteRecord; created: boolean }> {
-    this.assertDeskEdit(actor.role, "sourcing");
+    await this.assertQuoteEdit(lane, "sourcing", sourcingQuoteId, actor.role);
     const result = await this.ready().requestLogisticsQuote(lane, sourcingQuoteId);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
@@ -282,7 +306,8 @@ export class CrmService {
     input: UpdateQuoteInput,
     options: { contentOnly: boolean; role: Role },
   ): Promise<QuoteRecord> {
-    if (!options.contentOnly) await this.assertQuoteEdit(lane, desk, id, options.role);
+    if (options.contentOnly) await this.assertQuoteAssignment(lane, id);
+    else await this.assertQuoteEdit(lane, desk, id, options.role);
     const current = await this.ready().findQuote(lane, desk, id);
     if (!current) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
     const content = options.contentOnly ? preserveQuotePrices(current, input) : input;
@@ -339,6 +364,9 @@ export class CrmService {
     if (result === "selection") throw new AppError(400, "RULE", "Chọn một mẫu báo giá trước khi gửi");
     if (result === "template") throw new AppError(400, "RULE", "Mẫu không thuộc bàn báo giá này");
     await this.notifications?.notifyQuoteSent(actor, lane, desk, result.code, result.id);
+    if (desk === "sourcing" && isCombinedSourcing(result) && !current.sentQuote) {
+      await this.notifyQuoteRequest(actor, lane, "logistics", result, quoteAccessKind(result));
+    }
     const reopened = await this.reopenLogisticsAfterSourcingChange(lane, desk, current, orders.find((order) => order.selected), actor);
     return reopened ?? result;
   }
@@ -360,7 +388,7 @@ export class CrmService {
     if (!orderShippingChanged(current.sentQuote?.order, sentOrder)) return null;
     const reopened = await this.ready().returnQuote(lane, "logistics", current.id);
     if (typeof reopened === "string") return null;
-    await this.notifications?.notifyQuoteReturned(actor, lane, "logistics", reopened.code, reopened.id, quoteAccessKind(reopened));
+    await this.notifyQuoteReturn(actor, lane, "logistics", reopened);
     return this.ready().findQuote(lane, "sourcing", current.id);
   }
 
@@ -370,14 +398,7 @@ export class CrmService {
     if (result === "state") throw new AppError(409, "CONFLICT", "Báo giá chưa được vận hành gửi");
     if (result === "contract") throw new AppError(409, "CONFLICT", "Báo giá đã tạo hợp đồng nên không gửi lại được. Xóa hoặc sửa hợp đồng trước.");
     if (actor) {
-      await this.notifications?.notifyQuoteReturned(
-        actor,
-        lane,
-        desk,
-        result.code,
-        result.id,
-        quoteAccessKind(result),
-      );
+      await this.notifyQuoteReturn(actor, lane, desk, result);
     }
     return result;
   }
@@ -444,10 +465,10 @@ export class CrmService {
     }
     const [sourcing, logistics] = await Promise.all([
       canAccessQuoteDesk(role, "sourcing")
-        ? this.ready().listQuotes(lane, "sourcing", search, visibleKindsForDesk(role, "sourcing"))
+        ? this.listQuotes(lane, "sourcing", search, role)
         : Promise.resolve([]),
       canAccessQuoteDesk(role, "logistics")
-        ? this.ready().listQuotes(lane, "logistics", search, visibleKindsForDesk(role, "logistics"))
+        ? this.listQuotes(lane, "logistics", search, role)
         : Promise.resolve([]),
     ]);
     const sourcingRows = sourcing.map((quote) => ({ ...quote, desk: "sourcing" as const }));

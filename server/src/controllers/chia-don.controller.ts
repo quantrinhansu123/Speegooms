@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { assignmentDeskSchema } from "@speego/shared";
+import { assignmentDeskSchema, canAccessQuoteDesk } from "@speego/shared";
 import type { PostgresAssignmentRepository } from "../adapters/postgres/chia-don.repository";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -23,8 +23,19 @@ export class AssignmentController {
   };
 
   assignees = async (req: Request, res: Response) => {
+    const actor = req.user;
+    if (!actor) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
     const lane = req.query.lane === "global" ? "global" : "vn";
-    res.status(200).json({ assignees: await this.ready().assignees(lane, this.desk(req)) });
+    const desk = this.desk(req);
+    if (!canAccessQuoteDesk(actor.role, desk) && !can(actor.role, "quote.rfq")) {
+      throw new AppError(403, "FORBIDDEN", "Không có quyền xem bàn báo giá này");
+    }
+    let assignees = await this.ready().assignees(lane, desk);
+    if (actor.role === "sourcing" || actor.role === "logistics") {
+      const own = desk === actor.role ? assignees : await this.ready().assignees(lane, actor.role);
+      assignees = Object.fromEntries(Object.entries(assignees).filter(([id]) => own[id]?.id === actor.id));
+    }
+    res.status(200).json({ assignees });
   };
 
   /** Admin / Trưởng nhóm Vận hành chỉnh cho bất kỳ ai; mỗi người luôn tự bật/tắt off của mình. */

@@ -686,7 +686,8 @@ test("both lanes show live payments and logistics details to Sale", async () => 
 
 test("explicit handoff notifies Logistics even when its draft already exists", async () => {
   let notified = false;
-  const service = new CrmService({ requestLogisticsQuote: async () => ({ created: false, quote: { id: "quote", code: "BGS", customerKind: "SOURCING", quoteWorkflow: "COMBINED" } }) } as unknown as CrmRepository,
+  const quote = { id: "quote", code: "BGS", customerKind: "SOURCING", quoteWorkflow: "COMBINED" };
+  const service = new CrmService({ findQuote: async () => quote, requestLogisticsQuote: async () => ({ created: false, quote }) } as unknown as CrmRepository,
     { notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { notified = desk === "logistics"; } } as unknown as NotificationService);
   await service.requestLogisticsQuote("vn", "quote", { role: "sourcing" } as PublicUser);
   assert.equal(notified, true);
@@ -893,7 +894,7 @@ test("Sending a Sourcing quote requires order information because it also hands 
 });
 
 test("Service rejects an empty Sourcing hand-off with a clear rule error", async () => {
-  const service = new CrmService({ requestLogisticsQuote: async () => "empty" } as unknown as CrmRepository);
+  const service = new CrmService({ findQuote: async () => ({ customerKind: "SOURCING", quoteWorkflow: "COMBINED" }), requestLogisticsQuote: async () => "empty" } as unknown as CrmRepository);
   await assert.rejects(
     () => service.requestLogisticsQuote("vn", "quote", { role: "sourcing" } as PublicUser),
     (error: unknown) => error instanceof Error && (error as { status?: number }).status === 400,

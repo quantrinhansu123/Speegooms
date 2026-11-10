@@ -33,6 +33,8 @@ export interface QuoteListSearch extends ListSearch {
   customerKind: string;
   /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
   potentialIds?: readonly string[];
+  /** Phạm vi phân công do service đặt; không đọc từ query string. */
+  quoteIds?: readonly string[];
 }
 
 export interface ContractListSearch extends ListSearch {
@@ -103,7 +105,8 @@ export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression,
     .add(new ExactMatchCriterion(statusColumn, input.quoteStatus))
     .add(new ExactMatchCriterion(contractColumn, input.contractStatus))
     .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind))
-    .add(new AnyMatchCriterion(sql("q.ma_khach_hang_tiem_nang"), input.potentialIds, "uuid"));
+    .add(new AnyMatchCriterion(sql("q.ma_khach_hang_tiem_nang"), input.potentialIds, "uuid"))
+    .add(new AnyMatchCriterion(sql("q.id"), input.quoteIds, "uuid"));
 }
 
 const accountingStatusLabelSql = trustedSql(`case coalesce(h.trang_thai_ke_toan::text, ban_gui_xac_nhan->>'accountingStatus', '')

@@ -135,7 +135,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       .then((body) => {
         setEditing(body.quote);
         setNotice(isCombinedSourcing(body.quote) && desk === "sourcing"
-          ? `Đã gửi báo giá ${body.quote.code} cho Sale. Bấm Gửi qua Logistics để thông báo cho nhân sự Logistics`
+          ? `Đã gửi báo giá ${body.quote.code} cho Sale và chuyển yêu cầu sang Logistics`
           : `Đã gửi báo giá ${body.quote.code} cho Sale`);
         loadQuotes();
         return body.quote.quoteStatus;
