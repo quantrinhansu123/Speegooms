@@ -156,7 +156,7 @@ export class CrmService {
 
   listQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, role: Role): Promise<QuoteRecord[]> {
     this.assertDeskView(role, desk);
-    return this.ready().listQuotes(lane, desk, search, visibleKindsForDesk(role, desk));
+    return this.ready().listQuotes(lane, desk, { ...search, unlimited: role === "admin" && desk === "logistics" }, visibleKindsForDesk(role, desk));
   }
 
   listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]> {

@@ -33,6 +33,8 @@ export interface QuoteListSearch extends ListSearch {
   customerKind: string;
   /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
   potentialIds?: readonly string[];
+  /** Admin xem toàn bộ Logistics. Chỉ đặt tại service, không đọc từ query string. */
+  unlimited?: boolean;
 }
 
 export interface ContractListSearch extends ListSearch {

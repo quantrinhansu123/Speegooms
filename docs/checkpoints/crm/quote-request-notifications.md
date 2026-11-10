@@ -14,6 +14,17 @@
 
 ## Kiểm chứng và giới hạn
 
+### Admin xem toàn bộ báo giá Logistics (2026-11-10)
+
+- Nền `84be9d3`, nhánh `fix/admin-logistics-quote-visibility`; chưa push/deploy trong task này.
+- Đã xác minh bằng giao dịch DB chỉ đọc: khách trùng tên có phiếu ở cả Việt Nam và Global. Bộ lọc một tuyến làm người dùng tưởng thiếu phiếu; quyền nhóm khách của admin vốn đã không giới hạn. Danh sách còn bị cắt ở 200 phiếu mỗi nguồn SQL.
+- `QuoteDeskView` mặc định admin tại Logistics xem **Tất cả tuyến**, gộp và sắp xếp phiếu hai tuyến theo ngày. Bỏ chọn để dùng bộ chuyển Việt Nam/Global cũ. Cột Thị trường chỉ rõ tuyến của từng phiếu; tìm kiếm và thông tin người phụ trách lấy cả hai tuyến.
+- Mỗi dòng giữ tuyến gốc phía frontend để link theo dõi, lưu, gửi và tải lại editor dùng đúng tuyến. Phản hồi từ lượt tải cũ không ghi đè kết quả của bộ lọc mới. Hook `useCrmLane` và khóa tuyến Sale giữ nguyên; bàn Sourcing và các vai trò khác vẫn xem từng tuyến.
+- `CrmService.listQuotes` đặt `search.unlimited` chỉ cho admin tại bàn Logistics; parser không nhận cờ này từ HTTP. Repository bỏ `limit 200` khi cờ nội bộ bật. Vẫn loại hồ sơ đã xóa, giữ các bộ lọc và điều kiện bàn giao Sourcing → Logistics; không tự tạo phiếu hay đổi người phụ trách.
+- Nguồn: `src/features/crm/live/quotes-view.tsx`, `server/src/services/crm.service.ts`, `server/src/search/crm-list-search.ts`, `server/src/adapters/postgres/crm.repository.ts`.
+- Kiểm chứng: 53 test API (`quote-access`, `quote-workflow`, `logistics-handoff`) qua. Hai test Edge headless (`quotes-view.test.mjs`, `lane.test.mjs`) qua; test mới chạy view thật với API giả lập và editor/output được thay bằng probe, kiểm tra tìm kiếm hai tuyến, link theo dõi, người phụ trách, lưu/gửi từng tuyến, reload, vai trò khác, phản hồi cũ và lỗi một tuyến. Typecheck FE/API và diff check qua. Service đã sửa cũng đọc được đủ các phiếu của trường hợp báo thiếu bằng giao dịch DB chỉ đọc.
+- ESLint view còn một finding `react-hooks/set-state-in-effect` tại effect gọi `loadQuotes`; đã tái hiện cùng finding trên file gốc tại `84be9d3`. File test mới không có finding. Chưa chạy production build, UI production hoặc benchmark dữ liệu lớn; chế độ admin tải toàn bộ kết quả hiện chưa phân trang.
+
 ### Giữ tuyến khi mở yêu cầu từ thông báo (2026-11-10)
 
 - Nền `80d8451`, nhánh sửa `fix/logistics-lane-persistence`; trạng thái deploy cần kiểm tra riêng với hệ thống hosting.
