@@ -35,6 +35,8 @@ export interface QuoteListSearch extends ListSearch {
   potentialIds?: readonly string[];
   /** Phạm vi phân công do service đặt; không đọc từ query string. */
   quoteIds?: readonly string[];
+  /** Admin xem toàn bộ Logistics. Chỉ đặt tại service, không đọc từ query string. */
+  unlimited?: boolean;
 }
 
 export interface ContractListSearch extends ListSearch {

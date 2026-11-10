@@ -1680,11 +1680,12 @@ export class PostgresCrmRepository implements CrmRepository {
   ): Promise<QuoteRecord[]> {
     if (allowedKinds && allowedKinds.length === 0) return [];
     const tables = quoteTables[lane];
+    const limit = search.unlimited ? "" : " limit 200";
     const own = quoteSearch(search, sql("q.trang_thai_bao_gia::text"), sql("q.trang_thai_hop_dong::text")).build();
     if (desk === "sourcing") {
       const kindFilter = kindClause(allowedKinds, own.values.length + 1);
       const result = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc limit 200`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc${limit}`,
         [...own.values, ...kindFilter.values],
       );
       return result.rows.map(toQuote);
@@ -1696,13 +1697,13 @@ export class PostgresCrmRepository implements CrmRepository {
     const [ownRows, sharedRows] = await Promise.all([
       allowOwn
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc${limit}`,
             own.values,
           )
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by q.tao_luc desc limit 200`,
+            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by q.tao_luc desc${limit}`,
             shared.values,
           )
         : noRows,

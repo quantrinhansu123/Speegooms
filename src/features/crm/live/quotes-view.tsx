@@ -2,9 +2,9 @@
 
 import { isCombinedSourcing } from "@speego/shared";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
-import { canEditQuoteDesk, quoteTemplateSchema, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, quoteTemplateSchema, type CrmLane, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -42,6 +42,8 @@ const titles: Record<QuoteDesk, string> = {
   logistics: "Logistics – Báo giá",
 };
 
+type DeskQuote = QuoteRecord & { lane: CrmLane };
+
 function shownDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -51,10 +53,15 @@ function shownDate(value: string): string {
 export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane();
+  const canViewAllLanes = user.role === "admin" && desk === "logistics";
+  const [allLanes, setAllLanes] = useState(true);
+  const showAllLanes = canViewAllLanes && allLanes;
+  const selectedLane = showAllLanes ? "all" : lane;
+  const loadVersion = useRef(0);
   const canOps = canEditQuoteDesk(user.role, desk);
   /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
   const editMode = canOps ? ("full" as const) : ("none" as const);
-  const [rows, setRows] = useState<QuoteRecord[]>([]);
+  const [rows, setRows] = useState<DeskQuote[]>([]);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
   /** quoteId → người được chia đơn (chia xoay vòng giữa nhân sự Vận hành). */
   const [assignees, setAssignees] = useState<Record<string, { id: string; name: string }>>({});
@@ -66,9 +73,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [templateDraft, setTemplateDraft] = useState<{ id: string | null; name: string; content: string } | null>(null);
   const [templateError, setTemplateError] = useState<string>();
   const [removingTemplate, setRemovingTemplate] = useState<QuoteTemplateRecord | null>(null);
-  const [editing, setEditing] = useState<QuoteRecord | null>(null);
+  const [editing, setEditing] = useState<DeskQuote | null>(null);
   const [editorVersion, setEditorVersion] = useState(0);
-  const latest = editing ? rows.find((row) => row.id === editing.id) : undefined;
+  const latest = editing ? rows.find((row) => row.id === editing.id && row.lane === editing.lane) : undefined;
   const [output, setOutput] = useState<{ action: QuoteOutputAction; row: QuoteRecord } | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
   const [modeFilter, setModeFilter] = useState("");
@@ -76,6 +83,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
   const loadQuotes = useCallback(() => {
+    const version = ++loadVersion.current;
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
       setError(rangeError);
@@ -87,13 +95,17 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       contractStatus: filters.applied.contractStatus,
       customerKind: filters.applied.customerKind,
     });
-    api<{ quotes: QuoteRecord[] }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, lane)}${query}`)
-      .then((body) => setRows(body.quotes))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được báo giá"));
-    api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${lane}`)
-      .then((body) => setAssignees(body.assignees))
+    const lanes: CrmLane[] = selectedLane === "all" ? ["vn", "global"] : [selectedLane];
+    Promise.all(lanes.map(async (quoteLane) => {
+      const body = await api<{ quotes: QuoteRecord[] }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, quoteLane)}${query}`);
+      return body.quotes.map((row) => ({ ...row, lane: quoteLane }));
+    }))
+      .then((groups) => { if (version === loadVersion.current) setRows(groups.flat().sort((left, right) => right.createdAt.localeCompare(left.createdAt))); })
+      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
+    Promise.all(lanes.map((quoteLane) => api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${quoteLane}`)))
+      .then((bodies) => { if (version === loadVersion.current) setAssignees(Object.assign({}, ...bodies.map((body) => body.assignees))); })
       .catch(() => undefined); // cột người phụ trách chỉ là thông tin thêm, lỗi thì để trống
-  }, [desk, filters.applied, lane]);
+  }, [desk, filters.applied, selectedLane]);
 
   const loadTemplates = useCallback(() => {
     if (!canOps) return;
@@ -114,7 +126,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     if (!editing) return Promise.resolve(false);
     setPending(true);
     setQuoteError(undefined);
-    return api(crmPath(`/api/crm/quotes/${editing.id}?desk=${desk}`, lane), { method: "PATCH", body: JSON.stringify(input) })
+    return api(crmPath(`/api/crm/quotes/${editing.id}?desk=${desk}`, editing.lane), { method: "PATCH", body: JSON.stringify(input) })
       .then(() => {
         if (options?.close !== false) setEditing(null);
         loadQuotes();
@@ -131,9 +143,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     if (!editing) return Promise.resolve(null);
     setPending(true);
     setQuoteError(undefined);
-    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${editing.id}/send?desk=${desk}`, lane), { method: "POST", body: JSON.stringify(input) })
+    return api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${editing.id}/send?desk=${desk}`, editing.lane), { method: "POST", body: JSON.stringify(input) })
       .then((body) => {
-        setEditing(body.quote);
+        setEditing({ ...body.quote, lane: editing.lane });
         setNotice(isCombinedSourcing(body.quote) && desk === "sourcing"
           ? `Đã gửi báo giá ${body.quote.code} cho Sale và chuyển yêu cầu sang Logistics`
           : `Đã gửi báo giá ${body.quote.code} cho Sale`);
@@ -180,7 +192,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const visibleRows = desk === "logistics" && modeFilter
     ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
     : rows;
-  const columnCount = 13;
+  const columnCount = 13 + (canViewAllLanes ? 1 : 0);
 
   return (
     <>
@@ -189,13 +201,16 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         description={
           desk === "sourcing"
             ? "Sale điền ảnh/quy cách; mua hàng bổ sung chi tiết xưởng; vận hành báo giá. Sau khi gửi đơn hàng → chuyển Logistics."
-            : lane === "vn"
-              ? "Báo giá vận chuyển tuyến Việt Nam."
-              : "Báo giá vận chuyển tuyến Global."
+            : showAllLanes
+              ? "Tất cả báo giá vận chuyển tuyến Việt Nam và Global."
+              : lane === "vn"
+                ? "Báo giá vận chuyển tuyến Việt Nam."
+                : "Báo giá vận chuyển tuyến Global."
         }
         actions={
           <>
-            {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {canViewAllLanes && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={allLanes} onChange={(event) => setAllLanes(event.target.checked)} />Tất cả tuyến</label>}
+            {canPick && !showAllLanes ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
             <Button type="button" variant="outline" onClick={() => setAssignmentOpen(true)}>Chia đơn</Button>
             {canOps ? <Button type="button" onClick={() => { setTemplatesOpen(true); setTemplateError(undefined); }}>Mẫu báo giá</Button> : null}
           </>
@@ -234,6 +249,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
+              {canViewAllLanes && <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               {desk === "logistics" && <th className="whitespace-nowrap px-3 py-2 font-medium">Tuyến</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
@@ -260,18 +276,19 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               ];
               return (
                 <tr
-                  key={row.id}
+                  key={`${row.lane}-${row.id}`}
                   data-row-id={row.id}
                   className={cn(
                     "border-b last:border-0",
                     highlightId === row.id ? FOCUS_ROW_CLASS : row.quoteStatus === "CHUA_CO_BAO_GIA_LAI" && "bg-amber-50",
                   )}
                 >
-                  <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.code} potentialId={row.potentialId} lane={lane} /></td>
+                  <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.code} potentialId={row.potentialId} lane={row.lane} /></td>
                   <td className="px-3 py-3" title={row.customerName || undefined}>
                     <p>{row.customerName || "—"}</p>
                     <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                   </td>
+                  {canViewAllLanes && <td className="whitespace-nowrap px-3 py-3">{row.lane === "vn" ? "Việt Nam" : "Global"}</td>}
                   <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                   {desk === "logistics" && <td className="px-3 py-3 whitespace-nowrap">{row.shippingMode === "AIR" ? "Đường bay" : row.logisticsClass === "FCL" ? "Đường biển FCL" : row.logisticsClass === "LCL" ? "Đường biển LCL" : "—"}</td>}
                   <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
@@ -310,7 +327,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
 
       {editing && (
         <QuoteEditor
-          key={`${editing.id}-${editorVersion}`}
+          key={`${editing.lane}-${editing.id}-${editorVersion}`}
           onReload={latest && JSON.stringify(latest) !== JSON.stringify(editing) ? () => { setEditing(latest); setEditorVersion((value) => value + 1); } : undefined}
           quote={editing}
           templates={templates}
@@ -325,7 +342,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
             setPending(true);
             setQuoteError(undefined);
             try {
-              await api(crmPath(`/api/crm/quotes/${editing.id}/logistics`, lane), { method: "POST" });
+              await api(crmPath(`/api/crm/quotes/${editing.id}/logistics`, editing.lane), { method: "POST" });
               setNotice("Đã gửi thông tin đơn hàng và thông báo cho nhân sự Logistics.");
               loadQuotes();
               return true;

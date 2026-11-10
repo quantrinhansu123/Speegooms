@@ -1,7 +1,7 @@
 # Thông báo yêu cầu báo giá từ khách tiềm năng
 
-- Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, người nhận thông báo và danh sách báo giá vận hành.
-- Đối chiếu mới nhất: 2026-11-10, commit sửa `458f231` trên nhánh `fix/quote-assignment-scope`, nền main `84be9d3`. Các kết quả RFQ/giữ tuyến phía dưới thuộc revision được ghi ở từng mục.
+- Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, phân công/quyền, người nhận thông báo và danh sách báo giá vận hành; admin Logistics xem mọi tuyến/phiếu.
+- Đối chiếu mới nhất: 2026-11-10, sửa admin Logistics tại `1c394fa` trên nhánh `fix/admin-logistics-quote-visibility`, ghép main `678813b` (gồm quyền phân công `458f231`). Các kết quả ở từng mục gắn với revision được ghi rõ.
 
 ## Phân công và quyền theo người nhận (2026-11-10)
 
@@ -25,6 +25,19 @@
 - Nguồn: `server/src/services/crm.service.ts` (`requestQuote`), `server/src/services/notification.service.ts` (`notifyQuoteRequested`), `shared/src/quote-access.ts`, `src/features/crm/live/potential-view.tsx` (`openOrderQuote`), `src/features/crm/live/quotes-view.tsx`, `server/src/config/quote-workflow.test.ts`.
 
 ## Kiểm chứng và giới hạn
+
+### Admin xem toàn bộ báo giá Logistics (2026-11-10)
+
+- Nền `84be9d3`, commit nguồn `1c394fa`, nhánh `fix/admin-logistics-quote-visibility`; bản ghép main `678813b` đã được kiểm chứng trước push. Chưa xác nhận deployment production.
+- Đã xác minh bằng giao dịch DB chỉ đọc: khách trùng tên có phiếu ở cả Việt Nam và Global. Bộ lọc một tuyến làm người dùng tưởng thiếu phiếu; quyền nhóm khách của admin vốn đã không giới hạn. Danh sách còn bị cắt ở 200 phiếu mỗi nguồn SQL.
+- `QuoteDeskView` mặc định admin tại Logistics xem **Tất cả tuyến**, gộp và sắp xếp phiếu hai tuyến theo ngày. Bỏ chọn để dùng bộ chuyển Việt Nam/Global cũ. Cột Thị trường chỉ rõ tuyến của từng phiếu; tìm kiếm và thông tin người phụ trách lấy cả hai tuyến.
+- Mỗi dòng giữ tuyến gốc phía frontend để link theo dõi, lưu, gửi và tải lại editor dùng đúng tuyến. Phản hồi từ lượt tải cũ không ghi đè kết quả của bộ lọc mới. Hook `useCrmLane` và khóa tuyến Sale giữ nguyên; bàn Sourcing và các vai trò khác vẫn xem từng tuyến.
+- `CrmService.listQuotes` đặt `search.unlimited` chỉ cho admin tại bàn Logistics; parser không nhận cờ này từ HTTP. Repository bỏ `limit 200` khi cờ nội bộ bật. Vẫn loại hồ sơ đã xóa, giữ các bộ lọc và điều kiện bàn giao Sourcing → Logistics; không tự tạo phiếu hay đổi người phụ trách.
+- Giải quyết xung đột merge bằng cách giữ `assignedQuoteIds`/`quoteIds` của main và thêm `unlimited` cùng truy vấn. Nhân viên vẫn lọc phiếu được chia trước limit; admin trong danh tính request không bị giới hạn phân công. Test quyền mới dùng `crmActor` của admin và kiểm tra từ chối bất đồng bộ theo service mới.
+- Nguồn: `src/features/crm/live/quotes-view.tsx`, `server/src/services/crm.service.ts`, `server/src/search/crm-list-search.ts`, `server/src/adapters/postgres/crm.repository.ts`.
+- Kiểm chứng trước ghép main: 53 test API (`quote-access`, `quote-workflow`, `logistics-handoff`) qua. Hai test Edge headless (`quotes-view.test.mjs`, `lane.test.mjs`) qua; test mới chạy view thật với API giả lập và editor/output được thay bằng probe, kiểm tra tìm kiếm hai tuyến, link theo dõi, người phụ trách, lưu/gửi từng tuyến, reload, vai trò khác, phản hồi cũ và lỗi một tuyến. Typecheck FE/API và diff check qua. Service đã sửa cũng đọc được đủ các phiếu của trường hợp báo thiếu bằng giao dịch DB chỉ đọc tại revision này.
+- Kiểm chứng bản merge với `678813b`: toàn bộ danh sách test API trong package script chạy trực tiếp bằng tsx, **164 qua / 1 DB integration bỏ qua**; build API và test native Vercel entry qua. Hai test Edge headless, FE/API typecheck và production build FE (`next build --webpack`) qua. Build Turbopack không giải được package Next qua junction node_modules nằm ngoài root worktree, nên dùng Webpack để kiểm chứng; không đổi config ứng dụng. Đã kiểm tra diff và giữ cả nội dung checkpoint phân công của main.
+- ESLint view còn một finding `react-hooks/set-state-in-effect` tại effect gọi `loadQuotes`; đã tái hiện cùng finding trên file gốc tại `84be9d3`. File test mới không có finding. Chưa kiểm tra UI production hoặc benchmark dữ liệu lớn; chế độ admin tải toàn bộ kết quả hiện chưa phân trang.
 
 ### Giữ tuyến khi mở yêu cầu từ thông báo (2026-11-10)
 
