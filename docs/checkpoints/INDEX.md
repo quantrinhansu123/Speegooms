@@ -6,7 +6,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 |---|---|---|
 | Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
-| Data khách hàng: menu Việt Nam/Global, thông báo bàn giao, bộ lọc và số lượng Facebook/Telesale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | nền `742f7b5` + số lượng trạng thái, 2026-11-09 |
+| Data khách hàng: menu Việt Nam/Global, thông báo bàn giao, bộ lọc và số lượng Facebook/Telesale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | nền `fd545d5` + phân nhóm/reset FB, 2026-11-10 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |

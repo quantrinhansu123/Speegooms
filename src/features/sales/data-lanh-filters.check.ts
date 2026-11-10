@@ -10,23 +10,28 @@ const rows = [
 ];
 
 assert.equal(rows.filter((row) => matchesDataLanhStatus(row, "", "")).length, 4);
-assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "facebook", "")), rows.slice(1));
+assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "facebook", "")), rows.slice(1, 3));
 for (const status of facebookStatuses.slice(1)) {
   assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "facebook", status)), rows.filter((row) => row.facebookStatus === status));
 }
 assert.equal(matchesDataLanhStatus(rows[0], "facebook", facebookStatuses[0]), false);
-assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "telesale", "")), [rows[0], rows[2], rows[3]]);
+assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "telesale", "")), [rows[0], rows[2]]);
 assert.equal(matchesDataLanhStatus(rows[1], "telesale", telesaleStatuses[0]), false);
 for (const status of telesaleStatuses.slice(1)) {
   assert.deepEqual(rows.filter((row) => matchesDataLanhStatus(row, "telesale", status)), rows.filter((row) => row.telesaleStatus === status));
 }
 assert.equal(matchesDataLanhStatus(rows[0], "", facebookStatuses[1]), true);
-const transferred = { facebookStatus: facebookStatuses[6], telesaleStatus: telesaleStatuses[4] };
+const transferred = { facebookStatus: null, telesaleStatus: telesaleStatuses[4] };
 assert.equal(matchesDataLanhStatus(transferred, "facebook", ""), false);
 assert.equal(matchesDataLanhStatus(transferred, "facebook", facebookStatuses[6]), false);
 assert.equal(matchesDataLanhStatus(transferred, "telesale", ""), true);
 assert.equal(matchesDataLanhStatus(transferred, "telesale", telesaleStatuses[4]), true);
 assert.equal(matchesDataLanhStatus(transferred, "", ""), true);
+assert.equal(matchesDataLanhStatus({ facebookStatus: facebookStatuses[6], telesaleStatus: telesaleStatuses[4] }, "facebook", ""), false);
+for (const status of [null, ""]) {
+  assert.equal(matchesDataLanhStatus({ facebookStatus: status, telesaleStatus: status }, "facebook", ""), false);
+  assert.equal(matchesDataLanhStatus({ facebookStatus: status, telesaleStatus: status }, "telesale", ""), false);
+}
 for (const telesaleStatus of [null, telesaleStatuses[0]]) {
   assert.equal(matchesDataLanhStatus({ facebookStatus: facebookStatuses[6], telesaleStatus }, "facebook", ""), true);
 }

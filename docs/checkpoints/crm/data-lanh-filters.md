@@ -1,5 +1,14 @@
 # Bộ lọc trạng thái Data lạnh
 
+## Quy tắc hiện tại — 2026-11-10
+
+- Thay thế các quy tắc null/chuyển FB trong lịch sử bên dưới: nhóm FB/Tele loại null/rỗng (Chưa cập nhật), vẫn loại trạng thái 0 như trước. Khách chưa cập nhật cả hai chỉ hiện ở danh sách Tất cả chung.
+- Chọn FB 6 cần kết quả Tele hợp lệ; lưu FB null và kết quả Tele cùng transaction, giữ kết quả Tele mới nhất đang lưu. Sau chuyển có thể sửa Tele bình thường. Dữ liệu cũ FB 6 có Tele hợp lệ vẫn bị ẩn khỏi nhóm FB; lần sửa tiếp theo đưa FB về null. Không migration hàng loạt.
+- Nguồn: nền `fd545d5`, nhánh `fix/customer-care-channel-status`; `data-lanh-filters.ts`, `data-lanh.repository.ts`, các test và fixture trình duyệt bên dưới.
+- Kiểm chứng: bộ lọc, 7 test repository, browser fixture chuyển/số lượng, typecheck FE/BE, ESLint bộ lọc qua. Chưa deploy hoặc kiểm tra dữ liệu production.
+
+## Lịch sử
+
 - Phạm vi: `/sale-viet-nam/data-lanh` và `/sale-global/data-lanh`, menu theo vai trò, dropdown Facebook/Telesale và hàng nút trạng thái.
 - Đối chiếu: 2026-11-09, thay đổi trên nhánh `feat/data-lanh-status-filter`, nền `ec47f7e`.
 - Chỉ chọn một nhóm: Tất cả / Trạng thái Facebook / Trạng thái Telesale. Đổi nhóm xóa trạng thái đang chọn; bộ lọc tìm kiếm và intern vẫn kết hợp như cũ, phân trang về trang 1.

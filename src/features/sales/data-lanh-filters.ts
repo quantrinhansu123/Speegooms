@@ -6,6 +6,6 @@ export function matchesDataLanhStatus(row: Pick<DataLanhRecord, "facebookStatus"
   if (!channel) return true;
   if (channel === "facebook" && row.facebookStatus === facebookStatuses[6] && hasActiveTelesale(row.telesaleStatus)) return false;
   const value = channel === "facebook" ? row.facebookStatus : row.telesaleStatus;
-  if (value === (channel === "facebook" ? facebookStatuses[0] : telesaleStatuses[0])) return false;
+  if (!value || value === (channel === "facebook" ? facebookStatuses[0] : telesaleStatuses[0])) return false;
   return !status || value === status;
 }

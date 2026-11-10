@@ -29,6 +29,7 @@ window.fetch = async (url, options = {}) => {
     if (window.failPatch) return Response.json({ error: { message: "Lỗi lưu mẫu" } }, { status: 500 });
     const row = customers.find(row => row.id === String(url).split("/").at(-1));
     Object.assign(row, JSON.parse(options.body));
+    if (row.facebookStatus === facebookStatuses[6] && telesaleStatuses.slice(1).includes(row.telesaleStatus)) row.facebookStatus = null;
     return Response.json({ row });
   }
   throw new Error("Unexpected fixture request: " + url);

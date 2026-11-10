@@ -46,18 +46,22 @@ test("Facebook transfer rejects a missing, zero or cleared call result without s
 test("transfer saves both statuses together and keeps the same customer and intern", async () => {
   const f = fixture(facebookStatuses[3], null);
   const row = await f.repo.update(id, { facebookStatus: facebookStatuses[6], telesaleStatus: telesaleStatuses[4] }, "intern-1");
-  assert.equal(row?.facebookStatus, facebookStatuses[6]);
+  assert.equal(row?.facebookStatus, null);
   assert.equal(row?.telesaleStatus, telesaleStatuses[4]);
   assert.equal(row?.id, id);
   assert.equal(row?.internId, "intern-1");
   assert.equal(f.calls.filter(sql => sql.startsWith("update ")).length, 1);
   assert.equal(f.calls.at(-1), "commit");
+  const updated = await f.repo.update(id, { telesaleStatus: telesaleStatuses[5] }, "intern-1");
+  assert.equal(updated?.facebookStatus, null);
+  assert.equal(updated?.telesaleStatus, telesaleStatuses[5]);
 });
 
 test("transfer preserves the latest call result instead of a stale dialog selection", async () => {
   const f = fixture(facebookStatuses[5], telesaleStatuses[8]);
   await f.repo.update(id, { facebookStatus: facebookStatuses[6], telesaleStatus: telesaleStatuses[1] }, "intern-1");
   assert.equal(f.saved().telesale_status, telesaleStatuses[8]);
+  assert.equal(f.saved().facebook_status, null);
 });
 
 test("transferred customers cannot be cleared or reset to Telesale zero", async () => {
@@ -71,7 +75,7 @@ test("transferred customers cannot be cleared or reset to Telesale zero", async 
 test("a legacy incomplete transfer can receive a real call result", async () => {
   const f = fixture(facebookStatuses[6], telesaleStatuses[0]);
   const row = await f.repo.update(id, { telesaleStatus: telesaleStatuses[1] }, "intern-1");
-  assert.equal(row?.facebookStatus, facebookStatuses[6]);
+  assert.equal(row?.facebookStatus, null);
   assert.equal(row?.telesaleStatus, telesaleStatuses[1]);
 });
 

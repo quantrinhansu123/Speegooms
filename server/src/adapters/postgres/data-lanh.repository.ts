@@ -123,6 +123,9 @@ export class PostgresDataLanhRepository {
       if ((patch.facebookStatus !== undefined || patch.telesaleStatus !== undefined) && nextFacebook === facebookStatuses[6] && !hasActiveTelesale(nextTelesale)) {
         throw new AppError(422, "VALIDATION_ERROR", "Chọn kết quả gọi Telesale trước khi chuyển khách từ Facebook.");
       }
+      if (nextFacebook === facebookStatuses[6] && hasActiveTelesale(nextTelesale)) {
+        patch.facebookStatus = null;
+      }
       // Tên cột lấy từ bảng cố định ở trên, giá trị luôn đi qua tham số; trường không gửi thì không đụng tới.
       const params: unknown[] = [id, internId];
       const sets = (Object.keys(editableColumns) as (keyof typeof editableColumns)[])
