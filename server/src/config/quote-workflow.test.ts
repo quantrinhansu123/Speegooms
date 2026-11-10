@@ -118,7 +118,51 @@ test("quote projection preserves both workflow and Sale requirement images after
   }
 });
 
-test("creating a quote does not notify; Sale hands a filled sourcing order to Sourcing", async () => {
+test("creating a quote immediately notifies its desk once on either lane and workflow", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    for (const customerKind of ["SOURCING", "LOGISTICS"] as const) {
+      for (const quoteWorkflow of ["LEGACY", "COMBINED"] as const) {
+        const desk = customerKind === "LOGISTICS" ? "logistics" : "sourcing";
+        const quote = { id: "quote", code: "BG-1", customerKind, quoteWorkflow } as QuoteRecord;
+        const actor = { id: "sale", name: "Sale", role: lane === "vn" ? "sale-vn" : "sale-global" } as PublicUser;
+        let created = true;
+        const calls: unknown[][] = [];
+        const service = new CrmService({
+          requestQuote: async () => {
+            const result = { quote, created, desk };
+            created = false;
+            return result;
+          },
+        } as unknown as CrmRepository, {
+          notifyQuoteRequested: async (...args: unknown[]) => { calls.push(args); },
+        } as unknown as NotificationService);
+        assert.equal((await service.requestQuote(lane, "customer", actor)).created, true);
+        assert.deepEqual(calls, [[actor, lane, desk, quote.code, quote.id, quoteAccessKind(quote)]]);
+        assert.equal((await service.requestQuote(lane, "customer", actor)).created, false);
+        assert.equal(calls.length, 1, "opening an existing quote must not notify again");
+      }
+    }
+  }
+});
+
+test("quote requests without an actor and invalid requests do not notify", async () => {
+  let calls = 0;
+  for (const result of ["missing", "kind", { quote: { id: "quote" }, created: true, desk: "sourcing" }] as const) {
+    const service = new CrmService({
+      requestQuote: async () => result,
+    } as unknown as CrmRepository, {
+      notifyQuoteRequested: async () => { calls += 1; },
+    } as unknown as NotificationService);
+    if (typeof result === "string") {
+      await assert.rejects(service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser));
+    } else {
+      await service.requestQuote("vn", "customer");
+    }
+  }
+  assert.equal(calls, 0);
+});
+
+test("Sale can still hand a filled sourcing order to Sourcing", async () => {
   const desks: QuoteDesk[] = [];
   const quote = {
     id: "quote",
@@ -133,8 +177,6 @@ test("creating a quote does not notify; Sale hands a filled sourcing order to So
   } as unknown as CrmRepository, {
     notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { desks.push(desk); },
   } as unknown as NotificationService);
-  await service.requestQuote("vn", "customer", { role: "sale-vn" } as PublicUser);
-  assert.deepEqual(desks, []);
   await service.handoffSourcingOrder("vn", "quote", { role: "sale-vn" } as PublicUser);
   assert.deepEqual(desks, ["sourcing"]);
 });

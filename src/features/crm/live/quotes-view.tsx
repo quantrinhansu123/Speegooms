@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
+import { usePolling } from "@/lib/use-polling";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
@@ -98,6 +99,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   }, [loadQuotes, loadTemplates]);
 
   useNotificationRefresh(loadQuotes);
+  usePolling(loadQuotes);
 
   const saveQuote = (input: UpdateQuoteInput, options?: { close?: boolean }) => {
     if (!editing) return Promise.resolve(false);
