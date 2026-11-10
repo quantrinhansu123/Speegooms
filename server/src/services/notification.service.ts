@@ -56,6 +56,22 @@ export class NotificationService {
     await this.notifications.createMany(recipients, input.draft);
   }
 
+  /** Báo giá được chia xoay vòng cho đúng một người: chỉ người đó nhận thông báo. */
+  async notifyQuoteAssigned(actor: PublicUser, assigneeId: string, lane: CrmLane, desk: QuoteDesk, quoteCode: string, quoteId: string): Promise<void> {
+    if (!this.notifications || assigneeId === actor.id) return;
+    await this.notifications.createMany([assigneeId], {
+      type: "quote.request",
+      title: "Báo giá mới được chia cho bạn",
+      body: `${actor.name} yêu cầu báo giá ${quoteCode} (${desk}, ${laneLabel(lane)}). Đơn được chia cho bạn.`,
+      href: recordHref(deskPath(desk), quoteId, lane),
+      lane,
+      refType: "quote",
+      refId: quoteId,
+      actorId: actor.id,
+      skipIfUnread: true,
+    });
+  }
+
   async notifyQuoteRequested(
     actor: PublicUser,
     lane: CrmLane,

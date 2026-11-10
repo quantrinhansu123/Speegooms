@@ -207,3 +207,4 @@ export {
   type ProposalUser,
   type SaveProposalTemplateInput,
 } from "./de-xuat";
+export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";

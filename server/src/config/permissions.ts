@@ -26,6 +26,8 @@ export const permissions = {
   "quote.logistics": ["admin", "van-hanh", "sourcing"],
   /** Sale / VH điền ảnh, số lượng, quy cách, thông số đơn hàng (không gửi báo giá). */
   "quote.content": ["admin", "sale-vn", "sale-global", "van-hanh", "sourcing", "logistics"],
+  /** Bật/tắt off cho bất kỳ nhân sự trong danh sách chia đơn (mỗi người luôn tự bật/tắt off của mình). */
+  "quote.assign": ["admin", "van-hanh"],
   "quote.ops": ["admin", "van-hanh", "sourcing", "logistics"],
   "quote.return": ["admin", "sale-vn", "sale-global"],
   "contract.read": ["admin", "ban-gd", "sale-vn", "sale-global", "van-hanh", "sourcing", "ke-toan"],
