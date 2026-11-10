@@ -80,6 +80,13 @@ export class NotificationService {
     });
   }
 
+  /** Thông báo cho đúng những người được chọn (bỏ qua chính người thao tác). */
+  async notifyUsers(ids: readonly string[], draft: NotificationDraft): Promise<void> {
+    if (!this.notifications) return;
+    const recipients = [...new Set(ids)].filter((id) => id !== draft.actorId);
+    if (recipients.length) await this.notifications.createMany(recipients, draft);
+  }
+
   /** Sale được chọn làm Sale care nhận thông báo trên chuông; bấm vào mở đúng khách trong Data khách hàng. */
   async notifyDataLanhHandover(actor: PublicUser, saleId: string, customerName: string, rowId: string): Promise<void> {
     if (!this.notifications || saleId === actor.id) return;

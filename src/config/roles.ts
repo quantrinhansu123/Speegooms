@@ -36,21 +36,22 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/hcns",
       "/phap-che",
       "/khieu-nai",
+      "/de-xuat",
     ],
   },
-  marketing: { label: "Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/crm/mess"] },
+  marketing: { label: "Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/crm/mess", "/de-xuat"] },
   "sale-vn": {
     label: "Sale Việt Nam",
     dashboard: "department",
     department: "sale-vn",
-    modules: ["/dashboard", "/crm", "/sale-viet-nam", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai"],
+    modules: ["/dashboard", "/crm", "/sale-viet-nam", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai", "/de-xuat"],
   },
-  "sale-intern": { label: "Sales Intern", dashboard: "tasks-only", modules: ["/dashboard", "/sale-viet-nam/data-lanh"] },
+  "sale-intern": { label: "Sales Intern", dashboard: "tasks-only", modules: ["/dashboard", "/sale-viet-nam/data-lanh", "/de-xuat"] },
   "sale-global": {
     label: "Sale Global",
     dashboard: "department",
     department: "sale-global",
-    modules: ["/dashboard", "/crm", "/sale-global", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai"],
+    modules: ["/dashboard", "/crm", "/sale-global", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai", "/de-xuat"],
   },
   "van-hanh": {
     label: "Vận hành",
@@ -65,6 +66,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/khieu-nai",
       "/ke-toan/de-nghi-thanh-toan",
       "/ke-toan/duyet-thanh-toan",
+      "/de-xuat",
     ],
   },
   sourcing: {
@@ -80,6 +82,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/sale-viet-nam/tiem-nang",
       "/sale-global/tiem-nang",
       "/khieu-nai",
+      "/de-xuat",
     ],
   },
   logistics: {
@@ -93,11 +96,12 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/sale-viet-nam/tiem-nang",
       "/sale-global/tiem-nang",
       "/khieu-nai",
+      "/de-xuat",
     ],
   },
-  "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong"] },
-  hcns: { label: "HCNS", dashboard: "department", department: "hcns", modules: ["/dashboard", "/hcns"] },
-  "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che"] },
+  "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong", "/de-xuat"] },
+  hcns: { label: "HCNS", dashboard: "department", department: "hcns", modules: ["/dashboard", "/hcns", "/de-xuat"] },
+  "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che", "/de-xuat"] },
 };
 
 /** Theo dõi báo giá theo tuyến: /theo-doi-bao-gia/vn|global/:potentialId */

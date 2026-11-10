@@ -70,6 +70,7 @@ const files = [
   "045_data_lanh_ban_giao_sale.sql",
   "046_data_lanh_nguoi_nhan.sql",
   "047_crm_handover_history.sql",
+  "047_de_xuat.sql",
 ];
 
 await client.connect();

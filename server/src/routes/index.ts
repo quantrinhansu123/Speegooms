@@ -3,6 +3,7 @@ import type { AppContainer } from "../container";
 import { authRoutes } from "./auth.routes";
 import { crmRoutes } from "./crm.routes";
 import { dataLanhRoutes } from "./data-lanh.routes";
+import { deXuatRoutes } from "./de-xuat.routes";
 import { healthRoutes } from "./health.routes";
 import { keToanRoutes } from "./ke-toan.routes";
 import { notificationRoutes } from "./notification.routes";
@@ -20,6 +21,7 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use("/users", userRoutes(container));
   api.use("/crm", crmRoutes(container));
   api.use("/data-lanh", dataLanhRoutes(container));
+  api.use("/de-xuat", deXuatRoutes(container));
   api.use("/ke-toan", keToanRoutes(container));
   api.use("/notifications", notificationRoutes(container));
   api.use("/uploads", uploadRoutes(container));

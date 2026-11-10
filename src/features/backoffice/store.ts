@@ -2,7 +2,6 @@ import { CRM_TODAY, roleRouteScope } from "@/config/crm";
 import { complaintStatusLabels, legalStatusLabels } from "@/config/backoffice";
 import { getSnapshot as getCrm } from "@/features/crm/store";
 import { getSnapshot as getOps } from "@/features/operations/store";
-import { backofficeSeed } from "@/mocks/backoffice";
 import users from "@/mocks/users.json";
 import { createLocalRepository } from "@/services/repository-factory";
 import { createStore } from "@/services/store-factory";
@@ -11,7 +10,7 @@ import type { Activity, BackofficeSnapshot, Candidate, Complaint, Employee, Lega
 import type { CurrentUser } from "@/types/user";
 
 const empty: BackofficeSnapshot = { campaigns: [], feedback: [], complaints: [], employees: [], candidates: [], attendance: [], legal: [] };
-const store = createStore(createLocalRepository<BackofficeSnapshot>("speego-backoffice-v1", async () => backofficeSeed()), empty);
+const store = createStore(createLocalRepository<BackofficeSnapshot>("speego-backoffice-v2", async () => empty), empty);
 export const { subscribe, getSnapshot, getServerSnapshot, start } = store;
 export const resetBackoffice = store.reset;
 const denied = "Vai trò hiện tại không có quyền thao tác";

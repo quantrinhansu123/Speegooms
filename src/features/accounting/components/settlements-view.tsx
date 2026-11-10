@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Column } from "@/components/shared/data-table";
 import { ListView } from "@/components/shared/list-view";
-import { settlementStatusMeta } from "@/config/accounting";
+import { accountingUsesDemoContracts, settlementStatusMeta } from "@/config/accounting";
 import { formatMoney } from "@/lib/format";
 import { buildSettlement } from "@/services/accounting/rules";
 import type { Contract } from "@/types/crm";
@@ -16,7 +16,7 @@ export function SettlementsView() {
   const customerOf = new Map(crm.customers.map((c) => [c.customerId, c.name]));
   const status = (c: Contract): SettlementStatus => acc.settlements.find((s) => s.orderId === c.orderId)?.status ?? "chua-quyet-toan";
   // Chỉ đơn đã giao xong hoặc đã có hồ sơ quyết toán
-  const rows = crm.contracts.filter((c) => c.status === "da-ky" && (acc.settlements.some((s) => s.orderId === c.orderId) || buildSettlement(c.orderId, crm, ops, acc)?.conditions[0].ok));
+  const rows = (accountingUsesDemoContracts ? crm.contracts : []).filter((c) => c.status === "da-ky" && (acc.settlements.some((s) => s.orderId === c.orderId) || buildSettlement(c.orderId, crm, ops, acc)?.conditions[0].ok));
 
   const columns: Column<Contract>[] = [
     { key: "o", header: "Đơn hàng", cell: (c) => <Link href={`/ke-toan/quyet-toan/${c.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{c.orderId}</Link> },

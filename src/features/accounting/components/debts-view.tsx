@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { paymentKindLabels } from "@/config/accounting";
+import { accountingUsesDemoContracts, paymentKindLabels } from "@/config/accounting";
 import { routeLabels } from "@/config/crm";
 import { formatDate, formatMoney, formatVndCompact } from "@/lib/format";
 import { buildPayables, buildReceivables, type PayableRow, type ReceivableRow } from "@/services/accounting/rules";
@@ -47,7 +47,7 @@ function ReceiptDialog({ row, onClose }: { row: ReceivableRow; onClose: () => vo
 export function DebtsView() {
   const { crm, ops, acc, today, canAcc } = useAccounting();
   const [receiving, setReceiving] = useState<ReceivableRow>();
-  const receivables = useMemo(() => buildReceivables(crm, ops, acc, today), [crm, ops, acc, today]);
+  const receivables = useMemo(() => buildReceivables(accountingUsesDemoContracts ? crm : { ...crm, contracts: [] }, ops, acc, today), [crm, ops, acc, today]);
   const payables = useMemo(() => buildPayables(ops, acc), [ops, acc]);
   const totalAr = receivables.reduce((a, r) => a + r.outstanding, 0);
   const overdueAr = receivables.filter((r) => r.overdueDays > 0).reduce((a, r) => a + r.outstanding, 0);

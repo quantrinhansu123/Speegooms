@@ -6,11 +6,13 @@ import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { PostgresCrmImportStore } from "../adapters/postgres/crm-import.store";
 import { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
+import { PostgresDeXuatRepository } from "../adapters/postgres/de-xuat.repository";
 import { PostgresKeToanRepository } from "../adapters/postgres/ke-toan.repository";
 import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
 import { AuthController } from "../controllers/auth.controller";
 import { CrmController } from "../controllers/crm.controller";
 import { DataLanhController } from "../controllers/data-lanh.controller";
+import { DeXuatController } from "../controllers/de-xuat.controller";
 import { HealthController } from "../controllers/health.controller";
 import { KeToanController } from "../controllers/ke-toan.controller";
 import { NotificationController } from "../controllers/notification.controller";
@@ -42,6 +44,7 @@ export interface AppContainer {
   userAdminController: UserAdminController;
   crmController: CrmController;
   dataLanhController: DataLanhController;
+  deXuatController: DeXuatController;
   keToanController: KeToanController;
   notificationController: NotificationController;
   uploadController: UploadController;
@@ -81,6 +84,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
       crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
     )),
     dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null, notificationService),
+    deXuatController: new DeXuatController(pool ? new PostgresDeXuatRepository(pool) : null, notificationService),
     keToanController: new KeToanController(new KeToanService(pool ? new PostgresKeToanRepository(pool) : null)),
     notificationController: new NotificationController(notificationService),
     uploadController: new UploadController(cloudinary),
