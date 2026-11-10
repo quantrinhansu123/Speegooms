@@ -106,7 +106,17 @@ export class PostgresNotificationRepository implements NotificationRepository {
     return result.rows.map((row) => row.id);
   }
 
-  async createMany(recipientIds: readonly string[], draft: NotificationDraft): Promise<number> {
+  async createMany(allRecipientIds: readonly string[], draft: NotificationDraft): Promise<number> {
+    let recipientIds = allRecipientIds;
+    if (draft.skipIfUnread && draft.refType && draft.refId && recipientIds.length > 0) {
+      const unread = await this.query<{ id: string }>(
+        `select nguoi_nhan_id as id from app.thong_bao
+         where da_xem = false and loai = $1 and tham_chieu_loai = $2 and tham_chieu_id = $3 and nguoi_nhan_id = any($4::text[])`,
+        [draft.type, draft.refType, draft.refId, recipientIds],
+      );
+      const skip = new Set(unread.rows.map((row) => row.id));
+      recipientIds = recipientIds.filter((id) => !skip.has(id));
+    }
     if (recipientIds.length === 0) return 0;
     const values: unknown[] = [];
     const rows: string[] = [];

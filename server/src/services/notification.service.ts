@@ -76,6 +76,7 @@ export class NotificationService {
         refType: "quote",
         refId: quoteId,
         actorId: actor.id,
+        skipIfUnread: true,
       },
     });
   }
