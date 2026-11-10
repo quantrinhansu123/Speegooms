@@ -14,6 +14,7 @@ import {
   Wallet,
   ChartNoAxesCombined,
   BookOpen,
+  Stamp,
 } from "lucide-react";
 import type { NavGroup } from "@/types/navigation";
 
@@ -136,6 +137,11 @@ export const navigation: NavGroup[] = [
         title: "Khiếu nại",
         href: "/khieu-nai",
         icon: FileCheck2,
+      },
+      {
+        title: "Đề xuất",
+        href: "/de-xuat",
+        icon: Stamp,
       },
       {
         title: "HCNS",

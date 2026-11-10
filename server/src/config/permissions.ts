@@ -11,6 +11,10 @@ export const permissions = {
   "datalanh.assign": ["admin"],
   /** Cập nhật trạng thái chăm FB / Telesale (intern chỉ dòng của mình). */
   "datalanh.work": ["admin", "sale-vn", "sale-global", "sale-intern"],
+  /** Xem mọi đề xuất (tab Quản trị / Thống kê). Ai cũng được tạo và duyệt đề xuất được giao cho mình. */
+  "proposal.review": ["admin", "ban-gd", "hcns"],
+  /** Tạo / sửa / xóa mẫu đề xuất. */
+  "proposal.template": ["admin", "hcns"],
   "message.read": ["admin", "ban-gd", "marketing", "sale-vn", "sale-global"],
   "message.write": ["admin", "marketing", "sale-vn", "sale-global"],
   "message.convert": ["admin", "sale-vn", "sale-global"],

@@ -59,6 +59,7 @@ export const implementedRoutes: readonly string[] = [
   "/marketing/ads-performance",
   "/marketing/seo",
   "/khieu-nai",
+  "/de-xuat",
   "/hcns",
   "/hcns/nhan-vien",
   "/hcns/co-cau",
