@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { ProposalRecord, PublicUser } from "@speego/shared";
+import { proposalVerdictLabels, type ProposalRecord, type PublicUser } from "@speego/shared";
 import type { PostgresDeXuatRepository } from "../adapters/postgres/de-xuat.repository";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -75,6 +75,17 @@ export class DeXuatController {
         approved ? "Đề xuất đã được duyệt" : "Đề xuất bị từ chối", `${actor.name} ${approved ? "đã duyệt" : "đã từ chối"} "${row.subject}" (${row.code}).`);
     }
     res.status(200).json({ row });
+  };
+
+  comment = async (req: Request, res: Response) => {
+    const actor = this.actor(req);
+    const row = await this.ready().comment(actor, idParam(req), req.body.verdict, req.body.reason);
+    if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy");
+    // Báo cho người tạo, người duyệt và những người theo dõi khác (trừ chính người góp ý).
+    const reason = req.body.reason ? `: ${String(req.body.reason).slice(0, 120)}` : "";
+    await this.notify(actor, [row.requesterId, ...row.steps.map((s) => s.approverId), ...row.followers.map((f) => f.id)], row,
+      "Góp ý mới cho đề xuất", `${actor.name} góp ý "${proposalVerdictLabels[req.body.verdict as keyof typeof proposalVerdictLabels]}" cho "${row.subject}" (${row.code})${reason}.`);
+    res.status(201).json({ row });
   };
 
   removeFinished = async (req: Request, res: Response) => {

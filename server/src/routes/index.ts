@@ -2,6 +2,7 @@ import { Router, type Express } from "express";
 import type { AppContainer } from "../container";
 import { authRoutes } from "./auth.routes";
 import { crmRoutes } from "./crm.routes";
+import { chiaDonRoutes } from "./chia-don.routes";
 import { dataLanhRoutes } from "./data-lanh.routes";
 import { deXuatRoutes } from "./de-xuat.routes";
 import { healthRoutes } from "./health.routes";
@@ -20,6 +21,7 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use("/auth", authRoutes(container));
   api.use("/users", userRoutes(container));
   api.use("/crm", crmRoutes(container));
+  api.use("/chia-don", chiaDonRoutes(container));
   api.use("/data-lanh", dataLanhRoutes(container));
   api.use("/de-xuat", deXuatRoutes(container));
   api.use("/ke-toan", keToanRoutes(container));

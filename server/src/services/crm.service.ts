@@ -42,6 +42,7 @@ import type {
   QuoteTemplateRecord,
   RfqQuoteRecord,
 } from "../repositories/crm.repository";
+import type { PostgresAssignmentRepository } from "../adapters/postgres/chia-don.repository";
 import type { NotificationService } from "./notification.service";
 import type { CrmImportService, ImportResult } from "./crm-import.service";
 import type { ImportKind } from "./crm-import-sheets";
@@ -59,7 +60,24 @@ export class CrmService {
     private readonly crm: CrmRepository | null,
     private readonly notifications: NotificationService | null = null,
     private readonly imports: CrmImportService | null = null,
+    private readonly assignment: Pick<PostgresAssignmentRepository, "assign"> | null = null,
   ) {}
+
+  /**
+   * Báo giá mới cho Vận hành: chia xoay vòng cho một người (bỏ qua người đang off) và chỉ người đó nhận thông báo.
+   * Không chia được (chưa có danh sách, mọi người đang off) thì báo cả nhóm như trước để không sót đơn.
+   */
+  private async notifyQuoteRequest(
+    actor: PublicUser,
+    lane: CrmLane,
+    desk: QuoteDesk,
+    quote: { id: string; code: string; customerKind: string | null },
+    kind: string | null,
+  ): Promise<void> {
+    const assignee = await this.assignment?.assign(lane, desk, quote.id).catch(() => null);
+    if (assignee) await this.notifications?.notifyQuoteAssigned(actor, assignee.id, lane, desk, quote.code, quote.id);
+    else await this.notifications?.notifyQuoteRequested(actor, lane, desk, quote.code, quote.id, kind);
+  }
 
   importTemplate(kind: ImportKind): Promise<{ name: string; body: Buffer }> {
     return this.importer().template(kind);
@@ -187,7 +205,7 @@ export class CrmService {
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy khách hàng tiềm năng");
     if (result === "kind") throw new AppError(400, "RULE", "Chọn loại khách trước khi báo giá");
     if (result.created && actor) {
-      await this.notifications?.notifyQuoteRequested(actor, lane, result.desk, result.quote.code, result.quote.id, quoteAccessKind(result.quote));
+      await this.notifyQuoteRequest(actor, lane, result.desk, result.quote, quoteAccessKind(result.quote));
     }
     return result;
   }
@@ -228,7 +246,7 @@ export class CrmService {
     } else if (quote.orders.length === 0 || quote.orders.some((order) => order.lines.length === 0 || order.lines.some((line) => line.packages.length === 0 && !(line.weightKg != null && line.weightKg > 0)))) {
       throw new AppError(400, "RULE", "Nhập đơn hàng và quy cách đóng gói hoặc cân tính cước mỗi dòng trước khi chuyển logistics");
     }
-    await this.notifications?.notifyQuoteRequested(actor, lane, "logistics", quote.code, quote.id, quote.customerKind);
+    await this.notifyQuoteRequest(actor, lane, "logistics", quote, quote.customerKind);
     return quote;
   }
 
@@ -239,7 +257,7 @@ export class CrmService {
     if (quote.customerKind !== "SOURCING") throw new AppError(409, "CONFLICT", "Chỉ khách Tìm hàng mới chuyển cho Sourcing");
     const ready = quote.orders.some((order) => order.lines.some((line) => line.productName?.trim() && line.quantity != null && line.quantity > 0));
     if (!ready) throw new AppError(400, "RULE", "Nhập mặt hàng và số lượng trước khi chuyển Sourcing");
-    await this.notifications?.notifyQuoteRequested(actor, lane, "sourcing", quote.code, quote.id, quote.customerKind);
+    await this.notifyQuoteRequest(actor, lane, "sourcing", quote, quote.customerKind);
     return quote;
   }
 
@@ -253,14 +271,7 @@ export class CrmService {
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá Sourcing");
     if (result === "kind") throw new AppError(409, "CONFLICT", "Chỉ khách Sourcing mới tạo báo giá Logistics");
     if (result === "empty") throw new AppError(400, "RULE", "Nhập thông tin đơn hàng ở Sourcing trước khi chuyển sang Logistics");
-    await this.notifications?.notifyQuoteRequested(
-      actor,
-      lane,
-      "logistics",
-      result.quote.code,
-      result.quote.id,
-      quoteAccessKind(result.quote),
-    );
+    await this.notifyQuoteRequest(actor, lane, "logistics", result.quote, quoteAccessKind(result.quote));
     return result;
   }
 

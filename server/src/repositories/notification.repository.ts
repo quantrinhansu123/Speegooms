@@ -25,6 +25,8 @@ export interface NotificationDraft {
   refType?: string | null;
   refId?: string | null;
   actorId?: string | null;
+  /** Bỏ qua người nhận còn thông báo chưa đọc cùng loại + cùng bản ghi (tránh báo trùng khi vừa tạo phiếu vừa bấm chuyển). */
+  skipIfUnread?: boolean;
 }
 
 export interface NotificationRepository {

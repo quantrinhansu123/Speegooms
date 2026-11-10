@@ -5,6 +5,8 @@ import {
   proposalPeriodRange,
   type BuiltinProposalId,
   type CreateProposalInput,
+  type ProposalComment,
+  type ProposalVerdict,
   type ProposalDecision,
   type ProposalGroup,
   type ProposalPeriod,
@@ -22,7 +24,7 @@ type Row = {
   id: string; ma: string; mau_id: string; loai: ProposalRecord["kind"]; ten_mau: string; ve_viec: string; noi_dung: string;
   chi_tiet: Record<string, unknown>; dinh_kem: { name: string }[]; nguoi_theo_doi: { id: string; name: string }[];
   nguoi_tao_id: string; ten_nguoi_tao: string; trang_thai: ProposalRecord["status"]; buoc_hien_tai: number;
-  cac_buoc: ProposalStep[]; tao_luc: Date;
+  cac_buoc: ProposalStep[]; gop_y: ProposalComment[]; tao_luc: Date;
 };
 
 type TemplateRow = {
@@ -33,13 +35,17 @@ type TemplateRow = {
 
 const select = `
   select d.id::text as id, d.ma, d.mau_id, d.loai, d.ten_mau, d.ve_viec, d.noi_dung, d.chi_tiet, d.dinh_kem,
-         d.nguoi_theo_doi, d.nguoi_tao_id, u.ho_ten as ten_nguoi_tao, d.trang_thai, d.buoc_hien_tai, d.cac_buoc, d.tao_luc
+         d.nguoi_theo_doi, d.nguoi_tao_id, u.ho_ten as ten_nguoi_tao, d.trang_thai, d.buoc_hien_tai, d.cac_buoc,
+         coalesce((select json_agg(json_build_object('id', g.id::text, 'authorId', g.nguoi_gop_y_id, 'authorName', gu.ho_ten,
+                                                     'verdict', g.ket_luan, 'reason', g.ly_do, 'createdAt', g.tao_luc) order by g.tao_luc)
+                   from app.de_xuat_gop_y g join public.nguoi_dung gu on gu.ma_nguoi_dung = g.nguoi_gop_y_id where g.de_xuat_id = d.id), '[]'::json) as gop_y,
+         d.tao_luc
   from app.de_xuat d join public.nguoi_dung u on u.ma_nguoi_dung = d.nguoi_tao_id`;
 
 const toRecord = (r: Row): ProposalRecord => ({
   id: r.id, code: r.ma, templateId: r.mau_id, kind: r.loai, templateTitle: r.ten_mau, subject: r.ve_viec, content: r.noi_dung,
   details: r.chi_tiet, attachments: r.dinh_kem, followers: r.nguoi_theo_doi, requesterId: r.nguoi_tao_id,
-  requesterName: r.ten_nguoi_tao, status: r.trang_thai, currentStep: r.buoc_hien_tai, steps: r.cac_buoc,
+  requesterName: r.ten_nguoi_tao, status: r.trang_thai, currentStep: r.buoc_hien_tai, steps: r.cac_buoc, comments: r.gop_y,
   createdAt: r.tao_luc.toISOString(),
 });
 
@@ -171,6 +177,17 @@ export class PostgresDeXuatRepository {
     } finally {
       client.release();
     }
+    return this.byId(id);
+  }
+
+  /** Người tạo, người theo dõi, người duyệt (hoặc Admin) góp ý khi đề xuất còn chờ duyệt. Trả null nếu không có đề xuất. */
+  async comment(actor: PublicUser, id: string, verdict: ProposalVerdict, reason: string): Promise<ProposalRecord | null> {
+    const proposal = await this.byId(id);
+    if (!proposal) return null;
+    const related = proposal.requesterId === actor.id || proposal.followers.some((f) => f.id === actor.id) || proposal.steps.some((s) => s.approverId === actor.id);
+    if (!related && actor.role !== "admin") throw new AppError(403, "FORBIDDEN", "Chỉ người tạo, người theo dõi và người duyệt mới được góp ý");
+    if (proposal.status !== "cho-duyet") throw new AppError(409, "CONFLICT", "Đề xuất đã được xử lý, không thể góp ý thêm");
+    await this.pool.query(`insert into app.de_xuat_gop_y (de_xuat_id, nguoi_gop_y_id, ket_luan, ly_do) values ($1::uuid, $2, $3, $4)`, [id, actor.id, verdict, reason]);
     return this.byId(id);
   }
 

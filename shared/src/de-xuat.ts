@@ -85,6 +85,15 @@ export const decideProposalSchema = z.object({
   comment: z.string().trim().max(1000, "Lý do tối đa 1000 ký tự").default(""),
 });
 
+export const proposalVerdicts = ["du-dieu-kien", "khong-du-dieu-kien"] as const;
+export type ProposalVerdict = (typeof proposalVerdicts)[number];
+export const proposalVerdictLabels: Record<ProposalVerdict, string> = { "du-dieu-kien": "Đủ điều kiện", "khong-du-dieu-kien": "Không đủ điều kiện" };
+
+/** Người theo dõi / người duyệt góp ý: kết luận đủ hay không đủ điều kiện kèm lý do (bắt buộc khi không đủ). */
+export const createProposalCommentSchema = z
+  .object({ verdict: z.enum(proposalVerdicts), reason: z.string().trim().max(2000, "Lý do tối đa 2.000 ký tự").default("") })
+  .refine((v) => v.verdict === "du-dieu-kien" || v.reason.length > 0, { message: "Nhập lý do khi không đủ điều kiện", path: ["reason"] });
+
 export const deleteProposalsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
 
 export const saveProposalTemplateSchema = z.object({
@@ -112,6 +121,15 @@ export interface ProposalStep {
   comment: string;
 }
 
+export interface ProposalComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  verdict: ProposalVerdict;
+  reason: string;
+  createdAt: string;
+}
+
 export interface ProposalRecord {
   id: string;
   code: string;
@@ -128,6 +146,7 @@ export interface ProposalRecord {
   status: ProposalStatus;
   currentStep: number;
   steps: ProposalStep[];
+  comments: ProposalComment[];
   createdAt: string;
 }
 

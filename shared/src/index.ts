@@ -183,6 +183,7 @@ export {
 export {
   MAX_PROPOSAL_STEPS,
   builtinProposalTemplates,
+  createProposalCommentSchema,
   createProposalSchema,
   decideProposalSchema,
   deleteProposalsSchema,
@@ -191,11 +192,14 @@ export {
   proposalGroups,
   proposalKinds,
   proposalPeriodLabels,
+  proposalVerdictLabels,
+  proposalVerdicts,
   proposalPeriodRange,
   proposalPeriods,
   saveProposalTemplateSchema,
   type BuiltinProposalId,
   type CreateProposalInput,
+  type ProposalComment,
   type ProposalDecision,
   type ProposalGroup,
   type ProposalKind,
@@ -205,5 +209,7 @@ export {
   type ProposalStep,
   type ProposalTemplateRecord,
   type ProposalUser,
+  type ProposalVerdict,
   type SaveProposalTemplateInput,
 } from "./de-xuat";
+export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";

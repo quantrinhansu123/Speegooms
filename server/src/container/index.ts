@@ -5,12 +5,14 @@ import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudin
 import { getPostgresPool } from "../adapters/postgres/pool";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { PostgresCrmImportStore } from "../adapters/postgres/crm-import.store";
+import { PostgresAssignmentRepository } from "../adapters/postgres/chia-don.repository";
 import { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
 import { PostgresDeXuatRepository } from "../adapters/postgres/de-xuat.repository";
 import { PostgresKeToanRepository } from "../adapters/postgres/ke-toan.repository";
 import { PostgresNotificationRepository } from "../adapters/postgres/notification.repository";
 import { AuthController } from "../controllers/auth.controller";
 import { CrmController } from "../controllers/crm.controller";
+import { AssignmentController } from "../controllers/chia-don.controller";
 import { DataLanhController } from "../controllers/data-lanh.controller";
 import { DeXuatController } from "../controllers/de-xuat.controller";
 import { HealthController } from "../controllers/health.controller";
@@ -44,6 +46,7 @@ export interface AppContainer {
   userAdminController: UserAdminController;
   crmController: CrmController;
   dataLanhController: DataLanhController;
+  assignmentController: AssignmentController;
   deXuatController: DeXuatController;
   keToanController: KeToanController;
   notificationController: NotificationController;
@@ -62,6 +65,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   const csrf = createCsrfGuard(env);
   const pool = env.DB_PROVIDER === "postgres" ? getPostgresPool(env) : null;
   const crm = pool ? new PostgresCrmRepository(pool) : null;
+  const assignment = pool ? new PostgresAssignmentRepository(pool) : null;
   const notifications = pool ? new PostgresNotificationRepository(pool) : null;
   const notificationService = new NotificationService(notifications);
   const cloudinary = cloudinaryConfigFromParts({
@@ -82,7 +86,9 @@ export async function createContainer(env: Env): Promise<AppContainer> {
       crm,
       notificationService,
       crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
+      assignment,
     )),
+    assignmentController: new AssignmentController(assignment),
     dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null, notificationService),
     deXuatController: new DeXuatController(pool ? new PostgresDeXuatRepository(pool) : null, notificationService),
     keToanController: new KeToanController(new KeToanService(pool ? new PostgresKeToanRepository(pool) : null)),

@@ -18,6 +18,7 @@ import { useNotificationRefresh } from "@/features/notifications/notifications-c
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { AssignmentDialog } from "./assignment-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -55,6 +56,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const editMode = canOps ? ("full" as const) : ("none" as const);
   const [rows, setRows] = useState<QuoteRecord[]>([]);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
+  /** quoteId → người được chia đơn (chia xoay vòng giữa nhân sự Vận hành). */
+  const [assignees, setAssignees] = useState<Record<string, { id: string; name: string }>>({});
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -86,6 +90,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     api<{ quotes: QuoteRecord[] }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, lane)}${query}`)
       .then((body) => setRows(body.quotes))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được báo giá"));
+    api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${lane}`)
+      .then((body) => setAssignees(body.assignees))
+      .catch(() => undefined); // cột người phụ trách chỉ là thông tin thêm, lỗi thì để trống
   }, [desk, filters.applied, lane]);
 
   const loadTemplates = useCallback(() => {
@@ -173,7 +180,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const visibleRows = desk === "logistics" && modeFilter
     ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
     : rows;
-  const columnCount = 12;
+  const columnCount = 13;
 
   return (
     <>
@@ -189,6 +196,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            <Button type="button" variant="outline" onClick={() => setAssignmentOpen(true)}>Chia đơn</Button>
             {canOps ? <Button type="button" onClick={() => { setTemplatesOpen(true); setTemplateError(undefined); }}>Mẫu báo giá</Button> : null}
           </>
         }
@@ -235,6 +243,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Người phụ trách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
@@ -285,6 +294,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                         : <span className="text-muted-foreground">—</span>}
                     </td>
                   )}
+                  <td className="px-3 py-3 whitespace-nowrap">{assignees[row.id]?.name ?? <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
                   <td className="px-3 py-3">
                     <RowMenu label={`Thao tác ${row.code}`} items={items} />
@@ -295,6 +305,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           </tbody>
         </table>
       </TableHScroll>
+
+      {assignmentOpen && <AssignmentDialog desk={desk} onClose={() => setAssignmentOpen(false)} onChanged={loadQuotes} />}
 
       {editing && (
         <QuoteEditor
