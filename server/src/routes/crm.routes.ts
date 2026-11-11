@@ -6,11 +6,13 @@ import { requireAnyPermission, requirePermission } from "../middlewares/authoriz
 import { validate } from "../middlewares/validate";
 import type { AppContainer } from "../container";
 import { crmActor } from "../lib/crm-actor";
+import { protectQuoteOriginalPrices } from "../middlewares/quote-original-price";
 
 export function crmRoutes(container: AppContainer) {
   const router = Router();
   const crm = container.crmController;
   router.use(container.authenticate);
+  router.use(protectQuoteOriginalPrices);
   router.use((req, _res, next) => req.user ? crmActor.run(req.user, next) : next());
   router.get("/sales", requireAnyPermission(["message.convert", "potential.write"]), asyncHandler(crm.listSales));
   router.get("/potentials/:id/history", requirePermission("potential.read"), asyncHandler(crm.potentialHistory));

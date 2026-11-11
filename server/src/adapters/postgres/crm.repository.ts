@@ -376,6 +376,7 @@ function asLines(value: unknown): QuoteLine[] {
       images,
       quantity: optionalAmount(row.quantity),
       pricePerSet: optionalAmount(row.pricePerSet),
+      ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
       lineTotal: optionalAmount(row.lineTotal),
       lineTotalManual: row.lineTotalManual === true,
       weightKg: optionalAmount(row.weightKg),
@@ -444,7 +445,7 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
   return value
     .map((item) => {
       if (!item || typeof item !== "object") return null;
-      const row = item as { label?: unknown; labelEn?: unknown; value?: unknown; currency?: unknown; itemStt?: unknown };
+      const row = item as { label?: unknown; labelEn?: unknown; value?: unknown; currency?: unknown; itemStt?: unknown; originalPrice?: unknown };
       const label = textField(row.label);
       if (!label) return null;
       const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
@@ -452,18 +453,20 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
         label,
         labelEn: textField(row.labelEn),
         value: textField(row.value),
+        ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
         currency: /^[A-Z]{3}$/.test(currency) ? currency : "",
         itemStt: textField(row.itemStt),
       };
     })
-    .filter((item): item is QuoteNotes["logisticsFees"][number] => item != null)
+    .filter((item) => item != null)
     .slice(0, 30);
 }
 
 function asFreight(value: unknown): QuoteNotes["freight"] {
-  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown } : {};
+  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown; originalPrice?: unknown } : {};
   return {
     rate: optionalAmount(row.rate),
+    ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
     cbmRate: optionalAmount(row.cbmRate),
     basis: row.basis === "cbm" || row.basis === "both" || row.basis === "lump" ? row.basis : "kg",
     currency: typeof row.currency === "string" && /^[A-Z]{3}$/.test(row.currency.toUpperCase()) ? row.currency.toUpperCase() : "",

@@ -4,13 +4,15 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
+| RFQ: lưu ý in trên một trang, màu tổng logistics, bỏ cột kg/CBM/m² | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `e15f757` + head/footer `41c68ec`, 2026-11-11 |
 | Phân biệt loại đơn Logistics/Sourcing ở danh sách và chi tiết hợp đồng | [Loại đơn hợp đồng](crm/contract-source-type.md) | nền `f96af95`, nhánh `fix/contract-print-quote-id`, 2026-11-11; chưa triển khai |
 | Thu chi: đối tượng, mã chứng từ, ngoại tệ/tỷ giá, tên khách và đối soát | [Thu chi ngoại tệ](accounting/ledger-currency.md) | nền `b11afdf`, nhánh `fix/accounting-ledger-currency`, 2026-11-11 |
 | Gán người báo giá, quyền Sourcing/Logistics, gửi Sourcing thiếu hiệu lực, thông báo Sale/tự bàn giao/chia Logistics, giữ tuyến sau reload, admin Logistics xem tất cả tuyến/phiếu | [Thông báo yêu cầu báo giá](crm/quote-request-notifications.md) | Nền `d0e405c`, `fix/sourcing-send-notifications`, 2026-11-11; UI chưa deploy, phiếu thật đã xử lý theo ủy quyền |
 | Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
 | Data khách hàng: menu Việt Nam/Global, thông báo bàn giao, bộ lọc và số lượng Facebook/Telesale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | nền `fd545d5` + phân nhóm/reset FB, 2026-11-10 |
-| Data lạnh: chia vòng tròn, bàn giao Sale care, quyền xem | [Data lạnh](crm/data-lanh.md) | `5569cff` + xóa demo, 2026-11-09 |
+| Data lạnh: tạo khách, import/tải Excel, chia vòng tròn, bàn giao Sale care, quyền xem | [Data lạnh](crm/data-lanh.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
 | Dữ liệu demo đã gỡ, trang chưa nối DB hiện trống | [Demo đã gỡ](project/demo-data-removed.md) | sau `5569cff`, 2026-11-09 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |

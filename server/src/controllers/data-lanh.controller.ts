@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
 import { AppError } from "../lib/errors";
 import type { NotificationService } from "../services/notification.service";
+import { dataLanhWorkbook, importDataLanhWorkbook } from "../services/data-lanh-excel";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -44,7 +45,21 @@ export class DataLanhController {
   };
 
   create = async (req: Request, res: Response) => {
-    res.status(201).json({ row: await this.ready().create(req.body) });
+    res.status(201).json({ row: await this.ready().create(req.body, this.scope(req)) });
+  };
+
+  exportExcel = async (req: Request, res: Response) => {
+    const rows = req.query.template === "1" ? [] : await this.ready().list(this.scope(req), null);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="data-khach-hang.xlsx"');
+    res.status(200).send(await dataLanhWorkbook(rows));
+  };
+
+  importExcel = async (req: Request, res: Response) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new AppError(422, "VALIDATION_ERROR", "Chọn file Excel .xlsx");
+    const repo = this.ready();
+    const ownerId = this.scope(req);
+    res.status(200).json(await importDataLanhWorkbook(req.body, inputs => repo.importRows(inputs, ownerId)));
   };
 
   remove = async (req: Request, res: Response) => {

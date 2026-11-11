@@ -49,32 +49,82 @@ export class PostgresDataLanhRepository {
   constructor(private readonly pool: pg.Pool) {}
 
   /** internId = chỉ lấy khách giao hoặc bàn giao cho người đó; null = tất cả. */
-  async list(internId: string | null): Promise<DataLanhRecord[]> {
-    const result = await this.pool.query<Row>(`${select} where ($1::text is null or d.intern_id = $1 or d.sale_care_id = $1) order by d.stt limit 2000`, [internId]);
+  async list(internId: string | null, limit: number | null = 2000): Promise<DataLanhRecord[]> {
+    const result = await this.pool.query<Row>(`${select} where ($1::text is null or d.intern_id = $1 or d.sale_care_id = $1) order by d.stt limit $2`, [internId, limit]);
     return result.rows.map(toRecord);
   }
 
-  /** Thêm khách mới (chưa giao intern). Từ chối nếu SĐT đã có trong danh sách. */
-  async create(input: CreateDataLanhInput): Promise<DataLanhRecord> {
-    const digits = input.phone?.replace(/\D/g, "") ?? "";
-    if (digits) {
-      const dup = (await this.pool.query<{ stt: number; name: string | null }>(
-        `select stt, ho_ten as name from crm.data_lanh where regexp_replace(coalesce(so_dien_thoai, ''), '\\D', '', 'g') = $1 limit 1`,
-        [digits],
-      )).rows[0];
-      if (dup) throw new AppError(409, "CONFLICT", `SĐT này đã có trong danh sách: STT ${dup.stt}${dup.name ? ` (${dup.name})` : ""}`);
+  /** Sale tự thêm thì nhận phụ trách; Admin thêm vào danh sách chờ chia. */
+  async create(input: CreateDataLanhInput, ownerId: string | null = null): Promise<DataLanhRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      // Đồng bộ kiểm tra SĐT và cấp STT giữa các lượt tạo/import đồng thời.
+      await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_create'))");
+      const digits = input.phone?.replace(/\D/g, "") ?? "";
+      if (digits) {
+        const dup = (await client.query<{ stt: number; name: string | null }>(
+          `select stt, ho_ten as name from crm.data_lanh where regexp_replace(coalesce(so_dien_thoai, ''), '\\D', '', 'g') = $1 limit 1`,
+          [digits],
+        )).rows[0];
+        if (dup) throw new AppError(409, "CONFLICT", "Số điện thoại đã tồn tại trong Data khách hàng");
+      }
+      const keys = (Object.keys(editableColumns) as (keyof typeof editableColumns)[]).filter((key) => key in input && key !== "facebookStatus" && key !== "telesaleStatus");
+      const values = keys.map((key) => (input as Record<string, string | null | undefined>)[key]?.trim() || null);
+      const inserted = await client.query<{ id: string }>(
+        `insert into crm.data_lanh (stt, intern_id, giao_luc${keys.map((key) => `, ${editableColumns[key]}`).join("")})
+         select coalesce(max(stt), 0) + 1, $1::text, case when $1::text is null then null else now() end${values.map((_, i) => `, $${i + 2}`).join("")} from crm.data_lanh
+         returning id::text as id`,
+        [ownerId, ...values],
+      );
+      const id = inserted.rows[0]!.id;
+      const row = (await client.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0]!;
+      await client.query("commit");
+      return row;
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
     }
-    const keys = (Object.keys(editableColumns) as (keyof typeof editableColumns)[]).filter((key) => key in input && key !== "facebookStatus" && key !== "telesaleStatus");
-    const values = keys.map((key) => (input as Record<string, string | null | undefined>)[key]?.trim() || null);
-    // ponytail: STT = max + 1; hai người thêm cùng lúc có thể đụng UNIQUE (stt) -> báo lỗi, bấm lại. Dùng sequence nếu thêm nhiều.
-    const inserted = await this.pool.query<{ id: string }>(
-      `insert into crm.data_lanh (stt${keys.map((key) => `, ${editableColumns[key]}`).join("")})
-       select coalesce(max(stt), 0) + 1${values.map((_, i) => `, $${i + 1}`).join("")} from crm.data_lanh
-       returning id::text as id`,
-      values,
-    );
-    const id = inserted.rows[0]!.id;
-    return (await this.pool.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0]!;
+  }
+
+  /** Import một lần trong transaction, bỏ SĐT trùng cả trong file lẫn danh sách hiện có. */
+  async importRows(inputs: CreateDataLanhInput[], ownerId: string | null): Promise<{ created: number; skipped: number }> {
+    if (!inputs.length) return { created: 0, skipped: 0 };
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_create'))");
+      const keys = (Object.keys(editableColumns) as (keyof typeof editableColumns)[]).filter(key => key !== "facebookStatus" && key !== "telesaleStatus");
+      const inserted = await client.query(
+        `with source as (
+           select value, ordinality, regexp_replace(coalesce(value->>'phone', ''), '\\D', '', 'g') as digits
+           from jsonb_array_elements($1::jsonb) with ordinality
+         ), ranked as (
+           select *, row_number() over (partition by case when digits = '' then 'row:' || ordinality::text else 'phone:' || digits end order by ordinality) as duplicate_number
+           from source
+         ), fresh as (
+           select * from ranked r where duplicate_number = 1 and (digits = '' or not exists (
+             select 1 from crm.data_lanh d where regexp_replace(coalesce(d.so_dien_thoai, ''), '\\D', '', 'g') = r.digits
+           ))
+         )
+         insert into crm.data_lanh (stt, intern_id, giao_luc, ${keys.map(key => editableColumns[key]).join(", ")})
+         select (select coalesce(max(stt), 0) from crm.data_lanh) + row_number() over (order by ordinality),
+           $2::text, case when $2::text is null then null else now() end,
+           ${keys.map(key => `nullif(value->>'${key}', '')`).join(", ")}
+         from fresh order by ordinality returning id`,
+        [JSON.stringify(inputs), ownerId],
+      );
+      await client.query("commit");
+      const created = inserted.rowCount ?? 0;
+      return { created, skipped: inputs.length - created };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /** Các Sale có thể nhận bàn giao. */
@@ -161,7 +211,7 @@ export class PostgresDataLanhRepository {
       await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_assign'))");
       const interns = (await client.query<{ id: string }>(`select nguoi_dung_id as id from crm.data_lanh_nguoi_nhan order by thu_tu`)).rows.map((r) => r.id);
       if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có danh sách người nhận data khách hàng");
-      const last = (await client.query<{ id: string }>(`select intern_id as id from crm.data_lanh where giao_luc is not null and intern_id is not null order by giao_luc desc, stt desc limit 1`)).rows[0];
+      const last = (await client.query<{ id: string }>(`select intern_id as id from crm.data_lanh where giao_luc is not null and intern_id in (select nguoi_dung_id from crm.data_lanh_nguoi_nhan) order by giao_luc desc, stt desc limit 1`)).rows[0];
       const start = last ? (interns.indexOf(last.id) + 1) % interns.length : 0;
       const rows = (await client.query<{ id: string }>(`select id::text as id from crm.data_lanh where intern_id is null order by stt`)).rows;
       if (rows.length > 0) {

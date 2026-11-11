@@ -1,6 +1,6 @@
 "use client";
 
-import { fclChargeTotal, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, type ShippingNoteKey } from "@speego/shared";
+import { fclChargeTotal, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
 import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -23,6 +23,7 @@ import {
 import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuotePaymentEditor } from "./quote-payment-editor";
 import { emptyFclQuote, FclQuoteForm } from "./fcl-quote-form";
+import { QuoteOriginalPrices } from "./quote-original-prices";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -188,7 +189,7 @@ function FreightCostEditor({
           </NativeSelect>
         </Field>
         <Field label="Loại tiền cước" htmlFor={fieldId("freight-currency")}>
-          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes({ ...notes, freight: { ...freight, currency, vndRate: currency === "VND" ? null : currency === order?.currency ? order.rate ?? null : null }, logisticsFees: (notes.logisticsFees ?? []).map((fee) => ({ ...fee, currency: "" })) })} />
+          <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes(withFreightCurrency(notes, order, currency))} />
         </Field>
         {freightCurrency !== "VND" && <Field label={`Quy đổi VND: 1 ${freightCurrency} = ? VND`} htmlFor={fieldId("freight-vnd-rate")} hint="Chỉ để tổng hợp theo VND, không in ra phiếu">
           <MoneyInput id={fieldId("freight-vnd-rate")} className={cn(freight.vndRate == null && "border-warning")} fractionDigits={4} value={freight.vndRate ?? null} disabled={!canEdit}
@@ -2849,6 +2850,7 @@ export function QuoteEditor({
         </TabsContent>}
 
         <TabsContent value={pureLogistics || saleFill ? "sale" : "sourcing"} className={pureLogistics || saleFill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" : tabPanelClass}>
+          {!pureLogistics && !saleFill && <QuoteOriginalPrices desk="sourcing" orders={orders} notes={notes} editable={canEditPricing} pending={pending} onLinePrice={(orderId, index, originalPrice) => patchOrderLine(orderId, index, { originalPrice })} onNotesChange={setNotes} />}
           {quoteStep && saleDraft && (
             <>
               {/* Nhu cầu Tìm hàng: Sale chỉ nhập mặt hàng/ảnh/số lượng/lưu ý từng dòng, không hiện Yêu cầu của khách + Ghi chú sale. */}
@@ -3168,6 +3170,7 @@ export function QuoteEditor({
         </div>}
 
         <TabsContent value="logistics" className={tabPanelClass}>
+          <QuoteOriginalPrices desk="logistics" orders={orders} notes={notes} editable={canEditLogisticsFees} pending={pending} onLinePrice={() => undefined} onNotesChange={setNotes} />
           {!pureLogistics && desk === "logistics" && quote.sourcingContext && (
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>

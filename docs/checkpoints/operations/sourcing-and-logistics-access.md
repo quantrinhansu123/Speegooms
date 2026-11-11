@@ -13,6 +13,8 @@ Read when changing Sourcing, Operations, Logistics navigation or route permissio
 
 ## Decision
 
+- 2026-11-11, nền `fdc1a3c`, nhánh `feat/quote-original-cost`: Kế toán đọc được cả hai bàn báo giá qua API và menu Sourcing/Logistics để xem giá gốc nội bộ; không được sửa/gửi báo giá. Phạm vi Sourcing/Logistics theo bàn và phân công vẫn giữ. Chi tiết và kiểm chứng: [giá gốc](../crm/quote-original-prices.md).
+
 - The Sourcing menu owns sourcing quotes, contracts/orders, suppliers, and purchase orders.
 - Sidebar groups determine their active/open state from their child routes, since Sourcing children do not share the parent item's URL prefix.
 - Sourcing and Vận hành both retain route access to contracts/orders, suppliers, and POs. Sourcing also has the `ops.write` and `price.return` actions needed by those screens.

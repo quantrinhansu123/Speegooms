@@ -21,7 +21,7 @@ export function logisticsOrderFromSourcing(order: QuoteOrder, previous?: QuoteOr
     selected: true,
     lines: order.lines.map((line) => {
       const price = previous?.id === order.id ? previous.lines.find((item) => item.stt === line.stt) : undefined;
-      return { ...line, pricePerSet: price?.pricePerSet ?? null, lineTotal: price?.lineTotal ?? null,
+      return { ...line, originalPrice: price?.originalPrice ?? null, pricePerSet: price?.pricePerSet ?? null, lineTotal: price?.lineTotal ?? null,
         lineTotalManual: price?.lineTotalManual ?? false, prices: price?.prices ?? [], basis: price?.basis ?? "unit" };
     }),
   };

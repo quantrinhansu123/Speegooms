@@ -24,6 +24,7 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner
         return {
           ...line,
           pricePerSet: price.pricePerSet,
+          originalPrice: next.originalPrice,
           lineTotal: price.lineTotal,
           lineTotalManual: price.lineTotalManual === true,
           prices: price.prices ?? [],
@@ -47,16 +48,17 @@ export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInpu
       priceColumns: previous ? previous.priceColumns : [],
       lines: order.lines.map((line, index) => {
         const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
-        if (current.customerKind === "LOGISTICS" && order.insurance === true) return { ...line, prices: previousLine?.prices ?? [] };
+        if (current.customerKind === "LOGISTICS" && order.insurance === true) return { ...line, originalPrice: previousLine?.originalPrice, prices: previousLine?.prices ?? [] };
         const packaging = isCombinedSourcing(current)
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
         /** Dòng mới do Sale thêm: không nhận đơn giá, thành tiền hay cách tính giá, Logistics sẽ định. */
-        if (!previousLine) return { ...line, ...packaging, pricePerSet: null, lineTotal: null, lineTotalManual: false, prices: [], basis: "unit" as const };
+        if (!previousLine) return { ...line, ...packaging, originalPrice: null, pricePerSet: null, lineTotal: null, lineTotalManual: false, prices: [], basis: "unit" as const };
         return {
           ...line,
           ...packaging,
           pricePerSet: previousLine.pricePerSet,
+          originalPrice: previousLine.originalPrice,
           basis: previousLine.basis,
           lineTotal: previousLine.lineTotal,
           lineTotalManual: previousLine.lineTotalManual === true,
