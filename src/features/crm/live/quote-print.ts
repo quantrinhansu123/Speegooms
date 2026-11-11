@@ -870,9 +870,77 @@ async function waitForImages(root: ParentNode): Promise<void> {
   }));
 }
 
+/** CSS khung thead/tfoot — dùng chung in thật và preview/screenshot. */
+export const quotePrintFrameCss = `
+  @page { margin: 0; }
+  body { margin: 0; padding: 0 12mm; background: #fff; }
+  table.frame { width: 100%; border-collapse: collapse; }
+  table.frame > thead > tr > td, table.frame > tbody > tr > td, table.frame > tfoot > tr > td { padding: 0; }
+  .frame-head { padding-top: 8mm !important; padding-bottom: 4mm !important; }
+  .frame-foot { padding-top: 3mm !important; padding-bottom: 8mm !important; border-top: 1px solid #cbd5e1; }
+  .frame-foot .print-foot { color: #082A59; font-size: 8pt; line-height: 1.35; }
+  .page-break { page-break-after: always; break-after: page; }
+`;
+
+export function quotePrintFootHtml(): string {
+  return `<div class="print-foot"><strong>${escapeHtml(quoteCompany.name)}</strong> · ${escapeHtml(quoteCompany.values.filter(Boolean).slice(0, 2).join(" · "))}</div>`;
+}
+
+function quotePrintPages(html: string | string[]): string[] {
+  return (Array.isArray(html) ? html : [html]).filter(Boolean);
+}
+
+/** Bọc mỗi sheet trong table.frame (thead/tfoot để đầu/cuối lặp khi in). */
+export function quotePrintFramesHtml(pages: string[]): string {
+  return pages
+    .map((page, index) => `<table class="frame${index < pages.length - 1 ? " page-break" : ""}"><thead><tr><td class="frame-head"></td></tr></thead><tbody><tr><td><div class="sheet-wrap">${page}</div></td></tr></tbody><tfoot><tr><td class="frame-foot"></td></tr></tfoot></table>`)
+    .join("");
+}
+
+/** Gắn masthead → thead, chân công ty → tfoot. */
+export function mountQuotePrintFrames(doc: Document, footHtml = quotePrintFootHtml()): void {
+  doc.querySelectorAll("table.frame").forEach((table) => {
+    const headCell = table.querySelector(".frame-head");
+    const footCell = table.querySelector(".frame-foot");
+    const masthead = table.querySelector(".masthead");
+    if (headCell && masthead) {
+      headCell.appendChild(masthead.cloneNode(true));
+      masthead.remove();
+    } else if (headCell) {
+      headCell.innerHTML = `<div style="height:8mm"></div>`;
+    }
+    if (footCell) footCell.innerHTML = footHtml;
+  });
+}
+
+/** Document HTML sẵn sàng chụp/preview offline (cùng khung với bản in). */
+export function quotePrintPreviewDocument(sheetHtml: string | string[]): string {
+  const pages = quotePrintPages(sheetHtml);
+  const foot = quotePrintFootHtml();
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${quotePrintCss}${quotePrintFrameCss}</style></head><body>
+    ${quotePrintFramesHtml(pages)}
+    <script>
+      (function (footHtml) {
+        document.querySelectorAll("table.frame").forEach(function (table) {
+          var headCell = table.querySelector(".frame-head");
+          var footCell = table.querySelector(".frame-foot");
+          var masthead = table.querySelector(".masthead");
+          if (headCell && masthead) {
+            headCell.appendChild(masthead.cloneNode(true));
+            masthead.remove();
+          } else if (headCell) {
+            headCell.innerHTML = '<div style="height:8mm"></div>';
+          }
+          if (footCell) footCell.innerHTML = footHtml;
+        });
+      })(${JSON.stringify(foot)});
+    </script>
+  </body></html>`;
+}
+
 /** In một hoặc nhiều mẫu báo giá (mỗi mẫu một trang A4 ngang). */
 export async function printQuoteSheet(html: string | string[]): Promise<void> {
-  const pages = (Array.isArray(html) ? html : [html]).filter(Boolean);
+  const pages = quotePrintPages(html);
   if (pages.length === 0) return;
   const frame = document.createElement("iframe");
   frame.setAttribute("title", "In báo giá");
@@ -889,20 +957,11 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
     frame.remove();
     return;
   }
-  // @page margin 0 để trình duyệt không in ngày giờ/URL; lề 10mm mỗi trang do hàng đệm thead/tfoot lặp lại.
-  const spacer = `<div style="height:10mm"></div>`;
-  const body = pages
-    .map((page, index) => `<table class="frame${index < pages.length - 1 ? " page-break" : ""}"><thead><tr><td>${spacer}</td></tr></thead><tbody><tr><td><div class="sheet-wrap">${page}</div></td></tr></tbody><tfoot><tr><td>${spacer}</td></tr></tfoot></table>`)
-    .join("");
+  // @page margin 0: đầu/cuối cố định lặp theo trang qua thead/tfoot (logo + chân công ty).
   doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Báo giá</title><style>${quotePrintCss}
-    @page { margin: 0; }
-    body { padding: 0 12mm; }
-    table.frame { width: 100%; border-collapse: collapse; }
-    table.frame > thead > tr > td, table.frame > tbody > tr > td, table.frame > tfoot > tr > td { padding: 0; }
-    .page-break { page-break-after: always; break-after: page; }
-  </style></head><body>${body}</body></html>`);
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Báo giá</title><style>${quotePrintCss}${quotePrintFrameCss}</style></head><body>${quotePrintFramesHtml(pages)}</body></html>`);
   doc.close();
+  mountQuotePrintFrames(doc);
   await waitForImages(doc);
   await doc.fonts.ready;
   win.focus();
@@ -968,8 +1027,8 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
     const pagePixels = Math.floor((pageHeight - topMargin * 2) * pixelsPerMm);
     const hostTop = host.getBoundingClientRect().top;
     const scale = canvas.width / host.getBoundingClientRect().width;
-    // Keep rows and the complete bank/signature block together where they fit a page.
-    const protectedBlocks = Array.from(host.querySelectorAll("tr, .payment-signatures")).map((element) => {
+    // Keep masthead, rows, closing totals and bank/signature blocks together where they fit a page.
+    const protectedBlocks = Array.from(host.querySelectorAll(".masthead, tr, .closing, .payment-signatures")).map((element) => {
       const rect = element.getBoundingClientRect();
       return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((rect.bottom - hostTop) * scale) };
     });

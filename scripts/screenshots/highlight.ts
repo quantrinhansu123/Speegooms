@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 
@@ -21,6 +21,29 @@ export async function launchBrowser(): Promise<Browser> {
   return chromium.launch();
 }
 
+export const e2eBaseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+
+function seedPassword(): string | undefined {
+  const file = path.resolve(process.cwd(), "server", ".env");
+  if (!existsSync(file)) return undefined;
+  return readFileSync(file, "utf8").match(/^SEED_USER_PASSWORD=(.*)$/m)?.[1]?.trim().replace(/^["']|["']$/g, "");
+}
+
+export function e2eAuth(fallbackPassword = "speego@demo"): { email: string; password: string } {
+  return {
+    email: process.env.E2E_EMAIL ?? "admin@speego.vn",
+    password: process.env.E2E_PASSWORD ?? seedPassword() ?? fallbackPassword,
+  };
+}
+
+export async function login(page: Page, auth = e2eAuth()): Promise<void> {
+  await page.goto(`${e2eBaseUrl}/login`);
+  await page.fill("#email", auth.email);
+  await page.fill("#password", auth.password);
+  await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
+}
+
 export type Mark = { selector: string; label: string; all?: boolean };
 
 /**
@@ -37,7 +60,6 @@ export async function highlight(page: Page, marks: Mark[], legendAfter: string, 
     legend.dataset.shotMark = "legend";
     legend.id = "shot-legend";
     Object.assign(legend.style, {
-      // Trải hết chiều ngang khi chèn vào form dạng lưới nhiều cột.
       gridColumn: "1 / -1",
       margin: "14px 0 0", padding: "10px 14px", border: "2px solid #e11d48", borderRadius: "6px",
       background: "#fff1f2", color: "#9f1239", font: "13px/1.5 Arial, sans-serif",
@@ -83,14 +105,70 @@ export async function highlight(page: Page, marks: Mark[], legendAfter: string, 
   return page.locator("#shot-legend");
 }
 
+/** Gắn data-* theo text nút trong root (CSS thuần, tránh :has-text trong querySelector). */
+export async function tagButtonsByText(
+  page: Page,
+  rootSelector: string,
+  textToAttr: Record<string, string>,
+): Promise<void> {
+  await page.evaluate(({ rootSelector: root, map }) => {
+    const el = document.querySelector(root);
+    if (!el) return;
+    el.querySelectorAll("button").forEach((button) => {
+      const text = button.textContent?.trim() ?? "";
+      const attr = map[text];
+      if (attr) button.setAttribute(attr, "1");
+    });
+  }, { rootSelector, map: textToAttr });
+}
+
+/** Neo chú thích trong portal/dialog fixed để legend không rơi ra layout ngoài. */
+export async function ensureLegendAnchor(page: Page, rootSelector: string, attr = "data-shot-legend-anchor"): Promise<string> {
+  await page.evaluate(({ rootSelector: root, attr: name }) => {
+    const el = document.querySelector(root);
+    if (!el) throw new Error(`Không tìm thấy root: ${root}`);
+    if (!el.querySelector(`[${name}]`)) {
+      const anchor = document.createElement("div");
+      anchor.setAttribute(name, "1");
+      el.append(anchor);
+    }
+  }, { rootSelector, attr });
+  return `[${attr}]`;
+}
+
+export type ShotRegionOptions = {
+  /** boundingBox là tọa độ viewport — mặc định false để khớp clip. */
+  fullPage?: boolean;
+  padX?: number;
+  padY?: number;
+  /** Giới hạn mép phải/dưới (viewport), hữu ích với dialog fixed. */
+  clamp?: { width: number; height: number };
+};
+
 /** Chụp vùng bao cả phần đã bôi đỏ và bảng chú thích, chừa lề cho số thứ tự. */
-export async function shotRegion(page: Page, file: string, from: Locator, to: Locator): Promise<void> {
+export async function shotRegion(
+  page: Page,
+  file: string,
+  from: Locator,
+  to: Locator,
+  opts: ShotRegionOptions = {},
+): Promise<void> {
   const a = await from.boundingBox();
   const b = await to.boundingBox();
   if (!a || !b) throw new Error("Không đo được vùng chụp");
-  const x = Math.max(Math.min(a.x, b.x) - 40, 0);
-  const y = Math.max(Math.min(a.y, b.y) - 16, 0);
-  const right = Math.max(a.x + a.width, b.x + b.width) + 16;
-  const bottom = Math.max(a.y + a.height, b.y + b.height) + 16;
-  await page.screenshot({ path: file, clip: { x, y, width: right - x, height: bottom - y }, fullPage: true });
+  const padX = opts.padX ?? 40;
+  const padY = opts.padY ?? 16;
+  const x = Math.max(Math.min(a.x, b.x) - padX, 0);
+  const y = Math.max(Math.min(a.y, b.y) - padY, 0);
+  let right = Math.max(a.x + a.width, b.x + b.width) + 16;
+  let bottom = Math.max(a.y + a.height, b.y + b.height) + 16;
+  if (opts.clamp) {
+    right = Math.min(right, opts.clamp.width);
+    bottom = Math.min(bottom, opts.clamp.height);
+  }
+  await page.screenshot({
+    path: file,
+    clip: { x, y, width: Math.max(right - x, 1), height: Math.max(bottom - y, 1) },
+    fullPage: opts.fullPage ?? false,
+  });
 }

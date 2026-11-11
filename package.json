@@ -9,6 +9,7 @@
     "test:api": "pnpm --filter @speego/server test",
     "screenshots:e54": "tsx scripts/screenshots/e54-quote-print.ts",
     "screenshots:e55": "tsx scripts/screenshots/e55-sourcing-quantity.ts",
+    "screenshots:print-fixes": "tsx scripts/screenshots/print-fixes.ts",
     "typecheck:api": "pnpm --filter @speego/server typecheck",
     "build": "next build",
     "start": "next start",

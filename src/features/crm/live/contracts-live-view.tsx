@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
-import { accountingContractSchema, contractPaymentFlags, contractVndSummary, industryCategoryOptions, receivedLineInMain, vndRateOf, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
+import { accountingContractSchema, contractPaymentFlags, contractVndSummary, defaultQuoteBank, industryCategoryOptions, quoteNotesSchema, quoteOrderSchema, receivedLineInMain, vndRateOf, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -57,8 +57,8 @@ export type ContractRecord = {
   id: string;
   code: string;
   lane: CrmLane;
-  quoteId: string;
-  quoteCode: string;
+  quoteId: string | null;
+  quoteCode: string | null;
   quoteDesk: "sourcing" | "logistics" | null;
   customerName: string;
   saleName: string | null;
@@ -218,6 +218,73 @@ function enteredAmounts(row: ContractRecord): ContractAmounts {
   };
 }
 
+/** Hợp đồng import thiếu ma_bao_gia: dựng stub báo giá từ chính dòng hợp đồng để vẫn mở dialog in/DOCX. */
+function quoteStubFromContract(row: ContractRecord): QuoteRecord {
+  const product = row.product?.trim() || "Đơn hàng";
+  return {
+    id: row.id,
+    code: row.quoteCode || row.code,
+    potentialId: "",
+    leadCode: "",
+    customerName: row.customerName,
+    companyName: row.customerName,
+    address: null,
+    phone: null,
+    email: null,
+    customerKind: null,
+    quoteWorkflow: "COMBINED",
+    customerType: null,
+    brand: null,
+    potential: null,
+    careChannel: null,
+    classification: null,
+    goods: row.product,
+    industry: row.industry,
+    nonCloseReason: null,
+    quantityNote: row.quantity == null ? null : String(row.quantity),
+    saleNote: null,
+    packSpec: null,
+    packageDimensions: null,
+    weightKg: null,
+    logisticsClass: null,
+    shippingMode: null,
+    shipFromAddress: null,
+    shipToAddress: row.shipTo,
+    messCode: null,
+    linkMess: null,
+    templateId: null,
+    templateName: null,
+    opsNote: null,
+    quoteStatus: "DA_CO_BAO_GIA",
+    contractStatus: "DA_TAO",
+    orders: [quoteOrderSchema.parse({
+      id: row.id,
+      name: product,
+      selected: true,
+      currency: row.currency,
+      lines: [{
+        stt: "1",
+        productName: product,
+        quantity: row.quantity,
+        pricePerSet: row.productValue,
+        lineTotal: row.productValue,
+        weightKg: null,
+        spec: "",
+        note: "",
+      }],
+    })],
+    notes: quoteNotesSchema.parse({ totalLabel: "", weightNote: "", validityNote: "", deposit: [] }),
+    bank: defaultQuoteBank,
+    sentQuote: null,
+    logisticsQuoteId: null,
+    logisticsSheet: null,
+    sourcingContext: null,
+    requirements: null,
+    requirementImages: [],
+    createdAt: row.createdAt,
+  };
+}
+
 function documentAmounts(row: ContractRecord) {
   const amounts = enteredAmounts(row);
   const productValue = amounts.product.find((item) => item.currency === row.currency)?.amount ?? row.productValue;
@@ -351,6 +418,10 @@ export function ContractsLiveView({
   const [printing, setPrinting] = useState<{ row: ContractRecord; quote: QuoteRecord } | null>(null);
   const printContract = async (row: ContractRecord) => {
     try {
+      if (!row.quoteId) {
+        setPrinting({ row, quote: quoteStubFromContract(row) });
+        return;
+      }
       const body = await api<{ quote: QuoteRecord }>(crmPath(`/api/crm/quotes/${row.quoteId}/contract-source`, lane));
       setPrinting({ row, quote: body.quote });
     } catch (cause) {

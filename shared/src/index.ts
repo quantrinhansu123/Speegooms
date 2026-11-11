@@ -37,6 +37,7 @@ export {
   shippingNoteKeys,
   type ShippingNoteKey,
   quoteLineImages,
+  quoteNotesSchema,
   quoteOrderSchema,
   quoteStatusSchema,
   quoteTemplateSchema,

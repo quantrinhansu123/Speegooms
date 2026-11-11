@@ -235,9 +235,12 @@ export class CrmService {
 
   /** Báo giá nguồn để Sale in file hợp đồng từ hợp đồng đã tạo. */
   async contractSource(lane: CrmLane, quoteId: string, role: Role): Promise<QuoteRecord> {
-    const quote = await this.ready().findQuote(lane, "sourcing", quoteId);
+    const sourcing = await this.ready().findQuote(lane, "sourcing", quoteId);
+    const desk: QuoteDesk = sourcing ? "sourcing" : "logistics";
+    const quote = sourcing ?? await this.ready().findQuote(lane, "logistics", quoteId);
     if (!quote) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
-    if (!canViewQuote(role, "sourcing", quoteAccessKind(quote))) {
+    // Sale có contract.create nhưng không vào bàn báo giá: bỏ qua canViewQuote (scope bàn = []).
+    if (canAccessQuoteDesk(role, desk) && !canViewQuote(role, desk, quoteAccessKind(quote))) {
       throw new AppError(403, "FORBIDDEN", "Không có quyền với báo giá này");
     }
     return quote;
