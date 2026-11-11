@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Search, Shuffle, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Search, Shuffle, Trash2 } from "lucide-react";
 import { customerClasses, facebookStatuses, hasActiveTelesale, telesaleStatuses, type DataLanhRecord } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -16,6 +16,7 @@ import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus
 import { usePagination } from "@/features/crm/hooks";
 import { FilterSelect } from "@/features/crm/live/list-search-bar";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
+import { useExcelImport } from "@/features/crm/live/excel-import";
 import { ApiError, api } from "@/lib/api";
 import { matchesDataLanhStatus, type StatusChannel } from "./data-lanh-filters";
 
@@ -34,6 +35,7 @@ type EditDraft = { id: string | null; name: string } & Record<EditField, string>
 export function DataLanhView() {
   const user = useSession();
   const canAssign = user.role === "admin";
+  const canCreate = canAssign || user.role === "sale-vn" || user.role === "sale-global";
   const canDelete = user.role === "admin";
   const canWork = user.role !== "ban-gd";
   const seesAll = user.role === "admin" || user.role === "ban-gd";
@@ -41,6 +43,7 @@ export function DataLanhView() {
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [assigning, setAssigning] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [sales, setSales] = useState<{ id: string; name: string }[]>([]);
   const [removing, setRemoving] = useState<DataLanhRecord | null>(null);
   const [editing, setEditing] = useState<EditDraft | null>(null);
@@ -56,6 +59,7 @@ export function DataLanhView() {
       .then((body) => setRows(body.rows))
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được data khách hàng"));
   }, []);
+  const excel = useExcelImport({ kind: "data-lanh", lane: "vn", enabled: canCreate, onDone: load });
   useEffect(load, [load]);
   useEffect(() => {
     if (!canWork) return;
@@ -137,6 +141,25 @@ export function DataLanhView() {
     setEditing({ id: null, name: "", ...Object.fromEntries(editFields.map((key) => [key, ""])) } as EditDraft);
   };
 
+  const exportExcel = async () => {
+    setExporting(true);
+    setError(undefined);
+    try {
+      const response = await fetch("/api/data-lanh/export", { credentials: "include" });
+      if (!response.ok) throw new Error("Không tải được Excel");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "data-khach-hang.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Không tải được Excel. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const saveEdit = () => {
     if (!editing) return;
     setSaving(true);
@@ -150,7 +173,7 @@ export function DataLanhView() {
       .then((res) => {
         setEditing(null);
         if (creating) {
-          setNotice(`Đã thêm khách STT ${res.row.stt}. Khách chưa giao, bấm "Chia vòng tròn" để giao cho người phụ trách.`);
+          setNotice(`Đã thêm khách STT ${res.row.stt}. ${canAssign ? 'Khách chưa giao, bấm "Chia vòng tròn" để giao cho người phụ trách.' : "Bạn là người phụ trách khách này."}`);
           load();
         } else {
           setRows((current) => current.map((r) => (r.id === res.row.id ? res.row : r)));
@@ -198,15 +221,18 @@ export function DataLanhView() {
       <PageHeader
         title="Data khách hàng"
         description={seesAll ? "Khách cũ chia vòng tròn cho từng người. Mỗi người cập nhật trạng thái chăm Facebook và Telesale cho khách của mình." : "Khách cũ được giao hoặc bàn giao cho bạn. Cập nhật trạng thái chăm Facebook và Telesale sau khi liên hệ."}
-        actions={canAssign && (
+        actions={
           <>
-            <Button variant="outline" onClick={openCreate}><Plus /> Thêm khách</Button>
-            <Button onClick={assign} disabled={assigning || unassigned === 0} title={unassigned === 0 ? "Không còn khách chưa giao" : undefined}>
+            {canCreate && <Button variant="outline" onClick={openCreate}><Plus /> Tạo khách hàng</Button>}
+            {excel.buttons}
+            <Button variant="outline" disabled={exporting} onClick={exportExcel} title="Tải toàn bộ khách trong quyền xem, không áp dụng bộ lọc trên trang"><Download /> {exporting ? "Đang tải…" : "Tải Excel"}</Button>
+            {canAssign && <Button onClick={assign} disabled={assigning || unassigned === 0} title={unassigned === 0 ? "Không còn khách chưa giao" : undefined}>
               <Shuffle /> Chia vòng tròn{unassigned > 0 ? ` (${unassigned})` : ""}
-            </Button>
+            </Button>}
           </>
-        )}
+        }
       />
+      {excel.banner}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
@@ -330,7 +356,7 @@ export function DataLanhView() {
       <Dialog open={editing !== null} onOpenChange={(open) => { if (!open) setEditing(null); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing?.id === null ? "Thêm khách" : `Sửa thông tin · ${editing?.name}`}</DialogTitle>
+            <DialogTitle>{editing?.id === null ? "Tạo khách hàng" : `Sửa thông tin · ${editing?.name}`}</DialogTitle>
           </DialogHeader>
           {editing && (
             <div className="grid max-h-[min(70vh,720px)] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">

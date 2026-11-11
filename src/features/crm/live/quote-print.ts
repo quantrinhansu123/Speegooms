@@ -97,8 +97,8 @@ function displayDate(value: string): string {
 
 type Column = { key: string; width: number };
 
-/** Số cột cố định đứng trước cột Thành tiền chính: STT, Mặt hàng, Hình ảnh, Số lượng, Kg/CBM/m2, Đơn giá. */
-const COLUMNS_BEFORE_TOTAL = 6;
+/** Số cột cố định đứng trước cột Thành tiền chính: STT, Mặt hàng, Hình ảnh, Số lượng, Đơn giá. */
+const COLUMNS_BEFORE_TOTAL = 5;
 
 /** Các cột bảng hàng: tiền thêm (đơn giá + thành tiền) chèn sau cột Thành tiền chính. */
 function sheetColumns(model: QuoteSheetModel): Column[] {
@@ -107,7 +107,6 @@ function sheetColumns(model: QuoteSheetModel): Column[] {
     { key: "product", width: 15 },
     { key: "image", width: 16 },
     { key: "qty", width: 7 },
-    { key: "metric", width: 8 },
     ...(model.showPricing ? [{ key: "price", width: 9 }, { key: "total", width: 11 }] : []),
   ];
   for (const code of model.extraCurrencies) {
@@ -174,7 +173,6 @@ function quoteItemsHtml(model: QuoteSheetModel): string {
       ${cell(line.productName, "wrap info")}
       <td class="image"><div class="image-stack">${images}</div></td>
       ${numCell(fmt(line.quantity), "")}
-      ${numCell(fmt(line.metric, 3), line.metricUnit)}
       ${model.showPricing ? `${numCell(fmt(line.price, 3), line.priceUnit)}${numCell(fmt(line.total, 3), "", "num money")}` : ""}
       ${extras}
       ${cell(line.spec, "wrap info")}
@@ -192,7 +190,6 @@ function quoteItemsHtml(model: QuoteSheetModel): string {
         <th>${escapeHtml(t.product)}</th>
         <th>${escapeHtml(t.image)}</th>
         <th>${escapeHtml(model.quantityUnit ? `${t.quantity} (${model.quantityUnit})` : t.quantity)}</th>
-        <th>${escapeHtml(t.metric)}</th>
         ${model.showPricing ? `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>` : ""}
         ${model.extraCurrencies.map((code) => `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(code)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(code)})</span></th>`).join("")}
         <th>${escapeHtml(t.spec)}</th>
@@ -231,21 +228,18 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const companyTable = kvTableWide(model.company.rows, 2);
 
 
-  /** Dòng tổng: nhãn | tổng CBM (cột Kg/CBM/m2) | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
-  const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string }, note = "") => {
+  /** Dòng tổng: nhãn | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
+  const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string> }, note = "") => {
     if (!model.showPricing && values.total) return `<tr><td class="sum-label" colspan="${colCount - 1}">${escapeHtml(label)}</td><td class="sum-value">${values.total}</td></tr>`;
     const extraCells = model.extraCurrencies.map((code) => `<td class="sum-gap"></td><td class="sum-value">${values.extra?.[code] ?? ""}</td>`).join("");
     return `<tr>
       <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
-      <td class="sum-value">${values.cbm ?? ""}</td>
       ${model.showPricing ? `<td></td><td class="sum-value">${values.total ?? ""}</td>` : ""}
       ${extraCells}
       <td class="sum-spec"></td>
       <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
     </tr>`;
   };
-
-  const cbmCell = model.totals.cbm > 0 ? numRow(fmt(model.totals.cbm, 3), "") : "";
 
   const goodsRow = (model.totals.priced || model.weightNote)
     ? summaryRow(model.totalLabel, {
@@ -254,13 +248,12 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
           const total = model.totals.extra[code];
           return [code, total != null ? numRow(fmt(total), "") : ""];
         })),
-        cbm: cbmCell,
       }, model.weightNote)
     : "";
   const freightTotal = model.freight.total;
   const shippingDuplicatesFreight = model.shippingAmount != null && freightTotal != null && model.shippingAmount === freightTotal;
   const shippingRow = model.shippingText && model.feeSubtotals.length === 0 && !shippingDuplicatesFreight
-    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText), cbm: cbmCell }, model.validityNote)
+    ? summaryRow(t.shippingTotal, { total: model.shippingAmount != null ? numRow(fmt(model.shippingAmount), model.currency) : escapeHtml(model.shippingText) }, model.validityNote)
     : "";
   const summaryRows = [goodsRow, shippingRow].filter(Boolean).join("");
   const freightCell = (amount: string, unit = "", total = false) => `<td${total ? ' class="freight-total"' : ""}>${amount || unit ? numRow(amount, unit) : ""}</td>`;
@@ -310,10 +303,9 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${freightNotes}
   </section>`;
 
-  const blankAfterTotal = model.showPricing ? colCount - COLUMNS_BEFORE_TOTAL - 1 : colCount - 5;
+  const blankAfterTotal = model.showPricing ? colCount - COLUMNS_BEFORE_TOTAL - 1 : colCount - 4;
   const depositRows = model.deposit.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
-    <td></td>
     ${model.showPricing ? `<td></td><td class="dep-value">${index === 0 && model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : ""}</td>` : ""}
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
@@ -725,12 +717,6 @@ export const quotePrintCss = `
     color: #082A59;
     font-weight: 700;
   }
-  /* Chỉ cột Tổng chi phí tô vàng: tiền cước, phụ phí và dòng tổng. */
-  table.freight-table td.freight-total:not(:empty),
-  table.freight-table tr.fee-row td.fee-value,
-  table.freight-table tr.sum-row td.sum-row-value {
-    background: #FFF200;
-  }
   table.freight-table .amt,
   table.freight-table .unit { color: #082A59; }
   table.freight-table tr.fee-row td.fee-label {
@@ -754,6 +740,8 @@ export const quotePrintCss = `
     font-weight: 700;
   }
   .freight-note {
+    break-inside: avoid;
+    page-break-inside: avoid;
     margin: 6px 0 0;
     color: #334155;
     font-size: 9pt;
@@ -968,8 +956,8 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
     const pagePixels = Math.floor((pageHeight - topMargin * 2) * pixelsPerMm);
     const hostTop = host.getBoundingClientRect().top;
     const scale = canvas.width / host.getBoundingClientRect().width;
-    // Keep rows and the complete bank/signature block together where they fit a page.
-    const protectedBlocks = Array.from(host.querySelectorAll("tr, .payment-signatures")).map((element) => {
+    // Keep rows, freight notes and bank/signatures together where they fit a page.
+    const protectedBlocks = Array.from(host.querySelectorAll("tr, .freight-note, .payment-signatures")).map((element) => {
       const rect = element.getBoundingClientRect();
       return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((rect.bottom - hostTop) * scale) };
     });

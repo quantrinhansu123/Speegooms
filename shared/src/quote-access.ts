@@ -17,6 +17,7 @@ const fullView: Record<QuoteDesk, KindScope> = { sourcing: null, logistics: null
 const deskPolicy: Partial<Record<Role, DeskPolicy>> = {
   admin: { view: fullView, edit: ["sourcing", "logistics"], notify: true },
   "ban-gd": { view: fullView, edit: [], notify: false },
+  "ke-toan": { view: fullView, edit: [], notify: false },
   "van-hanh": { view: fullView, edit: ["sourcing", "logistics"], notify: true },
   sourcing: { view: { sourcing: ["SOURCING", "SOURCING_LOGISTICS"], logistics: [] }, edit: ["sourcing"], notify: true },
   logistics: { view: { sourcing: ["SOURCING"], logistics: ["LOGISTICS", "SOURCING_LOGISTICS"] }, edit: ["logistics"], notify: true },
@@ -34,6 +35,10 @@ export function canAccessQuoteDesk(role: Role, desk: QuoteDesk): boolean {
 
 export function canEditQuoteDesk(role: Role, desk: QuoteDesk): boolean {
   return deskPolicy[role]?.edit.includes(desk) ?? false;
+}
+
+export function canViewQuoteOriginalPrice(role: Role): boolean {
+  return ["admin", "sourcing", "logistics", "van-hanh", "ke-toan"].includes(role);
 }
 
 export function canViewQuote(role: Role, desk: QuoteDesk, customerKind: string | null): boolean {

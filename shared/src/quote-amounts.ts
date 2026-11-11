@@ -51,6 +51,16 @@ export function resolvedFreightCurrency(notes: Pick<QuoteNotes, "freight" | "log
   return codes.length === 1 ? codes[0] : (orderCurrency || "VND").toUpperCase();
 }
 
+/** Cước và giá gốc dùng chung loại tiền; giữ số tiền đã nhập và bỏ tỷ giá cũ. */
+export function withFreightCurrency(notes: QuoteNotes, order: Pick<QuoteOrder, "currency" | "rate"> | undefined, currency: string): QuoteNotes {
+  return {
+    ...notes,
+    freight: { ...notes.freight, currency, vndRate: currency === "VND" ? null : currency === order?.currency ? order.rate ?? null : null },
+    logisticsFees: notes.logisticsFees.map(fee => ({ ...fee, currency: "" })),
+    ...(notes.fcl ? { payment: { quoteCurrency: currency, currency: !notes.payment || notes.payment.currency === notes.payment.quoteCurrency ? currency : notes.payment.currency, exchangeRate: null } } : {}),
+  };
+}
+
 function rateOf(order: Pick<QuoteOrder, "currency" | "rate" | "priceColumns"> | undefined, currency: string): number | null {
   if (currency === "VND") return 1;
   if (order?.currency?.toUpperCase() === currency) return order.rate ?? null;

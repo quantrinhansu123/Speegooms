@@ -251,6 +251,8 @@ export const quotePriceColumnSchema = z.object({
 });
 
 export const quoteLineSchema = z.object({
+  /** Giá gốc nội bộ theo loại tiền/cách tính giá của dòng. */
+  originalPrice: amount.optional(),
   stt: text(20),
   productName: text(300).optional(),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */
@@ -296,6 +298,8 @@ const depositLine = text(300);
 
 /** Cước vận chuyển: giá cước × cân nặng tính phí. Cân và thể tích lấy từ từng kiện khi in. */
 export const quoteFreightSchema = z.object({
+  /** Tổng giá gốc cước nội bộ, cùng loại tiền cước. */
+  originalPrice: amount.optional(),
   /** Giá cước trên mỗi kg tính phí. */
   rate: amount,
   /** Giá cước trên mỗi CBM tính phí. */
@@ -315,6 +319,7 @@ export const emptyQuoteFreight = { rate: null, cbmRate: null, basis: "kg" as con
 
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({
+  originalPrice: amount.optional(),
   label: text(120),
   /** Tên dòng phí bằng tiếng Anh. */
   labelEn: text(120).default(""),
@@ -335,6 +340,7 @@ export const fclQuoteSchema = z.object({
   commodity: text(160).default(""),
   stuffingDate: text(80).default(""),
   charges: z.array(z.object({
+    originalPrice: amount.optional(),
     name: text(160),
     rate: amount,
     quantity: z.number().min(0).max(1_000_000).nullable(),

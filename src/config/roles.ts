@@ -99,7 +99,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
       "/de-xuat",
     ],
   },
-  "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong", "/de-xuat"] },
+  "ke-toan": { label: "Kế toán", dashboard: "department", department: "ke-toan", modules: ["/dashboard", "/ke-toan", "/crm/hop-dong", "/van-hanh/sourcing-bao-gia", "/van-hanh/logistics-bao-gia", "/de-xuat"] },
   hcns: { label: "HCNS", dashboard: "department", department: "hcns", modules: ["/dashboard", "/hcns", "/de-xuat"] },
   "phap-che": { label: "Pháp chế", dashboard: "department", department: "phap-che", modules: ["/dashboard", "/phap-che", "/de-xuat"] },
 };

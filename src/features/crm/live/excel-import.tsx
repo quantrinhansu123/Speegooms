@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ApiError, api } from "@/lib/api";
 import { crmPath } from "./lane";
 
-type ImportKind = "messages" | "potentials" | "quotes" | "contracts";
+type ImportKind = "messages" | "potentials" | "quotes" | "contracts" | "data-lanh";
 
 type ImportResult = {
   created: number;
@@ -23,6 +23,7 @@ const labels: Record<ImportKind, string> = {
   potentials: "khách tiềm năng",
   quotes: "báo giá",
   contracts: "hợp đồng",
+  "data-lanh": "khách hàng",
 };
 
 export function useExcelImport({
@@ -44,8 +45,8 @@ export function useExcelImport({
   const [tone, setTone] = useState<"success" | "warning" | "danger">("success");
   if (!enabled) return { buttons: null, banner: null };
 
-  const uploadPath = allLanes ? `/api/crm/import/${kind}` : crmPath(`/api/crm/import/${kind}`, lane);
-  const templatePath = allLanes
+  const uploadPath = kind === "data-lanh" ? "/api/data-lanh/import" : allLanes ? `/api/crm/import/${kind}` : crmPath(`/api/crm/import/${kind}`, lane);
+  const templatePath = kind === "data-lanh" ? "/api/data-lanh/export?template=1" : allLanes
     ? `/api/crm/import/${kind}/template`
     : crmPath(`/api/crm/import/${kind}/template`, lane);
 
@@ -89,6 +90,7 @@ export function useExcelImport({
       .catch((error: unknown) => {
         setTone("danger");
         setMessage(error instanceof ApiError ? error.message : "Không import được file");
+        if (kind === "data-lanh") onDone();
       })
       .finally(() => {
         setPending(false);

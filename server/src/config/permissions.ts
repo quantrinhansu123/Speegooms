@@ -3,6 +3,7 @@ import type { Role } from "@speego/shared";
 export const permissions = {
   "user.role.assign": ["admin"],
   "datalanh.read": ["admin", "ban-gd", "sale-vn", "sale-global", "sale-intern"],
+  "datalanh.create": ["admin", "sale-vn", "sale-global"],
   /** Giao lại / chia vòng tròn data lạnh. */
   /** Xóa khách khỏi data lạnh (không hoàn tác). */
   "datalanh.delete": ["admin"],
@@ -20,7 +21,7 @@ export const permissions = {
   "message.convert": ["admin", "sale-vn", "sale-global"],
   "potential.read": ["admin", "ban-gd", "sale-vn", "sale-global", "van-hanh", "sourcing", "logistics"],
   "potential.write": ["admin", "sale-vn", "sale-global"],
-  "quote.read": ["admin", "ban-gd", "van-hanh", "sourcing", "logistics"],
+  "quote.read": ["admin", "ban-gd", "van-hanh", "sourcing", "logistics", "ke-toan"],
   "quote.rfq": ["admin", "ban-gd", "sale-vn", "sale-global"],
   "quote.request": ["admin", "sale-vn", "sale-global"],
   "quote.logistics": ["admin", "van-hanh", "sourcing"],

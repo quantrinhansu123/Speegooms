@@ -613,7 +613,7 @@ function isSample(id: string): boolean {
   return id.trim().toUpperCase().startsWith("VD-");
 }
 
-function normalizeKey(value: string): string {
+export function normalizeKey(value: string): string {
   return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 

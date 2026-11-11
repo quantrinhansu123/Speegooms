@@ -34,7 +34,7 @@ test("only uninsured pure Logistics hides the entire product table in print with
       assert.equal(html.includes(model.t.orderDetails), insurance === true);
       assert.equal(html.includes('<td class="wrap info">Goods</td>'), insurance === true);
       assert.equal(html.includes(`<th>${model.t.stt}</th>`), insurance === true);
-      assert.equal(html.includes(`<th>${model.t.metric}</th>`), insurance === true);
+      assert.equal(html.includes(`<th>${model.t.metric}</th>`), false);
       assert.equal(model.lines[0].price, insurance ? 12345 : null);
       assert.equal(model.totals.goods, insurance ? 24690 : null);
       assert.equal(model.extraCurrencies.length, insurance ? 1 : 0);
@@ -52,6 +52,30 @@ test("only uninsured pure Logistics hides the entire product table in print with
     }
   }
   assert.equal(buildQuoteSheet(quoteSheetInputOf({ ...source, ...source.customer, customerKind: "SOURCING" }, order)).showPricing, true);
+});
+
+test("removing the metric column keeps product, total and deposit cells aligned with extra currencies", () => {
+  const order = quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "Goods", selected: true,
+    currency: "USD", priceColumns: [{ currency: "EUR" }],
+    lines: [{ stt: "1", productName: "Goods", quantity: 2, cbm: 3, weightKg: 5, spec: "", note: "", pricePerSet: 10, lineTotal: 20,
+      prices: [{ currency: "EUR", pricePerSet: 9, lineTotal: 18 }] }] });
+  const source = { ...input({ deposit: ["Deposit"] }), lines: order.lines, priceColumns: order.priceColumns };
+  const html = quoteSheetHtml(source);
+  for (const table of html.matchAll(/<table class="(?:items|summary(?: deposit)?)">([\s\S]*?)<\/table>/g)) {
+    const columns = [...table[1].matchAll(/<col style=/g)].length;
+    assert.equal(columns, 10);
+    for (const row of table[1].matchAll(/<tr>([\s\S]*?)<\/tr>/g)) {
+      const cells = [...row[1].matchAll(/<(?:td|th)\b([^>]*)>/g)];
+      assert.equal(cells.reduce((count, cell) => count + Number(/colspan="(\d+)"/.exec(cell[1])?.[1] ?? 1), 0), columns);
+    }
+  }
+});
+
+test("shipping notes render once after the logistics total", () => {
+  const html = quoteSheetHtml(input({ shippingNotes: ["measure", "estimate"], shippingNoteOther: "Unique freight note" }));
+  assert.equal(html.split('class="freight-note"').length - 1, 1);
+  assert.equal(html.split("Unique freight note").length - 1, 1);
+  assert.ok(html.indexOf('class="freight-note"') > html.indexOf('class="freight-table"'));
 });
 
 test("manual Sale kg reaches printed freight and packaged lines take priority", () => {
