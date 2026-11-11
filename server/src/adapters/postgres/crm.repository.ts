@@ -795,6 +795,7 @@ type ContractRow = {
   code: string;
   lane: CrmLane;
   quote_id: string;
+  quote_desk: QuoteDesk | null;
   quote_code: string | null;
   customer_name: string;
   sale_name: string | null;
@@ -898,10 +899,15 @@ const accountingSnapshotSql = `jsonb_build_object(
   'deliveryOn', ban_gui_ke_toan->>'deliveryOn'
 )`;
 
-function contractSelect(): string {
+function contractSelect(lane: CrmLane): string {
+  const tables = quoteTables[lane];
   return `
   select h.id::text as id, h.ma_hien_thi as code, h.tuyen as lane,
          h.ma_bao_gia::text as quote_id, h.ma_bao_gia_hien_thi as quote_code,
+         case
+           when exists(select 1 from ${tables.sourcing} q where q.id = h.ma_bao_gia) then 'sourcing'
+           when exists(select 1 from ${tables.logistics} q where q.id = h.ma_bao_gia) then 'logistics'
+         end as quote_desk,
          h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name,
          h.van_chuyen_den as ship_to, h.san_pham as product, h.nganh_hang as industry, h.so_luong as quantity,
          h.loai_tien as currency, h.loai_tien_van_chuyen as shipping_currency, h.khoan_tien as amounts_body,
@@ -1023,6 +1029,7 @@ function toContract(row: ContractRow): ContractRecord {
     code: row.code,
     lane: row.lane,
     quoteId: row.quote_id,
+    quoteDesk: row.quote_desk ?? null,
     quoteCode: row.quote_code ?? "",
     customerName: row.customer_name,
     saleName: row.sale_name,
@@ -2061,7 +2068,7 @@ export class PostgresCrmRepository implements CrmRepository {
   async listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]> {
     const compiled = contractSearch(view, search).build(3);
     const result = await this.query<ContractRow>(
-      `${contractSelect()} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null)
+      `${contractSelect(lane)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null)
        ${compiled.sql}
        order by h.tao_luc desc limit 200`,
       [lane, sentOnly, ...compiled.values],
@@ -2350,7 +2357,7 @@ export class PostgresCrmRepository implements CrmRepository {
 
   private async findContract(lane: CrmLane, quoteId: string, view: ContractView): Promise<ContractRecord | null> {
     const result = await this.query<ContractRow>(
-      `${contractSelect()} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid`,
+      `${contractSelect(lane)} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid`,
       [lane, quoteId],
     );
     return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;
@@ -2389,7 +2396,7 @@ export class PostgresCrmRepository implements CrmRepository {
 
   private async findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null> {
     const result = await this.query<ContractRow>(
-      `${contractSelect()} where h.tuyen = $1 and h.id = $2::uuid`,
+      `${contractSelect(lane)} where h.tuyen = $1 and h.id = $2::uuid`,
       [lane, id],
     );
     return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;

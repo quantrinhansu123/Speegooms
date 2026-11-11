@@ -794,6 +794,29 @@ test("accounting must enter a positive amount for every confirmation", () => {
   assert.equal(accountingContractSchema.safeParse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [{ amount: 500, note: "", images: [] }] }).success, true);
 });
 
+test("contract source desk survives every contract view on both lanes, including missing sources", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const suffix = lane === "vn" ? "viet_nam" : "global";
+    for (const desk of ["sourcing", "logistics", null] as const) {
+      const repository = new PostgresCrmRepository({
+        query: async (sql: string) => {
+          for (const source of ["sourcing", "logistics"]) {
+            assert.ok(sql.includes(`from crm.bao_gia_${source}_${suffix} q where q.id = h.ma_bao_gia`));
+          }
+          return { rowCount: 1, rows: [{
+            id: "contract", lane, quote_id: desk ? "quote" : null, quote_desk: desk,
+            currency: "VND", created_at: new Date(), updated_at: new Date(),
+          }] };
+        },
+      } as unknown as pg.Pool);
+      for (const view of ["sale", "ops", "accounting"] as const) {
+        const [contract] = await repository.listContracts(lane, false, view, { q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
+        assert.equal(contract.quoteDesk, desk);
+      }
+    }
+  }
+});
+
 test("both lanes show live payments and logistics details to Sale", async () => {
   for (const lane of ["vn", "global"] as const) {
     const raw = {

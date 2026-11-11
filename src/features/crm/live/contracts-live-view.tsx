@@ -59,6 +59,7 @@ export type ContractRecord = {
   lane: CrmLane;
   quoteId: string;
   quoteCode: string;
+  quoteDesk: "sourcing" | "logistics" | null;
   customerName: string;
   saleName: string | null;
   shipTo: string | null;
@@ -206,6 +207,7 @@ const accountingStatusOptions = [
 const opsRoles: Role[] = ["admin", "van-hanh", "sourcing"];
 const accountingRoles: Role[] = ["admin", "ke-toan"];
 const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const quoteDeskLabels = { sourcing: "Sourcing", logistics: "Logistics" };
 
 function enteredAmounts(row: ContractRecord): ContractAmounts {
   if (row.amounts?.product && row.amounts.shipping) return row.amounts;
@@ -540,6 +542,7 @@ export function ContractsLiveView({
               <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Loại đơn</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Ngành hàng</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Tổng tiền Sourcing</th>
@@ -560,7 +563,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={19} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={20} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {rows.map((row) => {
               const { amounts, paidLines, summary } = rowVnd(row);
@@ -588,6 +591,7 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{row.quoteDesk ? quoteDeskLabels[row.quoteDesk] : "Chưa xác định"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.product} fallback={amounts.product} /></td>
@@ -1070,6 +1074,7 @@ function ContractDialog({
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
               <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Loại đơn: </span>{contract.quoteDesk ? quoteDeskLabels[contract.quoteDesk] : "Chưa xác định"}</p>
               <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
               <p><span className="text-muted-foreground">Loại tiền: </span>{currencies}</p>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>

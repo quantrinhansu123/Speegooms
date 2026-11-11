@@ -204,6 +204,7 @@ export interface ContractRecord {
   lane: CrmLane;
   quoteId: string;
   quoteCode: string;
+  quoteDesk: QuoteDesk | null;
   customerName: string;
   saleName: string | null;
   shipTo: string | null;
