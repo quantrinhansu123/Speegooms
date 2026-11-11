@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { updateQuoteSchema, quoteSheetInputOf } from "@speego/shared";
+import { quoteAmount, updateQuoteSchema, quoteSheetInputOf } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
 import { buildQuoteWorkbook } from "./quote-excel";
 
@@ -28,5 +28,30 @@ test("HTML/PDF source and Excel show AUD quote, converted VND payment and chosen
     assert.ok(text.includes("0123456789"));
     assert.ok(!text.includes("0370750653"));
     if (logisticsClass === "FCL") assert.ok(text.includes("QUOTATION · AUD"));
+  }
+});
+
+test("Logistics insurance fee is billed separately from Sale declared goods in LCL and FCL", async () => {
+  for (const logisticsClass of ["LCL", "FCL"]) {
+    const draft = updateQuoteSchema.parse({
+      templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+      orders: [{ id: "00000000-0000-0000-0000-000000000001", name: "Insured goods", selected: true, insurance: true, currency: "USD",
+        lines: [{ stt: "1", quantity: 2, pricePerSet: 1000, lineTotal: 2000, weightKg: 1, spec: "", note: "" }] }],
+      notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [],
+        freight: { rate: null, total: 120, totalManual: true, currency: "USD" },
+        logisticsFees: logisticsClass === "FCL" ? [] : [{ label: "Phí bảo hiểm", labelEn: "Insurance", value: "25,5", currency: "", itemStt: "" }],
+        ...(logisticsClass === "FCL" ? { fcl: { charges: [
+          { name: "Freight", rate: 120, quantity: 1, unit: "shipment", vatAmount: 0, note: "" },
+          { name: "Insurance", rate: 25.5, quantity: 1, unit: "shipment", vatAmount: 0, note: "" },
+        ] } } : {}),
+      }, bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" },
+    });
+    const source = { ...draft, code: "INSURANCE", customerKind: "LOGISTICS", customerName: "Test", companyName: null, address: null, phone: null, email: null, shippingMode: "SEA" as const, logisticsClass };
+    assert.equal(quoteAmount(source, "logistics").amount, 145.5);
+    assert.equal(draft.orders[0].lines[0].lineTotal, 2000);
+    const sheet = quoteSheetInputOf(source, draft.orders[0], "en");
+    assert.match(quoteSheetHtml(sheet), /Insurance/);
+    const workbook = await buildQuoteWorkbook(sheet);
+    assert.match(JSON.stringify(workbook.worksheets[0].getSheetValues()), /Insurance/);
   }
 });

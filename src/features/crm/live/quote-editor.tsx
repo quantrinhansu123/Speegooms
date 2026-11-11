@@ -1,6 +1,6 @@
 "use client";
 
-import { shippingNoteKeys, shippingNoteText, withInsuranceCurrency, type ShippingNoteKey } from "@speego/shared";
+import { fclChargeTotal, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, type ShippingNoteKey } from "@speego/shared";
 import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -308,7 +308,7 @@ function LogisticsFeesEditor({
   const items = (order?.lines ?? []).map((line, index) => ({ stt: line.stt.trim() || String(index + 1), line }));
   const itemKeys = new Set(items.map((item) => item.stt));
   /** Phí chung, gồm cả phí của mặt hàng đã bị xóa để không mất dữ liệu. */
-  const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => !fee.itemStt || !itemKeys.has(fee.itemStt));
+  const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => (!fee.itemStt || !itemKeys.has(fee.itemStt)) && !(order?.insurance === true && fee.label === "Phí bảo hiểm"));
   const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight;
   const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.chargeableKg > 0 ? metrics.chargeableKg : null, metrics.cbm > 0 ? metrics.cbm : null) ?? freight.total;
@@ -1902,7 +1902,7 @@ function OrderDraftDialog({
           ) : (
             <>
               {pureLogistics && (
-                <Field label="Bảo hiểm" htmlFor={fieldId("order-insurance")} hint={order.insurance === true ? "Nhập đơn giá và thành tiền từng sản phẩm ở các cột bên phải bảng (kéo ngang để xem)." : undefined}>
+                <Field label="Bảo hiểm" htmlFor={fieldId("order-insurance")} hint={order.insurance === true ? "Sale nhập giá trị hàng hóa ở cột Đơn giá, Thành tiền bên phải bảng. Phí bảo hiểm do Logistics nhập khi báo giá." : undefined}>
                   <NativeSelect id={fieldId("order-insurance")} value={order.insurance === true ? "yes" : "no"} disabled={!canEditContent} onChange={(event) => commitOrder({ ...orderRef.current, insurance: event.target.value === "yes" })}>
                     <option value="no">Không</option>
                     <option value="yes">Có</option>
@@ -3238,6 +3238,27 @@ export function QuoteEditor({
             lang={printLang}
             layout={desk === "logistics" ? "pricing" : "classic"}
           />}
+          {pureLogistics && selectedOrder?.insurance === true && (
+            <Field label={`Phí bảo hiểm (${isFcl ? notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(notes, selectedOrder.currency)})`} htmlFor={fieldId("insurance-fee")} hint="Logistics nhập phí bảo hiểm, tách riêng giá trị hàng hóa Sale kê khai.">
+              <MoneyInput id={fieldId("insurance-fee")} fractionDigits={2} disabled={!canEditLogisticsFees || pending}
+                value={isFcl
+                  ? (() => { const charge = notes.fcl?.charges.find((row) => row.name === "Insurance"); return charge ? fclChargeTotal(charge) : null; })()
+                  : quoteMoneyValue(notes.logisticsFees.find((fee) => fee.label === "Phí bảo hiểm" && !fee.itemStt)?.value ?? "")}
+                onValueChange={(amount) => {
+                  const current = notesRef.current;
+                  if (isFcl) {
+                    const fcl = current.fcl ?? emptyFclQuote(lead.companyName || lead.customerName || "", lead.goods || "", lead.weightKg || "");
+                    const charges = fcl.charges.filter((row) => row.name !== "Insurance");
+                    if (amount != null) charges.push({ name: "Insurance", rate: amount, quantity: 1, unit: "shipment", vatAmount: 0, note: "", optional: false });
+                    commitNotes({ ...current, fcl: { ...fcl, charges } });
+                  } else {
+                    const logisticsFees = current.logisticsFees.filter((fee) => fee.label !== "Phí bảo hiểm" || Boolean(fee.itemStt));
+                    if (amount != null) logisticsFees.push({ label: "Phí bảo hiểm", labelEn: "Insurance", value: formatMoneyGrouped(amount), currency: "", itemStt: "" });
+                    commitNotes({ ...current, logisticsFees });
+                  }
+                }} />
+            </Field>
+          )}
           {mode === "full" && pricedOrders.length > 0 && (pureLogistics ? canPriceAsLogistics : desk !== "logistics") && (
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
