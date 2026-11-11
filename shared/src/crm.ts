@@ -403,6 +403,8 @@ export const quoteBankSchema = z.object({
 
 export const quoteOrderSchema = z.object({
   id: uuidText,
+  /** Giá trị hàng khai báo khi khách thuần Logistics mua bảo hiểm. */
+  insurance: z.boolean().optional(),
   name: z.string().trim().min(1, "Nhập tên thông tin đơn hàng").max(160),
   selected: z.boolean(),
   currency: quoteCurrencySchema.default("VND"),

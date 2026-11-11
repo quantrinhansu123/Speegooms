@@ -1,4 +1,4 @@
-import { isCombinedSourcing, type QuoteDesk, type QuoteOrder, type UpdateQuoteInput } from "@speego/shared";
+import { isCombinedSourcing, withInsuranceCurrency, type QuoteDesk, type QuoteOrder, type UpdateQuoteInput } from "@speego/shared";
 import type { QuoteRecord } from "../repositories/crm.repository";
 
 /**
@@ -33,14 +33,14 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner
   });
 }
 
-/** Sale chỉ sửa nội dung đơn. Đơn giá, thành tiền, cách tính và loại tiền do Logistics/vận hành định, kể cả khách thuần logistics. */
+/** Sale chọn bảo hiểm và sửa nội dung hàng; vận hành giữ đơn giá, loại tiền và tỷ giá. */
 export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInput): UpdateQuoteInput {
   const orders = input.orders.map((order) => {
     const previous = current.orders.find((item) => item.id === order.id);
     return {
       ...order,
       selected: previous?.selected ?? order.selected,
-      currency: previous?.currency ?? order.currency,
+      currency: previous?.currency ?? (current.customerKind === "LOGISTICS" ? "VND" : order.currency),
       rate: previous ? previous.rate : null,
       priceColumns: previous ? previous.priceColumns : [],
       lines: order.lines.map((line, index) => {
@@ -121,7 +121,7 @@ export function applyLogisticsDeskSave(
       },
     };
   }
-  return patch;
+  return options.canOps ? { ...patch, orders: withInsuranceCurrency(patch.orders, { ...current, notes: patch.notes }) } : patch;
 }
 
 export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: UpdateQuoteInput): UpdateQuoteInput {
@@ -130,7 +130,7 @@ export function quoteDeskPatch(desk: QuoteDesk, current: QuoteRecord, input: Upd
     opsNote: input.opsNote,
     quoteStatus: current.quoteStatus as UpdateQuoteInput["quoteStatus"],
     contractStatus: current.contractStatus as UpdateQuoteInput["contractStatus"],
-    orders: logisticsOrders(current.orders, input.orders, current.customerKind === "LOGISTICS"),
+    orders: withInsuranceCurrency(logisticsOrders(current.orders, input.orders, current.customerKind === "LOGISTICS"), { ...current, notes: input.notes }),
     bank: input.bank,
     notes: {
       ...current.notes,

@@ -327,6 +327,7 @@ function asOrders(value: unknown): QuoteOrder[] {
       return [{
         id,
         name: textField(row.name) || "Mẫu đơn hàng",
+        ...(typeof row.insurance === "boolean" ? { insurance: row.insurance } : {}),
         selected: row.selected === true,
         currency: asCurrency(row.currency),
         rate: typeof row.rate === "number" && row.rate > 0 ? row.rate : null,
@@ -1234,7 +1235,9 @@ function toMessage(row: MessageRow): MessageRecord {
     linkMess: row.link_mess,
     brand: row.brand,
     order: quoteOrder
-      ? { ...logisticsOrderFromSourcing(quoteOrder), rate: null, priceColumns: [] }
+      ? (row.demand === "SHIPPING" && quoteOrder.insurance === true
+        ? quoteOrder
+        : { ...logisticsOrderFromSourcing(quoteOrder), rate: null, priceColumns: [] })
       : messageOrder(row.order_info),
     receivedAt: stamp(row.received_at),
     leadId: row.lead_id,

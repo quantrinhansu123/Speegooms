@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${backend.origin}/api/:path*` }];
   },
   turbopack: {
+    root: process.env.TURBOPACK_ROOT,
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

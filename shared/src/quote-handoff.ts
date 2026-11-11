@@ -1,4 +1,18 @@
-import { quoteLineImages, type QuoteLine, type QuoteOrder } from "./crm";
+import { quoteLineImages, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
+import { resolvedFreightCurrency } from "./quote-amounts";
+
+/** Hàng bảo hiểm thuần Logistics dùng cùng loại tiền và tỷ giá với cước; không đổi số giá đã nhập. */
+export function withInsuranceCurrency(orders: QuoteOrder[], source: { customerKind: string | null; shippingMode?: string | null; logisticsClass?: string | null; notes: QuoteNotes }): QuoteOrder[] {
+  if (source.customerKind !== "LOGISTICS") return orders;
+  const selected = orders.find((order) => order.selected) ?? orders[0];
+  const currency = source.shippingMode === "SEA" && source.logisticsClass === "FCL"
+    ? source.notes.payment?.quoteCurrency ?? "USD"
+    : resolvedFreightCurrency(source.notes, selected?.currency ?? "VND");
+  return orders.map((order) => order.insurance === true ? {
+    ...order, currency, rate: currency === "VND" ? null : source.notes.freight.vndRate ?? null,
+    priceColumns: [],
+  } : order);
+}
 
 /** Carry product information across desks; transport pricing is entered independently. */
 export function logisticsOrderFromSourcing(order: QuoteOrder, previous?: QuoteOrder): QuoteOrder {
