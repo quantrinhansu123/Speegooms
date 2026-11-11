@@ -2118,7 +2118,9 @@ export function QuoteEditor({
   const [draft, setDraft] = useState<{ mode: "create" | "edit" | "view"; order: QuoteOrder } | null>(null);
   const saleDraftRef = useRef<SaleLeadDraft | null>(null);
   const [removing, setRemoving] = useState<QuoteOrder | null>(null);
-  const [confirmSend, setConfirmSend] = useState(false);
+  const [sendInput, setSendInput] = useState<UpdateQuoteInput | null>(null);
+  const [validityError, setValidityError] = useState<string>();
+  const [sendNotice, setSendNotice] = useState<string>();
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [logisticsHandoff, setLogisticsHandoff] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
@@ -2133,7 +2135,7 @@ export function QuoteEditor({
 
   /** Ô số ngày hiệu lực. Sourcing nhập ở tab Sourcing, Logistics nhập ở tab Logistics (mỗi bàn một báo giá riêng). */
   const validityField = (name: string) => (
-    <Field label="Hiệu lực báo giá (ngày)" htmlFor={fieldId(name)}>
+    <Field label="Hiệu lực báo giá (ngày)" htmlFor={fieldId(name)} required={canEditValidity} error={validityError}>
       <Input
         id={fieldId(name)}
         type="number"
@@ -2142,10 +2144,14 @@ export function QuoteEditor({
         max={365}
         step={1}
         value={notes.validityDays ?? ""}
+        aria-required={canEditValidity}
+        aria-invalid={Boolean(validityError)}
+        aria-describedby={validityError ? `${fieldId(name)}-error` : undefined}
         disabled={!canEditValidity}
         onChange={(event) => {
           const raw = event.target.value.trim();
           commitNotes({ ...notesRef.current, validityDays: raw === "" ? null : Math.trunc(Number(raw)) });
+          setValidityError(undefined);
         }}
         placeholder="Ví dụ: 7"
       />
@@ -2457,6 +2463,23 @@ export function QuoteEditor({
 
   const priceColumns = listPriceColumns(orders);
   const showSourcingLineColumns = desk === "sourcing" && !sourcingSale;
+  const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleFill ? "sale" : desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
+  const [tab, setTab] = useState(defaultTab);
+
+  const requestSend = () => {
+    setSendNotice(undefined);
+    const days = notesRef.current.validityDays;
+    if (!days || days < 1 || days > 365 || !Number.isInteger(days)) {
+      setValidityError("Nhập số ngày hiệu lực báo giá từ 1 đến 365 trước khi gửi");
+      setTab(desk === "logistics" ? "logistics" : "sourcing");
+      requestAnimationFrame(() => document.getElementById(fieldId(desk === "logistics" ? "logistics-note-valid" : "note-valid"))?.focus());
+      return;
+    }
+    const priced = orders.length > 0 ? orders : quote.sourcingContext ? [{ ...quote.sourcingContext.order, selected: true }] : orders;
+    const ready = priced.some((order) => order.selected) ? priced : priced.map((order, index) => ({ ...order, selected: index === 0 }));
+    const data = payloadFor(ready);
+    if (data) setSendInput(data);
+  };
 
   const actions = (
     <>
@@ -2470,7 +2493,7 @@ export function QuoteEditor({
       {!quoteStep && <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("excel")}>
         <Download />Tải Excel
       </Button>}
-      {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={() => setConfirmSend(true)}><Send />Gửi báo giá</Button>}
+      {canSendQuote && onSend && <Button type="button" disabled={pending} onClick={requestSend}><Send />Gửi báo giá</Button>}
       {canSendQuote && sent && desk === "sourcing" && isCombinedSourcing(quote) && onContinueLogistics && <Button type="button" disabled={pending} onClick={() => setLogisticsHandoff(true)}>Gửi qua Logistics</Button>}
       {/* Đã tạo hợp đồng thì không gửi lại báo giá được nữa. */}
       {canProcess && !canSendQuote && onReturn && sent && contractStatus !== "DA_TAO" && <Button type="button" disabled={pending} onClick={() => setConfirmReturn(true)}><RotateCcw />Gửi lại báo giá</Button>}
@@ -2495,8 +2518,6 @@ export function QuoteEditor({
   const tabPanelClass = embedded
     ? "mt-3 space-y-4"
     : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
-  const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleFill ? "sale" : desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
-  const [tab, setTab] = useState(defaultTab);
   useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
@@ -2561,6 +2582,7 @@ export function QuoteEditor({
       {onReload && <InlineAlert tone="info">Phiếu có dữ liệu mới. Tải lại sẽ bỏ các thay đổi chưa lưu trong form này. <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onReload}>Tải dữ liệu mới</Button></InlineAlert>}
       {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
+      {sendNotice && <InlineAlert tone="success">{sendNotice}</InlineAlert>}
       {printLang === "en" && (
         <InlineAlert tone={enMissing.length > 0 ? "warning" : "info"}>
           {enMissing.length > 0
@@ -3411,38 +3433,19 @@ export function QuoteEditor({
         onConfirm={remove}
       />
       <ConfirmDialog
-        open={confirmSend}
-        onOpenChange={setConfirmSend}
+        open={sendInput !== null}
+        onOpenChange={(open) => { if (!open) setSendInput(null); }}
         title="Gửi báo giá"
         description="Sale chỉ xem đúng bản đang chọn. Sửa đơn hàng sau khi gửi không đổi bản Sale đang xem."
         confirmLabel="Gửi"
         onConfirm={() => {
-          if (!onSend) return;
-          const priced = orders.length > 0
-            ? orders
-            : quote.sourcingContext
-              ? [{ ...quote.sourcingContext.order, selected: true }]
-              : orders;
-          const ready = priced.some((order) => order.selected)
-            ? priced
-            : priced.map((order, index) => ({ ...order, selected: index === 0 }));
-          const data = payloadFor(ready);
-          if (!data) return;
-          if (!data.notes.validityDays) {
-            setFormError("Nhập số ngày hiệu lực báo giá trước khi gửi");
-            return;
-          }
-          void onSend(data).then((status) => {
+          if (!onSend || !sendInput) return;
+          void onSend(sendInput).then((status) => {
             if (status && quoteStatusOptions.some((item) => item[0] === status)) {
               setQuoteStatus(status as (typeof quoteStatusOptions)[number][0]);
-            }
-            if (
-              status
-              && desk === "sourcing"
-              && isCombinedSourcing(quote)
-              && onContinueLogistics
-            ) {
-              setLogisticsHandoff(true);
+              setSendNotice(desk === "sourcing" && isCombinedSourcing(quote)
+                ? "Đã gửi báo giá và thông báo cho Sale. Yêu cầu Logistics đã được chuyển qua Chia đơn."
+                : "Đã gửi báo giá và thông báo cho Sale.");
             }
           });
         }}

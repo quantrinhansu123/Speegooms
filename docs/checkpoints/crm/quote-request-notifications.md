@@ -1,7 +1,17 @@
 # Thông báo yêu cầu báo giá từ khách tiềm năng
 
 - Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, phân công/quyền, người nhận thông báo và danh sách báo giá vận hành; admin Logistics xem mọi tuyến/phiếu.
-- Đối chiếu mới nhất: 2026-11-10, sửa admin Logistics tại `1c394fa` trên nhánh `fix/admin-logistics-quote-visibility`, ghép main `678813b` (gồm quyền phân công `458f231`). Các kết quả ở từng mục gắn với revision được ghi rõ.
+- Đối chiếu mới nhất: 2026-11-11, sửa bước gửi trên nền main `d0e405c`, nhánh `fix/sourcing-send-notifications`; nguồn thay đổi được commit cùng ghi chú này. Đã xử lý phiếu thật theo ủy quyền; chưa xác nhận deployment UI. Các kết quả ở từng mục gắn với revision được ghi rõ.
+
+## Gửi Sourcing, thông báo Sale và chia Logistics (2026-11-11)
+
+- Điều tra bằng kết nối DB chỉ đọc xác nhận một phiếu Global COMBINED đã nhập giá nhưng thiếu hiệu lực, chưa có snapshot gửi, bàn giao Logistics hoặc phân công. Chỉ có thông báo yêu cầu cũ; không phải bằng chứng lỗi chuông. Main hiện chặn gửi khi thiếu hiệu lực hoặc nhân viên chưa được phân công. Migration 048 không backfill phiếu cũ; dùng bàn giao Sourcing hiện có để cấp người phụ trách, không bỏ giới hạn quyền.
+- `QuoteEditor` kiểm tra dữ liệu trước khi mở xác nhận gửi, giữ chính payload đã xác nhận. Thiếu/sai hiệu lực thì chuyển tới tab đúng, đánh dấu bắt buộc, hiện lỗi cạnh ô có liên kết ARIA và focus vào ô; Lưu nháp vẫn được phép thiếu hiệu lực. Sau phản hồi gửi thành công hiện xác nhận ngay trong form; lỗi API không hiện thành công.
+- Bỏ tự mở thêm hộp Gửi qua Logistics sau khi Sourcing gửi thành công: backend đã tự bàn giao và chia Logistics lần đầu. Nút bàn giao thủ công vẫn dùng được để gửi lại yêu cầu. Không thay đổi thuật toán chia vòng, quy tắc off/nghỉ phép, giữ người đã chia hay phạm vi quyền.
+- Backend vẫn gọi `notifyQuoteSent` cho Sale của tuyến và Admin (trừ actor). Logistics của phiếu COMBINED gửi lần đầu dùng `notifyQuoteRequest`, cùng đường `assignment.assign(lane, desk, id)` với yêu cầu báo giá từ Sale và bàn giao thủ công. Gửi lại báo giá không tự chia Logistics thêm; bàn giao rõ ràng có thể thông báo lại. Không có người nhận thì giữ fallback quản lý, không phát cho tất cả nhân viên.
+- Theo yêu cầu người dùng đã gửi phiếu thật với hiệu lực 7 ngày qua `CrmService`, sau khi xác thực tài khoản quản trị bằng cấu hình sẵn có; danh tính được đưa vào `crmActor`. Đã đọc lại trạng thái đã có báo giá, snapshot hiệu lực 7 ngày, phân công hai bàn và thông báo `quote.send` tới Sale Global / `quote.request` tới người được chia Logistics. Người nhận Logistics có thể mang role `van-hanh`; phải kiểm tra ID theo phân công, không suy luận từ role. Không thay giá, thuật toán chia hoặc chạy migration. Không lưu mã/tên khách, giá hay thông tin đăng nhập vào ghi chú.
+- Nguồn: `src/features/crm/live/quote-editor.tsx`, `server/src/services/crm.service.ts`, `server/src/services/notification.service.ts`, `server/src/adapters/postgres/chia-don.repository.ts`; test `src/features/crm/live/quote-editor-send.test.mjs`, `server/src/config/chia-don-service.test.ts`.
+- Kiểm chứng: 67 test API tập trung (chia-don-service, quote-workflow, logistics-handoff, notification-dedupe, quote-validity) qua; test Edge headless chạy editor/components thật với callback gửi giả lập qua cả hai bàn, kiểm tra thiếu/sai hiệu lực, chuyển tab/focus, hủy gửi, lỗi, thành công và bàn giao thủ công. FE/API typecheck qua; file test mới lint qua; diff check qua. Editor còn các finding lint có sẵn, đối chiếu baseline để không thêm loại lỗi mới. Chưa chạy full build hoặc kiểm tra UI production; thay đổi UI chưa deploy. Lưu phiếu/phân công/thông báo vẫn là thao tác DB riêng, chưa có outbox/retry bền vững.
 
 ## Phân công và quyền theo người nhận (2026-11-10)
 

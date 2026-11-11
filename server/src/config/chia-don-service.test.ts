@@ -174,17 +174,36 @@ test("tạo RFQ chia đúng người và gửi thông báo có link bàn/tuyến
   }
 });
 
-test("Sourcing gửi lần đầu cũng chia người Logistics và thông báo khi repository tự bàn giao", async () => {
+test("Sourcing gửi báo Sale đúng tuyến và bàn giao Logistics qua cùng bộ chia đơn", async () => {
   for (const lane of ["vn", "global"] as const) {
     const { notifications, sent } = notificationRecorder();
-    const assigned: QuoteDesk[] = [];
-    const crm = new CrmService({ findQuote: async () => current, sendQuote: async () => current } as unknown as CrmRepository, notifications, null, {
-      assign: async (_lane, desk) => { assigned.push(desk); return { id: "logistics-worker", name: "Logistics" }; },
-      assignees: async () => ({}),
+    const assigned: unknown[][] = [];
+    let stored = current;
+    const crm = new CrmService({
+      findQuote: async () => stored,
+      sendQuote: async () => {
+        stored = { ...current, quoteStatus: "DA_CO_BAO_GIA", sentQuote: { sentAt: new Date().toISOString(), order: input.orders[0], notes: input.notes, bank: input.bank } };
+        return stored;
+      },
+      requestLogisticsQuote: async () => ({ quote: stored, created: false }),
+    } as unknown as CrmRepository, notifications, null, {
+      assign: async (...args) => { assigned.push(args); return { id: "logistics-worker", name: "Logistics" }; },
+      assignees: async () => ({ [current.id]: { id: "sourcing-worker", name: "Sourcing" } }),
     });
-    await crm.sendQuote(lane, "sourcing", current.id, input, { role: "admin", name: "Admin", id: "admin" } as PublicUser);
-    assert.deepEqual(assigned, ["logistics"]);
-    assert.deepEqual(sent.filter((item) => item.draft.type === "quote.request").map((item) => item.ids), [["logistics-worker"]]);
+    await crmActor.run(worker("sourcing", "sourcing-worker"), async () => {
+      await crm.sendQuote(lane, "sourcing", current.id, input, worker("sourcing", "sourcing-worker"));
+      assert.deepEqual(assigned, [[lane, "logistics", current.id]]);
+      const sale = sent.find((item) => item.draft.type === "quote.send")!;
+      assert.deepEqual(sale.ids, [lane === "vn" ? "sale-vn" : "sale-global", "admin"]);
+      assert.equal(sale.draft.href, `/sale-${lane === "vn" ? "viet-nam" : "global"}/rfq?id=${current.id}&lane=${lane}`);
+      const logistics = sent.find((item) => item.draft.type === "quote.request")!;
+      assert.deepEqual(logistics.ids, ["logistics-worker"]);
+      assert.equal(logistics.draft.href, `/van-hanh/logistics-bao-gia?id=${current.id}&lane=${lane}`);
+      await crm.sendQuote(lane, "sourcing", current.id, input, worker("sourcing", "sourcing-worker"));
+      assert.equal(assigned.length, 1, "gửi lại không tự chia thêm Logistics");
+      await crm.requestLogisticsQuote(lane, current.id, worker("sourcing", "sourcing-worker"));
+      assert.deepEqual(assigned, [[lane, "logistics", current.id], [lane, "logistics", current.id]]);
+    });
   }
 });
 
