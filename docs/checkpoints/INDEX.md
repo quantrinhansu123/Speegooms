@@ -33,4 +33,4 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 [README dự án](../../README.md) — điểm bắt đầu cho setup và tài liệu hiện có.
 
-- Bảo hiểm hàng thuần Logistics Có/Không, giá trị hàng Sale khai báo, Mess → báo giá và bản in: [Sale → vận hành](crm/sale-operations-data-flow.md#bảo-hiểm-hàng-thuần-logistics--2026-11-11), nền `b11afdf`, nhánh `feat/logistics-insurance`, 2026-11-11; chưa deploy.
+- Bảo hiểm hàng thuần Logistics Có/Không, Logistics nhập giá dùng chung loại tiền/tỷ giá cước, Mess → báo giá và bản in: [Sale → vận hành](crm/sale-operations-data-flow.md#bảo-hiểm-hàng-thuần-logistics--2026-11-11), feature `dd08598`, merge main `f067e5c`, 2026-11-11; local main 3002/4002 đang chạy, chưa push/deploy.
