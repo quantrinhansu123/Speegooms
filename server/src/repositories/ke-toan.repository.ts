@@ -66,7 +66,11 @@ export interface LedgerRecord {
   category: string;
   counterparty: string;
   orderCode: string | null;
+  customerName: string | null;
   amount: number;
+  currency: string;
+  exchangeRate: number;
+  amountVnd: number;
   reference: string | null;
   reconciled: boolean;
   statementId: string | null;
@@ -77,9 +81,13 @@ export interface StatementRecord {
   date: string;
   kind: "THU" | "CHI";
   amount: number;
+  currency: string;
+  exchangeRate: number;
+  amountVnd: number;
   counterparty: string;
   description: string | null;
   orderCode: string | null;
+  customerName: string | null;
   ledgerId: string | null;
 }
 

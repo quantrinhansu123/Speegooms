@@ -86,6 +86,8 @@ export {
   createPayrollSchema,
   createStatementSchema,
   reconcileLedgerEntrySchema,
+  ledgerAmountVnd,
+  ledgerMatchesStatement,
   ledgerCategories,
   ledgerCategoryLabels,
   ledgerKinds,

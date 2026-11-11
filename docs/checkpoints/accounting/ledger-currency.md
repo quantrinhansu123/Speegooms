@@ -1,0 +1,11 @@
+# Thu chi: đối tượng, chứng từ, ngoại tệ và tên khách
+
+- **Phạm vi:** `/ke-toan/thu-chi`, nhập/sửa thu chi, nhập sao kê, đối soát và tìm theo khách.
+- **Đối chiếu:** 2026-11-11, nền `b11afdf`, thay đổi trên nhánh `fix/accounting-ledger-currency`.
+- **Quyết định:** Đối tượng là người/đơn vị nộp hoặc nhận tiền; thu tự gợi ý tên khách khi chọn đơn nếu ô đang trống, vẫn được sửa. Mã giao dịch/số chứng từ tùy chọn, không nhập lại mã đơn.
+- **Tiền:** `amount`/`so_tien` là nguyên tệ; `currency`, `exchangeRate` lưu theo giao dịch (1 ngoại tệ = số VND). Ngoại tệ bắt buộc tỷ giá dương, tối đa 6 số lẻ; VND tỷ giá 1. `amountVnd` là cột DB sinh tự động, ngoại tệ làm tròn đến đồng; VND cũ giữ nguyên. Tổng thu/chi dùng `amountVnd`. FE dùng số nguyên BigInt để tránh sai số tại mốc làm tròn.
+- **Đối soát:** chung helper `ledgerMatchesStatement` cho FE/BE. Sao kê VND khớp `amountVnd` của thu chi; sao kê ngoại tệ phải cùng loại tiền và số nguyên tệ. Hai bên có mã đơn thì phải giống nhau; vẫn kiểm tra loại thu/chi, khóa giao dịch và chống dùng lại sao kê. Dòng đã đối soát không sửa/xóa.
+- **Tên khách:** API JOIN hợp đồng theo mã đơn, danh sách và chi tiết hiện `mã đơn · tên khách`, tìm kiếm gồm tên khách. Không phụ thuộc danh sách chọn 500 đơn mới nhất; form sửa giữ được đơn cũ ngoài danh sách đó.
+- **Nguồn:** `src/features/accounting/live/ledger-live-view.tsx`; `shared/src/ke-toan.ts`; `server/src/adapters/postgres/ledger.repository.ts`; migration `048_ledger_currency.sql`; runner `server/src/scripts/migrate.ts`.
+- **Kiểm chứng:** FE/BE typecheck qua; 2 unit test `server/src/config/ledger-currency.test.ts` qua; integration `server/src/adapters/postgres/ledger.repository.test.ts` qua khi `LEDGER_DB_TEST=1` (Postgres, toàn bộ dữ liệu test rollback). Integration kiểm tra tạo/sửa/list, tên khách, đối soát sai ngoại tệ, khớp sao kê VND, khóa sửa/xóa, xóa dòng chưa đối soát. Migration 048 đã áp dụng riêng vào DB cấu hình local, dữ liệu cũ mặc định VND. HTTP `/login` 200 và `/api/health` 200.
+- **Còn mở:** chưa thử tương tác trình duyệt có đăng nhập, chưa build production. Tỷ giá nhập tay; không tự tải tỷ giá ngân hàng. Các luồng đề nghị thanh toán khác không nằm trong thay đổi này. Local worktree dùng `next dev --webpack` vì dependency liên kết ra ngoài root khiến Turbopack không resolve được Next.

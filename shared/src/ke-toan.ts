@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { quoteCurrencySchema } from "./crm";
 
 export const ledgerKinds = ["THU", "CHI"] as const;
 export const ledgerCategories = ["COC_KHACH", "THU_KHACH", "CHI_XUONG", "CHI_VAN_CHUYEN", "CHI_KHAC"] as const;
@@ -18,14 +19,43 @@ const ledgerDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày không đúng �
 }, "Ngày không tồn tại");
 const orderCode = z.string().trim().max(64).optional().transform((value) => value || undefined);
 
+const ledgerCurrency = {
+  currency: quoteCurrencySchema.default("VND"),
+  exchangeRate: z.number().finite().positive("Tỷ giá phải lớn hơn 0").max(1_000_000).refine(value => Math.round(value * 1_000_000) / 1_000_000 === value, "Tỷ giá tối đa 6 chữ số thập phân").nullable().default(null),
+};
+function validateCurrency(value: { currency: string; exchangeRate: number | null; amount: number }, ctx: z.RefinementCtx) {
+  if (value.currency !== "VND" && value.exchangeRate == null) {
+    ctx.addIssue({ code: "custom", path: ["exchangeRate"], message: "Nhập tỷ giá quy đổi VND" });
+  }
+  if (value.currency === "VND" && value.exchangeRate != null && value.exchangeRate !== 1) {
+    ctx.addIssue({ code: "custom", path: ["exchangeRate"], message: "Tỷ giá VND phải bằng 1" });
+  }
+  const converted = ledgerAmountVnd(value);
+  if (converted <= 0 || converted > 9_999_999_999_999) {
+    ctx.addIssue({ code: "custom", path: ["amount"], message: "Số tiền quy đổi VND phải lớn hơn 0 và không vượt 9.999.999.999.999" });
+  }
+}
+export function ledgerAmountVnd(value: { currency: string; exchangeRate: number | null; amount: number }): number {
+  if (value.currency === "VND") return value.amount;
+  // Integer arithmetic matches Postgres numeric rounding, including 0.29 × 50 = 14.5.
+  const product = BigInt(Math.round(value.amount * 100)) * BigInt(Math.round((value.exchangeRate ?? 0) * 1_000_000));
+  return Number((product + BigInt(50_000_000)) / BigInt(100_000_000));
+}
+export function ledgerMatchesStatement(ledger: { kind: string; currency: string; amount: number; amountVnd: number; orderCode: string | null }, statement: { kind: string; currency: string; amount: number; orderCode: string | null }): boolean {
+  return ledger.kind === statement.kind
+    && !(ledger.orderCode && statement.orderCode && ledger.orderCode !== statement.orderCode)
+    && (statement.currency === "VND" ? ledger.amountVnd === statement.amount : ledger.currency === statement.currency && ledger.amount === statement.amount);
+}
+
 export const createStatementSchema = z.object({
   date: ledgerDay,
   kind: z.enum(ledgerKinds),
   amount: ledgerMoney,
+  ...ledgerCurrency,
   counterparty: z.string().trim().min(1, "Nhập đối tượng").max(200),
   description: z.string().trim().max(1000).optional(),
   orderCode,
-});
+}).superRefine(validateCurrency);
 export type CreateStatementInput = z.infer<typeof createStatementSchema>;
 
 export const createLedgerEntrySchema = z.object({
@@ -35,8 +65,10 @@ export const createLedgerEntrySchema = z.object({
   counterparty: z.string().trim().min(1, "Nhập đối tượng").max(200),
   orderCode,
   amount: ledgerMoney,
+  ...ledgerCurrency,
   reference: z.string().trim().max(120).optional(),
 }).superRefine((value, ctx) => {
+  validateCurrency(value, ctx);
   const income = value.kind === "THU";
   if (income !== (value.category === "COC_KHACH" || value.category === "THU_KHACH")) {
     ctx.addIssue({ code: "custom", path: ["category"], message: "Khoản mục không khớp loại thu/chi" });

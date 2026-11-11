@@ -1,3 +1,4 @@
+import { ledgerMatchesStatement } from "@speego/shared";
 import type pg from "pg";
 import type { CreateLedgerEntryInput, CreateStatementInput } from "@speego/shared";
 import { AppError, InfrastructureError } from "../../lib/errors";
@@ -7,30 +8,38 @@ const ledgerSelect = `select l.id::text, l.ngay::text as date, l.loai::text as k
   l.khoan_muc::text as category, l.doi_tuong as counterparty,
   l.ma_don_hang as order_code, l.so_tien::text as amount,
   l.ma_tham_chieu as reference, l.da_doi_soat as reconciled,
-  l.ma_sao_ke::text as statement_id from ke_toan.so_thu_chi l`;
+  l.ma_sao_ke::text as statement_id, l.tien_te as currency, l.ty_gia::text as exchange_rate,
+  l.so_tien_vnd::text as amount_vnd, h.ten_khach_hang as customer_name
+  from ke_toan.so_thu_chi l left join crm.hop_dong h on h.ma_hien_thi = l.ma_don_hang`;
 const statementSelect = `select s.id::text, s.ngay::text as date, s.loai::text as kind,
   s.so_tien::text as amount, s.doi_tuong as counterparty,
   s.noi_dung as description, s.ma_don_hang as order_code,
-  l.id::text as ledger_id from ke_toan.sao_ke s
+  l.id::text as ledger_id, s.tien_te as currency, s.ty_gia::text as exchange_rate,
+  s.so_tien_vnd::text as amount_vnd, h.ten_khach_hang as customer_name from ke_toan.sao_ke s
+  left join crm.hop_dong h on h.ma_hien_thi = s.ma_don_hang
   left join ke_toan.so_thu_chi l on l.ma_sao_ke = s.id`;
 
-type LedgerRow = {
+type CurrencyRow = { currency: string; exchange_rate: string; amount_vnd: string; customer_name: string | null };
+
+type LedgerRow = CurrencyRow & {
   id: string; date: string; kind: "THU" | "CHI"; category: string;
   counterparty: string; order_code: string | null; amount: string;
   reference: string | null; reconciled: boolean; statement_id: string | null;
 };
-type StatementRow = {
+type StatementRow = CurrencyRow & {
   id: string; date: string; kind: "THU" | "CHI"; amount: string;
   counterparty: string; description: string | null; order_code: string | null; ledger_id: string | null;
 };
 const toLedger = (row: LedgerRow): LedgerRecord => ({
   id: row.id, date: row.date, kind: row.kind, category: row.category,
   counterparty: row.counterparty, orderCode: row.order_code, amount: Number(row.amount),
+  currency: row.currency, exchangeRate: Number(row.exchange_rate), amountVnd: Number(row.amount_vnd), customerName: row.customer_name,
   reference: row.reference, reconciled: row.reconciled, statementId: row.statement_id,
 });
 const toStatement = (row: StatementRow): StatementRecord => ({
   id: row.id, date: row.date, kind: row.kind, amount: Number(row.amount),
   counterparty: row.counterparty, description: row.description,
+  currency: row.currency, exchangeRate: Number(row.exchange_rate), amountVnd: Number(row.amount_vnd), customerName: row.customer_name,
   orderCode: row.order_code, ledgerId: row.ledger_id,
 });
 
@@ -78,30 +87,30 @@ export class PostgresLedgerRepository {
         if (!order.rowCount) throw new AppError(404, "NOT_FOUND", "Không tìm thấy đơn hàng");
       }
       const inserted = await this.pool.query<{ id: string }>(
-        `insert into ke_toan.sao_ke (ngay, loai, so_tien, doi_tuong, noi_dung, ma_don_hang)
-         values ($1::date, $2::ke_toan.loai_thu_chi, $3, $4, $5, $6) returning id::text`,
-        [input.date, input.kind, input.amount, input.counterparty, input.description || null, input.orderCode || null],
+        `insert into ke_toan.sao_ke (ngay, loai, so_tien, doi_tuong, noi_dung, ma_don_hang, tien_te, ty_gia)
+         values ($1::date, $2::ke_toan.loai_thu_chi, $3, $4, $5, $6, $7, $8) returning id::text`,
+        [input.date, input.kind, input.amount, input.counterparty, input.description || null, input.orderCode || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate],
       );
       const result = await this.pool.query<StatementRow>(`${statementSelect} where s.id = $1::uuid`, [inserted.rows[0]?.id]);
       return toStatement(result.rows[0]);
     } catch (cause) { databaseError(cause); }
   }
 
-  private async lockStatement(client: pg.PoolClient, id: string, kind: string, amount: number, orderCode: string | null) {
-    const found = await client.query<{ kind: string; amount: string; order_code: string | null; payment_id: string | null }>(
-      `select loai::text as kind, so_tien::text as amount, ma_don_hang as order_code,
+  private async lockStatement(client: pg.PoolClient, id: string, ledger: LedgerRecord) {
+    const found = await client.query<{ kind: string; amount: string; currency: string; order_code: string | null; payment_id: string | null }>(
+      `select loai::text as kind, so_tien::text as amount, tien_te as currency, ma_don_hang as order_code,
         ma_de_nghi::text as payment_id from ke_toan.sao_ke where id = $1::uuid for update`,
       [id],
     );
     const row = found.rows[0];
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy dòng sao kê");
-    if (row.kind !== kind || Number(row.amount) !== amount || (row.order_code && orderCode && row.order_code !== orderCode)) {
-      throw new AppError(409, "RULE", "Sao kê không khớp loại, số tiền hoặc đơn hàng");
+    if (!ledgerMatchesStatement(ledger, { kind: row.kind, currency: row.currency, amount: Number(row.amount), orderCode: row.order_code })) {
+      throw new AppError(409, "RULE", "Sao kê không khớp loại, loại tiền, số tiền hoặc đơn hàng");
     }
     const used = await client.query(`select 1 from ke_toan.so_thu_chi where ma_sao_ke = $1::uuid`, [id]);
     if (used.rowCount) throw new AppError(409, "CONFLICT", "Dòng sao kê đã được đối soát");
     if (!row.order_code) {
-      await client.query(`update ke_toan.sao_ke set ma_don_hang = $2 where id = $1::uuid`, [id, orderCode]);
+      await client.query(`update ke_toan.sao_ke set ma_don_hang = $2 where id = $1::uuid`, [id, ledger.orderCode]);
     }
     return { paymentId: row.payment_id, orderCode: row.order_code };
   }
@@ -128,11 +137,11 @@ export class PostgresLedgerRepository {
       const inserted = await client.query<{ id: string }>(
         `insert into ke_toan.so_thu_chi
           (ngay, loai, khoan_muc, doi_tuong, ma_don_hang, so_tien, ma_tham_chieu,
-           da_doi_soat, ma_de_nghi, ma_sao_ke)
+           da_doi_soat, ma_de_nghi, ma_sao_ke, tien_te, ty_gia)
          values ($1::date, $2::ke_toan.loai_thu_chi, $3::ke_toan.khoan_muc_thu_chi,
-           $4, $5, $6, $7, false, null, null) returning id::text`,
+           $4, $5, $6, $7, false, null, null, $8, $9) returning id::text`,
         [input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
-          input.amount, input.reference || null],
+          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate],
       );
       const created = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [inserted.rows[0]?.id]);
       return toLedger(created.rows[0]);
@@ -158,10 +167,10 @@ export class PostgresLedgerRepository {
       await client.query(
         `update ke_toan.so_thu_chi
          set ngay = $2::date, loai = $3::ke_toan.loai_thu_chi, khoan_muc = $4::ke_toan.khoan_muc_thu_chi,
-             doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, cap_nhat_luc = now()
+             doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, tien_te = $9, ty_gia = $10, cap_nhat_luc = now()
          where id = $1::uuid`,
         [id, input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
-          input.amount, input.reference || null],
+          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate],
       );
       const updated = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [id]);
       return toLedger(updated.rows[0]);
@@ -177,15 +186,13 @@ export class PostgresLedgerRepository {
 
   async reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> {
     return this.transaction(async (client) => {
-      const found = await client.query<{ kind: string; amount: string; order_code: string | null; reconciled: boolean }>(
-        `select loai::text as kind, so_tien::text as amount, ma_don_hang as order_code,
-          da_doi_soat as reconciled from ke_toan.so_thu_chi where id = $1::uuid for update`,
-        [id],
+      const found = await client.query<LedgerRow>(
+        `${ledgerSelect} where l.id = $1::uuid for update of l`, [id],
       );
       const row = found.rows[0];
       if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy dòng thu chi");
       if (row.reconciled) throw new AppError(409, "CONFLICT", "Dòng này đã đối soát");
-      const statement = await this.lockStatement(client, statementId, row.kind, Number(row.amount), row.order_code);
+      const statement = await this.lockStatement(client, statementId, toLedger(row));
       await client.query(
         `update ke_toan.so_thu_chi
          set ma_sao_ke = $2::uuid, ma_de_nghi = coalesce(ma_de_nghi, $3::uuid),
