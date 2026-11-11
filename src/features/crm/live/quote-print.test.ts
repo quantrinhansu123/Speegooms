@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultQuoteBank, emptyQuoteFreight, type QuoteSheetInput } from "@speego/shared";
+import { defaultQuoteBank, emptyQuoteFreight, fclQuoteSchema, quoteOrderSchema, quoteSheetInputOf, type QuoteSheetInput } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
 import { buildQuoteSheet } from "./quote-sheet";
 
@@ -17,6 +17,43 @@ const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   },
 });
 
+test("only uninsured pure Logistics hides the entire product table in print without changing freight", () => {
+  const source = { ...input({ freight: { ...emptyQuoteFreight, total: 120, totalManual: true } }), code: "BGL", customerKind: "LOGISTICS" };
+  const order = quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "Goods", selected: true,
+    currency: "USD", priceColumns: [{ currency: "EUR" }],
+    lines: [{ stt: "1", productName: "Goods", quantity: 2, pricePerSet: 12345, lineTotal: 24690, weightKg: 5, spec: "", note: "",
+      prices: [{ currency: "EUR", pricePerSet: 11111, lineTotal: 22222 }] }] });
+  for (const lang of ["vi", "en"] as const) {
+    for (const insurance of [undefined, false, true]) {
+      const sheet = quoteSheetInputOf({ ...source, ...source.customer }, { ...order, insurance }, lang);
+      const model = buildQuoteSheet(sheet);
+      const html = quoteSheetHtml(sheet);
+      assert.equal(model.showPricing, insurance === true);
+      assert.equal(html.includes(model.t.unitPrice), insurance === true);
+      assert.equal(html.includes(model.t.lineTotal), insurance === true);
+      assert.equal(html.includes(model.t.orderDetails), insurance === true);
+      assert.equal(html.includes('<td class="wrap info">Goods</td>'), insurance === true);
+      assert.equal(html.includes(`<th>${model.t.stt}</th>`), insurance === true);
+      assert.equal(html.includes(`<th>${model.t.metric}</th>`), insurance === true);
+      assert.equal(model.lines[0].price, insurance ? 12345 : null);
+      assert.equal(model.totals.goods, insurance ? 24690 : null);
+      assert.equal(model.extraCurrencies.length, insurance ? 1 : 0);
+      assert.equal(model.freight.total, 120);
+      if (!insurance) assert.doesNotMatch(html, /24[.,]690|22[.,]222/);
+      const fclHtml = quoteSheetHtml({ ...sheet, shippingMode: "SEA", logisticsClass: "FCL", notes: { ...sheet.notes, fcl: fclQuoteSchema.parse({ charges: [] }) } });
+      assert.equal(fclHtml.includes(model.t.unitPrice), insurance === true);
+      assert.equal(fclHtml.includes(model.t.lineTotal), insurance === true);
+      assert.equal(fclHtml.includes(model.t.orderDetails), insurance === true);
+      assert.equal(fclHtml.includes('<td class="wrap info">Goods</td>'), insurance === true);
+      const sourcingSheet = quoteSheetInputOf({ ...source, ...source.customer, customerKind: "SOURCING" }, { ...order, insurance }, lang);
+      const sourcingHtml = quoteSheetHtml(sourcingSheet);
+      assert.ok(sourcingHtml.includes(model.t.orderDetails));
+      assert.ok(sourcingHtml.includes('<td class="wrap info">Goods</td>'));
+    }
+  }
+  assert.equal(buildQuoteSheet(quoteSheetInputOf({ ...source, ...source.customer, customerKind: "SOURCING" }, order)).showPricing, true);
+});
+
 test("manual Sale kg reaches printed freight and packaged lines take priority", () => {
   const source = input({ freight: { ...emptyQuoteFreight, basis: "kg", rate: 12 } });
   source.lines = [{ stt: "1", productName: "Goods", quantity: 2, weightKg: 25, packages: [], spec: "", note: "", image: "", images: [],
@@ -28,6 +65,18 @@ test("manual Sale kg reaches printed freight and packaged lines take priority", 
   model = buildQuoteSheet(source);
   assert.equal(model.freight.chargeableKg, 20);
   assert.equal(model.freight.total, 240);
+});
+
+test("uninsured goods hide prices in Excel and keep a legacy shipping total in print", async () => {
+  const { buildQuoteWorkbook } = await import("./quote-excel");
+  for (const showPricing of [false, true]) {
+    const sheet = { ...input({ shippingLabel: "987" }), showPricing };
+    const workbook = await buildQuoteWorkbook(sheet);
+    const ws = workbook.worksheets[0];
+    assert.equal(Boolean(ws.getColumn(7).hidden), !showPricing);
+    assert.equal(Boolean(ws.getColumn(8).hidden), !showPricing);
+    assert.match(quoteSheetHtml(sheet), /987/);
+  }
 });
 
 test("print shows freight in the final logistics total with its currency", () => {

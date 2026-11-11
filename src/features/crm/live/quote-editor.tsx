@@ -1,6 +1,6 @@
 "use client";
 
-import { shippingNoteKeys, shippingNoteText, type ShippingNoteKey } from "@speego/shared";
+import { shippingNoteKeys, shippingNoteText, withInsuranceCurrency, type ShippingNoteKey } from "@speego/shared";
 import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -1901,6 +1901,14 @@ function OrderDraftDialog({
             <QuoteSheetPreview html={previewHtml} title={`Xem trước ${order.name || quoteCode}`} />
           ) : (
             <>
+              {pureLogistics && (
+                <Field label="Bảo hiểm" htmlFor={fieldId("order-insurance")}>
+                  <NativeSelect id={fieldId("order-insurance")} value={order.insurance === true ? "yes" : "no"} disabled={!canEditContent} onChange={(event) => commitOrder({ ...orderRef.current, insurance: event.target.value === "yes" })}>
+                    <option value="no">Không</option>
+                    <option value="yes">Có</option>
+                  </NativeSelect>
+                </Field>
+              )}
               {!pureLogistics && !sourcingSale && (
                 <div className="flex flex-wrap items-center gap-2">
                     <PriceColumnPicker
@@ -1914,7 +1922,7 @@ function OrderDraftDialog({
               <OrderLines
                 lang={printLang}
                 shippingMode={shippingMode}
-                showPricing={!pureLogistics && !sourcingSale}
+                showPricing={!sourcingSale && (!pureLogistics || (order.insurance === true && canEditOrderPrices))}
                 lines={order.lines}
                 currency={order.currency}
                 columns={columnsFor(order)}
@@ -2268,6 +2276,7 @@ export function QuoteEditor({
   };
 
   const payloadFor = (nextOrders: QuoteOrder[]): UpdateQuoteInput | null => {
+    if (canEditLogisticsFees) nextOrders = withInsuranceCurrency(nextOrders, { ...lead, notes: notesRef.current });
     const parsed = updateQuoteSchema.safeParse({
       templateId: templateId || null,
       opsNote,
@@ -2346,7 +2355,7 @@ export function QuoteEditor({
     quoteSheetInputOf(quoteWithLogisticsCosts(
       { ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank },
       desk === "sourcing" ? quote.logisticsSheet?.sentQuote : null,
-    ), order, lang, issuedOn);
+    ), withInsuranceCurrency([order], { ...lead, notes })[0], lang, issuedOn);
 
   const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
 
@@ -2461,7 +2470,8 @@ export function QuoteEditor({
   };
 
 
-  const priceColumns = listPriceColumns(orders);
+  const pricedOrders = pureLogistics ? withInsuranceCurrency(orders, { ...lead, notes }).filter((order) => order.insurance === true) : orders;
+  const priceColumns = pricedOrders.length === 0 && pureLogistics ? [] : listPriceColumns(pricedOrders);
   const showSourcingLineColumns = desk === "sourcing" && !sourcingSale;
   const defaultTab = pureLogistics ? (canPriceAsLogistics ? "logistics" : "sale") : saleFill ? "sale" : desk === "sourcing" ? "sourcing" : desk === "logistics" ? "logistics" : "sale";
   const [tab, setTab] = useState(defaultTab);
@@ -3003,6 +3013,7 @@ export function QuoteEditor({
                         )}
                         {!sourcingSale && <td className="whitespace-nowrap px-3 py-2 font-medium">{columnsFor(order).map((column) => column.currency).join(" · ")}</td>}
                         {!sourcingSale && priceColumns.map((column) => {
+                          if (pureLogistics && order.insurance !== true) return <td key={`price-${column.currency}`} />;
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`price-${column.currency}`} className="whitespace-nowrap px-3 py-2">
@@ -3019,6 +3030,7 @@ export function QuoteEditor({
                           );
                         })}
                         {!sourcingSale && priceColumns.map((column) => {
+                          if (pureLogistics && order.insurance !== true) return <td key={`total-${column.currency}`} />;
                           const amounts = columnAmounts(order, column.currency);
                           return (
                             <td key={`total-${column.currency}`} className="whitespace-nowrap px-3 py-2 text-right">
@@ -3225,18 +3237,17 @@ export function QuoteEditor({
             order={selectedOrder}
             lang={printLang}
             layout={desk === "logistics" ? "pricing" : "classic"}
-          >
-          {/* Bàn Logistics không còn nhập đơn giá trên thông tin đơn hàng có sẵn: ẩn khối này (bàn Sourcing giữ nguyên). */}
-          {desk !== "logistics" && mode === "full" && orders.length > 0 && (quote.customerKind !== "LOGISTICS" || canPriceAsLogistics) && (
+          />}
+          {mode === "full" && pricedOrders.length > 0 && (pureLogistics ? canPriceAsLogistics : desk !== "logistics") && (
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
               <p className="text-sm text-muted-foreground">
                 {pureLogistics ? "Sale chỉ nhập thông tin đơn hàng; Logistics nhập đơn giá và thành tiền." : "Hàng hóa do Sale/Sourcing cung cấp."} Chọn tỷ giá (loại tiền), áp dụng cho mọi dòng; chọn cách tính giá theo đơn vị, kg, m2, CBM hoặc trọn gói; đơn giá nhập thế nào thì dùng thế đó, không quy đổi.
               </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <PriceColumnPicker orders={orders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => selectRateColumn(order, currency)))}
-                  onRate={(rate) => setOrders((current) => current.map((order) => ({ ...order, rate })))} />
-              </div>
+              {!pureLogistics && <div className="flex flex-wrap items-center gap-2">
+                <PriceColumnPicker orders={pricedOrders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => pureLogistics && order.insurance !== true ? order : selectRateColumn(order, currency)))}
+                  onRate={(rate) => setOrders((current) => current.map((order) => pureLogistics && order.insurance !== true ? order : { ...order, rate }))} />
+              </div>}
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
                   <thead>
@@ -3254,7 +3265,7 @@ export function QuoteEditor({
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.flatMap((order) => order.lines.map((line, index) => (
+                    {pricedOrders.flatMap((order) => order.lines.map((line, index) => (
                       <tr key={`${order.id}-${index}`} className="border-b last:border-0">
                         <td className="whitespace-nowrap px-3 py-2">{index === 0 ? order.name || "Đơn hàng" : ""}</td>
                         <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
@@ -3280,7 +3291,7 @@ export function QuoteEditor({
                                 aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`}
                                 value={amount.price}
                                 onValueChange={(pricePerSet) => setOrders((current) => current.map((item) => item.id === order.id
-                                  ? { ...item, lines: item.lines.map((row, lineIndex) => lineIndex === index ? withCurrencyPrice(row, item.currency, column.currency, pricePerSet) : row) }
+                                  ? { ...item, lines: item.lines.map((row, lineIndex) => lineIndex === index ? withCurrencyPrice(row, order.currency, column.currency, pricePerSet) : row) }
                                   : item))}
                               />
                             </td>
@@ -3328,7 +3339,6 @@ export function QuoteEditor({
             </section>
           )}
 
-          </LogisticsFeesEditor>}
           <QuotePaymentEditor
             payment={notes.payment}
             bank={bank}

@@ -102,6 +102,9 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
   for (const code of model.extraCurrencies) cols.push({ key: `price-${code}`, width: 14 }, { key: `total-${code}`, width: 16 });
   cols.push({ key: "spec", width: 34 }, { key: "note", width: 34 });
   cols.forEach((col, index) => { ws.getColumn(index + 1).width = col.width; });
+  if (!model.showPricing) {
+    for (const key of ["price", "total"]) ws.getColumn(cols.findIndex((col) => col.key === key) + 1).hidden = true;
+  }
   const colOf = (key: string) => cols.findIndex((col) => col.key === key) + 1;
   const last = cols.length;
   const letter = (key: string) => ws.getColumn(colOf(key)).letter;

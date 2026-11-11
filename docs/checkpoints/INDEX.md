@@ -32,3 +32,5 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 [Cách ghi và cập nhật checkpoint](README.md) — chỉ đọc khi cần tạo hoặc cập nhật ghi chú.
 
 [README dự án](../../README.md) — điểm bắt đầu cho setup và tài liệu hiện có.
+
+- Bảo hiểm hàng thuần Logistics Có/Không, giá trị hàng Sale khai báo, Mess → báo giá và bản in: [Sale → vận hành](crm/sale-operations-data-flow.md#bảo-hiểm-hàng-thuần-logistics--2026-11-11), nền `b11afdf`, nhánh `feat/logistics-insurance`, 2026-11-11; chưa deploy.

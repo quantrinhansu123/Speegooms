@@ -11,7 +11,7 @@ import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-poli
 import { accountingContractSchema, createContractSchema, createMessageSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, quoteVndAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
-import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, type PublicUser, type QuoteDesk } from "@speego/shared";
+import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, withInsuranceCurrency, type PublicUser, type QuoteDesk } from "@speego/shared";
 import { orderPackageMetrics } from "../../../src/services/crm/quote-lines";
 
 test("conversion requires complete potential information, including logistics fields", () => {
@@ -336,6 +336,73 @@ const handoffInput = () => updateQuoteSchema.parse({
       weightKg: 20, cbm: 0.4, unit: "thùng", basis: "unit", spec: "Kích thước sản phẩm", note: "Không xếp chồng",
       attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
+});
+
+test("Sale only chooses insurance; Logistics owns prices, currency and exchange rate", () => {
+  const stored = handoffInput();
+  const current = { ...stored, customerKind: "LOGISTICS" } as unknown as QuoteRecord;
+  for (const insurance of [true, false]) {
+    const input = structuredClone(stored);
+    Object.assign(input.orders[0], { insurance, currency: "USD", rate: 25000 });
+    Object.assign(input.orders[0].lines[0], { pricePerSet: 12, lineTotal: 144 });
+    let saved = preserveQuotePrices(current, input);
+    assert.equal(saved.orders[0].insurance, insurance);
+    assert.equal(saved.orders[0].currency, "VND");
+    assert.equal(saved.orders[0].rate, null);
+    assert.equal(saved.orders[0].lines[0].pricePerSet, 500);
+    assert.equal(saved.orders[0].lines[0].lineTotal, 6000);
+    saved = preserveQuotePrices({ ...current, orders: [] }, input);
+    assert.equal(saved.orders[0].currency, "VND");
+    assert.equal(saved.orders[0].rate, null);
+    assert.equal(saved.orders[0].lines[0].pricePerSet, null);
+    assert.equal(saved.orders[0].lines[0].lineTotal, null);
+  }
+  current.orders[0].insurance = true;
+  const input = structuredClone(stored);
+  Object.assign(input.orders[0], { currency: "EUR", rate: 999 });
+  Object.assign(input.notes.freight, { currency: "USD", vndRate: 25000 });
+  const priced = quoteDeskPatch("logistics", current, input);
+  assert.equal(priced.orders[0].insurance, true);
+  assert.equal(priced.orders[0].currency, "USD");
+  assert.equal(priced.orders[0].rate, 25000);
+});
+
+test("insured Logistics values survive reopening Mess from the linked quote on both lanes", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const order = { ...handoffInput().orders[0], insurance: true, currency: "USD", rate: 25000 };
+    const repository = new PostgresCrmRepository({
+      query: async () => ({ rows: [{ received_at: new Date(), demand: "SHIPPING", order_lines: [order] }] }),
+    } as unknown as pg.Pool);
+    const [message] = await repository.listMessages(lane, { q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
+    assert.equal(message.order?.insurance, true);
+    assert.equal(message.order?.currency, "USD");
+    assert.equal(message.order?.rate, 25000);
+    assert.equal(message.order?.lines[0].pricePerSet, 500);
+    assert.equal(message.order?.lines[0].lineTotal, 6000);
+  }
+});
+
+test("insured pure Logistics shares freight currency and VND rate while other orders stay unchanged", () => {
+  const input = handoffInput();
+  input.orders[0].insurance = true;
+  const source = { customerKind: "LOGISTICS", shippingMode: "AIR", logisticsClass: null as string | null, notes: input.notes };
+  Object.assign(input.notes.freight, { currency: "USD", vndRate: 25000 });
+  let order = withInsuranceCurrency(input.orders, source)[0];
+  assert.equal(order.currency, "USD");
+  assert.equal(order.rate, 25000);
+  assert.equal(order.lines[0].pricePerSet, 500);
+  assert.equal(order.lines[0].lineTotal, 6000);
+  input.notes.freight.currency = "VND";
+  order = withInsuranceCurrency(input.orders, source)[0];
+  assert.equal(order.currency, "VND");
+  assert.equal(order.rate, null);
+  input.notes.payment = { quoteCurrency: "AUD", currency: "AUD", exchangeRate: null };
+  order = withInsuranceCurrency(input.orders, { ...source, shippingMode: "SEA", logisticsClass: "FCL" })[0];
+  assert.equal(order.currency, "AUD");
+  assert.equal(order.rate, 25000);
+  assert.equal(withInsuranceCurrency(input.orders, { ...source, customerKind: "SOURCING" }), input.orders);
+  input.orders[0].insurance = false;
+  assert.equal(withInsuranceCurrency(input.orders, source)[0], input.orders[0]);
 });
 
 test("FCL shipment edits from Sale preserve Logistics charges", async () => {

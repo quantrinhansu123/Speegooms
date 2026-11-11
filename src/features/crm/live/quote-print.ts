@@ -108,8 +108,7 @@ function sheetColumns(model: QuoteSheetModel): Column[] {
     { key: "image", width: 16 },
     { key: "qty", width: 7 },
     { key: "metric", width: 8 },
-    { key: "price", width: 9 },
-    { key: "total", width: 11 },
+    ...(model.showPricing ? [{ key: "price", width: 9 }, { key: "total", width: 11 }] : []),
   ];
   for (const code of model.extraCurrencies) {
     cols.push({ key: `price-${code}`, width: 8 }, { key: `total-${code}`, width: 10 });
@@ -156,6 +155,57 @@ function bankInfoBlock(lang: QuoteLang, model?: QuoteSheetModel): string {
   </section>`;
 }
 
+function quoteItemsHtml(model: QuoteSheetModel): string {
+  if (!model.showPricing) return "";
+  const { t, lang } = model;
+  const fmt = (value: number | null, digits = 2) => value == null ? "" : formatQuoteNumber(value, lang, digits);
+  const cols = sheetColumns(model);
+  const colgroup = colgroupHtml(cols);
+  const colCount = cols.length;
+  const rows = model.lines.map((line) => {
+    const images = line.images
+      .map((item) => imageSrc(item))
+      .filter(Boolean)
+      .map((src) => `<img src="${src}" alt="">`)
+      .join("");
+    const extras = line.extra.map((item) => `${numCell(fmt(item.price, 3), "")}${numCell(fmt(item.total, 3), "", "num money")}`).join("");
+    return `<tr>
+      ${cell(line.stt, "stt")}
+      ${cell(line.productName, "wrap info")}
+      <td class="image"><div class="image-stack">${images}</div></td>
+      ${numCell(fmt(line.quantity), "")}
+      ${numCell(fmt(line.metric, 3), line.metricUnit)}
+      ${model.showPricing ? `${numCell(fmt(line.price, 3), line.priceUnit)}${numCell(fmt(line.total, 3), "", "num money")}` : ""}
+      ${extras}
+      ${cell(line.spec, "wrap info")}
+      ${cell(line.note, "wrap info")}
+    </tr>`;
+  }).join("");
+
+  return `  <h2 class="banner">${escapeHtml(t.orderDetails)}</h2>
+
+  <table class="items">
+    ${colgroup}
+    <thead>
+      <tr>
+        <th>${escapeHtml(t.stt)}</th>
+        <th>${escapeHtml(t.product)}</th>
+        <th>${escapeHtml(t.image)}</th>
+        <th>${escapeHtml(model.quantityUnit ? `${t.quantity} (${model.quantityUnit})` : t.quantity)}</th>
+        <th>${escapeHtml(t.metric)}</th>
+        ${model.showPricing ? `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>` : ""}
+        ${model.extraCurrencies.map((code) => `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(code)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(code)})</span></th>`).join("")}
+        <th>${escapeHtml(t.spec)}</th>
+        <th>${escapeHtml(t.note)}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="${colCount}" class="empty">${escapeHtml(t.empty)}</td></tr>`}
+    </tbody>
+  </table>
+`;
+}
+
 export function quoteSheetHtml(input: QuoteSheetInput & {
   logoUrl?: string;
   /** Chỉ thông tin khách hàng và bảng chi tiết đơn hàng, dùng cho màn hình theo dõi. */
@@ -172,27 +222,6 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const colgroup = colgroupHtml(cols);
   const colCount = cols.length;
 
-  const rows = model.lines.map((line) => {
-    const images = line.images
-      .map((item) => imageSrc(item))
-      .filter(Boolean)
-      .map((src) => `<img src="${src}" alt="">`)
-      .join("");
-    const extras = line.extra.map((item) => `${numCell(fmt(item.price, 3), "")}${numCell(fmt(item.total, 3), "", "num money")}`).join("");
-    return `<tr>
-      ${cell(line.stt, "stt")}
-      ${cell(line.productName, "wrap info")}
-      <td class="image"><div class="image-stack">${images}</div></td>
-      ${numCell(fmt(line.quantity), "")}
-      ${numCell(fmt(line.metric, 3), line.metricUnit)}
-      ${numCell(fmt(line.price, 3), line.priceUnit)}
-      ${numCell(fmt(line.total, 3), "", "num money")}
-      ${extras}
-      ${cell(line.spec, "wrap info")}
-      ${cell(line.note, "wrap info")}
-    </tr>`;
-  }).join("");
-
   const metaRows: [string, string][] = [
     [t.quoteNo, model.meta.code],
     [t.issuedOn, displayDate(model.meta.issuedOn)],
@@ -204,12 +233,12 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
 
   /** Dòng tổng: nhãn | tổng CBM (cột Kg/CBM/m2) | trống (đơn giá) | thành tiền | tiền thêm | quy cách | note. */
   const summaryRow = (label: string, values: { total?: string; extra?: Record<string, string>; cbm?: string }, note = "") => {
+    if (!model.showPricing && values.total) return `<tr><td class="sum-label" colspan="${colCount - 1}">${escapeHtml(label)}</td><td class="sum-value">${values.total}</td></tr>`;
     const extraCells = model.extraCurrencies.map((code) => `<td class="sum-gap"></td><td class="sum-value">${values.extra?.[code] ?? ""}</td>`).join("");
     return `<tr>
       <td class="sum-label" colspan="4">${escapeHtml(label)}</td>
       <td class="sum-value">${values.cbm ?? ""}</td>
-      <td></td>
-      <td class="sum-value">${values.total ?? ""}</td>
+      ${model.showPricing ? `<td></td><td class="sum-value">${values.total ?? ""}</td>` : ""}
       ${extraCells}
       <td class="sum-spec"></td>
       <td class="sum-note">${note ? escapeHtml(note).replaceAll("\n", "<br>") : ""}</td>
@@ -281,12 +310,11 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${freightNotes}
   </section>`;
 
-  const blankAfterTotal = colCount - COLUMNS_BEFORE_TOTAL - 1;
+  const blankAfterTotal = model.showPricing ? colCount - COLUMNS_BEFORE_TOTAL - 1 : colCount - 5;
   const depositRows = model.deposit.map((line, index) => `<tr>
     <td class="dep-label" colspan="4">${escapeHtml(line)}</td>
     <td></td>
-    <td></td>
-    <td class="dep-value">${index === 0 && model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : ""}</td>
+    ${model.showPricing ? `<td></td><td class="dep-value">${index === 0 && model.totals.goods != null ? numRow(fmt(model.totals.goods), "") : ""}</td>` : ""}
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
 
@@ -312,28 +340,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${customerTable}
   </section>
 
-  <h2 class="banner">${escapeHtml(t.orderDetails)}</h2>
-
-  <table class="items">
-    ${colgroup}
-    <thead>
-      <tr>
-        <th>${escapeHtml(t.stt)}</th>
-        <th>${escapeHtml(t.product)}</th>
-        <th>${escapeHtml(t.image)}</th>
-        <th>${escapeHtml(model.quantityUnit ? `${t.quantity} (${model.quantityUnit})` : t.quantity)}</th>
-        <th>${escapeHtml(t.metric)}</th>
-        <th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
-        <th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(model.currency)})</span></th>
-        ${model.extraCurrencies.map((code) => `<th>${escapeHtml(t.unitPrice)}<br><span class="th-sub">(${escapeHtml(code)})</span></th><th>${escapeHtml(t.lineTotal)}<br><span class="th-sub">(${escapeHtml(code)})</span></th>`).join("")}
-        <th>${escapeHtml(t.spec)}</th>
-        <th>${escapeHtml(t.note)}</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows || `<tr><td colspan="${colCount}" class="empty">${escapeHtml(t.empty)}</td></tr>`}
-    </tbody>
-  </table>
+  ${quoteItemsHtml(model)}
 
   ${summaryRows || depositRows ? `<section class="closing">
   ${summaryRows ? `<table class="summary">${colgroup}<tbody>${summaryRows}</tbody></table>` : ""}
@@ -378,6 +385,7 @@ function fclSheetHtml(input: QuoteSheetInput): string {
     <h1 class="doc-title">QUOTATION ${escapeHtml(input.code ?? "")}</h1>
     <h2 class="banner">SHIPMENT INFORMATION</h2>
     <table class="items"><tbody>${fields.map(([label, value]) => `<tr><th style="text-align:left;width:30%">${escapeHtml(label)}</th>${cell(value)}</tr>`).join("")}</tbody></table>
+    ${model.lines.length > 0 ? quoteItemsHtml(model) : ""}
     <h2 class="banner">QUOTATION · ${currency}</h2>
     <table class="items"><thead><tr><th>OR.</th><th>NAME</th><th>UNIT RATE</th><th>QUANTITY</th><th>UNIT</th><th>VAT 8% (${currency})</th><th>TOTAL</th><th>NOTE</th></tr></thead>
     <tbody>${fcl.charges.map((row, index) => `<tr>${cell(index + 1)}${cell(row.name)}${cell(fmt(row.rate))}${cell(row.quantity ?? "")}${cell(row.unit)}${cell(fmt(row.vatAmount))}${cell(fmt(fclChargeTotal(row)))}${cell(row.note)}</tr>`).join("")}</tbody></table>

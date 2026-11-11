@@ -150,8 +150,8 @@ export function useMessConvert({
         if (!body) return true;
         setConverting(null);
         const desk = body.desk ?? (row.demand === "SHIPPING" ? "logistics" : "sourcing");
-        // Hàng biển FCL dùng form cước riêng nên không đưa nháp đơn hàng sang.
-        const skipDraft = mode === "SEA" && logisticsClass === "FCL";
+        // FCL dùng form cước riêng; vẫn mang hàng bảo hiểm sang để giữ giá trị khai báo.
+        const skipDraft = mode === "SEA" && logisticsClass === "FCL" && order?.insurance !== true;
         const prefilled = skipDraft ? null : await prefillOrder(order, body.quote, desk, mode || null);
         setOrderDesk(desk);
         setOrderQuote(prefilled ?? body.quote);

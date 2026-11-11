@@ -23,6 +23,7 @@ export interface QuoteSheetCustomer {
 }
 
 export interface QuoteSheetInput {
+  showPricing?: boolean;
   customer: QuoteSheetCustomer;
   lines: QuoteLine[];
   shippingMode?: "AIR" | "SEA" | null;
@@ -74,6 +75,7 @@ export interface QuoteSheetFee {
 }
 
 export interface QuoteSheetModel {
+  showPricing: boolean;
   lang: QuoteLang;
   t: QuotePrintText;
   currency: string;
@@ -239,7 +241,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     return enText;
   };
   const currency = (input.currency ?? "VND").toUpperCase();
-  const extraCurrencies = [...new Set((input.priceColumns ?? []).map((column) => column.currency.toUpperCase()))]
+  const showPricing = input.showPricing !== false;
+  const extraCurrencies = [...new Set((showPricing ? input.priceColumns ?? [] : []).map((column) => column.currency.toUpperCase()))]
     .filter((code) => code !== currency)
     .slice(0, 8);
   const filled = input.lines.filter(filledLine);
@@ -254,10 +257,10 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
     unit,
     metric: metric != null && metric > 0 ? metric : null,
     metricUnit: metric != null && metric > 0 ? `${METRIC_LABEL[line.basis as keyof typeof METRIC_LABEL]}/${unit}` : "",
-    price: line.pricePerSet,
+    price: showPricing ? line.pricePerSet : null,
     priceUnit: line.pricePerSet == null ? "" : priceUnitOf(line.basis, t),
     basis: line.basis,
-    total: line.lineTotal,
+    total: showPricing ? line.lineTotal : null,
     totalManual: line.lineTotalManual === true,
     extra: extraCurrencies.map((code) => {
       const price = line.prices.find((item) => item.currency.toUpperCase() === code);
@@ -331,6 +334,7 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   const labels = quoteCompanyLabels[lang];
   return {
     lang,
+    showPricing,
     t,
     currency,
     extraCurrencies,
@@ -379,11 +383,12 @@ export function quoteItemFeeLabel(lang: QuoteLang, stt: string, spec: string | u
 }
 
 /** Bản ghi báo giá (hoặc bản nháp trong editor) đủ thông tin để dựng bản in. */
-export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank; shippingMode?: "AIR" | "SEA" | null; logisticsClass?: string | null };
+export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank; customerKind?: string | null; shippingMode?: "AIR" | "SEA" | null; logisticsClass?: string | null };
 
 export function quoteSheetInputOf(source: QuoteSheetSource, order: QuoteOrder, lang?: QuoteLang, issuedOn?: string | null): QuoteSheetInput {
   return {
     customer: source,
+    showPricing: source.customerKind !== "LOGISTICS" || order.insurance === true,
     lines: order.lines,
     shippingMode: source.shippingMode,
     logisticsClass: source.logisticsClass,
