@@ -1902,7 +1902,7 @@ function OrderDraftDialog({
           ) : (
             <>
               {pureLogistics && (
-                <Field label="Bảo hiểm" htmlFor={fieldId("order-insurance")}>
+                <Field label="Bảo hiểm" htmlFor={fieldId("order-insurance")} hint={order.insurance === true ? "Nhập đơn giá và thành tiền từng sản phẩm ở các cột bên phải bảng (kéo ngang để xem)." : undefined}>
                   <NativeSelect id={fieldId("order-insurance")} value={order.insurance === true ? "yes" : "no"} disabled={!canEditContent} onChange={(event) => commitOrder({ ...orderRef.current, insurance: event.target.value === "yes" })}>
                     <option value="no">Không</option>
                     <option value="yes">Có</option>
@@ -1922,12 +1922,12 @@ function OrderDraftDialog({
               <OrderLines
                 lang={printLang}
                 shippingMode={shippingMode}
-                showPricing={!sourcingSale && (!pureLogistics || (order.insurance === true && canEditOrderPrices))}
+                showPricing={!sourcingSale && (!pureLogistics || order.insurance === true)}
                 lines={order.lines}
                 currency={order.currency}
                 columns={columnsFor(order)}
                 canEditContent={canEditContent}
-                canEditPricing={canEditOrderPrices}
+                canEditPricing={pureLogistics && order.insurance === true ? canEditContent : canEditOrderPrices}
                 brief={sourcingSale}
                 pureLogistics={pureLogistics}
                 packagingRequired={!sourcingSale && !packagesOptional && (saleLogisticsOrder || showPackaging)}
@@ -3242,7 +3242,7 @@ export function QuoteEditor({
             <section className="grid gap-3 rounded-xl border p-4">
               <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
               <p className="text-sm text-muted-foreground">
-                {pureLogistics ? "Sale chỉ nhập thông tin đơn hàng; Logistics nhập đơn giá và thành tiền." : "Hàng hóa do Sale/Sourcing cung cấp."} Chọn tỷ giá (loại tiền), áp dụng cho mọi dòng; chọn cách tính giá theo đơn vị, kg, m2, CBM hoặc trọn gói; đơn giá nhập thế nào thì dùng thế đó, không quy đổi.
+                {pureLogistics ? "Đơn giá và thành tiền hàng bảo hiểm do Sale nhập trên Mess; dùng chung loại tiền và tỷ giá với cước." : "Hàng hóa do Sale/Sourcing cung cấp. Chọn loại tiền, tỷ giá và cách tính giá cho từng dòng."}
               </p>
               {!pureLogistics && <div className="flex flex-wrap items-center gap-2">
                 <PriceColumnPicker orders={pricedOrders} disabled={pending} onSelect={(currency) => setOrders((current) => current.map((order) => pureLogistics && order.insurance !== true ? order : selectRateColumn(order, currency)))}
@@ -3270,13 +3270,13 @@ export function QuoteEditor({
                         <td className="whitespace-nowrap px-3 py-2">{index === 0 ? order.name || "Đơn hàng" : ""}</td>
                         <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
                         <td className="px-3 py-2">
-                          <NativeSelect className="h-8 w-36 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={pending} onChange={(event) => patchOrderLine(order.id, index, { basis: event.target.value as PricingBasis })}>
+                          <NativeSelect className="h-8 w-36 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={pending || pureLogistics} onChange={(event) => patchOrderLine(order.id, index, { basis: event.target.value as PricingBasis })}>
                             {selectablePricingBases(line.basis).map((b) => <option key={b} value={b}>{pricingBasisLabels[b]}</option>)}
                           </NativeSelect>
                         </td>
                         <td className="px-3 py-2">
                           {line.basis in basisMetric ? (
-                            <BasisMetricInput className="h-8 w-24" line={line} index={index} disabled={pending} onChange={(patch) => patchOrderLine(order.id, index, patch)} />
+                            <BasisMetricInput className="h-8 w-24" line={line} index={index} disabled={pending || pureLogistics} onChange={(patch) => patchOrderLine(order.id, index, patch)} />
                           ) : (
                             <span className="text-muted-foreground">{line.basis === "unit" ? (line.quantity ?? "—") : "—"}</span>
                           )}
@@ -3290,6 +3290,7 @@ export function QuoteEditor({
                                 fractionDigits={3}
                                 aria-label={`Đơn giá ${column.currency} dòng ${index + 1}`}
                                 value={amount.price}
+                                disabled={pending || pureLogistics}
                                 onValueChange={(pricePerSet) => setOrders((current) => current.map((item) => item.id === order.id
                                   ? { ...item, lines: item.lines.map((row, lineIndex) => lineIndex === index ? withCurrencyPrice(row, order.currency, column.currency, pricePerSet) : row) }
                                   : item))}
@@ -3306,7 +3307,7 @@ export function QuoteEditor({
                                 fractionDigits={3}
                                 aria-label={`Thành tiền ${column.currency} dòng ${index + 1}`}
                                 value={amount.total}
-                                disabled={pending}
+                                disabled={pending || pureLogistics}
                                 onValueChange={(lineTotal) => {
                                   const formula = lineAmount({ basis: line.basis, quantity: line.quantity, price: amount.price, weightKg: line.weightKg, cbm: line.cbm, areaM2: line.areaM2 });
                                   const manual = lineTotal !== formula;
@@ -3318,7 +3319,7 @@ export function QuoteEditor({
                                   patchOrderLine(order.id, index, { prices });
                                 }}
                               />
-                              {amount.totalManual && (
+                              {amount.totalManual && !pureLogistics && (
                                 <button type="button" className="text-[11px] text-primary underline" onClick={() => {
                                   if (column.currency === order.currency) patchOrderLine(order.id, index, { lineTotalManual: false });
                                   else {

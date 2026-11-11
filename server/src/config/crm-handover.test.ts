@@ -39,11 +39,15 @@ test("Mess insurance edits preserve contact entered during conversion on both la
         await pool.query(`update crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} set thu_dien_tu = $2 where id = $1`, [potentialId, "contact@example.invalid"]);
         const requested = await repo.requestQuote(lane, potentialId);
         assert.ok(typeof requested === "object");
-        const saved = await repo.updateMessage(lane, message.id, updateMessageSchema.parse({ ...input, order: { ...order, insurance: true } }));
+        const saved = await repo.updateMessage(lane, message.id, updateMessageSchema.parse({ ...input, order: { ...order, insurance: true,
+          lines: order.lines.map((line) => ({ ...line, pricePerSet: 150, lineTotal: 350, lineTotalManual: true })) } }));
         assert.equal(saved?.order?.insurance, true);
+        assert.equal(saved?.order?.lines[0].pricePerSet, 150);
+        assert.equal(saved?.order?.lines[0].lineTotal, 350);
         let lead = await pool.query(`select so_dien_thoai, thu_dien_tu from crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} where id = $1`, [potentialId]);
         assert.deepEqual(lead.rows[0], { so_dien_thoai: "0900000000", thu_dien_tu: "contact@example.invalid" });
         assert.equal((await repo.findQuote(lane, "logistics", requested.quote.id))?.orders[0].insurance, true);
+        assert.equal((await repo.findQuote(lane, "logistics", requested.quote.id))?.orders[0].lines[0].lineTotal, 350);
         await repo.updateMessage(lane, message.id, updateMessageSchema.parse({ ...input, phone: "0911111111", email: "updated@example.invalid" }));
         lead = await pool.query(`select so_dien_thoai, thu_dien_tu from crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} where id = $1`, [potentialId]);
         assert.deepEqual(lead.rows[0], { so_dien_thoai: "0911111111", thu_dien_tu: "updated@example.invalid" });

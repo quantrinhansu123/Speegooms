@@ -338,7 +338,7 @@ const handoffInput = () => updateQuoteSchema.parse({
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
-test("Sale only chooses insurance; Logistics owns prices, currency and exchange rate", () => {
+test("Sale enters insured Logistics values; Logistics owns currency and exchange rate", () => {
   const stored = handoffInput();
   const current = { ...stored, customerKind: "LOGISTICS" } as unknown as QuoteRecord;
   for (const insurance of [true, false]) {
@@ -349,22 +349,27 @@ test("Sale only chooses insurance; Logistics owns prices, currency and exchange 
     assert.equal(saved.orders[0].insurance, insurance);
     assert.equal(saved.orders[0].currency, "VND");
     assert.equal(saved.orders[0].rate, null);
-    assert.equal(saved.orders[0].lines[0].pricePerSet, 500);
-    assert.equal(saved.orders[0].lines[0].lineTotal, 6000);
+    assert.equal(saved.orders[0].lines[0].pricePerSet, insurance ? 12 : 500);
+    assert.equal(saved.orders[0].lines[0].lineTotal, insurance ? 144 : 6000);
     saved = preserveQuotePrices({ ...current, orders: [] }, input);
     assert.equal(saved.orders[0].currency, "VND");
     assert.equal(saved.orders[0].rate, null);
-    assert.equal(saved.orders[0].lines[0].pricePerSet, null);
-    assert.equal(saved.orders[0].lines[0].lineTotal, null);
+    assert.equal(saved.orders[0].lines[0].pricePerSet, insurance ? 12 : null);
+    assert.equal(saved.orders[0].lines[0].lineTotal, insurance ? 144 : null);
+    const sourcing = preserveQuotePrices({ ...current, customerKind: "SOURCING" }, input);
+    assert.equal(sourcing.orders[0].lines[0].pricePerSet, 500);
   }
   current.orders[0].insurance = true;
   const input = structuredClone(stored);
   Object.assign(input.orders[0], { currency: "EUR", rate: 999 });
+  Object.assign(input.orders[0].lines[0], { pricePerSet: 999, lineTotal: 9999 });
   Object.assign(input.notes.freight, { currency: "USD", vndRate: 25000 });
   const priced = quoteDeskPatch("logistics", current, input);
   assert.equal(priced.orders[0].insurance, true);
   assert.equal(priced.orders[0].currency, "USD");
   assert.equal(priced.orders[0].rate, 25000);
+  assert.equal(priced.orders[0].lines[0].pricePerSet, 500);
+  assert.equal(priced.orders[0].lines[0].lineTotal, 6000);
 });
 
 test("insured Logistics values survive reopening Mess from the linked quote on both lanes", async () => {

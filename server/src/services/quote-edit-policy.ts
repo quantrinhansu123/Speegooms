@@ -4,6 +4,7 @@ import type { QuoteRecord } from "../repositories/crm.repository";
 /**
  * Logistics giữ hàng hóa của Sale/Sourcing, chỉ nhận đơn giá, cách tính giá và cột tiền vận hành nhập.
  * Khách thuần logistics: Logistics định giá nên được chỉnh cả số kg/m2/CBM dùng để nhân với đơn giá.
+ * Riêng giá trị hàng bảo hiểm do Sale nhập, Logistics giữ nguyên khi lưu cước.
  */
 function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner = false): QuoteOrder[] {
   if (input.length === 0) return current;
@@ -19,13 +20,14 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner
       lines: previous.lines.map((line, index) => {
         const next = order.lines.find((item) => item.stt === line.stt) ?? order.lines[index];
         if (!next) return line;
+        const price = pricesOwner && previous.insurance === true ? line : next;
         return {
           ...line,
-          pricePerSet: next.pricePerSet,
-          lineTotal: next.lineTotal,
-          lineTotalManual: next.lineTotalManual === true,
-          prices: next.prices ?? [],
-          basis: next.basis,
+          pricePerSet: price.pricePerSet,
+          lineTotal: price.lineTotal,
+          lineTotalManual: price.lineTotalManual === true,
+          prices: price.prices ?? [],
+          basis: price.basis,
           ...(pricesOwner ? { weightKg: next.weightKg, areaM2: next.areaM2, cbm: next.cbm } : {}),
         };
       }),
@@ -33,7 +35,7 @@ function logisticsOrders(current: QuoteOrder[], input: QuoteOrder[], pricesOwner
   });
 }
 
-/** Sale chọn bảo hiểm và sửa nội dung hàng; vận hành giữ đơn giá, loại tiền và tỷ giá. */
+/** Sale nhập giá trị hàng bảo hiểm thuần Logistics; vận hành giữ loại tiền, tỷ giá và giá hàng Sourcing. */
 export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInput): UpdateQuoteInput {
   const orders = input.orders.map((order) => {
     const previous = current.orders.find((item) => item.id === order.id);
@@ -45,6 +47,7 @@ export function preserveQuotePrices(current: QuoteRecord, input: UpdateQuoteInpu
       priceColumns: previous ? previous.priceColumns : [],
       lines: order.lines.map((line, index) => {
         const previousLine = previous?.lines.find((item) => item.stt === line.stt) ?? previous?.lines[index];
+        if (current.customerKind === "LOGISTICS" && order.insurance === true) return { ...line, prices: previousLine?.prices ?? [] };
         const packaging = isCombinedSourcing(current)
           ? { packages: previousLine?.packages ?? [], cbm: previousLine?.cbm ?? null }
           : {};
