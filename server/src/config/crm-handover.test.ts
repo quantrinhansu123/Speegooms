@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import pg from "pg";
-import { canHandleCrm, convertMessageSchema, createMessageSchema, updateMessageSchema, updatePotentialSchema, type PublicUser } from "@speego/shared";
+import { canHandleCrm, convertMessageSchema, createMessageSchema, quoteOrderSchema, updateMessageSchema, updatePotentialSchema, type PublicUser } from "@speego/shared";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { crmActor } from "../lib/crm-actor";
 import { createApp } from "../app";
@@ -18,6 +18,41 @@ test("CRM handover gives the receiving Sale write access and keeps other desks' 
   assert.equal(canHandleCrm({ id: "admin", role: "admin" }, record), true);
   assert.equal(canHandleCrm({ id: "sourcing", role: "sourcing" }, record), true);
   assert.equal(canHandleCrm({ id: "sale-a", role: "sale-global" }, {}), true);
+});
+
+test("Mess insurance edits preserve contact entered during conversion on both lanes", { skip: !process.env.CRM_HANDOVER_TEST_URL }, async () => {
+  const url = new URL(process.env.CRM_HANDOVER_TEST_URL!);
+  assert.ok(["localhost", "127.0.0.1"].includes(url.hostname));
+  const pool = new pg.Pool({ connectionString: url.toString() });
+  const repo = new PostgresCrmRepository(pool);
+  try {
+    for (const lane of ["vn", "global"] as const) {
+      const order = quoteOrderSchema.parse({ id: randomUUID(), name: "Insurance regression", selected: true, insurance: false,
+        lines: [{ stt: "1", productName: "Goods", quantity: 2, pricePerSet: null, lineTotal: null, weightKg: 1, spec: "", note: "" }] });
+      const input = createMessageSchema.parse({ customerName: `TEST-INSURANCE-${randomUUID()}`, phone: "", email: "", goods: "Goods", note: "", market: "US", saleName: "Test", painPoint: "", linkMess: "", demand: "SHIPPING", brand: "LOGISTICS", order });
+      const message = await repo.createMessage(lane, input);
+      let potentialId: string | undefined;
+      try {
+        const converted = await repo.convertMessage(lane, message.id, convertMessageSchema.parse({ phone: "0900000000", email: "contact@example.invalid", brand: "LOGISTICS", customerType: "INDIVIDUAL", careChannel: "FACEBOOK", productInterest: "Goods", address: "", saleNote: "Test", requirements: "Shipping", quantityNote: "2", reason: "Customer request", shippingMode: "AIR", packageDimensions: "10x10x10", weightKg: "2", shipToAddress: "US" }));
+        assert.ok(typeof converted === "object");
+        potentialId = converted.potential.id;
+        await pool.query(`update crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} set thu_dien_tu = $2 where id = $1`, [potentialId, "contact@example.invalid"]);
+        const requested = await repo.requestQuote(lane, potentialId);
+        assert.ok(typeof requested === "object");
+        const saved = await repo.updateMessage(lane, message.id, updateMessageSchema.parse({ ...input, order: { ...order, insurance: true } }));
+        assert.equal(saved?.order?.insurance, true);
+        let lead = await pool.query(`select so_dien_thoai, thu_dien_tu from crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} where id = $1`, [potentialId]);
+        assert.deepEqual(lead.rows[0], { so_dien_thoai: "0900000000", thu_dien_tu: "contact@example.invalid" });
+        assert.equal((await repo.findQuote(lane, "logistics", requested.quote.id))?.orders[0].insurance, true);
+        await repo.updateMessage(lane, message.id, updateMessageSchema.parse({ ...input, phone: "0911111111", email: "updated@example.invalid" }));
+        lead = await pool.query(`select so_dien_thoai, thu_dien_tu from crm.khach_hang_tiem_nang_${lane === "vn" ? "viet_nam" : "global"} where id = $1`, [potentialId]);
+        assert.deepEqual(lead.rows[0], { so_dien_thoai: "0911111111", thu_dien_tu: "updated@example.invalid" });
+      } finally {
+        if (potentialId) await repo.deletePotential(lane, potentialId);
+        await repo.deleteMessage(lane, message.id);
+      }
+    }
+  } finally { await pool.end(); }
 });
 
 test("Postgres handover enforces ownership and preserves the real processor history", { skip: !process.env.CRM_HANDOVER_TEST_URL }, async () => {

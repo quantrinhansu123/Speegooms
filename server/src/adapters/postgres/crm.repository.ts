@@ -1439,8 +1439,8 @@ export class PostgresCrmRepository implements CrmRepository {
     await this.query(
       `update ${potentialTable} set
          ho_ten = $2,
-         so_dien_thoai = $3,
-         thu_dien_tu = $4,
+         so_dien_thoai = coalesce($3, so_dien_thoai),
+         thu_dien_tu = coalesce($4, thu_dien_tu),
          san_pham_quan_tam = $5,
          thuong_hieu = coalesce($6::text::crm.lead_brand, thuong_hieu)
        where ma_tin_nhan = $1::uuid and xoa_luc is null`,
