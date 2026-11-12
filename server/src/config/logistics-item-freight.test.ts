@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type pg from "pg";
-import { defaultQuoteBank, logisticsQuoteFinancials, quoteFreightTotal, quoteVndAmount, quoteVndRateError, updateQuoteSchema } from "@speego/shared";
+import { quoteMarkupPercent, quoteAmountWithMarkup, defaultQuoteBank, logisticsQuoteFinancials, quoteFreightTotal, quoteVndAmount, quoteVndRateError, updateQuoteSchema } from "@speego/shared";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 
 const draft = () => updateQuoteSchema.parse({ templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO", bank: defaultQuoteBank,
@@ -78,4 +78,27 @@ test("VND financials keep precision through currency conversion", () => {
   const sheet = draft();
   sheet.notes.logisticsFees[1].value = "60,001";
   assert.equal(quoteVndAmount(sheet, "logistics").vnd, 710004);
+});
+
+test("markup uses cost as its denominator and converts from mixed-currency financials", () => {
+  assert.equal(quoteMarkupPercent(100, 125), 25);
+  assert.equal(quoteAmountWithMarkup(100, 25), 125);
+  const financials = logisticsQuoteFinancials(draft());
+  assert.equal(quoteMarkupPercent(financials.cost, financials.revenue), 61.36);
+  assert.equal(quoteMarkupPercent(100, 80), -20);
+  assert.equal(quoteAmountWithMarkup(100, -20), 80);
+  assert.equal(quoteMarkupPercent(100, 0), -100);
+  assert.equal(quoteAmountWithMarkup(100, -100), 0);
+  assert.equal(quoteAmountWithMarkup(12.345, 12.5), 13.888);
+});
+
+test("markup rejects missing or zero cost, nonfinite values, and price overflow", () => {
+  for (const cost of [null, undefined, 0, -1, NaN, Infinity]) {
+    assert.equal(quoteMarkupPercent(cost, 100), null);
+    assert.equal(quoteAmountWithMarkup(cost, 20), null);
+  }
+  for (const revenue of [null, undefined, -1, NaN, Infinity]) assert.equal(quoteMarkupPercent(100, revenue), null);
+  for (const percent of [-101, NaN, Infinity]) assert.equal(quoteAmountWithMarkup(100, percent), null);
+  assert.equal(quoteAmountWithMarkup(1_000_000_000, 1), null);
+  assert.equal(quoteMarkupPercent(Number.MIN_VALUE, 1), null);
 });

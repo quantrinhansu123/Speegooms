@@ -45,4 +45,4 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 ## Báo giá Logistics và lợi nhuận
 
-- Đơn vị cước theo mặt hàng, chi tiết giá gốc nội bộ, quy đổi tiền và ba cột tài chính: [Cước và giá gốc Logistics](operations/logistics-freight-pricing.md), nền `0450894`, nhánh `feat/logistics-freight-tables`, 2026-11-12; chưa push/deploy.
+- Đơn vị cước theo mặt hàng, chi tiết giá gốc nội bộ, tài chính và markup theo dòng/tổng: [Cước và giá gốc Logistics](operations/logistics-freight-pricing.md), cước đã push `1652f86`; markup nguồn `feat/logistics-markup` từ `1652f86`, bàn giao `main` theo yêu cầu, 2026-11-12; chưa xác nhận deployment.

@@ -1,5 +1,6 @@
 "use client";
 import { activeLogisticsFees, quoteCurrencies, quoteMoneyValue, resolvedFreightCurrency, type QuoteNotes, type QuoteOrder } from "@speego/shared";
+import { QuoteMarkupInput } from "./quote-markup-input";
 import { NativeSelect } from "@/components/shared/form-fields";
 import { MoneyInput } from "@/components/shared/money-input";
 import { formatMoneyGrouped } from "@/lib/format";
@@ -24,7 +25,7 @@ export function FreightPricingTable({ notes, order, shippingMode, original = fal
     unit: notes.freight.basis === "cbm" ? "CBM" : notes.freight.basis === "lump" ? "gói" : "kg" });
   if (original) activeLogisticsFees(notes).filter(fee => !itemMode || !itemRows.some(row => row.key === fee.itemStt)).forEach((fee, index) => rows.push({ key: "fee-" + index, label: fee.label, fee, quantity: fee.weightKg ?? 1, unit: fee.itemStt ? "kg" : "gói" }));
   return <TableHScroll><table className="w-full min-w-[1000px] text-sm">
-    <thead><tr className="border-b text-left">{["Mặt hàng / Chi phí", "Loại tiền cước", "Tỷ giá VND", "Đơn giá cước", "Cân nặng / lượng tính cước", "Tổng tiền cước", ...(original ? ["Lợi nhuận (VND)"] : [])].map(label => <th key={label} className="px-3 py-2">{label}</th>)}</tr></thead>
+    <thead><tr className="border-b text-left">{["Mặt hàng / Chi phí", "Loại tiền cước", "Tỷ giá VND", "Đơn giá cước", "Cân nặng / lượng tính cước", "Tổng tiền cước", ...(original ? ["Markup (%)", "Lợi nhuận (VND)"] : [])].map(label => <th key={label} className="px-3 py-2">{label}</th>)}</tr></thead>
     <tbody>{rows.map(row => {
       const freightRow = row.key === "freight";
       const source = freightRow ? notes.freight : row.fee;
@@ -49,6 +50,18 @@ export function FreightPricingTable({ notes, order, shippingMode, original = fal
         if (!row.fee && notes.logisticsFees.length >= 30) return;
         onChange({ ...notes, logisticsFees: row.fee ? notes.logisticsFees.map(fee => fee === row.fee ? updated : fee) : [...notes.logisticsFees, updated] });
       };
+      const applyMarkup = (total: number) => {
+        if (freightRow) {
+          onChange({ ...notes, freight: { ...notes.freight, total, totalManual: true } });
+          return;
+        }
+        const fee: Fee = row.fee ?? { label: ("Mặt hàng " + row.label).slice(0, 120), labelEn: "", itemStt: row.key, value: "", currency: "" };
+        const saleQuantity = fee.weightKg ?? row.quantity;
+        const next = { ...fee, value: String(total).replace(".", ","),
+          ...(itemMode && fee.itemStt ? { currency: saleCode, vndRate: saleFx, weightKg: saleQuantity,
+            rate: saleQuantity != null && saleQuantity > 0 ? Math.round(total / saleQuantity * 1000) / 1000 : null } : {}) };
+        onChange({ ...notes, logisticsFees: row.fee ? notes.logisticsFees.map(item => item === row.fee ? next : item) : [...notes.logisticsFees, next] });
+      };
       const locked = disabled || (!row.fee && !freightRow && notes.logisticsFees.length >= 30);
       return <tr key={row.key} className="border-b align-middle last:border-0">
         <td className="px-3 py-2">{row.label}</td>
@@ -57,8 +70,11 @@ export function FreightPricingTable({ notes, order, shippingMode, original = fal
         <td className="px-3 py-2"><MoneyInput className="min-w-28" aria-label={"Đơn giá cước · " + row.label} value={rate} fractionDigits={3} disabled={locked} onValueChange={rate => write({ rate })} /></td>
         <td className="px-3 py-2"><div className="flex items-center gap-2"><MoneyInput className="min-w-28" aria-label={"Lượng tính cước · " + row.label} value={quantity} fractionDigits={3} disabled={locked} onValueChange={quantity => write({ quantity })} /><span className="shrink-0 text-muted-foreground">{row.unit}</span></div></td>
         <td className="px-3 py-2"><MoneyInput className="min-w-32" aria-label={"Tổng tiền cước · " + row.label} value={amount} fractionDigits={3} disabled={locked} onValueChange={total => write({ total })} /></td>
+        {original && <td className="px-3 py-2"><QuoteMarkupInput label={"Markup · " + row.label}
+          cost={amount != null && fx && saleFx ? amount * fx / saleFx : null} revenue={saleAmount}
+          disabled={locked || !saleFx} onAmount={applyMarkup} /></td>}
         {original && <td className="px-3 py-2 tabular-nums">{profit == null ? "Chưa đủ dữ liệu" : formatMoneyGrouped(profit)}</td>}
       </tr>;
-    })}{rows.length === 0 && <tr><td colSpan={original ? 7 : 6} className="p-3">Chưa có mặt hàng.</td></tr>}</tbody>
+    })}{rows.length === 0 && <tr><td colSpan={original ? 8 : 6} className="p-3">Chưa có mặt hàng.</td></tr>}</tbody>
   </table></TableHScroll>;
 }

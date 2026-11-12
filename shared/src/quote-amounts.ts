@@ -195,6 +195,19 @@ export function quotePaymentSummary(sheet: Omit<QuoteAmountSource, "sentQuote">)
   return { ...payment, total: total.amount, rate, amount: error || converted == null ? null : Math.round(converted * 10 ** digits) / 10 ** digits, error };
 }
 
+/** Markup is profit divided by cost, expressed as a percentage. */
+export function quoteMarkupPercent(cost: number | null | undefined, revenue: number | null | undefined): number | null {
+  if (cost == null || revenue == null || !Number.isFinite(cost) || !Number.isFinite(revenue) || cost <= 0 || revenue < 0) return null;
+  const percent = Math.round((revenue - cost) / cost * 10000) / 100;
+  return Number.isFinite(percent) ? percent : null;
+}
+
+export function quoteAmountWithMarkup(cost: number | null | undefined, percent: number): number | null {
+  if (cost == null || !Number.isFinite(cost) || cost <= 0 || !Number.isFinite(percent) || percent < -100) return null;
+  const amount = Math.round(cost * (1 + percent / 100) * 1000) / 1000;
+  return Number.isFinite(amount) && amount <= 1_000_000_000 ? amount : null;
+}
+
 /** Financials use the current draft on the operations desk; never silently count missing costs as zero. */
 export function logisticsQuoteFinancials(sheet: Omit<QuoteAmountSource, "sentQuote">) {
   const revenue = sheet.notes.freight.basis === "item" && quoteVndRateError(sheet, "logistics") ? null : quoteVndAmount({ ...sheet, sentQuote: null }, "logistics").vnd;
