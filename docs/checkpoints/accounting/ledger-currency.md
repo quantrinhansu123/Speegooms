@@ -1,5 +1,12 @@
 # Thu chi: đối tượng, chứng từ, ngoại tệ và tên khách
 
+## Tìm đơn khi nhập thu chi (2026-11-12)
+
+- **Đối chiếu:** nền `8592f2f`, nhánh `feat/ledger-order-search`; người dùng yêu cầu merge/push `main`.
+- **Hành vi:** `EntryDialog` trong `src/features/accounting/live/ledger-live-view.tsx` dùng một ô Combobox của Base UI: vừa gõ tìm mã đơn/tên khách, vừa bấm mũi tên xổ danh sách; có nút bỏ chọn. Dùng `matchesQuery` (`src/lib/text.ts`) để bỏ qua dấu tiếng Việt, hoa thường và khoảng trắng đầu/cuối. Áp dụng cho nhập mới, sửa thu chi và nhập sao kê vì dùng chung form. Chỉ lựa chọn trong danh sách mới đổi mã đơn; Escape hủy từ khóa và khôi phục nhãn đơn đã chọn. Chọn đơn vẫn tự gợi ý tên khách khi thu và ô đối tượng trống, không ghi đè người nộp/nhận đã nhập. Giữ đơn cũ ngoài danh sách khi sửa.
+- **Kiểm chứng:** Next typegen + TypeScript, ESLint file thay đổi và `git diff --check` qua. `node scripts/check-ledger-order-search.mjs` qua: Playwright Edge ở 390px với API giả lập, kiểm tra một ô combobox, mở dropdown, tìm tên không dấu/mã đơn, chọn bằng bàn phím, không có kết quả, Escape, bỏ chọn, tự điền người nộp và mã đơn gửi khi lưu; không ghi DB thật.
+- **Giới hạn:** tìm trong danh sách API đã tải (500 đơn mới nhất theo giới hạn hiện có). Chưa build production hoặc xác nhận deployment. Regression script dùng cổng local 3317/4317 và Edge có sẵn.
+
 - **Phạm vi:** `/ke-toan/thu-chi`, nhập/sửa thu chi, nhập sao kê, đối soát và tìm theo khách.
 - **Đối chiếu:** 2026-11-11, nền `b11afdf`, thay đổi trên nhánh `fix/accounting-ledger-currency`.
 - **Quyết định:** Đối tượng là người/đơn vị nộp hoặc nhận tiền; thu tự gợi ý tên khách khi chọn đơn nếu ô đang trống, vẫn được sửa. Mã giao dịch/số chứng từ tùy chọn, không nhập lại mã đơn.

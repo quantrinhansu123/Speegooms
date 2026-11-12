@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Combobox } from "@base-ui/react/combobox";
 import {
   quoteCurrencies, ledgerAmountVnd, ledgerMatchesStatement,
   createLedgerEntrySchema, createStatementSchema, ledgerCategories, ledgerCategoryLabels,
@@ -22,6 +23,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { canPerform } from "@/config/permissions";
 import { ApiError, api } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { matchesQuery } from "@/lib/text";
 import { useListData } from "./list-query";
 import { LedgerExcelActions } from "./ledger-excel-actions";
 
@@ -55,6 +57,8 @@ function EntryDialog({
   const [category, setCategory] = useState<LedgerEntry["category"]>(entry?.category ?? "COC_KHACH");
   const [counterparty, setCounterparty] = useState(entry?.counterparty ?? "");
   const [orderCode, setOrderCode] = useState(entry?.orderCode ?? "");
+  const orderOptions = entry?.orderCode && !orders.some(order => order.code === entry.orderCode)
+    ? [{ code: entry.orderCode, customerName: entry.customerName ?? "" }, ...orders] : orders;
   const [amount, setAmount] = useState<number | null>(entry?.amount ?? null);
   const [currency, setCurrency] = useState(entry?.currency ?? "VND");
   const [exchangeRate, setExchangeRate] = useState<number | null>(entry?.exchangeRate ?? null);
@@ -106,15 +110,36 @@ function EntryDialog({
           <Input id="ledger-counterparty" maxLength={200} value={counterparty} onChange={(event) => setCounterparty(event.target.value)} />
         </Field>
         <Field label="Đơn hàng" htmlFor="ledger-order">
-          <NativeSelect id="ledger-order" value={orderCode} onChange={(event) => {
-            const code = event.target.value;
-            setOrderCode(code);
-            if (kind === "THU" && !counterparty.trim()) setCounterparty(orders.find(order => order.code === code)?.customerName ?? "");
-          }}>
-            <option value="">{mode === "ledger" ? "Chọn đơn hàng" : "Chưa xác định"}</option>
-            {entry?.orderCode && !orders.some(order => order.code === entry.orderCode) && <option value={entry.orderCode}>{orderLabel(entry)}</option>}
-            {orders.map((order) => <option key={order.code} value={order.code}>{order.code} · {order.customerName}</option>)}
-          </NativeSelect>
+          <Combobox.Root
+            items={orderOptions} value={orderOptions.find(order => order.code === orderCode) ?? null}
+            itemToStringLabel={(order: Order) => [order.code, order.customerName].filter(Boolean).join(" · ")}
+            isItemEqualToValue={(a, b) => a.code === b.code}
+            filter={(order, query) => matchesQuery(query, order.code, order.customerName)}
+            onValueChange={(order) => {
+              setOrderCode(order?.code ?? "");
+              if (kind === "THU" && !counterparty.trim()) setCounterparty(order?.customerName ?? "");
+            }}
+          >
+            <Combobox.InputGroup className="relative">
+              <Combobox.Input id="ledger-order" placeholder="Tìm mã đơn hoặc tên khách…" render={<Input className="pr-16" />} />
+              <div className="absolute inset-y-0 right-1 flex items-center">
+                <Combobox.Clear aria-label="Bỏ chọn đơn hàng" className="rounded p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></Combobox.Clear>
+                <Combobox.Trigger aria-label="Mở danh sách đơn hàng" className="rounded p-1.5 hover:bg-muted"><ChevronDown className="size-4" aria-hidden /></Combobox.Trigger>
+              </div>
+            </Combobox.InputGroup>
+            <Combobox.Portal>
+              <Combobox.Positioner sideOffset={4} className="z-[60]">
+                <Combobox.Popup className="w-[var(--anchor-width)] rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-md">
+                  <Combobox.Empty className="px-3 py-2 text-muted-foreground">Không có đơn hàng phù hợp.</Combobox.Empty>
+                  <Combobox.List className="max-h-60 overflow-y-auto overscroll-contain">
+                    {(order: Order) => <Combobox.Item key={order.code} value={order} className="cursor-default rounded px-3 py-2 break-words outline-none data-highlighted:bg-muted data-selected:font-semibold">
+                      {order.code} · {order.customerName}
+                    </Combobox.Item>}
+                  </Combobox.List>
+                </Combobox.Popup>
+              </Combobox.Positioner>
+            </Combobox.Portal>
+          </Combobox.Root>
         </Field>
         <Field label="Loại tiền" htmlFor="ledger-currency" required>
           <NativeSelect id="ledger-currency" value={currency} onChange={event => { setCurrency(event.target.value); setExchangeRate(null); }}>
