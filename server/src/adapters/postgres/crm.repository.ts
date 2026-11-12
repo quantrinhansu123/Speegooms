@@ -463,7 +463,7 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
 }
 
 function asFreight(value: unknown): QuoteNotes["freight"] {
-  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown; originalPrice?: unknown } : {};
+  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown; originalPrice?: unknown; vndRate?: unknown } : {};
   return {
     rate: optionalAmount(row.rate),
     ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
@@ -472,6 +472,7 @@ function asFreight(value: unknown): QuoteNotes["freight"] {
     currency: typeof row.currency === "string" && /^[A-Z]{3}$/.test(row.currency.toUpperCase()) ? row.currency.toUpperCase() : "",
     total: optionalAmount(row.total),
     totalManual: row.totalManual === true,
+    vndRate: optionalAmount(row.vndRate),
   };
 }
 

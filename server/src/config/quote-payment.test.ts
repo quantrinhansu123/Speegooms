@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type pg from "pg";
-import { buildQuoteSheetModel, defaultQuoteBank, quotePaymentSummary, updateQuoteSchema } from "@speego/shared";
+import { buildQuoteSheetModel, defaultQuoteBank, quotePaymentSummary, quoteVndAmount, updateQuoteSchema } from "@speego/shared";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
 import type { QuoteRecord } from "../repositories/crm.repository";
@@ -87,5 +87,29 @@ test("repository loads payment and custom bank from draft and sent snapshot on b
     assert.equal(quote?.bank.routingNumber, "");
     assert.deepEqual(quote?.sentQuote?.notes.payment, input.notes.payment);
     assert.equal(quote?.sentQuote?.bank.routingNumber, "");
+  }
+});
+
+test("repository retains logistics VND rates in draft and sent quotes on both lanes", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    for (const amount of [327.5, 425.5]) {
+      for (const vndRate of [25460, null]) {
+        const input = draft();
+        input.orders[0].currency = "VND";
+        input.notes.freight = { ...input.notes.freight, total: amount, currency: "USD", vndRate };
+        input.notes.logisticsFees = [];
+        const repository = new PostgresCrmRepository({ query: async () => ({ rowCount: 1, rows: [{
+          customer_kind: "LOGISTICS", created_at: new Date(), order_lines: input.orders, common_notes: input.notes,
+          sent_copy: { sentAt: new Date().toISOString(), order: input.orders[0], notes: input.notes, bank: input.bank },
+        }] }) } as unknown as pg.Pool);
+        const quote = await repository.findQuote(lane, "logistics", "quote");
+        assert.ok(quote);
+        assert.equal(quote.notes.freight.vndRate, vndRate);
+        assert.equal(quote.sentQuote?.notes.freight.vndRate, vndRate);
+        const expected = vndRate == null ? null : amount * vndRate;
+        assert.equal(quoteVndAmount(quote, "logistics").vnd, expected);
+        assert.equal(quoteVndAmount({ ...quote, sentQuote: null }, "logistics").vnd, expected);
+      }
+    }
   }
 });
