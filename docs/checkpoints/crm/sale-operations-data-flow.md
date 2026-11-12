@@ -1,5 +1,13 @@
 # Sale → Sourcing/Logistics: dữ liệu xử lý báo giá
 
+## Tạo/sửa đơn khi Sourcing nhập giá (2026-11-12)
+
+- Nền `c3d53d9`, nhánh `feat/sourcing-order-information`. `QuoteEditor` đã cho Sourcing tạo/sửa trong tab Sourcing; khối đơn giá ở tab Logistics trước đây chỉ có ô giá trên các đơn có sẵn.
+- Khối đơn giá hiện có nút Tạo thông tin đơn hàng, kể cả khi danh sách trống, và nút Sửa cạnh tên mỗi đơn. Chỉ hiện cho bàn Sourcing có quyền sửa nội dung; dùng lại `openCreate`, dialog và `persistDraft` hiện có. Không đổi API, quyền, validation hoặc snapshot báo giá đã gửi.
+- Nguồn: `src/features/crm/live/quote-editor.tsx`, `src/features/crm/live/quote-editor-send.test.mjs`.
+- Kiểm chứng: test Edge headless qua cho mở form sửa với dữ liệu cũ/ô mặt hàng được nhập, mở form tạo trống, tạo khi chưa có đơn, không hiện các nút này ở bàn Logistics và luồng gửi hiện có. `next typegen` và TypeScript `tsc --noEmit --incremental false` qua; chưa kiểm tra lưu qua API/DB thật hoặc deployment.
+- Local nghiệm thu: FE `127.0.0.1:3002` → API `4002` → PostgreSQL local `55442/speego_rfq_local`; health, trang đăng nhập, đăng nhập admin/Sourcing và API danh sách qua. Admin thấy 4 phiếu Sourcing tuyến Việt Nam; tài khoản Sourcing chưa có phiếu được phân công trong DB này. Worktree dùng `TURBOPACK_ROOT` trỏ về repo để đọc dependencies đã cài. Chưa thao tác lưu đơn qua UI/API thật; font Google dùng fallback khi không tải được.
+
 - Phạm vi: mess, nội dung Sale, cân tính cước, chuyển bàn, FCL, dữ liệu mới khi form đang mở.
 - Đối chiếu: 2026-11-10, điều tra từ `80d8451`, nhánh giao cuối `fix/optional-customer-address` từ main `d9e300b`. Nguồn thay đổi và test được commit cùng ghi chú này; chưa xác nhận deployment production.
 

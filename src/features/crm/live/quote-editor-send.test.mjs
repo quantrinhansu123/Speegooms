@@ -24,6 +24,7 @@ test("quote send requires visible validity, confirms success, and leaves Logisti
         const desk = new URLSearchParams(location.search).get("desk") || "sourcing";
         const quote = {...input, id:"quote", code:"BGS-TEST", customerName:"Customer", customerKind:desk === "sourcing" ? "SOURCING" : "LOGISTICS",
           quoteWorkflow:"COMBINED", requirementImages:[], sentQuote:null, logisticsSheet:null, sourcingContext:null};
+        if (new URLSearchParams(location.search).has("empty")) quote.orders = [];
         window.sent = []; window.handoffs = 0;
         function App() {
           const [error, setError] = useState();
@@ -43,6 +44,8 @@ test("quote send requires visible validity, confirms success, and leaves Logisti
     res.end(req.url === "/bundle.js" ? bundle.outputFiles[0].text : `<style>
       [data-slot="alert-dialog-overlay"] {position:fixed; inset:0; z-index:50}
       [data-slot="alert-dialog-content"] {position:fixed; top:10%; left:10%; z-index:60; background:white}
+      [data-slot="dialog-overlay"] {position:fixed; inset:0; z-index:50}
+      [data-slot="dialog-content"] {position:fixed; top:2%; left:2%; z-index:60; background:white}
       </style><div id="root"></div><script src="/bundle.js"></script>`);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -55,6 +58,22 @@ test("quote send requires visible validity, confirms success, and leaves Logisti
       await page.goto(`${origin}?desk=${desk}`);
       const send = page.getByRole("button", { name: "Gửi báo giá", exact: true });
       await send.waitFor();
+      if (desk === "sourcing") {
+        await page.getByRole("tab", { name: "Logistics", exact: true }).click();
+        await page.getByRole("button", { name: "Sửa thông tin đơn hàng Order", exact: true }).click();
+        const dialog = page.getByRole("dialog");
+        await dialog.getByRole("heading", { name: "Sửa thông tin đơn hàng", exact: true }).waitFor();
+        assert.equal(await dialog.getByLabel("Tên thông tin đơn hàng").inputValue(), "Order");
+        assert.equal(await dialog.getByLabel("Mặt hàng dòng 1", { exact: true }).isEnabled(), true);
+        await dialog.getByRole("button", { name: "Đóng", exact: true }).first().click();
+        await page.getByRole("button", { name: "Tạo thông tin đơn hàng", exact: true }).click();
+        await dialog.getByRole("heading", { name: "Tạo thông tin đơn hàng", exact: true }).waitFor();
+        assert.equal(await dialog.getByLabel("Tên thông tin đơn hàng").inputValue(), "");
+        await dialog.getByRole("button", { name: "Đóng", exact: true }).first().click();
+      } else {
+        assert.equal(await page.getByRole("button", { name: "Tạo thông tin đơn hàng", exact: true }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: /Sửa thông tin đơn hàng/ }).count(), 0);
+      }
       if (desk === "sourcing") await page.getByRole("tab", { name: "Sale", exact: true }).click();
       await send.click();
       const days = page.getByLabel("Hiệu lực báo giá (ngày)");
@@ -92,6 +111,10 @@ test("quote send requires visible validity, confirms success, and leaves Logisti
         await page.waitForFunction(() => window.handoffs === 1);
       }
     }
+    await page.goto(`${origin}?desk=sourcing&empty`);
+    await page.getByRole("tab", { name: "Logistics", exact: true }).click();
+    await page.getByRole("button", { name: "Tạo thông tin đơn hàng", exact: true }).click();
+    await page.getByRole("dialog").getByRole("heading", { name: "Tạo thông tin đơn hàng", exact: true }).waitFor();
   } finally {
     await browser?.close();
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

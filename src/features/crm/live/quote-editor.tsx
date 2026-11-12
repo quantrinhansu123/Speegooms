@@ -3262,9 +3262,14 @@ export function QuoteEditor({
                 }} />
             </Field>
           )}
-          {mode === "full" && pricedOrders.length > 0 && (pureLogistics ? canPriceAsLogistics : desk !== "logistics") && (
+          {mode === "full" && (pricedOrders.length > 0 || (desk === "sourcing" && canEditContent)) && (pureLogistics ? canPriceAsLogistics : desk !== "logistics") && (
             <section className="grid gap-3 rounded-xl border p-4">
-              <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
+                {desk === "sourcing" && canEditContent && (
+                  <Button type="button" variant="outline" disabled={pending} onClick={openCreate}><Plus />Tạo thông tin đơn hàng</Button>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {pureLogistics ? "Đơn giá và thành tiền hàng bảo hiểm do Sale nhập trên Mess; dùng chung loại tiền và tỷ giá với cước." : "Hàng hóa do Sale/Sourcing cung cấp. Chọn loại tiền, tỷ giá và cách tính giá cho từng dòng."}
               </p>
@@ -3291,7 +3296,14 @@ export function QuoteEditor({
                   <tbody>
                     {pricedOrders.flatMap((order) => order.lines.map((line, index) => (
                       <tr key={`${order.id}-${index}`} className="border-b last:border-0">
-                        <td className="whitespace-nowrap px-3 py-2">{index === 0 ? order.name || "Đơn hàng" : ""}</td>
+                        <td className="whitespace-nowrap px-3 py-2">{index === 0 && (
+                          <div className="flex items-center gap-2">
+                            <span>{order.name || "Đơn hàng"}</span>
+                            {desk === "sourcing" && canEditContent && (
+                              <Button type="button" size="sm" variant="ghost" disabled={pending} aria-label={`Sửa thông tin đơn hàng ${order.name}`} onClick={() => setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } })}><Pencil />Sửa</Button>
+                            )}
+                          </div>
+                        )}</td>
                         <td className="whitespace-nowrap px-3 py-2">{line.stt || index + 1}</td>
                         <td className="px-3 py-2">
                           <NativeSelect className="h-8 w-36 text-xs" aria-label={`Cách tính giá dòng ${index + 1}`} value={line.basis} disabled={pending || pureLogistics} onChange={(event) => patchOrderLine(order.id, index, { basis: event.target.value as PricingBasis })}>
