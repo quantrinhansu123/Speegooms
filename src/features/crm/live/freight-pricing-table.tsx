@@ -50,12 +50,12 @@ export function FreightPricingTable({ notes, order, shippingMode, original = fal
         onChange({ ...notes, logisticsFees: row.fee ? notes.logisticsFees.map(fee => fee === row.fee ? updated : fee) : [...notes.logisticsFees, updated] });
       };
       const locked = disabled || (!row.fee && !freightRow && notes.logisticsFees.length >= 30);
-      return <tr key={row.key} className="border-b last:border-0">
+      return <tr key={row.key} className="border-b align-middle last:border-0">
         <td className="px-3 py-2">{row.label}</td>
         <td className="px-3 py-2"><NativeSelect aria-label={"Loại tiền · " + row.label} value={code} disabled={locked} onChange={event => write({ currency: event.target.value, vndRate: event.target.value === "VND" ? 1 : null })}>{[...new Set([...quoteCurrencies, code])].map(code => <option key={code}>{code}</option>)}</NativeSelect></td>
         <td className="px-3 py-2"><MoneyInput className="min-w-28" aria-label={"Tỷ giá · " + row.label} value={fx} fractionDigits={4} disabled={locked || code === "VND"} onValueChange={vndRate => write({ vndRate })} /></td>
         <td className="px-3 py-2"><MoneyInput className="min-w-28" aria-label={"Đơn giá cước · " + row.label} value={rate} fractionDigits={3} disabled={locked} onValueChange={rate => write({ rate })} /></td>
-        <td className="px-3 py-2"><MoneyInput className="min-w-28" aria-label={"Lượng tính cước · " + row.label} value={quantity} fractionDigits={3} disabled={locked} onValueChange={quantity => write({ quantity })} /><span>{row.unit}</span></td>
+        <td className="px-3 py-2"><div className="flex items-center gap-2"><MoneyInput className="min-w-28" aria-label={"Lượng tính cước · " + row.label} value={quantity} fractionDigits={3} disabled={locked} onValueChange={quantity => write({ quantity })} /><span className="shrink-0 text-muted-foreground">{row.unit}</span></div></td>
         <td className="px-3 py-2"><MoneyInput className="min-w-32" aria-label={"Tổng tiền cước · " + row.label} value={amount} fractionDigits={3} disabled={locked} onValueChange={total => write({ total })} /></td>
         {original && <td className="px-3 py-2 tabular-nums">{profit == null ? "Chưa đủ dữ liệu" : formatMoneyGrouped(profit)}</td>}
       </tr>;
