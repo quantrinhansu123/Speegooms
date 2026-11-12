@@ -8,7 +8,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 | Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
 | RFQ: lưu ý in trên một trang, màu tổng logistics, bỏ cột kg/CBM/m² | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `e15f757` + head/footer `41c68ec`, 2026-11-11 |
 | Phân biệt loại đơn Logistics/Sourcing ở danh sách và chi tiết hợp đồng | [Loại đơn hợp đồng](crm/contract-source-type.md) | nền `f96af95`, nhánh `fix/contract-print-quote-id`, 2026-11-11; chưa triển khai |
-| Thu chi: đối tượng, ngoại tệ/tỷ giá, tên khách, đối soát, import/mẫu/xuất Excel hàng loạt | [Thu chi ngoại tệ và Excel](accounting/ledger-currency.md) | Excel `6ca37d7`, `feat/accounting-ledger-excel` giao vào `main`, 2026-11-12 |
+| Thu chi: tài khoản nhận, ngày giao dịch riêng, tổng ngoại tệ, import/mẫu/xuất Excel | [Thu chi ngoại tệ và Excel](accounting/ledger-currency.md) | nền `8592f2f`, `feat/accounting-receiving-accounts`, 2026-11-12; chưa áp dụng migration 050/deploy |
 | Gán người báo giá, quyền Sourcing/Logistics, gửi Sourcing thiếu hiệu lực, thông báo Sale/tự bàn giao/chia Logistics, giữ tuyến sau reload, admin Logistics xem tất cả tuyến/phiếu | [Thông báo yêu cầu báo giá](crm/quote-request-notifications.md) | Nền `d0e405c`, `fix/sourcing-send-notifications`, 2026-11-11; UI chưa deploy, phiếu thật đã xử lý theo ủy quyền |
 | Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
