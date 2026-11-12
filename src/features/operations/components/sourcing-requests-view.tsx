@@ -76,8 +76,8 @@ export function SourcingRequestsView() {
   return (
     <>
       <PageHeader title="Sourcing – Yêu cầu tìm nguồn" description={`Yêu cầu tìm xưởng sinh từ RFQ đã gửi cho Sourcing. ${waiting} yêu cầu đang chờ báo giá.`} />
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="relative w-full shrink-0 sm:w-64">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Tìm yêu cầu tìm nguồn" placeholder="Tìm mã yêu cầu, rfq_id, hàng hóa, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>

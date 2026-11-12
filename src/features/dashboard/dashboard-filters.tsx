@@ -23,7 +23,7 @@ export function DashboardFilters({
   deptLocked: boolean;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border bg-card px-4 py-3 shadow-xs">
+    <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
       <div>
         <p id="range-label" className="mb-1.5 text-xs font-medium text-muted-foreground">
           Thời gian

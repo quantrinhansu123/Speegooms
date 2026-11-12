@@ -22,7 +22,7 @@ export function PageHeader({
         <Heading className={cn("font-bold tracking-tight text-primary", headingLevel === 1 ? "text-2xl" : "text-xl")}><ArrowText>{title}</ArrowText></Heading>
         {description && <p className="mt-1 text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

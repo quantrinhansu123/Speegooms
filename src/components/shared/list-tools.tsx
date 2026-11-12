@@ -29,8 +29,8 @@ export function useListTools<T>(items: T[], config: {
     const comparison = get(a).localeCompare(get(b), "vi", { numeric: true });
     return sort.endsWith("desc") ? -comparison : comparison;
   });
-  const toolbar = <div className="mb-4 space-y-3 rounded-xl border bg-card p-4">
-    <div className="flex flex-wrap items-end gap-3">
+  const toolbar = <div className="mb-4 space-y-3">
+    <div className="flex flex-wrap items-end gap-x-3 gap-y-4 [&>div]:max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full">
       {config.date && <><Field label={`${config.dateLabel ?? "Ngày tạo"} từ`} htmlFor={`${id}-from`}><Input id={`${id}-from`} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field><Field label="Đến ngày" htmlFor={`${id}-to`}><Input id={`${id}-to`} type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field></>}
       <Field label="Sắp xếp danh sách" htmlFor={`${id}-sort`}><NativeSelect id={`${id}-sort`} value={sort} onChange={(e) => setSort(e.target.value)}>
         <option value="">Thứ tự mặc định</option><option value="name-asc">Mã / tên A–Z</option><option value="name-desc">Mã / tên Z–A</option>{config.date && <><option value="date-desc">Ngày mới nhất</option><option value="date-asc">Ngày cũ nhất</option></>}
