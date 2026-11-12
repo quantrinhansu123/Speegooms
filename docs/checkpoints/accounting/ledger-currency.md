@@ -1,5 +1,12 @@
 # Thu chi: tài khoản nhận, ngày giao dịch, ngoại tệ và Excel
 
+## Tìm đơn khi nhập thu chi (2026-11-12)
+
+- **Đối chiếu:** nền `8592f2f`, nhánh `feat/ledger-order-search`; người dùng yêu cầu merge/push `main`.
+- **Hành vi:** `EntryDialog` trong `src/features/accounting/live/ledger-live-view.tsx` dùng một ô Combobox của Base UI: vừa gõ tìm mã đơn/tên khách, vừa bấm mũi tên xổ danh sách; có nút bỏ chọn. Dùng `matchesQuery` (`src/lib/text.ts`) để bỏ qua dấu tiếng Việt, hoa thường và khoảng trắng đầu/cuối. Áp dụng cho nhập mới, sửa thu chi và nhập sao kê vì dùng chung form. Chỉ lựa chọn trong danh sách mới đổi mã đơn; Escape hủy từ khóa và khôi phục nhãn đơn đã chọn. Chọn đơn vẫn tự gợi ý tên khách khi thu và ô đối tượng trống, không ghi đè người nộp/nhận đã nhập. Giữ đơn cũ ngoài danh sách khi sửa.
+- **Kiểm chứng:** Next typegen + TypeScript, ESLint file thay đổi và `git diff --check` qua. `node scripts/check-ledger-order-search.mjs` qua: Playwright Edge ở 390px với API giả lập, kiểm tra một ô combobox, mở dropdown, tìm tên không dấu/mã đơn, chọn bằng bàn phím, không có kết quả, Escape, bỏ chọn, tự điền người nộp và mã đơn gửi khi lưu; không ghi DB thật.
+- **Giới hạn:** tìm trong danh sách API đã tải (500 đơn mới nhất theo giới hạn hiện có). Chưa build production hoặc xác nhận deployment. Regression script dùng cổng local 3317/4317 và Edge có sẵn.
+
 - **Phạm vi:** `/ke-toan/thu-chi`, nhập/sửa thu chi, nhập sao kê, đối soát và tìm theo khách.
 - **Đối chiếu:** 2026-11-11, nền `b11afdf`, thay đổi trên nhánh `fix/accounting-ledger-currency`.
 - **Quyết định:** Đối tượng là người/đơn vị nộp hoặc nhận tiền; thu tự gợi ý tên khách khi chọn đơn nếu ô đang trống, vẫn được sửa. Từ thay đổi tài khoản nhận bên dưới, cột mã giao dịch/số chứng từ được thay bằng tài khoản nhận; tham chiếu cũ vẫn được giữ trong DB, chi tiết và Excel.
@@ -33,3 +40,4 @@
 - **Kiểm chứng:** FE/BE TypeScript và lint frontend thay đổi qua. 12 unit/Excel test qua, bao gồm file cũ, xóa trường, ngày khác nhau/không hợp lệ, tổng theo tiền tệ. Playwright với API giả lập qua luồng mặc định hôm nay, thêm/chọn/lưu tài khoản và hai ngày, tổng USD/AUD, xuất file đúng cột/giá trị, tải mẫu, import tự thêm tài khoản, desktop/mobile. Dùng Turbopack với `TURBOPACK_ROOT` trỏ root repo; webpack thiếu CSS, không dùng kết quả đó làm kiểm chứng giao diện.
 - **Còn mở:** integration Postgres đã mở rộng nhưng bỏ qua trong lần chạy này (không bật `LEDGER_DB_TEST`); migration 050 chưa áp dụng DB thật. Chưa build production hay deploy. Phải áp dụng migration 050 trước backend mới, rồi deploy frontend/backend cùng thay đổi.
 - **Kiểm tra trước merge:** chạy lại typegen, TypeScript frontend/backend, 12 test unit/Excel, accounting rules và lint frontend: qua. Integration Postgres bị skip vì chưa bật `LEDGER_DB_TEST`. Gọi trực tiếp các lệnh Node tương đương `check:accounting` vì pnpm trong worktree liên kết muốn cài lại dependency; không cài lại hoặc xóa dependency chung.
+- **Tích hợp main `573a22e`:** giữ phần tìm/chọn đơn từ `e827ccc`; chỉ giải quyết xung đột mục lục bằng cách giữ cả hai chủ đề. Sau ghép, typegen, TypeScript frontend/backend, 12 test unit/Excel, accounting rules, lint và Playwright `scripts/check-ledger-order-search.mjs` đều qua. Regression tìm đơn kiểm tra tìm không dấu, bàn phím, Escape, bỏ chọn và mã đơn gửi khi lưu trên mobile. Chưa push hoặc áp dụng migration 050.
