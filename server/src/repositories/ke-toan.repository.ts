@@ -32,7 +32,7 @@ export interface PaymentOrderOption {
   accountingStatus: string;
 }
 
-export interface PaymentEmployeeOption { code: string; name: string }
+export interface PaymentEmployeeOption { code: string; name: string; department: string; position: string }
 
 export interface PayrollRecord {
   id: string;
