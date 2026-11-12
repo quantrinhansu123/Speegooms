@@ -49,12 +49,20 @@ export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
     const failures: string[] = [];
     try {
       const current = await api<{ entries: ExcelLedgerEntry[] }>("/api/ke-toan/ledger");
+      const accounts = await api<{ accounts: string[] }>("/api/ke-toan/receiving-accounts");
+      const accountNames = new Set(accounts.accounts);
       const byId = new Map(current.entries.map((entry) => [entry.id, entry]));
       for (const [index, item] of pending.entries()) {
         setProgress(`Đang nhập ${index + 1}/${pending.length}…`);
         try {
           const existing = byId.get(item.id);
           if (existing && unchangedLedgerRow(item.input, existing)) { skipped++; continue; }
+          if (item.id && !existing) throw new Error("Không tìm thấy khoản thu chi cần cập nhật");
+          if (existing?.reconciled) throw new Error("Dòng đã đối soát, không thể sửa");
+          if (item.input.receivingAccount && !accountNames.has(item.input.receivingAccount)) {
+            await api("/api/ke-toan/receiving-accounts", { method: "POST", body: JSON.stringify({ name: item.input.receivingAccount }) });
+            accountNames.add(item.input.receivingAccount);
+          }
           await api(`/api/ke-toan/ledger${item.id ? `/${item.id}` : ""}`, {
             method: item.id ? "PATCH" : "POST", body: JSON.stringify(item.input),
           });
@@ -91,11 +99,12 @@ export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
         <DialogHeader><DialogTitle>Import thu chi từ Excel</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{pending?.length ?? 0} dòng hợp lệ đang chờ nhập. Mã dòng trống sẽ thêm mới; có mã sẽ cập nhật khoản cũ.
           Dòng đã đối soát chỉ được giữ nguyên. Thành tiền VND và trạng thái đối soát được hệ thống quản lý.</p>
+        <p className="text-sm text-muted-foreground">Ngày và Ngày giao dịch nhập riêng. Tài khoản nhận chưa có sẽ được thêm vào danh sách dùng chung khi nhập.</p>
         {!!pending?.length && <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b text-left">{["Dòng", "Thao tác", "Ngày", "Loại", "Đối tượng", "Đơn hàng", "Số tiền", "Tiền tệ", "Tỷ giá"].map((title) => <th key={title} className="p-2 whitespace-nowrap">{title}</th>)}</tr></thead>
+          <thead><tr className="border-b text-left">{["Dòng", "Thao tác", "Ngày", "Ngày giao dịch", "Tài khoản nhận", "Loại", "Đối tượng", "Đơn hàng", "Số tiền", "Tiền tệ", "Tỷ giá"].map((title) => <th key={title} className="p-2 whitespace-nowrap">{title}</th>)}</tr></thead>
           <tbody>{pending.slice(0, 10).map((item) => <tr key={item.row} className="border-b">
             <td className="p-2">{item.row}</td><td className="p-2">{item.id ? "Cập nhật" : "Thêm mới"}</td>
-            <td className="p-2 whitespace-nowrap">{item.input.date}</td><td className="p-2">{item.input.kind === "THU" ? "Thu" : "Chi"}</td><td className="p-2">{item.input.counterparty}</td><td className="p-2">{item.input.orderCode || "—"}</td>
+            <td className="p-2 whitespace-nowrap">{item.input.date}</td><td className="p-2 whitespace-nowrap">{item.input.transactionDate ?? "—"}</td><td className="p-2">{item.input.receivingAccount ?? "—"}</td><td className="p-2">{item.input.kind === "THU" ? "Thu" : "Chi"}</td><td className="p-2">{item.input.counterparty}</td><td className="p-2">{item.input.orderCode || "—"}</td>
             <td className="p-2">{item.input.amount.toLocaleString("vi-VN")}</td><td className="p-2">{item.input.currency}</td><td className="p-2">{(item.input.exchangeRate ?? 1).toLocaleString("vi-VN")}</td>
           </tr>)}</tbody>
         </table>{pending.length > 10 && <p className="mt-2 text-xs text-muted-foreground">Hiển thị 10/{pending.length} dòng.</p>}</div>}

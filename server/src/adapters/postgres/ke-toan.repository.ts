@@ -179,6 +179,8 @@ export class PostgresKeToanRepository implements KeToanRepository {
     this.ledger = new PostgresLedgerRepository(pool);
   }
 
+  listReceivingAccounts(): Promise<string[]> { return this.ledger.listReceivingAccounts(); }
+  createReceivingAccount(name: string): Promise<string> { return this.ledger.createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.ledger.listLedger(); }
   listStatements(): Promise<StatementRecord[]> { return this.ledger.listStatements(); }
   listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.ledger.listLedgerOrders(); }

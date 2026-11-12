@@ -7,6 +7,7 @@ import type { LedgerRecord, StatementRecord } from "../../repositories/ke-toan.r
 const ledgerSelect = `select l.id::text, l.ngay::text as date, l.loai::text as kind,
   l.khoan_muc::text as category, l.doi_tuong as counterparty,
   l.ma_don_hang as order_code, l.so_tien::text as amount,
+  l.tai_khoan_nhan as receiving_account, l.ngay_giao_dich::text as transaction_date,
   l.ma_tham_chieu as reference, l.da_doi_soat as reconciled,
   l.ma_sao_ke::text as statement_id, l.tien_te as currency, l.ty_gia::text as exchange_rate,
   l.so_tien_vnd::text as amount_vnd, h.ten_khach_hang as customer_name
@@ -24,6 +25,7 @@ type CurrencyRow = { currency: string; exchange_rate: string; amount_vnd: string
 type LedgerRow = CurrencyRow & {
   id: string; date: string; kind: "THU" | "CHI"; category: string;
   counterparty: string; order_code: string | null; amount: string;
+  receiving_account: string | null; transaction_date: string | null;
   reference: string | null; reconciled: boolean; statement_id: string | null;
 };
 type StatementRow = CurrencyRow & {
@@ -34,6 +36,7 @@ const toLedger = (row: LedgerRow): LedgerRecord => ({
   id: row.id, date: row.date, kind: row.kind, category: row.category,
   counterparty: row.counterparty, orderCode: row.order_code, amount: Number(row.amount),
   currency: row.currency, exchangeRate: Number(row.exchange_rate), amountVnd: Number(row.amount_vnd), customerName: row.customer_name,
+  receivingAccount: row.receiving_account, transactionDate: row.transaction_date,
   reference: row.reference, reconciled: row.reconciled, statementId: row.statement_id,
 });
 const toStatement = (row: StatementRow): StatementRecord => ({
@@ -55,6 +58,20 @@ function databaseError(cause: unknown): never {
 
 export class PostgresLedgerRepository {
   constructor(private readonly pool: pg.Pool) {}
+
+  async listReceivingAccounts(): Promise<string[]> {
+    try {
+      const result = await this.pool.query<{ name: string }>(`select ten as name from ke_toan.tai_khoan_nhan order by ten`);
+      return result.rows.map(row => row.name);
+    } catch (cause) { databaseError(cause); }
+  }
+
+  async createReceivingAccount(name: string): Promise<string> {
+    try {
+      await this.pool.query(`insert into ke_toan.tai_khoan_nhan (ten) values ($1) on conflict (ten) do nothing`, [name]);
+      return name;
+    } catch (cause) { databaseError(cause); }
+  }
 
   async listLedger(): Promise<LedgerRecord[]> {
     try {
@@ -137,11 +154,12 @@ export class PostgresLedgerRepository {
       const inserted = await client.query<{ id: string }>(
         `insert into ke_toan.so_thu_chi
           (ngay, loai, khoan_muc, doi_tuong, ma_don_hang, so_tien, ma_tham_chieu,
-           da_doi_soat, ma_de_nghi, ma_sao_ke, tien_te, ty_gia)
+           da_doi_soat, ma_de_nghi, ma_sao_ke, tien_te, ty_gia, tai_khoan_nhan, ngay_giao_dich)
          values ($1::date, $2::ke_toan.loai_thu_chi, $3::ke_toan.khoan_muc_thu_chi,
-           $4, $5, $6, $7, false, null, null, $8, $9) returning id::text`,
+           $4, $5, $6, $7, false, null, null, $8, $9, $10, $11::date) returning id::text`,
         [input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
-          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate],
+          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate,
+          input.receivingAccount ?? null, input.transactionDate ?? null],
       );
       const created = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [inserted.rows[0]?.id]);
       return toLedger(created.rows[0]);
@@ -167,10 +185,14 @@ export class PostgresLedgerRepository {
       await client.query(
         `update ke_toan.so_thu_chi
          set ngay = $2::date, loai = $3::ke_toan.loai_thu_chi, khoan_muc = $4::ke_toan.khoan_muc_thu_chi,
-             doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, tien_te = $9, ty_gia = $10, cap_nhat_luc = now()
+             doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, tien_te = $9, ty_gia = $10,
+             tai_khoan_nhan = case when $13::boolean then $11 else tai_khoan_nhan end,
+             ngay_giao_dich = case when $14::boolean then $12::date else ngay_giao_dich end, cap_nhat_luc = now()
          where id = $1::uuid`,
         [id, input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
-          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate],
+          input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate,
+          input.receivingAccount ?? null, input.transactionDate ?? null,
+          input.receivingAccount !== undefined, input.transactionDate !== undefined],
       );
       const updated = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [id]);
       return toLedger(updated.rows[0]);

@@ -25,6 +25,44 @@ test("export/import preserves IDs, amounts, currency, rate and optional order", 
   assert.equal(result.rows[1].input.currency, "VND");
 });
 
+test("new Excel fields roundtrip and old files preserve existing account and transaction date", async () => {
+  const current = { ...entry, receivingAccount: "Bank · 000123 · SPEEGO", transactionDate: "2026-11-01" };
+  const workbook = await buildLedgerWorkbook([current]);
+  const result = await read(workbook);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows[0].input.receivingAccount, current.receivingAccount);
+  assert.equal(result.rows[0].input.transactionDate, "2026-11-01");
+  assert.equal(result.rows[0].input.date, "2026-11-12");
+  assert.ok(unchangedLedgerRow(result.rows[0].input, current));
+  const sheet = workbook.getWorksheet("Thu chi")!;
+  sheet.getCell("N2").value = new Date("2026-10-30T00:00:00Z");
+  sheet.getCell("N2").numFmt = "yyyy-mm-dd";
+  assert.equal((await read(workbook)).rows[0].input.transactionDate, "2026-10-30");
+  sheet.getCell("N2").value = "2026-02-30";
+  assert.equal((await read(workbook)).errors.length, 1);
+  sheet.getCell("M2").value = null;
+  sheet.getCell("N2").value = null;
+  const cleared = (await read(workbook)).rows[0].input;
+  assert.equal(cleared.receivingAccount, null);
+  assert.equal(cleared.transactionDate, null);
+  assert.equal(unchangedLedgerRow(cleared, current), false);
+  sheet.spliceColumns(13, 2);
+  const legacy = (await read(workbook)).rows[0].input;
+  assert.equal(legacy.receivingAccount, undefined);
+  assert.equal(legacy.transactionDate, undefined);
+  assert.ok(unchangedLedgerRow(legacy, current));
+});
+
+test("new optional Excel columns reject duplicate headers and formula accounts", async () => {
+  const workbook = await buildLedgerWorkbook([entry]);
+  const sheet = workbook.getWorksheet("Thu chi")!;
+  sheet.getCell("O1").value = "Tài khoản nhận";
+  await assert.rejects(read(workbook), /Trùng cột Tài khoản nhận/);
+  sheet.getCell("O1").value = null;
+  sheet.getCell("M2").value = { formula: '"Bank"', result: "Bank" };
+  assert.match((await read(workbook)).errors[0], /công thức/);
+});
+
 test("template accepts new rows, Excel dates and VND defaults", async () => {
   const workbook = await buildLedgerWorkbook();
   const sheet = workbook.getWorksheet("Thu chi")!;

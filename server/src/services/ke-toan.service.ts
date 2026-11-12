@@ -16,6 +16,8 @@ import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "..
 export class KeToanService {
   constructor(private readonly repo: KeToanRepository | null) {}
 
+  listReceivingAccounts(): Promise<string[]> { return this.repository().listReceivingAccounts(); }
+  createReceivingAccount(name: string): Promise<string> { return this.repository().createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.repository().listLedger(); }
   listStatements(): Promise<StatementRecord[]> { return this.repository().listStatements(); }
   listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.repository().listLedgerOrders(); }

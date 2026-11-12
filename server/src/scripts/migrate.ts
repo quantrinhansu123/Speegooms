@@ -74,6 +74,7 @@ const files = [
   "048_ledger_currency.sql",
   "048_chia_don.sql",
   "049_de_xuat_gop_y.sql",
+  "050_ledger_receiving_accounts.sql",
 ];
 
 await client.connect();

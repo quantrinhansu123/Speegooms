@@ -72,6 +72,8 @@ export interface LedgerRecord {
   exchangeRate: number;
   amountVnd: number;
   reference: string | null;
+  receivingAccount: string | null;
+  transactionDate: string | null;
   reconciled: boolean;
   statementId: string | null;
 }
@@ -98,6 +100,8 @@ export type CreatePaymentResult =
   | { result: "employee_missing" };
 
 export interface KeToanRepository {
+  listReceivingAccounts(): Promise<string[]>;
+  createReceivingAccount(name: string): Promise<string>;
   listLedger(): Promise<LedgerRecord[]>;
   listStatements(): Promise<StatementRecord[]>;
   listLedgerOrders(): Promise<{ code: string; customerName: string }[]>;

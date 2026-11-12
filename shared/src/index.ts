@@ -84,6 +84,8 @@ export {
 export {
   createInternalExpenseSchema,
   createLedgerEntrySchema,
+  createReceivingAccountSchema,
+  ledgerIncomeInCurrency,
   createPaymentRequestSchema,
   createPayrollSchema,
   createStatementSchema,

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createInternalExpenseSchema, createLedgerEntrySchema, createPaymentRequestSchema, createPayrollSchema, createStatementSchema, reconcileLedgerEntrySchema } from "@speego/shared";
+import { createReceivingAccountSchema, createInternalExpenseSchema, createLedgerEntrySchema, createPaymentRequestSchema, createPayrollSchema, createStatementSchema, reconcileLedgerEntrySchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
@@ -10,6 +10,8 @@ export function keToanRoutes(container: AppContainer) {
   const keToan = container.keToanController;
   router.use(container.authenticate);
 
+  router.get("/receiving-accounts", requirePermission("ledger.read"), asyncHandler(keToan.listReceivingAccounts));
+  router.post("/receiving-accounts", requirePermission("ledger.write"), validate({ body: createReceivingAccountSchema }), asyncHandler(keToan.createReceivingAccount));
   router.get("/ledger", requirePermission("ledger.read"), asyncHandler(keToan.listLedger));
   router.post("/ledger", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.createLedger));
   router.patch("/ledger/:id", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.updateLedger));

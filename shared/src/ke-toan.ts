@@ -58,6 +58,14 @@ export const createStatementSchema = z.object({
 }).superRefine(validateCurrency);
 export type CreateStatementInput = z.infer<typeof createStatementSchema>;
 
+export const receivingAccountNameSchema = z.string().trim().min(1, "Nhập tài khoản nhận").max(200);
+export const createReceivingAccountSchema = z.object({ name: receivingAccountNameSchema });
+
+export function ledgerIncomeInCurrency(rows: readonly { kind: string; currency: string; amount: number }[], currency: string): number {
+  return rows.filter(row => row.kind === "THU" && row.currency === currency)
+    .reduce((sum, row) => sum + Math.round(row.amount * 100), 0) / 100;
+}
+
 export const createLedgerEntrySchema = z.object({
   date: ledgerDay,
   kind: z.enum(ledgerKinds),
@@ -67,6 +75,8 @@ export const createLedgerEntrySchema = z.object({
   amount: ledgerMoney,
   ...ledgerCurrency,
   reference: z.string().trim().max(120).optional(),
+  receivingAccount: receivingAccountNameSchema.nullable().optional(),
+  transactionDate: ledgerDay.nullable().optional(),
 }).superRefine((value, ctx) => {
   validateCurrency(value, ctx);
   const income = value.kind === "THU";
