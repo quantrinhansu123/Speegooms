@@ -67,7 +67,7 @@ export function TableHScroll({
   };
 
   return (
-    <div className={cn("rounded-xl border bg-card", className)}>
+    <div className={cn("min-w-0 max-w-full rounded-xl border bg-card", className)}>
       <div
         ref={topRef}
         className={cn("overflow-x-auto", ready ? "border-b" : "hidden")}
