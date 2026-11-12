@@ -23,7 +23,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 ## Luồng dữ liệu báo giá
 
-- Logistics báo thiếu tỷ giá VND dù đã nhập, API bỏ sót tỷ giá trong nháp/bản gửi: [Tỷ giá VND Logistics](crm/logistics-vnd-rate.md), nền `49b4a44`, sửa trên `fix/logistics-vnd-rate-read`, 2026-11-12.
+- Logistics báo thiếu tỷ giá VND dù đã nhập; bắt buộc tỷ giá ngoại tệ khi vận hành lưu/gửi ở Sourcing và Logistics: [Tỷ giá VND Logistics](crm/logistics-vnd-rate.md), nền `ace1733`, bổ sung trên `fix/required-quote-vnd-rates`, 2026-11-12.
 
 - Sale nhập nhưng Sourcing/Logistics thiếu cân, sửa mess không đồng bộ báo giá/không thấy sản phẩm cũ, FCL, địa chỉ tùy chọn: [Sale → vận hành](crm/sale-operations-data-flow.md); bổ sung nhánh `fix/mess-product-sync` từ `6e9e885`, 2026-11-10; chưa triển khai bản đồng bộ mess.
 

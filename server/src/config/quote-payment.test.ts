@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type pg from "pg";
-import { buildQuoteSheetModel, defaultQuoteBank, quotePaymentSummary, quoteVndAmount, updateQuoteSchema } from "@speego/shared";
+import { buildQuoteSheetModel, defaultQuoteBank, quotePaymentSummary, quoteVndAmount, quoteVndRateError, updateQuoteSchema, type PublicUser } from "@speego/shared";
+import { CrmService } from "../services/crm.service";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
-import type { QuoteRecord } from "../repositories/crm.repository";
+import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 
 const draft = () => updateQuoteSchema.parse({
   templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
@@ -14,6 +15,74 @@ const draft = () => updateQuoteSchema.parse({
     logisticsFees: [{ label: "Phí", labelEn: "Fee", value: "20", currency: "AUD" }],
     payment: { quoteCurrency: "AUD", currency: "VND", exchangeRate: 16000 } },
   bank: { custom: true, title: "", bankName: "Ngân hàng thử nghiệm", accountName: "Tài khoản thử nghiệm", accountNumber: "0123456789", routingNumber: "" },
+});
+
+test("VND conversion is required for foreign-currency drafts on both desks", () => {
+  const input = draft();
+  for (const desk of ["sourcing", "logistics"] as const) {
+    assert.match(quoteVndRateError(input, desk)!, /AUD/);
+    input.orders[0].rate = 16000;
+    if (desk === "logistics") {
+      assert.match(quoteVndRateError(input, desk)!, /AUD/);
+      input.notes.freight.vndRate = 16000;
+    }
+    assert.equal(quoteVndRateError(input, desk), null);
+    input.orders[0].rate = null;
+    input.notes.freight.vndRate = null;
+  }
+  // A previous sent snapshot cannot supply a missing rate in the new draft.
+  const withSnapshot = { ...input, sentQuote: { order: { ...input.orders[0], rate: 16000 }, notes: input.notes } };
+  assert.match(quoteVndRateError(withSnapshot, "sourcing")!, /AUD/);
+  assert.match(quoteVndRateError(withSnapshot, "logistics")!, /AUD/);
+  input.orders[0].currency = "VND";
+  assert.equal(quoteVndRateError(input, "sourcing"), null);
+  input.notes.freight.currency = "VND";
+  input.notes.logisticsFees = [];
+  assert.equal(quoteVndRateError(input, "logistics"), null);
+  input.notes.freight.currency = "USD";
+  assert.match(quoteVndRateError(input, "logistics")!, /USD/);
+  input.notes.freight.total = null;
+  assert.match(quoteVndRateError(input, "logistics")!, /USD/);
+  for (const rate of [0, -1, Infinity, NaN]) {
+    input.notes.freight.vndRate = rate;
+    assert.match(quoteVndRateError(input, "logistics")!, /USD/);
+  }
+  input.notes.freight.vndRate = 25000;
+  assert.equal(quoteVndRateError(input, "logistics"), null);
+  input.notes.fcl = { to: "", pol: "", pod: "", etd: "", weight: "", volume: "", commodity: "", stuffingDate: "", charges: [], notes: "" };
+  const fcl = { ...input, shippingMode: "SEA" as const, logisticsClass: "FCL" };
+  input.notes.freight.vndRate = null;
+  assert.match(quoteVndRateError(fcl, "logistics")!, /AUD/);
+  input.notes.freight.vndRate = 16000;
+  assert.equal(quoteVndRateError(fcl, "logistics"), null);
+  input.orders.push({ ...input.orders[0], currency: "USD", selected: false });
+  assert.match(quoteVndRateError(input, "sourcing")!, /USD/);
+});
+
+test("API rejects saving and sending without VND rates but permits Sale content edits", async () => {
+  for (const desk of ["sourcing", "logistics"] as const) {
+    const input = draft();
+    input.notes.validityDays = 7;
+    const current = { ...input, id: "quote", customerKind: desk === "sourcing" ? "SOURCING" : "LOGISTICS", quoteWorkflow: "LEGACY" } as unknown as QuoteRecord;
+    let saves = 0;
+    let sends = 0;
+    const service = new CrmService({
+      findQuote: async () => current,
+      updateQuote: async () => { saves++; return current; },
+      sendQuote: async () => { sends++; return current; },
+    } as unknown as CrmRepository);
+    await assert.rejects(service.updateQuote("vn", desk, "quote", input, { contentOnly: false, role: "admin" }), /tỷ giá quy đổi VND/);
+    await assert.rejects(service.sendQuote("vn", desk, "quote", input, { role: "admin" } as PublicUser), /tỷ giá quy đổi VND/);
+    assert.equal(saves, 0);
+    assert.equal(sends, 0);
+    await service.updateQuote("vn", desk, "quote", input, { contentOnly: true, role: "sale-vn" });
+    input.orders[0].rate = 16000;
+    input.notes.freight.vndRate = 16000;
+    await service.updateQuote("vn", desk, "quote", input, { contentOnly: false, role: "admin" });
+    await service.sendQuote("vn", desk, "quote", input, { role: "admin" } as PublicUser);
+    assert.equal(saves, 2);
+    assert.equal(sends, 1);
+  }
 });
 
 test("AUD quotation remains AUD while payment is converted to VND, independent of the bank", () => {

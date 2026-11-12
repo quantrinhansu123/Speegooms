@@ -1,5 +1,5 @@
 import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
-import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePaymentSummary } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePaymentSummary, quoteVndRateError } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -322,6 +322,9 @@ export class CrmService {
         canRequest: can(options.role, "quote.request"),
       })
       : deskPatch;
+    const rateError = !options.contentOnly || (desk === "logistics" && can(options.role, "quote.ops"))
+      ? quoteVndRateError({ ...current, ...patch }, desk) : null;
+    if (rateError) throw new AppError(400, "RULE", rateError);
     const paymentError = desk === "logistics" ? quotePaymentSummary({ ...current, ...patch })?.error : "";
     if (paymentError) throw new AppError(400, "RULE", paymentError);
     const result = await this.ready().updateQuote(lane, desk, id, patch);
@@ -359,6 +362,8 @@ export class CrmService {
     if (orders.length > 0 && !orders.some((order) => order.selected)) {
       orders = orders.map((order, index) => ({ ...order, selected: index === 0 }));
     }
+    const rateError = quoteVndRateError({ ...current, ...patched, orders }, desk);
+    if (rateError) throw new AppError(400, "RULE", rateError);
     const paymentError = desk === "logistics" ? quotePaymentSummary({ ...current, ...patched, orders })?.error : "";
     if (paymentError) throw new AppError(400, "RULE", paymentError);
     const result = await this.ready().sendQuote(lane, desk, id, { ...patched, orders });

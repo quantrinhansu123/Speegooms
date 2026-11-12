@@ -1,6 +1,6 @@
 "use client";
 
-import { fclChargeTotal, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
+import { fclChargeTotal, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
 import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -191,9 +191,9 @@ function FreightCostEditor({
         <Field label="Loại tiền cước" htmlFor={fieldId("freight-currency")}>
           <FeeCurrencySelect id={fieldId("freight-currency")} value={freight.currency || resolvedFreightCurrency(notes, order?.currency || "VND")} disabled={!canEdit} onChange={(currency) => setNotes(withFreightCurrency(notes, order, currency))} />
         </Field>
-        {freightCurrency !== "VND" && <Field label={`Quy đổi VND: 1 ${freightCurrency} = ? VND`} htmlFor={fieldId("freight-vnd-rate")} hint="Chỉ để tổng hợp theo VND, không in ra phiếu">
+        {freightCurrency !== "VND" && <Field label={`Quy đổi VND: 1 ${freightCurrency} = ? VND`} htmlFor={fieldId("freight-vnd-rate")} required hint="Bắt buộc khi lưu hoặc gửi báo giá, không in ra phiếu">
           <MoneyInput id={fieldId("freight-vnd-rate")} className={cn(freight.vndRate == null && "border-warning")} fractionDigits={4} value={freight.vndRate ?? null} disabled={!canEdit}
-            aria-label={`Tỷ giá quy đổi VND cho 1 ${freightCurrency}`} onValueChange={(vndRate) => setNotes({ ...notes, freight: { ...freight, vndRate: vndRate != null && vndRate > 0 ? vndRate : null } })} />
+            required aria-label={`Tỷ giá quy đổi VND cho 1 ${freightCurrency}`} onValueChange={(vndRate) => setNotes({ ...notes, freight: { ...freight, vndRate: vndRate != null && vndRate > 0 ? vndRate : null } })} />
         </Field>}
         {usesKg && <Field label="Giá cước / kg" htmlFor={fieldId("freight-rate")}>
           <MoneyInput id={fieldId("freight-rate")} fractionDigits={3} value={freight.rate} disabled={!canEdit} onValueChange={(rate) => write({ ...freight, rate })} aria-label="Giá cước / kg" />
@@ -1273,11 +1273,11 @@ function VndRateInput({ id, currency, rate, disabled, onRate }: { id?: string; c
   const inputId = id ?? `vnd-rate-${currency}`;
   return (
     <label htmlFor={inputId} className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="font-medium">Quy đổi VND: 1 {currency} =</span>
+      <span className="font-medium">Quy đổi VND: 1 {currency} = <span className="text-destructive">*</span></span>
       <MoneyInput id={inputId} className={cn("h-9 w-36", rate == null && "border-warning")} fractionDigits={4} value={rate ?? null} disabled={disabled}
-        aria-label={`Tỷ giá quy đổi VND cho 1 ${currency}`} onValueChange={(value) => onRate(value != null && value > 0 ? value : null)} />
+        required aria-label={`Tỷ giá quy đổi VND cho 1 ${currency}`} onValueChange={(value) => onRate(value != null && value > 0 ? value : null)} />
       <span className="text-muted-foreground">VND</span>
-      {rate == null && <span className="text-xs text-warning">Nhập để quy đổi tổng về VND</span>}
+      {rate == null && <span className="text-xs text-warning">Bắt buộc khi lưu hoặc gửi báo giá</span>}
     </label>
   );
 }
@@ -2291,6 +2291,9 @@ export function QuoteEditor({
       setFormError(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
       return null;
     }
+    const rateError = canEditPricing || canEditLogisticsFees
+      ? quoteVndRateError({ ...lead, ...parsed.data }, desk ?? "sourcing") : null;
+    if (rateError) { setFormError(rateError); return null; }
     const paymentOrder = orderForQuotePdf(nextOrders);
     const paymentError = paymentOrder && buildQuoteSheet(quoteSheetInputOf({ ...lead, notes: parsed.data.notes, bank }, paymentOrder)).payment?.error;
     if (paymentError) { setFormError(paymentError); return null; }

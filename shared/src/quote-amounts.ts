@@ -116,6 +116,18 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   return { amount, currency, rate: desk === "logistics" ? logisticsRate(currency) : currency === "VND" ? 1 : order?.rate ?? null };
 }
 
+/** Kiểm tra bản nháp, không dùng tỷ giá từ bản đã gửi trước đó. */
+export function quoteVndRateError(sheet: Omit<QuoteAmountSource, "sentQuote">, desk: "sourcing" | "logistics"): string | null {
+  const order = sheet.orders.find(item => item.selected) ?? sheet.orders[0];
+  const logisticsCurrency = sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL"
+    ? sheet.notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(sheet.notes, orderCurrencyOf(order));
+  const amounts = desk === "sourcing"
+    ? sheet.orders.map(order => ({ currency: order.currency, rate: order.rate }))
+    : [{ currency: logisticsCurrency, rate: sheet.notes.freight.vndRate }];
+  const missing = amounts.find(({ currency, rate }) => currency !== "VND" && (rate == null || !Number.isFinite(rate) || rate <= 0));
+  return missing ? `Nhập tỷ giá quy đổi VND lớn hơn 0 cho 1 ${missing.currency}` : null;
+}
+
 /** Ô trên báo giá còn trống khiến chưa quy được số tiền này về VND. */
 function missingRatePlace(sheet: QuoteAmountSource | null | undefined, desk: "sourcing" | "logistics", currency: string): string {
   const notes = sheet?.sentQuote?.notes ?? sheet?.notes;
