@@ -67,8 +67,8 @@ export function PosView() {
   return (
     <>
       <PageHeader title="Đơn mua xưởng" description="PO đặt xưởng và tiến độ. Chỉ đặt xưởng được khi Kế toán đã xác nhận Đã cọc; PO tạo từ chi tiết hợp đồng." />
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="relative w-full shrink-0 sm:w-64">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Tìm PO" placeholder="Tìm mã PO, order_id, nhà cung cấp…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>

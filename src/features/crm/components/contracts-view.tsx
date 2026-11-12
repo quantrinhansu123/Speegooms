@@ -51,8 +51,8 @@ export function ContractsView({ routeScope, accounting = false }: { routeScope?:
   return (
     <>
       <PageHeader title={accounting ? "Hợp đồng" : "Hợp đồng và cọc"} description="Mỗi hợp đồng ứng với một đơn (order_id). Chỉ Kế toán xác nhận Đã cọc; chưa cọc thì chưa bàn giao đặt xưởng." />
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="relative w-full shrink-0 sm:w-64">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Tìm hợp đồng" placeholder="Tìm order_id, số hợp đồng, rfq_id, khách…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>

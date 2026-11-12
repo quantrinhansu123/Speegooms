@@ -121,8 +121,8 @@ export function SuppliersView() {
         description="Hồ sơ xưởng Việt Nam và Trung Quốc, loại hàng và đánh giá. Điểm đánh giá và tỷ lệ đúng hạn là dữ liệu demo."
         actions={can() && <Button size="lg" onClick={() => setAdding(true)}><Plus /> Thêm nhà cung cấp</Button>}
       />
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="relative w-full shrink-0 sm:w-64">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Tìm nhà cung cấp" placeholder="Tìm tên, thành phố, mã, người liên hệ…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>

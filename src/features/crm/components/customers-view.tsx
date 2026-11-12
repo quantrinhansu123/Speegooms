@@ -102,8 +102,8 @@ export function CustomersView() {
     <>
       <PageHeader title="Khách hàng" description="Sổ khách hàng với lịch sử lead, RFQ, hợp đồng và đơn hàng." />
       <DuplicateAlert customers={data.customers} />
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="relative min-w-60 flex-1">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="relative w-full shrink-0 sm:w-64">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Tìm khách hàng" placeholder="Tìm tên, người liên hệ, SĐT, email, mã…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-10 pl-8" />
         </div>

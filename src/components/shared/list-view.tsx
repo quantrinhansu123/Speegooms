@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Download, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import { Download, RotateCcw, Search } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -116,13 +116,8 @@ export function ListView<T>({
       {title && <PageHeader title={title} description={description} actions={actions} headingLevel={headingLevel} />}
       {banner}
       {summary}
-      <div className="mb-4 overflow-hidden rounded-xl border bg-card shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-medium"><SlidersHorizontal aria-hidden className="size-4 text-primary" /> Bộ lọc danh sách {activeCount > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{activeCount}</span>}</div>
-          <Button type="button" variant="ghost" size="sm" disabled={!activeCount && !sortKey} onClick={() => { setQuery(""); setValues({}); setOn({}); setFrom(""); setTo(""); setSortKey(""); setExportMessage(undefined); paging.setPage(1); }}><RotateCcw aria-hidden /> Đặt lại</Button>
-        </div>
-        <div className="grid items-end gap-4 p-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Field label={searchLabel} htmlFor={`${dateId}-search`} className="sm:col-span-2">
+      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4 [&>div]:max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full">
+        <Field label={searchLabel} htmlFor={`${dateId}-search`} className="w-full shrink-0 sm:w-64">
         <div className="relative min-w-0">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input id={`${dateId}-search`} placeholder={searchPlaceholder} value={query} onChange={(e) => { setQuery(e.target.value); paging.setPage(1); }} className="h-10 pl-8" />
@@ -160,7 +155,7 @@ export function ListView<T>({
             {t.label}
           </label>
         ))}
-        </div>
+        <Button type="button" variant="outline" disabled={!activeCount && !sortKey} onClick={() => { setQuery(""); setValues({}); setOn({}); setFrom(""); setTo(""); setSortKey(""); setExportMessage(undefined); paging.setPage(1); }}><RotateCcw aria-hidden /> Đặt lại{activeCount > 0 && ` (${activeCount})`}</Button>
       </div>
       {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
       {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}

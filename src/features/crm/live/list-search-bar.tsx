@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { Search } from "lucide-react";
 import { Field, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,14 +77,17 @@ export function ListSearchBar({
   const rangeError = dateRangeError(from, to);
   return (
     <form
-      className="mb-4 grid gap-3 rounded-xl border bg-card p-3 md:grid-cols-2 xl:grid-cols-4"
+      className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4 [&>div]:max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full"
       onSubmit={(event) => {
         event.preventDefault();
         if (!rangeError) onSearch();
       }}
     >
-      <Field label="Tìm kiếm" htmlFor="list-q">
-        <Input id="list-q" value={q} placeholder={searchPlaceholder} onChange={(event) => onQ(event.target.value)} />
+      <Field label="Tìm kiếm" htmlFor="list-q" className="w-full shrink-0 sm:w-64">
+        <div className="relative">
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input id="list-q" className="pl-9" value={q} placeholder={searchPlaceholder} onChange={(event) => onQ(event.target.value)} />
+        </div>
       </Field>
       <Field label={dateLabel} htmlFor="list-from" error={rangeError}>
         <Input id="list-from" type="date" value={from} onChange={(event) => onFrom(event.target.value)} />

@@ -35,7 +35,7 @@ export function MarketingDashboard({ conversion = false }: { conversion?: boolea
   const total = rows.reduce((s, r) => ({ leads: s.leads + r.leads, rfq: s.rfq + r.rfq, orders: s.orders + r.orders }), { leads: 0, rfq: 0, orders: 0 });
   return <>
     <PageHeader title={conversion ? "Chuyển đổi & hiệu quả nguồn lead" : "Marketing"} description="Theo dõi cùng một tập lead từ nguồn tiếp cận đến RFQ và đơn hàng đã ký." />
-    <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border bg-card p-4">
+    <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4">
       <Field label="Lead tạo từ ngày" htmlFor="m-from"><Input id="m-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
       <Field label="Đến ngày" htmlFor="m-to"><Input id="m-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       <p className="pb-2 text-sm text-muted-foreground">Cohort theo ngày tạo lead · chuyển đổi tính đến trạng thái hiện tại</p>
