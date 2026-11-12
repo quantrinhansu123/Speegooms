@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banknote, Hourglass, Plus, Receipt, Save, Users, X } from "lucide-react";
 import { createInternalExpenseSchema, createPayrollSchema, expenseStatusLabels, payrollNet } from "@speego/shared";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -36,6 +36,8 @@ type PayrollRecord = {
   netPay: number;
 };
 
+type EmployeeOption = { code: string; name: string; department: string; position: string };
+
 type ExpenseRecord = {
   id: string;
   code: string;
@@ -65,10 +67,11 @@ function DepartmentSelect({ id, value, onChange }: { id: string; value: string; 
 
 function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (row: PayrollRecord) => void }) {
   const [period, setPeriod] = useState(currentMonth());
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [employeeError, setEmployeeError] = useState<string>();
   const [employeeCode, setEmployeeCode] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [department, setDepartment] = useState("");
-  const [position, setPosition] = useState("");
+  const employee = employees.find((item) => item.code === employeeCode);
   const [baseSalary, setBaseSalary] = useState<number | null>(null);
   const [allowance, setAllowance] = useState<number | null>(0);
   const [insurance, setInsurance] = useState<number | null>(0);
@@ -76,13 +79,26 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [saving, setSaving] = useState(false);
   const net = payrollNet({ baseSalary: baseSalary ?? 0, allowance: allowance ?? 0, insuranceDeduction: insurance ?? 0 });
 
+  useEffect(() => {
+    let cancelled = false;
+    api<{ employees: EmployeeOption[] }>("/api/ke-toan/payroll-employees")
+      .then((body) => { if (!cancelled) setEmployees(body.employees); })
+      .catch((cause) => { if (!cancelled) setEmployeeError(cause instanceof ApiError ? cause.message : "Không tải được danh sách nhân viên"); })
+      .finally(() => { if (!cancelled) setLoadingEmployees(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const submit = async () => {
+    if (!employee) {
+      setError("Vui lòng chọn nhân viên");
+      return;
+    }
     const parsed = createPayrollSchema.safeParse({
       period,
       employeeCode,
-      fullName,
-      department,
-      position,
+      fullName: employee.name,
+      department: employee.department,
+      position: employee.position,
       baseSalary: baseSalary ?? 0,
       allowance: allowance ?? 0,
       insuranceDeduction: insurance ?? 0,
@@ -110,20 +126,26 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
           <DialogDescription>Một dòng lương của một nhân sự trong một kỳ. Thực nhận = lương cơ bản + phụ cấp − khấu trừ bảo hiểm.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Nhân viên" htmlFor="pr-employee" required className="sm:col-span-2">
+            <NativeSelect id="pr-employee" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value); setError(undefined); }} disabled={loadingEmployees || saving}>
+              <option value="">{loadingEmployees ? "Đang tải…" : employeeError ? "Không tải được danh sách nhân viên" : employees.length === 0 ? "Chưa có nhân viên" : "Chọn nhân viên"}</option>
+              {employees.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
+            </NativeSelect>
+          </Field>
           <Field label="Kỳ lương" htmlFor="pr-period" required>
             <Input id="pr-period" type="month" value={period} onChange={(event) => setPeriod(event.target.value)} />
           </Field>
           <Field label="Mã nhân sự" htmlFor="pr-code" required>
-            <Input id="pr-code" value={employeeCode} maxLength={64} onChange={(event) => setEmployeeCode(event.target.value)} />
+            <Input id="pr-code" value={employee?.code ?? ""} readOnly />
           </Field>
           <Field label="Họ tên" htmlFor="pr-name" required>
-            <Input id="pr-name" value={fullName} maxLength={200} onChange={(event) => setFullName(event.target.value)} />
+            <Input id="pr-name" value={employee?.name ?? ""} readOnly />
           </Field>
           <Field label="Phòng ban" htmlFor="pr-dept" required>
-            <DepartmentSelect id="pr-dept" value={department} onChange={setDepartment} />
+            <Input id="pr-dept" value={departmentName(employee?.department ?? "")} readOnly />
           </Field>
           <Field label="Vị trí" htmlFor="pr-position" className="sm:col-span-2">
-            <Input id="pr-position" value={position} maxLength={120} onChange={(event) => setPosition(event.target.value)} />
+            <Input id="pr-position" value={employee?.position ?? ""} readOnly />
           </Field>
           <Field label="Lương cơ bản (VND)" htmlFor="pr-base" required>
             <MoneyInput id="pr-base" value={baseSalary} onValueChange={setBaseSalary} fractionDigits={0} />
@@ -136,10 +158,11 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
           </Field>
           <p className="self-end text-sm">Thực nhận: <strong>{formatVnd(net)}</strong></p>
         </div>
+        {employeeError && <InlineAlert>{employeeError}</InlineAlert>}
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}><X /> Hủy</Button>
-          <Button onClick={submit} disabled={saving}><Save aria-hidden /> {saving ? "Đang lưu…" : "Nhập mới"}</Button>
+          <Button onClick={submit} disabled={saving || loadingEmployees || !employee}><Save aria-hidden /> {saving ? "Đang lưu…" : "Nhập mới"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

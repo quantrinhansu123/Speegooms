@@ -26,6 +26,8 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 ## Cách tra cứu
 
+- Kế toán: chọn nhân viên và tự điền Mã nhân sự, Họ tên, Phòng ban, Vị trí khi nhập lương: [Nhân viên bảng lương](accounting/payroll-employees.md), nền `c3d53d9`, nguồn `feat/payroll-employee-select`, giao vào `main`, 2026-11-12; chưa xác nhận deployment.
+
 - Mỗi dòng là một chủ đề, không phải một phiên chat. Chỉ thêm thư mục nghiệp vụ khi có ghi chú thực tế.
 - Khi chưa rõ tên chủ đề, tìm từ khóa bằng `rg -n "từ khóa" docs/checkpoints`; chỉ mở phần khớp.
 - Nếu không có checkpoint phù hợp, tìm code theo task; không quét toàn repo để lấp chỗ trống.

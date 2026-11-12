@@ -201,8 +201,9 @@ export class PostgresKeToanRepository implements KeToanRepository {
   }
 
   async listPaymentEmployees(): Promise<PaymentEmployeeOption[]> {
-    const result = await this.query<{ code: string; name: string }>(
-      `select ma_nguoi_dung as code, ho_ten as name from nguoi_dung order by ho_ten`,
+    const result = await this.query<PaymentEmployeeOption>(
+      `select ma_nguoi_dung as code, ho_ten as name, phong_ban as department, chuc_danh as position
+         from nguoi_dung order by ho_ten`,
     );
     return result.rows;
   }
