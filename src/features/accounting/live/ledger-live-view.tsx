@@ -23,6 +23,7 @@ import { canPerform } from "@/config/permissions";
 import { ApiError, api } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { useListData } from "./list-query";
+import { LedgerExcelActions } from "./ledger-excel-actions";
 
 type LedgerEntry = {
   id: string; date: string; kind: "THU" | "CHI"; category: keyof typeof ledgerCategoryLabels;
@@ -200,10 +201,13 @@ export function LedgerLiveView() {
     finally { setBusy(false); }
   };
   return <>
-    <PageHeader title="Thu chi & đối soát" description="Sổ thu chi và sao kê lưu trên hệ thống. Đối soát theo loại, loại tiền, số tiền và đơn hàng. Tổng thu/chi tính theo VND."
-      actions={canWrite && <div className="flex gap-2">
+    <PageHeader className="[&>div:last-child]:max-w-full" title="Thu chi & đối soát" description="Sổ thu chi và sao kê lưu trên hệ thống. Đối soát theo loại, loại tiền, số tiền và đơn hàng. Tổng thu/chi tính theo VND."
+      actions={<div className="flex flex-wrap gap-2">
+        <LedgerExcelActions rows={rows} canWrite={canWrite} loading={ledger.loading || !!ledger.error} onDone={reload} />
+        {canWrite && <>
         <Button variant="outline" onClick={() => setMode("statement")}>Nhập sao kê</Button>
         <Button onClick={() => setMode("ledger")}><Plus aria-hidden /> Nhập mới</Button>
+        </>}
       </div>} />
     {(error || ledger.error || statements.error) && <InlineAlert className="mb-4">{error || ledger.error || statements.error}</InlineAlert>}
     <div className="mb-4 grid gap-3 sm:grid-cols-3">
