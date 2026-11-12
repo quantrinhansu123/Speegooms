@@ -1,7 +1,7 @@
 "use client";
 
 import { fclChargeTotal, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
-import { contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
+import { activeLogisticsFees, contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -23,6 +23,7 @@ import {
 import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuotePaymentEditor } from "./quote-payment-editor";
 import { emptyFclQuote, FclQuoteForm } from "./fcl-quote-form";
+import { FreightPricingTable } from "./freight-pricing-table";
 import { QuoteOriginalPrices } from "./quote-original-prices";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -179,12 +180,12 @@ function FreightCostEditor({
     <div className="grid gap-2">
       <div>
         <h4 className="text-sm font-semibold">Chi phí vận chuyển</h4>
-        <p className="text-sm text-muted-foreground">Chọn tính theo kg, CBM hoặc trọn gói. Có thể ghi đè tiền cước.</p>
+        <p className="text-sm text-muted-foreground">Chọn tính theo kg, CBM, mặt hàng hoặc trọn gói. Có thể ghi đè tiền cước.</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         <Field label="Đơn vị tính cước" htmlFor={fieldId("freight-basis")}>
           <NativeSelect id={fieldId("freight-basis")} value={freight.basis} disabled={!canEdit} onChange={(event) => write({ ...freight, basis: event.target.value as QuoteNotes["freight"]["basis"] })}>
-            <option value="kg">Theo kg</option><option value="cbm">Theo CBM</option><option value="lump">Trọn gói</option>
+            <option value="kg">Theo kg</option><option value="cbm">Theo CBM</option><option value="item">Theo mặt hàng</option><option value="lump">Trọn gói</option>
             {freight.basis === "both" && <option value="both">Cả kg và CBM (cũ)</option>}
           </NativeSelect>
         </Field>
@@ -207,13 +208,14 @@ function FreightCostEditor({
         {usesCbm && <Field label="Thể tích tính phí (CBM)" htmlFor={fieldId("freight-cbm")}>
           <Input id={fieldId("freight-cbm")} readOnly value={chargeableCbm == null ? "" : formatMeasure(chargeableCbm)} aria-label="Thể tích tính phí" />
         </Field>}
-        <Field label="Tiền cước" htmlFor={fieldId("freight-total")}>
+        {freight.basis !== "item" && <Field label="Tiền cước" htmlFor={fieldId("freight-total")}>
           <MoneyInput id={fieldId("freight-total")} fractionDigits={3} value={total} disabled={!canEdit} aria-label="Tiền cước vận chuyển" onValueChange={(value) => write({ ...freight, total: value, totalManual: value !== autoTotal })} />
           {freight.totalManual && canEdit && (
             <button type="button" className="text-left text-[11px] text-primary underline" onClick={() => write({ ...freight, total: autoTotal, totalManual: false })}>Tính lại</button>
           )}
-        </Field>
+        </Field>}
       </div>
+      {freight.basis === "item" && <FreightPricingTable notes={notes} order={order} shippingMode={shippingMode} disabled={!canEdit} onChange={setNotes} />}
     </div>
   );
 }
@@ -312,9 +314,9 @@ function LogisticsFeesEditor({
   const generalFees = fees.map((fee, index) => ({ fee, index })).filter(({ fee }) => (!fee.itemStt || !itemKeys.has(fee.itemStt)) && !(order?.insurance === true && fee.label === "Phí bảo hiểm"));
   const metrics = orderPackageMetrics(order?.lines ?? [], shippingMode);
   const freight = notes.freight;
-  const freightTotal = freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.chargeableKg > 0 ? metrics.chargeableKg : null, metrics.cbm > 0 ? metrics.cbm : null) ?? freight.total;
+  const freightTotal = freight.basis === "item" ? null : freight.totalManual ? freight.total : quoteFreightTotal(freight, metrics.chargeableKg > 0 ? metrics.chargeableKg : null, metrics.cbm > 0 ? metrics.cbm : null) ?? freight.total;
   const totals = new Map<string, number>();
-  for (const fee of fees) {
+  for (const fee of activeLogisticsFees(notes)) {
     const value = quoteMoneyValue(fee.value);
     if (value == null) continue;
     // Phụ phí theo loại tiền cước.
@@ -346,7 +348,7 @@ function LogisticsFeesEditor({
 
   if (layout === "classic") {
     return (
-      <div className="grid gap-3 rounded-xl border p-4 text-base">
+      <div className="grid gap-3 rounded-xl border border-sky-200 bg-sky-50/40 p-4 text-base">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-semibold">Chi phí logistics</h3>
@@ -366,10 +368,10 @@ function LogisticsFeesEditor({
           <WeightNoteField id={fieldId("note-weight")} notes={notes} setNotes={setNotes} lang={lang} disabled={!canEditOrderNotes} />
         </div>
 
-        {items.length > 0 && (
+        {freight.basis !== "item" && items.length > 0 && (
           <div className="grid gap-3">
             <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
-            {items.map(({ stt, line }) => {
+            {items.filter(({ stt }) => !fees.some(fee => fee.itemStt === stt && (fee.rate !== undefined || fee.originalDetails))).map(({ stt, line }) => {
               const fee = fees.find((item) => item.itemStt === stt);
               const label = itemFeeTitle(stt, line);
               return (
@@ -461,17 +463,17 @@ function LogisticsFeesEditor({
   }
 
   return (
-    <div className="grid gap-3 rounded-xl border p-4 text-base">
+    <div className="grid gap-3 rounded-xl border border-sky-200 bg-sky-50/40 p-4 text-base">
       {children}
       <FreightCostEditor notes={notes} setNotes={setNotes} order={order} shippingMode={shippingMode} canEdit={canEdit} lang={lang} fieldId={fieldId} />
 
-      {items.length > 0 && (
+      {freight.basis !== "item" && items.length > 0 && (
         <div className="grid gap-3">
           <div>
             <h4 className="text-sm font-semibold">Chi phí theo từng mặt hàng</h4>
             <p className="text-sm text-muted-foreground">Mỗi mặt hàng của đơn có một dòng báo giá logistics, tính theo loại tiền cước ({freightCurrency}).</p>
           </div>
-          {items.map(({ stt, line }) => {
+          {items.filter(({ stt }) => !fees.some(fee => fee.itemStt === stt && (fee.rate !== undefined || fee.originalDetails))).map(({ stt, line }) => {
             const fee = fees.find((item) => item.itemStt === stt);
             const label = itemFeeTitle(stt, line);
             return (
@@ -3173,7 +3175,7 @@ export function QuoteEditor({
         </div>}
 
         <TabsContent value="logistics" className={tabPanelClass}>
-          <QuoteOriginalPrices desk="logistics" orders={orders} notes={notes} editable={canEditLogisticsFees} pending={pending} onLinePrice={() => undefined} onNotesChange={setNotes} />
+          <QuoteOriginalPrices shippingMode={lead.shippingMode} desk="logistics" orders={orders} notes={notes} editable={canEditLogisticsFees} pending={pending} onLinePrice={() => undefined} onNotesChange={setNotes} />
           {!pureLogistics && desk === "logistics" && quote.sourcingContext && (
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
@@ -3392,7 +3394,7 @@ export function QuoteEditor({
               const current = notesRef.current;
               if (!current.payment) return;
               setOrders((items) => items.map((order) => selectRateColumn(order, currency)));
-              commitNotes({ ...current, payment: { ...current.payment, quoteCurrency: currency, exchangeRate: null }, freight: { ...current.freight, currency }, logisticsFees: current.logisticsFees.map((fee) => ({ ...fee, currency })) });
+              commitNotes({ ...current, payment: { ...current.payment, quoteCurrency: currency, exchangeRate: null }, freight: { ...current.freight, currency }, logisticsFees: current.logisticsFees.map((fee) => current.freight.basis === "item" && fee.itemStt ? fee : { ...fee, currency }) });
             }}
           />
           {desk === "logistics" && opsExtraField}

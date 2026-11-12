@@ -12,6 +12,8 @@ import {
   logisticsOrderFromSourcing,
   orderHasContent,
   quoteOrderSchema,
+  logisticsFeeSchema,
+  quoteFreightSchema,
   sourcingHandoffOrder,
   quoteAccessKind,
   type QuoteWorkflow,
@@ -445,11 +447,12 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
   return value
     .map((item) => {
       if (!item || typeof item !== "object") return null;
-      const row = item as { label?: unknown; labelEn?: unknown; value?: unknown; currency?: unknown; itemStt?: unknown; originalPrice?: unknown };
+      const row = item as { label?: unknown; labelEn?: unknown; value?: unknown; currency?: unknown; itemStt?: unknown; originalPrice?: unknown; originalDetails?: unknown; rate?: unknown; weightKg?: unknown; vndRate?: unknown };
       const label = textField(row.label);
       if (!label) return null;
       const currency = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : "";
       return {
+        ...(() => { const parsed = logisticsFeeSchema.partial().safeParse(row); return parsed.success ? parsed.data : {}; })(),
         label,
         labelEn: textField(row.labelEn),
         value: textField(row.value),
@@ -463,12 +466,13 @@ function asLogisticsFees(value: unknown): QuoteNotes["logisticsFees"] {
 }
 
 function asFreight(value: unknown): QuoteNotes["freight"] {
-  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown; originalPrice?: unknown; vndRate?: unknown } : {};
+  const row = value && typeof value === "object" ? value as { rate?: unknown; cbmRate?: unknown; basis?: unknown; currency?: unknown; total?: unknown; totalManual?: unknown; originalPrice?: unknown; vndRate?: unknown; originalDetails?: unknown } : {};
   return {
+    ...(() => { const parsed = quoteFreightSchema.partial().safeParse(row); return parsed.success ? parsed.data : {}; })(),
     rate: optionalAmount(row.rate),
     ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
     cbmRate: optionalAmount(row.cbmRate),
-    basis: row.basis === "cbm" || row.basis === "both" || row.basis === "lump" ? row.basis : "kg",
+    basis: row.basis === "item" || row.basis === "cbm" || row.basis === "both" || row.basis === "lump" ? row.basis : "kg",
     currency: typeof row.currency === "string" && /^[A-Z]{3}$/.test(row.currency.toUpperCase()) ? row.currency.toUpperCase() : "",
     total: optionalAmount(row.total),
     totalManual: row.totalManual === true,

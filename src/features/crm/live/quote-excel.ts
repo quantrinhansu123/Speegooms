@@ -263,8 +263,10 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
   r += 1;
   const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
   const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
+  const itemFreight = model.freight.basis === "item";
   const freightColumns: { head: string; value: number | string | undefined }[] = [
-    ...(model.freight.basis === "lump" ? [] : [{
+    ...(itemFreight ? [t.product, t.freightRate, t.chargeableWeight].map(head => ({ head, value: undefined })) : []),
+    ...(model.freight.basis === "lump" || model.freight.basis === "item" ? [] : [{
       head: t.freightRate,
       value: [
         usesKg && model.freight.rate != null ? `${model.freight.rate} ${model.freight.currency}/kg` : "",
@@ -287,21 +289,27 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
   });
   boxRow(ws.getRow(r), 1, freightColumns.length);
   r += 1;
-  freightColumns.forEach((column, index) => {
-    const value = column.value;
-    const cell = ws.getRow(r).getCell(index + 1);
-    cell.value = value;
-    if (typeof value === "number") cell.numFmt = NUMBER_FORMAT;
-    cell.font = { bold: true, color: { argb: NAVY } };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-  });
-  boxRow(ws.getRow(r), 1, freightColumns.length);
-  r += 1;
+  if (!itemFreight) {
+    freightColumns.forEach((column, index) => {
+      const value = column.value;
+      const cell = ws.getRow(r).getCell(index + 1);
+      cell.value = value;
+      if (typeof value === "number") cell.numFmt = NUMBER_FORMAT;
+      cell.font = { bold: true, color: { argb: NAVY } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+    boxRow(ws.getRow(r), 1, freightColumns.length);
+    r += 1;
+  }
   /** Phụ phí vận chuyển nằm trong phần Chi phí vận chuyển, ngay dưới bảng cước. */
   const feeWidth = Math.max(freightColumns.length, 2);
   for (const fee of model.fees) {
     const row = ws.getRow(r);
-    if (feeWidth > 2) ws.mergeCells(r, 1, r, feeWidth - 1);
+    if (feeWidth > 2 && !(itemFreight && fee.itemStt)) ws.mergeCells(r, 1, r, feeWidth - 1);
+    if (itemFreight && fee.itemStt) {
+      row.getCell(2).value = fee.rate == null ? undefined : `${fee.rate} ${fee.currency}/kg`;
+      row.getCell(3).value = fee.weightKg == null ? undefined : `${fee.weightKg} kg`;
+    }
     const label = row.getCell(1);
     label.value = fee.label || t.logisticsFee;
     label.font = { bold: true, color: { argb: NAVY } };

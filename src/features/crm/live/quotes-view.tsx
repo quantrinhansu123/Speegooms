@@ -1,6 +1,6 @@
 "use client";
 
-import { isCombinedSourcing } from "@speego/shared";
+import { canViewQuoteOriginalPrice, logisticsQuoteFinancials, isCombinedSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
@@ -17,6 +17,7 @@ import { usePolling } from "@/lib/use-polling";
 import { useNotificationRefresh } from "@/features/notifications/notifications-changed";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
 import { ApiError, api } from "@/lib/api";
+import { formatMoneyGrouped } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AssignmentDialog } from "./assignment-dialog";
 import { QuoteEditor } from "./quote-editor";
@@ -192,7 +193,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const visibleRows = desk === "logistics" && modeFilter
     ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
     : rows;
-  const columnCount = 13 + (canViewAllLanes ? 1 : 0);
+  const showFinancials = desk === "logistics" && canViewQuoteOriginalPrice(user.role);
+  const columnCount = 13 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 3 : 0);
 
   return (
     <>
@@ -253,6 +255,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               {desk === "logistics" && <th className="whitespace-nowrap px-3 py-2 font-medium">Tuyến</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
+              {showFinancials && ["Giá gốc (VND)", "Doanh thu (VND)", "Lợi nhuận (VND)"].map(label => <th key={label} className="whitespace-nowrap px-3 py-2 font-medium text-right">{label}</th>)}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mẫu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú VH</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái báo giá</th>
@@ -292,6 +295,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                   <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                   {desk === "logistics" && <td className="px-3 py-3 whitespace-nowrap">{row.shippingMode === "AIR" ? "Đường bay" : row.logisticsClass === "FCL" ? "Đường biển FCL" : row.logisticsClass === "LCL" ? "Đường biển LCL" : "—"}</td>}
                   <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
+                  {showFinancials && Object.entries(logisticsQuoteFinancials(row)).map(([key, value]) => <td key={key} className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{value == null ? "Chưa đủ dữ liệu" : formatMoneyGrouped(value)}</td>)}
                   <td className="px-3 py-3">{row.templateName || "—"}</td>
                   <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>
                   <td className="px-3 py-3"><QuoteStatusBadge value={row.quoteStatus} /></td>

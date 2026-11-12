@@ -297,15 +297,23 @@ export function quoteLineImages(line: { image?: string | null; images?: string[]
 const depositLine = text(300);
 
 /** Cước vận chuyển: giá cước × cân nặng tính phí. Cân và thể tích lấy từ từng kiện khi in. */
+const freightDetailsSchema = z.object({
+  currency: z.string().trim().toUpperCase().regex(/^$|^[A-Z]{3}$/).default(""),
+  vndRate: vndRate.optional(),
+  rate: amount.optional(),
+  quantity: amount.optional(),
+});
+
 export const quoteFreightSchema = z.object({
-  /** Tổng giá gốc cước nội bộ, cùng loại tiền cước. */
+  originalDetails: freightDetailsSchema.optional(),
+  /** Tổng giá gốc cước nội bộ; báo giá cũ dùng loại tiền cước, bản mới có originalDetails. */
   originalPrice: amount.optional(),
   /** Giá cước trên mỗi kg tính phí. */
   rate: amount,
   /** Giá cước trên mỗi CBM tính phí. */
   cbmRate: amount.default(null),
-  /** kg, CBM hoặc trọn gói (tiền cước nhập tay). "both" (cộng kg và CBM) chỉ còn để đọc báo giá cũ. */
-  basis: z.enum(["kg", "cbm", "both", "lump"]).default("kg"),
+  /** kg, CBM, mặt hàng hoặc trọn gói (tiền cước nhập tay). "both" (cộng kg và CBM) chỉ còn để đọc báo giá cũ. */
+  basis: z.enum(["kg", "cbm", "both", "item", "lump"]).default("kg"),
   /** Rỗng = loại tiền chính của đơn hàng. */
   currency: z.string().trim().toUpperCase().regex(/^$|^[A-Z]{3}$/).default(""),
   /** Tổng chi phí. Khi totalManual = false, in sẽ tính rate × cân nặng tính phí. */
@@ -319,6 +327,10 @@ export const emptyQuoteFreight = { rate: null, cbmRate: null, basis: "kg" as con
 
 /** Dòng chi phí logistics (cảng biển, vận chuyển, local…) — tự thêm trên báo giá. */
 export const logisticsFeeSchema = z.object({
+  originalDetails: freightDetailsSchema.optional(),
+  rate: amount.optional(),
+  weightKg: amount.optional(),
+  vndRate: vndRate.optional(),
   originalPrice: amount.optional(),
   label: text(120),
   /** Tên dòng phí bằng tiếng Anh. */

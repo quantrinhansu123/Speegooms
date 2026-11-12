@@ -42,3 +42,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 [README dự án](../../README.md) — điểm bắt đầu cho setup và tài liệu hiện có.
 
 - Bảo hiểm hàng thuần Logistics Có/Không, Logistics nhập giá dùng chung loại tiền/tỷ giá cước, Mess → báo giá và bản in: [Sale → vận hành](crm/sale-operations-data-flow.md#bảo-hiểm-hàng-thuần-logistics--2026-11-11), feature `dd08598`, merge main `f067e5c`, 2026-11-11; local main 3002/4002 đang chạy, chưa push/deploy.
+
+## Báo giá Logistics và lợi nhuận
+
+- Đơn vị cước theo mặt hàng, chi tiết giá gốc nội bộ, quy đổi tiền và ba cột tài chính: [Cước và giá gốc Logistics](operations/logistics-freight-pricing.md), nền `0450894`, nhánh `feat/logistics-freight-tables`, 2026-11-12; chưa push/deploy.

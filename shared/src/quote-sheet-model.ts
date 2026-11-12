@@ -1,5 +1,5 @@
 import { defaultQuoteBank, quoteLineImages, type QuoteBank, type QuoteLine, type QuoteNotes, type QuoteOrder } from "./crm";
-import { quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency } from "./quote-amounts";
+import { activeLogisticsFees, quoteMoneyValue, quotePaymentSummary, resolvedFreightCurrency } from "./quote-amounts";
 import { formatQuoteNumber, quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit, quotePrintText, quoteValidityText, shippingNoteText, shippingNoteTitle, type QuoteLang, type QuotePrintText } from "./quote-print-text";
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
@@ -64,6 +64,8 @@ export interface QuoteSheetLine {
 }
 
 export interface QuoteSheetFee {
+  rate?: number | null;
+  weightKg?: number | null;
   label: string;
   /** Chuỗi gốc người nhập. */
   text: string;
@@ -110,7 +112,7 @@ export interface QuoteSheetModel {
 export interface QuoteSheetFreight {
   rate: number | null;
   cbmRate: number | null;
-  basis: "kg" | "cbm" | "both" | "lump";
+  basis: "kg" | "cbm" | "both" | "item" | "lump";
   currency: string;
   chargeableKg: number | null;
   chargeableCbm: number | null;
@@ -180,6 +182,7 @@ const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
 export function quoteFreightTotal(freight: QuoteNotes["freight"], chargeableKg: number | null, chargeableCbm: number | null): number | null {
   // Trọn gói: không tính từ cân hay CBM, tiền cước do người báo giá nhập.
+  if (freight.basis === "item") return 0;
   if (freight.basis === "lump") return null;
   const kg = freight.basis !== "cbm" && freight.rate != null && chargeableKg != null ? freight.rate * chargeableKg : null;
   const cbm = freight.basis !== "kg" && freight.cbmRate != null && chargeableCbm != null ? freight.cbmRate * chargeableCbm : null;
@@ -210,7 +213,7 @@ function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"]
     currency: stored.currency || "",
     chargeableKg,
     chargeableCbm,
-    total: stored.totalManual ? stored.total : auto ?? stored.total,
+    total: stored.basis === "item" ? null : stored.totalManual ? stored.total : auto ?? stored.total,
     noteTitle: shippingNoteTitle[lang],
     notes: shippingNotesOf(notes, lang),
   };
@@ -285,11 +288,13 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
   };
   /** Phụ phí không ghi loại tiền thì theo loại tiền cước. */
   const feeCurrency = resolvedFreightCurrency(notes, currency);
-  const fees: QuoteSheetFee[] = (notes.logisticsFees ?? [])
+  const fees: QuoteSheetFee[] = activeLogisticsFees(notes)
     .map((fee) => ({
       label: lang === "en"
         ? fee.itemStt?.trim() ? itemLabelEn(fee.itemStt.trim()) : pick(fee.label, fee.labelEn, `Tên chi phí "${fee.label.trim()}"`)
         : fee.label.trim(),
+      rate: fee.rate,
+      weightKg: fee.weightKg,
       text: fee.value.trim(),
       amount: quoteMoneyValue(fee.value),
       currency: (fee.currency?.trim() || feeCurrency).toUpperCase(),

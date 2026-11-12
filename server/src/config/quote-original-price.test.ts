@@ -57,9 +57,10 @@ test("HTTP boundary removes original prices from every nested snapshot and rejec
   await new Promise<void>(resolve => server.once("listening", resolve));
   try {
     for (const role of ["sale-vn", "sale-global", "ban-gd", "admin", "sourcing", "logistics", "van-hanh", "ke-toan"] as const) {
-      const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify({ originalPrice: 999, name: "Normal data" }) });
+      const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify({ originalPrice: 999, originalDetails: { rate: 777, currency: "USD" }, name: "Normal data" }) });
       const text = await res.text();
       assert.equal(text.includes('"originalPrice"'), canViewQuoteOriginalPrice(role));
+      assert.equal(text.includes('"originalDetails"'), canViewQuoteOriginalPrice(role));
       assert.ok(text.includes("Normal data"));
     }
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); }

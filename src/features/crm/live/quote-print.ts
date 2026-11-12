@@ -259,8 +259,10 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const freightCell = (amount: string, unit = "", total = false) => `<td${total ? ' class="freight-total"' : ""}>${amount || unit ? numRow(amount, unit) : ""}</td>`;
   const usesKg = model.freight.basis === "kg" || model.freight.basis === "both";
   const usesCbm = model.freight.basis === "cbm" || model.freight.basis === "both";
+  const itemFreight = model.freight.basis === "item";
   const freightColumns: { head: string; cell: string }[] = [
-    ...(model.freight.basis === "lump" ? [] : [{
+    ...(itemFreight ? [t.product, t.freightRate, t.chargeableWeight].map(head => ({ head, cell: "" })) : []),
+    ...(model.freight.basis === "lump" || model.freight.basis === "item" ? [] : [{
       head: t.freightRate,
       cell: freightCell([
         usesKg && model.freight.rate != null ? `${fmt(model.freight.rate, 3)} ${model.freight.currency}/kg` : "",
@@ -278,6 +280,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
   const feeAmount = (fee: QuoteSheetModel["fees"][number]) => (fee.amount != null ? numRow(fmt(fee.amount, 3), fee.currency) : escapeHtml(fee.text));
   const feeRows = model.fees.map((fee) => {
     const label = escapeHtml(fee.label || t.logisticsFee);
+    if (itemFreight && fee.itemStt) return `<tr class="fee-row"><td class="fee-label">${label}</td>${freightCell(fee.rate == null ? "" : fmt(fee.rate, 3), fee.currency + "/kg")}${freightCell(fee.weightKg == null ? "" : fmt(fee.weightKg, 3), "kg")}<td class="fee-value">${feeAmount(fee)}</td></tr>`;
     return freightColumns.length > 1
       ? `<tr class="fee-row"><td class="fee-label" colspan="${freightColumns.length - 1}">${label}</td><td class="fee-value">${feeAmount(fee)}</td></tr>`
       : `<tr class="fee-row"><td class="fee-value"><span class="fee-label-inline">${label}</span> ${feeAmount(fee)}</td></tr>`;
@@ -298,7 +301,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     <h2>${escapeHtml(t.freightTitle)}</h2>
     <table class="freight-table">
       <thead><tr>${freightColumns.map((column) => `<th>${escapeHtml(column.head)}</th>`).join("")}</tr></thead>
-      <tbody><tr>${freightColumns.map((column) => column.cell).join("")}</tr>${feeRows}${subtotalRows}</tbody>
+      <tbody>${itemFreight ? "" : `<tr>${freightColumns.map((column) => column.cell).join("")}</tr>`}${feeRows}${subtotalRows}</tbody>
     </table>
     ${freightNotes}
   </section>`;

@@ -8,6 +8,11 @@ type QuoteAmountSource = {
   sentQuote?: SentQuote | null;
 };
 
+/** Keep item pricing when changing basis, but do not add it on top of kg/CBM/lump freight. */
+export function activeLogisticsFees(notes: Pick<QuoteNotes, "freight" | "logisticsFees">) {
+  return notes.logisticsFees.filter(fee => notes.freight.basis === "item" || !fee.itemStt || (fee.rate === undefined && !fee.originalDetails));
+}
+
 type QuoteAmount = { amount: number | null; currency: string; rate: number | null; /** Dòng làm tổng logistics không cộng được. Chỉ có khi amount là null. */ gaps?: string[] };
 
 export type FclQuote = NonNullable<QuoteNotes["fcl"]>;
@@ -56,7 +61,7 @@ export function withFreightCurrency(notes: QuoteNotes, order: Pick<QuoteOrder, "
   return {
     ...notes,
     freight: { ...notes.freight, currency, vndRate: currency === "VND" ? null : currency === order?.currency ? order.rate ?? null : null },
-    logisticsFees: notes.logisticsFees.map(fee => ({ ...fee, currency: "" })),
+    logisticsFees: notes.logisticsFees.map(fee => (notes.freight.basis === "item" && fee.itemStt ? fee : { ...fee, currency: "" })),
     ...(notes.fcl ? { payment: { quoteCurrency: currency, currency: !notes.payment || notes.payment.currency === notes.payment.quoteCurrency ? currency : notes.payment.currency, exchangeRate: null } } : {}),
   };
 }
@@ -78,12 +83,12 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
   const logisticsRate = (code: string) => code === "VND" ? 1
     : (code === logisticsCurrency ? notes.freight?.vndRate : null) ?? rateOf(order, code);
   if (fcl && notes.fcl) return { amount: fclTotals(notes.fcl.charges).all, currency: logisticsCurrency, rate: logisticsRate(logisticsCurrency) };
-  if (desk === "logistics" && (notes.freight.total != null || notes.logisticsFees.length > 0)) {
+  if (desk === "logistics" && (notes.freight.basis === "item" || notes.freight.total != null || notes.logisticsFees.length > 0)) {
     const freightCurrency = resolvedFreightCurrency(notes, currency);
     const buckets = new Map<string, number>();
     const named: { label: string; currency: string }[] = [];
     const gaps: string[] = [];
-    for (const fee of notes.logisticsFees) {
+    for (const fee of activeLogisticsFees(notes)) {
       const raw = fee.value.trim();
       // Dòng phụ phí để trống (thường là dòng mặt hàng chưa nhập tiền) không tính. Chữ không phải số thì tổng chưa hợp lệ.
       if (!raw) continue;
@@ -98,9 +103,21 @@ export function quoteAmount(sheet: QuoteAmountSource | null | undefined, desk: "
       buckets.set(code, (buckets.get(code) ?? 0) + feeAmount);
       named.push({ label, currency: code });
     }
-    if (notes.freight.total != null) {
+    if (notes.freight.basis !== "item" && notes.freight.total != null) {
       buckets.set(freightCurrency, (buckets.get(freightCurrency) ?? 0) + notes.freight.total);
       named.push({ label: "Cước", currency: freightCurrency });
+    }
+    if (notes.freight.basis === "item" && gaps.length === 0) {
+      let vnd = 0;
+      for (const fee of activeLogisticsFees(notes)) {
+        if (!fee.value.trim()) continue;
+        const code = fee.currency || freightCurrency;
+        const rate = code === "VND" ? 1 : fee.vndRate !== undefined ? fee.vndRate : logisticsRate(code);
+        if (!rate) return { amount: null, currency: freightCurrency, rate: logisticsRate(freightCurrency), gaps: [fee.label + ": thiếu tỷ giá"] };
+        vnd += quoteMoneyValue(fee.value)! * rate;
+      }
+      const targetRate = logisticsRate(freightCurrency);
+      return { amount: targetRate ? vnd / targetRate : null, currency: freightCurrency, rate: targetRate };
     }
     const only = buckets.size === 1 ? [...buckets][0] : undefined;
     if (gaps.length > 0 || !only) {
@@ -121,9 +138,18 @@ export function quoteVndRateError(sheet: Omit<QuoteAmountSource, "sentQuote">, d
   const order = sheet.orders.find(item => item.selected) ?? sheet.orders[0];
   const logisticsCurrency = sheet.shippingMode === "SEA" && sheet.logisticsClass === "FCL"
     ? sheet.notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(sheet.notes, orderCurrencyOf(order));
+  if (desk === "logistics" && sheet.notes.freight.basis === "item") {
+    if (!order?.lines.length) return "Thêm mặt hàng trước khi báo giá theo mặt hàng";
+    for (const [index, line] of order.lines.entries()) {
+      const stt = line.stt.trim() || String(index + 1);
+      const fee = sheet.notes.logisticsFees.find(fee => fee.itemStt === stt);
+      if (!fee || fee.rate == null || fee.weightKg == null || quoteMoneyValue(fee.value) == null) return "Nhập đủ đơn giá, cân nặng và tổng tiền cước cho mặt hàng " + stt;
+    }
+  }
   const amounts = desk === "sourcing"
     ? sheet.orders.map(order => ({ currency: order.currency, rate: order.rate }))
-    : [{ currency: logisticsCurrency, rate: sheet.notes.freight.vndRate }];
+    : [{ currency: logisticsCurrency, rate: sheet.notes.freight.vndRate },
+      ...sheet.notes.logisticsFees.filter(fee => sheet.notes.freight.basis === "item" && fee.value.trim()).map(fee => ({ currency: fee.currency || logisticsCurrency, rate: fee.vndRate !== undefined ? fee.vndRate : (fee.currency || logisticsCurrency) === logisticsCurrency ? sheet.notes.freight.vndRate : null }))];
   const missing = amounts.find(({ currency, rate }) => currency !== "VND" && (rate == null || !Number.isFinite(rate) || rate <= 0));
   return missing ? `Nhập tỷ giá quy đổi VND lớn hơn 0 cho 1 ${missing.currency}` : null;
 }
@@ -167,4 +193,20 @@ export function quotePaymentSummary(sheet: Omit<QuoteAmountSource, "sentQuote">)
   if (converted != null && (!Number.isFinite(converted) || converted > Number.MAX_SAFE_INTEGER)) error = "Số tiền quy đổi vượt giới hạn cho phép";
   const digits = payment.currency === "VND" || payment.currency === "JPY" ? 0 : 2;
   return { ...payment, total: total.amount, rate, amount: error || converted == null ? null : Math.round(converted * 10 ** digits) / 10 ** digits, error };
+}
+
+/** Financials use the current draft on the operations desk; never silently count missing costs as zero. */
+export function logisticsQuoteFinancials(sheet: Omit<QuoteAmountSource, "sentQuote">) {
+  const revenue = sheet.notes.freight.basis === "item" && quoteVndRateError(sheet, "logistics") ? null : quoteVndAmount({ ...sheet, sentQuote: null }, "logistics").vnd;
+  const order = sheet.orders.find(row => row.selected) ?? sheet.orders[0];
+  const notes = sheet.notes;
+  const currency = notes.fcl ? notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(notes, order?.currency ?? "VND");
+  const rows = notes.fcl ? notes.fcl.charges.map(row => ({ value: row.originalPrice == null || row.quantity == null ? null : row.originalPrice * row.quantity + row.vatAmount, currency, rate: notes.freight.vndRate })) : [
+    ...(notes.freight.basis === "item" ? [] : [{ value: notes.freight.originalPrice, currency: notes.freight.originalDetails?.currency || currency, rate: notes.freight.originalDetails ? notes.freight.originalDetails.vndRate : notes.freight.vndRate }]),
+    ...activeLogisticsFees(notes).filter(row => row.value.trim() || row.originalPrice != null).map(row => ({ value: row.originalPrice, currency: row.originalDetails?.currency || row.currency || currency, rate: row.originalDetails ? row.originalDetails.vndRate : row.vndRate !== undefined ? row.vndRate : (row.currency || currency) === currency ? notes.freight.vndRate : null })),
+  ];
+  const missingItem = notes.freight.basis === "item" && (!order?.lines.length || order.lines.some((line, index) => !notes.logisticsFees.some(fee => fee.itemStt === (line.stt.trim() || String(index + 1)) && fee.originalPrice != null)));
+  const complete = !missingItem && rows.length > 0 && rows.every(row => row.value != null && (row.currency === "VND" || (row.rate != null && row.rate > 0)));
+  const cost = complete ? Math.round(rows.reduce((sum, row) => sum + row.value! * (row.currency === "VND" ? 1 : row.rate!), 0)) : null;
+  return { cost, revenue, profit: cost == null || revenue == null ? null : revenue - cost };
 }
