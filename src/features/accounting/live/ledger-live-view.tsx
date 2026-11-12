@@ -273,11 +273,12 @@ export function LedgerLiveView() {
       <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Tổng thu</p><p className="text-xl font-semibold">{formatMoney(thu, "VND")}</p></div>
       <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Tổng chi</p><p className="text-xl font-semibold">{formatMoney(chi, "VND")}</p></div>
       <div className="rounded-lg border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="ledger-income-currency" className="text-sm text-muted-foreground">Tổng thu ngoại tệ</label>
-          <NativeSelect id="ledger-income-currency" className="w-24" value={incomeCurrency} onChange={event => setIncomeCurrency(event.target.value)}>
+        <label htmlFor="ledger-income-currency" className="block text-sm text-muted-foreground">Tổng thu ngoại tệ</label>
+        <div className="flex flex-wrap items-start justify-between gap-x-2">
+          <p className="text-xl font-semibold" aria-live="polite">{formatMoney(ledgerIncomeInCurrency(rows, incomeCurrency), incomeCurrency)}</p>
+          <NativeSelect id="ledger-income-currency" className="h-7 w-20 px-2" value={incomeCurrency} onChange={event => setIncomeCurrency(event.target.value)}>
             {quoteCurrencies.filter(code => code !== "VND").map(code => <option key={code} value={code}>{code}</option>)}
           </NativeSelect></div>
-        <p className="text-xl font-semibold" aria-live="polite">{formatMoney(ledgerIncomeInCurrency(rows, incomeCurrency), incomeCurrency)}</p>
       </div>
       <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Sao kê chưa khớp</p><p className="text-xl font-semibold">{unmatched.length}</p></div>
     </div>
