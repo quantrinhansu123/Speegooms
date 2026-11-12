@@ -4,7 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
-| Sourcing tạo/sửa thông tin đơn hàng ngay tại bảng nhập đơn giá | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `c3d53d9`, `feat/sourcing-order-information`, 2026-11-12 |
+| Sourcing tạo/sửa thông tin đơn hàng, nút thao tác luôn thấy trên laptop | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `83deddd`, `fix/quote-laptop-actions`, 2026-11-12 |
 | Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
 | RFQ: lưu ý in trên một trang, màu tổng logistics, bỏ cột kg/CBM/m² | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `e15f757` + head/footer `41c68ec`, 2026-11-11 |
 | Phân biệt loại đơn Logistics/Sourcing ở danh sách và chi tiết hợp đồng | [Loại đơn hợp đồng](crm/contract-source-type.md) | nền `f96af95`, nhánh `fix/contract-print-quote-id`, 2026-11-11; chưa triển khai |

@@ -2527,8 +2527,8 @@ export function QuoteEditor({
   const tabTriggerClass =
     "h-12 min-h-12 w-full min-w-0 items-center justify-center rounded-xl px-2 py-2 text-base font-bold tracking-wide text-foreground shadow-none after:hidden hover:bg-background/70 hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md data-active:hover:bg-primary data-active:hover:text-primary-foreground sm:h-14 sm:min-h-14 sm:px-4 sm:py-3 sm:text-lg";
   const tabPanelClass = embedded
-    ? "mt-3 space-y-4"
-    : "mt-3 min-h-0 space-y-4 overflow-y-auto pr-1";
+    ? "mt-3 min-w-0 space-y-4"
+    : "mt-3 min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1";
   useEffect(() => { setTab(defaultTab); }, [quote.id, defaultTab]);
   const logisticsLeadFacts: [string, string][] = [
     ["Quy cách đóng gói (tiềm năng)", lead.packSpec || "—"],
@@ -2612,7 +2612,7 @@ export function QuoteEditor({
           Sale nhập thông tin đơn hàng (ảnh, số lượng, quy cách, đóng gói) ở phần Sale. Logistics nhập chi phí logistics. Nút chuyển logistics nằm ở phần thông tin đơn hàng của Sale.
         </InlineAlert>
       )}
-      <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid gap-0" : "min-h-0 flex-1 overflow-hidden"}>
+      <Tabs value={tab} onValueChange={(value) => setTab(String(value))} className={embedded ? "grid min-w-0 gap-0" : "min-h-0 min-w-0 flex-1 overflow-hidden"}>
         {/* Khối Logistics nhúng dưới khối Sourcing (xem/điền thông tin đơn ở RFQ) không lặp lại thanh tab Sale/Logistics: khối trên đã có. */}
         {!quoteStep && !(embedded && desk === "logistics") && <TabsList className={`grid h-auto w-full shrink-0 grid-cols-2 items-stretch gap-1 rounded-2xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto sm:gap-2 sm:p-2 ${pureLogistics || desk === "logistics" || saleFill ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {([
@@ -2912,7 +2912,7 @@ export function QuoteEditor({
                     <th className="whitespace-nowrap px-3 py-3 font-medium">Ghi chú</th>
                     </>}
                     {sourcingSale && <th className="whitespace-nowrap px-3 py-3 font-medium">Lưu ý</th>}
-                    <th className="whitespace-nowrap px-3 py-3 font-medium">Thao tác</th>
+                    <th className="sticky right-0 z-10 whitespace-nowrap bg-card px-3 py-3 font-medium">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3062,8 +3062,8 @@ export function QuoteEditor({
                             {noteText ? <p className="line-clamp-3 whitespace-pre-line text-xs" title={noteText}>{noteText}</p> : <span className="text-muted-foreground">—</span>}
                           </td>
                         )}
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap gap-1">
+                        <td className="sticky right-0 z-10 bg-card px-3 py-2">
+                          <div className="flex gap-1">
                             <Button type="button" size="sm" variant="ghost" onClick={() => setDraft({ mode: "view", order })}><Eye />Xem</Button>
                             {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setDraft({ mode: "edit", order: { ...order, lines: order.lines.map((line) => ({ ...line })) } })}><Pencil />Sửa</Button>}
                             {canEditContent && <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setRemoving(order)}><Trash2 />Xóa</Button>}
@@ -3263,7 +3263,7 @@ export function QuoteEditor({
             </Field>
           )}
           {mode === "full" && (pricedOrders.length > 0 || (desk === "sourcing" && canEditContent)) && (pureLogistics ? canPriceAsLogistics : desk !== "logistics") && (
-            <section className="grid gap-3 rounded-xl border p-4">
+            <section className="grid min-w-0 gap-3 rounded-xl border p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">Đơn giá trên thông tin đơn hàng có sẵn</h3>
                 {desk === "sourcing" && canEditContent && (
@@ -3397,14 +3397,14 @@ export function QuoteEditor({
 
 
       </Tabs>
-      {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter className="shrink-0">{actions}</DialogFooter>}
+      {embedded ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : <DialogFooter className="shrink-0 sm:flex-wrap">{actions}</DialogFooter>}
     </>
   );
 
   return (
     <>
       {embedded ? (
-        <section className="grid gap-3 rounded-xl border p-3">
+        <section className="grid min-w-0 gap-3 rounded-xl border p-3">
           <h3 className="font-medium">{heading ?? `Báo giá ${quote.code}`}</h3>
           {sheet}
         </section>
