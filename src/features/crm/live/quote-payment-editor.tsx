@@ -1,6 +1,6 @@
 "use client";
 
-import { defaultQuoteBank, quoteCurrencies, type QuoteBank, type QuoteNotes, type QuoteSheetModel } from "@speego/shared";
+import { defaultQuoteBank, effectiveQuoteBank, quoteCurrencies, type QuoteBank, type QuoteNotes, type QuoteSheetModel } from "@speego/shared";
 import { Field, NativeSelect } from "@/components/shared/form-fields";
 import { MoneyInput } from "@/components/shared/money-input";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ export function QuotePaymentEditor({ payment, bank, currency, model, disabled, f
           </NativeSelect>
         </Field>
         {([ ["bankName", "Tên ngân hàng"], ["accountName", "Chủ tài khoản"], ["accountNumber", "Số tài khoản"], ["routingNumber", "Routing number (nếu có)"], ["swiftCode", "SWIFT (nếu có)"] ] as const).filter(([key]) => bank.custom || key === "accountName" || key === "accountNumber" || key === "routingNumber").map(([key, label]) => <Field key={key} label={label} htmlFor={fieldId(`payment-${key}`)} required={!!bank.custom && ["bankName", "accountName", "accountNumber"].includes(key)}>
-          <Input id={fieldId(`payment-${key}`)} value={bank[key] ?? ""} disabled={disabled || !bank.custom} onChange={(event) => onBank({ ...bank, [key]: event.target.value })} />
+          <Input id={fieldId(`payment-${key}`)} value={effectiveQuoteBank(bank)[key] ?? ""} disabled={disabled || !bank.custom} onChange={(event) => onBank({ ...bank, [key]: event.target.value })} />
         </Field>)}
       </div>
       {model?.payment?.error ? <p role="alert" className="text-sm text-danger">{model.payment.error}</p> : <dl className="grid gap-2 rounded-lg bg-muted/40 p-3 text-sm">

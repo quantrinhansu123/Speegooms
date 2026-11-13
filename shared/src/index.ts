@@ -132,6 +132,7 @@ export {
 } from "./quote-print-text";
 export {
   buildQuoteSheetModel,
+  effectiveQuoteBank,
   quoteCompany,
   quoteFileBase,
   quoteFreightTotal,

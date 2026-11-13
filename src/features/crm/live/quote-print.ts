@@ -123,34 +123,15 @@ function colgroupHtml(cols: Column[]): string {
 }
 
 /** Tài khoản nhận tiền cố định của Speego, in ở cuối phiếu báo giá. */
-function bankInfoBlock(lang: QuoteLang, model?: QuoteSheetModel): string {
-  if (model?.payment) {
-    const rows = [...model.payment.rows, ...model.bank.rows].filter(([, value]) => value.trim());
-    return `<section class="bank"><h2>${escapeHtml(model.t.paymentInfo)}</h2>${model.payment.error ? `<p>${escapeHtml(model.payment.error)}</p>` : ""}${rows.map(([label, value]) => `<div class="r"><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("")}</section>`;
-  }
-  const vi = lang === "vi";
-  const rowsHtml = (rows: [string, string][]) => rows.map(([label, value]) => `<div class="r"><span>${label}</span>${escapeHtml(value)}</div>`).join("");
-  const group = (title: string, rows: [string, string][]) => `<h3>${title}</h3>${rowsHtml(rows)}`;
-  const company: [string, string][] = [
-    [vi ? "Tên công ty" : "Company", "SPEEGO LOGISTICS CORPORATION"],
-    [vi ? "Địa chỉ" : "Address", "7303 Breen Dr, Suite D2, Houston, TX 77086, US."],
-    [vi ? "Ngân hàng" : "Bank", "REGIONS BANK"],
-    [vi ? "Địa chỉ ngân hàng" : "Bank address", vi ? "2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ." : "2730 Gessner Rd, Houston, TX 77080, USA."],
-  ];
-  const wire = group(vi ? "CHUYỂN TIỀN NGÂN HÀNG WIRE TRANSFER" : "WIRE TRANSFER", [
-    [vi ? "Tên chủ tài khoản" : "Account name", "SPEEGO LOGISTICS CORPORATION"],
-    [vi ? "Số tài khoản" : "Account number", "0379414656"],
-    ["Routing Number", "062005690"],
-    [vi ? "Mã SWIFT" : "SWIFT code", "UPNBUS44"],
-  ]);
-  const ach = group(vi ? "CHUYỂN TIỀN ACH (ACH TRANSFER)" : "ACH TRANSFER", [
-    [vi ? "Tài khoản" : "Account", "SPEEGO LOGISTICS CORPORATION"],
-    [vi ? "Số tài khoản" : "Account number", "0379414656"],
-    ["Routing Number", "111900785"],
-  ]);
+function bankInfoBlock(model: QuoteSheetModel): string {
+  const rowsHtml = (rows: [string, string][]) => rows.filter(([, value]) => value.trim()).map(([label, value]) => `<div class="r"><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("");
+  const payment = model.payment ? `<h3>${escapeHtml(model.t.paymentInfo)}</h3>${model.payment.error ? `<p>${escapeHtml(model.payment.error)}</p>` : ""}${rowsHtml(model.payment.rows)}` : "";
+  if (!model.bank.sections) return `<section class="bank"><h2>${escapeHtml(model.bank.title || model.t.paymentInfo)}</h2>${payment}${rowsHtml(model.bank.rows)}</section>`;
+  const [company, wire, ach] = model.bank.sections;
+  const group = (section: typeof company) => `<h3>${escapeHtml(section.title)}</h3>${rowsHtml(section.rows)}`;
   return `<section class="bank">
-    <h2>${vi ? "TÀI KHOẢN NGÂN HÀNG" : "BANK INFORMATION"}</h2>
-    <div class="bank-cols"><div>${rowsHtml(company)}${ach}</div><div>${wire}</div></div>
+    <h2>${escapeHtml(company.title)}</h2>${payment}
+    <div class="bank-cols"><div>${rowsHtml(company.rows)}${group(ach)}</div><div>${group(wire)}</div></div>
   </section>`;
 }
 
@@ -313,7 +294,7 @@ export function quoteSheetHtml(input: QuoteSheetInput & {
     ${"<td></td>".repeat(Math.max(blankAfterTotal, 0))}
   </tr>`).join("");
 
-  const bankBlock = bankInfoBlock(lang, model);
+  const bankBlock = bankInfoBlock(model);
 
   return `<article class="sheet ${input.compact ? "sheet-compact" : ""}">
   ${input.compact ? "" : `
@@ -375,7 +356,7 @@ function fclSheetHtml(input: QuoteSheetInput): string {
   const cell = (value: string | number) => `<td>${escapeHtml(String(value))}</td>`;
   const totals = fclTotals(fcl.charges);
   return `<article class="sheet fcl-sheet">
-    <header class="masthead"><div class="brand"><img class="logo" src="${SPEEGO_LOGO_DATA_URL}" alt="SpeeGo Logistics" width="168" height="50"><div class="company"><strong>${escapeHtml(quoteCompany.name)}</strong><p>${escapeHtml(quoteCompany.values.join(" · "))}</p></div></div></header>
+    <header class="masthead"><div class="brand"><img class="logo" src="${SPEEGO_LOGO_DATA_URL}" alt="SpeeGo Logistics" width="168" height="50"><div class="company"><strong>${escapeHtml(model.company.name)}</strong>${kvTableWide(model.company.rows, 2)}</div></div></header>
     <div class="accent-bar" aria-hidden="true"></div>
     <h1 class="doc-title">QUOTATION ${escapeHtml(input.code ?? "")}</h1>
     <h2 class="banner">SHIPMENT INFORMATION</h2>
@@ -386,7 +367,7 @@ function fclSheetHtml(input: QuoteSheetInput): string {
     <tbody>${fcl.charges.map((row, index) => `<tr>${cell(index + 1)}${cell(row.name)}${cell(fmt(row.rate))}${cell(row.quantity ?? "")}${cell(row.unit)}${cell(fmt(row.vatAmount))}${cell(fmt(fclChargeTotal(row)))}${cell(row.note)}</tr>`).join("")}</tbody></table>
     <table class="items"><tbody><tr><th style="text-align:left" colspan="7">TOTAL IN ${currency} WITHOUT OPTIONAL CHARGES</th>${cell(fmt(totals.base))}</tr><tr><th style="text-align:left" colspan="7">TOTAL IN ${currency} WITH ALL CHARGES</th>${cell(fmt(totals.all))}</tr></tbody></table>
     ${fcl.notes ? `<p style="white-space:pre-wrap;padding:12px">${escapeHtml(fcl.notes)}</p>` : ""}
-    ${model.payment ? bankInfoBlock(input.lang ?? "vi", model) : ""}
+    ${bankInfoBlock(model)}
   </article>`;
 }
 
@@ -743,8 +724,6 @@ export const quotePrintCss = `
     font-weight: 700;
   }
   .freight-note {
-    break-inside: avoid;
-    page-break-inside: avoid;
     margin: 6px 0 0;
     color: #334155;
     font-size: 9pt;
@@ -754,7 +733,12 @@ export const quotePrintCss = `
     margin: 2px 0 0;
     padding-left: 18px;
   }
-  .freight-note li { margin: 1px 0; }
+  .freight-note li {
+    margin: 1px 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .freight-note > strong { display: block; break-after: avoid; page-break-after: avoid; }
 
   table.summary.deposit { margin-top: 10px; }
   table.summary.deposit td { padding: 4px 8px; }
@@ -787,8 +771,6 @@ export const quotePrintCss = `
   table.summary .sum-gap { border-right: 0; background: #fff; }
   .payment-signatures {
     display: flow-root;
-    break-inside: avoid;
-    page-break-inside: avoid;
   }
   .bank {
     margin-top: 12px;
@@ -796,8 +778,6 @@ export const quotePrintCss = `
     border: 1px solid #c5d0de;
     border-left: 4px solid #F26522;
     background: #F6F8FC;
-    break-inside: avoid;
-    page-break-inside: avoid;
   }
   .bank h2 {
     margin: 0 0 6px;
@@ -813,9 +793,14 @@ export const quotePrintCss = `
     margin: 2px 0;
     font-size: 9.5pt;
     color: #1e293b;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
+  .bank h2, .bank h3 { break-after: avoid; page-break-after: avoid; }
   .bank span { color: #082A59; font-weight: 600; }
   .bank h3 { margin: 8px 0 2px; font-size: 9.5pt; color: #082A59; }
+  /* Hai cột cùng nhịp dòng để PDF tìm được chỗ ngắt giữa các hàng. */
+  .bank-cols .r, .bank-cols h3 { margin: 0 0 2px; line-height: 18px; }
 
   .sign {
     display: grid;
@@ -1018,10 +1003,12 @@ export async function downloadQuotePdf(html: string, filename: string): Promise<
     const pagePixels = Math.floor((pageHeight - topMargin * 2) * pixelsPerMm);
     const hostTop = host.getBoundingClientRect().top;
     const scale = canvas.width / host.getBoundingClientRect().width;
-    // Keep masthead, rows, totals, freight notes and bank/signatures together where they fit a page.
-    const protectedBlocks = Array.from(host.querySelectorAll(".masthead, tr, .closing, .freight-note, .payment-signatures")).map((element) => {
+    // Giữ từng dòng/mục ngắn, tránh đẩy cả khối lưu ý hoặc ngân hàng/chữ ký sang trang sau.
+    const protectedBlocks = Array.from(host.querySelectorAll(".masthead, tr, .closing, .freight-note li, .freight-note > strong, .bank .r, .bank h2, .bank h3, .sign")).map((element) => {
       const rect = element.getBoundingClientRect();
-      return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((rect.bottom - hostTop) * scale) };
+      const next = element.matches(".bank h2, .bank h3, .freight-note > strong") ? element.nextElementSibling : null;
+      const nextRect = (next?.querySelector(".r, li") ?? next)?.getBoundingClientRect();
+      return { top: Math.floor((rect.top - hostTop) * scale), bottom: Math.ceil((Math.max(rect.bottom, nextRect?.bottom ?? rect.bottom) - hostTop) * scale) };
     });
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;

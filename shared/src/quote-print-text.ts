@@ -191,8 +191,8 @@ export function quoteDisplayUnit(unit: string | null | undefined, lang: QuoteLan
 
 /** Nhãn công ty cố định ở đầu thư: [vi, en]. */
 export const quoteCompanyLabels: Record<QuoteLang, readonly string[]> = {
-  vi: ["Địa chỉ HN", "Địa chỉ HCM", "Địa chỉ Mỹ", "Điện thoại", "Email"],
-  en: ["Hanoi office", "HCMC office", "US office", "Phone", "Email"],
+  vi: ["Mỹ", "VN", "SĐT", "Email"],
+  en: ["US office", "Vietnam office", "Phone", "Email"],
 };
 
 /** Tên thuộc tính xưởng cố định: bản tiếng Anh gán sẵn. Thuộc tính khác do người dùng điền. */

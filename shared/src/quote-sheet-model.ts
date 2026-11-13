@@ -4,12 +4,11 @@ import { formatQuoteNumber, quoteAttrKeyEn, quoteCompanyLabels, quoteDisplayUnit
 
 /** Thông tin pháp nhân in ở đầu thư. Giá trị dùng chung cho mọi ngôn ngữ. */
 export const quoteCompany = {
-  name: "CÔNG TY TNHH SPEEGO LOGISTICS",
+  name: "SPEEGO LOGISTICS CORPORATION",
   values: [
-    "Tầng 24, Leadvisors Tower, 643 Phạm Văn Đồng, Phường Nghĩa Đô, HN",
-    "01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM",
     "7303 Breen Dr, Houston, TX 77086, US",
-    "079.673.8695",
+    "01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM",
+    "1800-550-1496",
     "sales@speegologistic.com",
   ],
 } as const;
@@ -103,7 +102,7 @@ export interface QuoteSheetModel {
   /** Bảng cước vận chuyển in cho khách. */
   freight: QuoteSheetFreight;
   deposit: string[];
-  bank: { title: string; rows: [string, string][] };
+  bank: { title: string; rows: [string, string][]; sections?: { title: string; rows: [string, string][] }[] };
   payment: { rows: [string, string][]; error: string } | null;
   /** Bản tiếng Anh: các ô tự điền đã có tiếng Việt nhưng chưa có tiếng Anh (để trống trên bản in). */
   missing: string[];
@@ -222,6 +221,8 @@ function freightOf(notes: QuoteNotes, metrics: QuoteSheetInput["freightMetrics"]
 /** Bank trống thì dùng tài khoản ACH mặc định để bản in luôn có thông tin thanh toán. */
 export function effectiveQuoteBank(bank: QuoteBank | null | undefined): QuoteBank {
   if (bank?.custom) return bank;
+  // Mẫu ACH cũ là dữ liệu điền sẵn; tài khoản riêng của báo giá vẫn giữ nguyên.
+  if (bank?.accountName === "SPEEGO LOGISTICS LLC" && bank.accountNumber === "0370750653" && bank.routingNumber === "111900785") return { ...defaultQuoteBank };
   const orDefault = (value: string | undefined, fallback: string) => (value?.trim() ? value.trim() : fallback);
   return {
     title: orDefault(bank?.title, defaultQuoteBank.title),
@@ -374,6 +375,25 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
         [t.routingNumber, bank.routingNumber],
         ...(bank.swiftCode ? [["SWIFT", bank.swiftCode] as [string, string]] : []),
       ],
+      sections: !bank.custom && bank.accountName === defaultQuoteBank.accountName && bank.accountNumber === defaultQuoteBank.accountNumber && bank.routingNumber === defaultQuoteBank.routingNumber ? [
+        { title: lang === "vi" ? "TÀI KHOẢN NGÂN HÀNG" : "BANK INFORMATION", rows: [
+          [lang === "vi" ? "Tên công ty" : "Company", quoteCompany.name],
+          [lang === "vi" ? "Địa chỉ" : "Address", "7303 Breen Dr, Suite D2, Houston, TX 77086, US."],
+          [lang === "vi" ? "Ngân hàng" : "Bank", "REGIONS BANK"],
+          [lang === "vi" ? "Địa chỉ ngân hàng" : "Bank address", lang === "vi" ? "2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ." : "2730 Gessner Rd, Houston, TX 77080, USA."],
+        ] },
+        { title: lang === "vi" ? "CHUYỂN TIỀN NGÂN HÀNG WIRE TRANSFER" : "WIRE TRANSFER", rows: [
+          [lang === "vi" ? "Tên chủ tài khoản" : "Account name", defaultQuoteBank.accountName],
+          [lang === "vi" ? "Số tài khoản" : "Account number", defaultQuoteBank.accountNumber],
+          ["Routing Number", "062005690"],
+          [lang === "vi" ? "Mã SWIFT" : "SWIFT code", "UPNBUS44"],
+        ] },
+        { title: lang === "vi" ? "CHUYỂN TIỀN ACH (ACH TRANSFER)" : "ACH TRANSFER", rows: [
+          [lang === "vi" ? "Tài khoản" : "Account", defaultQuoteBank.accountName],
+          [lang === "vi" ? "Số tài khoản" : "Account number", defaultQuoteBank.accountNumber],
+          ["Routing Number", defaultQuoteBank.routingNumber],
+        ] },
+      ] : undefined,
     },
     payment: paymentSummary ? { rows: paymentRows, error: paymentSummary.error } : null,
     missing: [...missing],

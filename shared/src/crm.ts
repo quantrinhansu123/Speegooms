@@ -672,8 +672,8 @@ export type QuoteBank = z.infer<typeof quoteBankSchema>;
 
 export const defaultQuoteBank: QuoteBank = {
   title: "Tài khoản ngân hàng ACH",
-  accountName: "SPEEGO LOGISTICS LLC",
-  accountNumber: "0370750653",
+  accountName: "SPEEGO LOGISTICS CORPORATION",
+  accountNumber: "0379414656",
   routingNumber: "111900785",
 };
 

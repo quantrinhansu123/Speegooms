@@ -358,14 +358,19 @@ export async function buildQuoteWorkbook(input: QuoteSheetInput): Promise<Workbo
 
   // Thông tin thanh toán và chữ ký
   r += 1;
-  text(r, 1, model.bank.title || t.paymentInfo, { bold: true, color: NAVY, merge: last });
-  r += 1;
-  for (const [label, value] of [...(model.payment?.rows ?? []), ...model.bank.rows]) {
-    if (!value.trim()) continue;
-    text(r, 1, label, { bold: true, merge: 3 });
-    text(r, 4, value, { merge: last - 3 });
-    boxRow(ws.getRow(r), 1, last);
+  for (const section of [
+    ...(model.payment ? [{ title: t.paymentInfo, rows: model.payment.rows }] : []),
+    ...(model.bank.sections ?? [{ title: model.bank.title || t.paymentInfo, rows: model.bank.rows }]),
+  ]) {
+    text(r, 1, section.title, { bold: true, color: NAVY, merge: last });
     r += 1;
+    for (const [label, value] of section.rows) {
+      if (!value.trim()) continue;
+      text(r, 1, label, { bold: true, merge: 3 });
+      text(r, 4, value, { merge: last - 3 });
+      boxRow(ws.getRow(r), 1, last);
+      r += 1;
+    }
   }
   r += 1;
   const mid = Math.max(2, Math.floor(last / 2));
@@ -389,8 +394,12 @@ async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   if (model.payment?.error) throw new Error(model.payment.error);
   [8, 34, 16, 14, 18, 12, 18, 38].forEach((width, index) => { ws.getColumn(index + 1).width = width; });
   ws.mergeCells("A1:H1");
-  ws.getCell("A1").value = `SPEEGO LOGISTICS · QUOTATION ${input.code ?? ""}`;
+  ws.getCell("A1").value = `${model.company.name} · QUOTATION ${input.code ?? ""}`;
   ws.getCell("A1").font = { bold: true, size: 17, color: { argb: NAVY } };
+  ws.mergeCells("A2:H2");
+  ws.getCell("A2").value = model.company.rows.map(([label, value]) => `${label}: ${value}`).join("\n");
+  ws.getCell("A2").alignment = { wrapText: true, vertical: "top" };
+  ws.getRow(2).height = 60;
   ws.mergeCells("A3:H3");
   ws.getCell("A3").value = "SHIPMENT INFORMATION";
   styleHeader(ws.getRow(3));
@@ -418,9 +427,16 @@ async function buildFclWorkbook(input: QuoteSheetInput): Promise<Workbook> {
   ws.getCell(totalRow + 1, 1).value = `TOTAL IN ${currency} WITH ALL CHARGES`;
   ws.getCell(totalRow + 1, 7).value = { formula: fcl.charges.length ? `SUM(G15:G${totalRow - 1})` : "0", result: totals.all };
   if (fcl.notes) { ws.mergeCells(totalRow + 3, 1, totalRow + 3, 8); ws.getCell(totalRow + 3, 1).value = fcl.notes; ws.getCell(totalRow + 3, 1).alignment = { wrapText: true }; }
-  if (model.payment) {
-    let row = totalRow + 5;
-    for (const [label, value] of [...model.payment.rows, ...model.bank.rows].filter(([, value]) => value.trim())) {
+  let row = totalRow + 5;
+  for (const section of [
+    ...(model.payment ? [{ title: model.t.paymentInfo, rows: model.payment.rows }] : []),
+    ...(model.bank.sections ?? [{ title: model.bank.title || model.t.paymentInfo, rows: model.bank.rows }]),
+  ]) {
+    ws.mergeCells(row, 1, row, 8);
+    ws.getCell(row, 1).value = section.title;
+    styleHeader(ws.getRow(row));
+    row += 1;
+    for (const [label, value] of section.rows.filter(([, value]) => value.trim())) {
       ws.mergeCells(row, 1, row, 3);
       ws.mergeCells(row, 4, row, 8);
       ws.getCell(row, 1).value = label;

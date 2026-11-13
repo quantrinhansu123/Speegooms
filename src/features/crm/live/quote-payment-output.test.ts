@@ -1,8 +1,64 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { quoteAmount, updateQuoteSchema, quoteSheetInputOf } from "@speego/shared";
+import { defaultQuoteBank, fclQuoteSchema, quoteAmount, updateQuoteSchema, quoteSheetInputOf } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
 import { buildQuoteWorkbook } from "./quote-excel";
+
+test("company header and Regions Wire/ACH details agree in print/PDF and Excel, including old default accounts", async () => {
+  const draft = updateQuoteSchema.parse({
+    templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+    orders: [{ id: "00000000-0000-0000-0000-000000000001", name: "Bank details", selected: true, currency: "USD", lines: [] }],
+    notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] },
+    bank: { title: "", accountName: "", accountNumber: "", routingNumber: "" },
+  });
+  const banks = [draft.bank, defaultQuoteBank, { title: "Tài khoản ngân hàng ACH", accountName: "SPEEGO LOGISTICS LLC", accountNumber: "0370750653", routingNumber: "111900785" }];
+  const header = ["SPEEGO LOGISTICS CORPORATION", "7303 Breen Dr, Houston, TX 77086, US", "01 Đường số 4, KDC Cityland Park Hills, phường Gò Vấp, HCM", "1800-550-1496", "sales@speegologistic.com"];
+  for (const lang of ["vi", "en"] as const) for (const logisticsClass of ["LCL", "FCL"]) for (const payment of [undefined, { quoteCurrency: "USD", currency: "USD", exchangeRate: null }]) for (const bank of banks) {
+    const input = quoteSheetInputOf({ ...draft, bank, notes: { ...draft.notes, payment, ...(logisticsClass === "FCL" ? { fcl: fclQuoteSchema.parse({ charges: [] }) } : {}) },
+      code: "BANK", customerName: "Test", companyName: null, address: null, phone: null, email: null, shippingMode: "SEA", logisticsClass }, draft.orders[0], lang);
+    const html = quoteSheetHtml(input);
+    const workbook = await buildQuoteWorkbook(input);
+    const sheet = JSON.stringify(workbook.worksheets[0].getSheetValues());
+    const masthead = html.slice(html.indexOf('<header class="masthead">'), html.indexOf("</header>"));
+    for (const value of header) {
+      assert.ok(masthead.includes(value), `HTML header: ${value}`);
+      assert.ok(sheet.includes(value), `Excel header: ${value}`);
+    }
+    for (const output of [html, sheet]) {
+      for (const value of ["7303 Breen Dr, Suite D2, Houston, TX 77086, US.", "REGIONS BANK", "2730 Gessner Rd, Houston, TX 77080", "WIRE TRANSFER", "ACH TRANSFER", "0379414656", "062005690", "UPNBUS44", "111900785"]) assert.ok(output.includes(value), value);
+      assert.doesNotMatch(output, /SPEEGO LOGISTICS LLC|0370750653|079\.673\.8695|Leadvisors|CÔNG TY TNHH SPEEGO/);
+    }
+    assert.match(html, /<h3>[^<]*WIRE TRANSFER<\/h3>[\s\S]*?Routing Number<\/span>062005690/);
+    assert.match(html, /<h3>[^<]*ACH TRANSFER\)?<\/h3>[\s\S]*?Routing Number<\/span>111900785/);
+    if (lang === "vi") assert.ok(html.includes("2730 Gessner Rd, Houston, TX 77080, Hoa Kỳ."));
+    const accountCells: string[] = [];
+    workbook.worksheets[0].eachRow((row) => row.eachCell((cell) => {
+      if (cell.address === cell.master.address && cell.value === "0379414656") accountCells.push(cell.value);
+    }));
+    assert.equal(accountCells.length, 2);
+  }
+});
+
+test("a chosen custom bank is preserved in LCL/FCL outputs before payment is configured", async () => {
+  const draft = updateQuoteSchema.parse({
+    templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+    orders: [{ id: "00000000-0000-0000-0000-000000000001", name: "Custom bank", selected: true, currency: "USD", lines: [] }],
+    notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] },
+    bank: { custom: true, title: "<Chosen bank>", bankName: "Test Bank", accountName: "SPEEGO LOGISTICS LLC", accountNumber: "0370750653", routingNumber: "111900785" },
+  });
+  for (const logisticsClass of ["LCL", "FCL"]) {
+    const input = quoteSheetInputOf({ ...draft, notes: { ...draft.notes, ...(logisticsClass === "FCL" ? { fcl: fclQuoteSchema.parse({ charges: [] }) } : {}) },
+      code: "CUSTOM", customerName: "Test", companyName: null, address: null, phone: null, email: null, shippingMode: "SEA", logisticsClass }, draft.orders[0]);
+    const html = quoteSheetHtml(input);
+    assert.ok(html.includes("&lt;Chosen bank&gt;"));
+    const workbook = await buildQuoteWorkbook(input);
+    for (const output of [html, JSON.stringify(workbook.worksheets[0].getSheetValues())]) {
+      assert.ok(output.includes("0370750653"));
+      assert.ok(output.includes("Test Bank"));
+      assert.doesNotMatch(output, /0379414656|REGIONS BANK|062005690|UPNBUS44/);
+    }
+  }
+});
 
 test("HTML/PDF source and Excel show AUD quote, converted VND payment and chosen bank for LCL and FCL", async () => {
   const draft = updateQuoteSchema.parse({

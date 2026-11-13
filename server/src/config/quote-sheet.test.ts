@@ -138,7 +138,7 @@ test("nhãn cột Quy cách và ngôn ngữ Anh/Việt", () => {
   }
   const model = buildQuoteSheetModel(input({ lang: "en" }), deps);
   assert.equal(model.t.spec, "Specification");
-  assert.equal(model.company.rows[0]?.[0], "Hanoi office");
+  assert.equal(model.company.rows[0]?.[0], "US office");
   assert.equal(formatQuoteNumber(1234.5, "en"), "1,234.50");
   assert.equal(formatQuoteNumber(1234.5, "vi"), "1.234,50");
   assert.equal(formatQuoteNumber(1234, "en"), "1,234");
