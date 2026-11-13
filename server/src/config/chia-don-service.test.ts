@@ -208,14 +208,26 @@ test("Sourcing gửi báo Sale đúng tuyến và bàn giao Logistics qua cùng 
 });
 
 test("yêu cầu làm lại báo đúng người, chưa có người thì chỉ báo quản lý", async () => {
-  const { notifications, sent } = notificationRecorder();
-  const crm = new CrmService({ returnQuote: async () => current } as unknown as CrmRepository, notifications, null, {
-    assign: async () => ({ id: "worker", name: "Worker" }), assignees: async () => ({}),
-  });
-  await crm.returnQuote("vn", "sourcing", current.id, actor);
-  assert.deepEqual(sent[0].ids, ["worker"]);
-  assert.equal(sent[0].draft.type, "quote.return");
-  await notifications.notifyQuoteRequested(actor, "vn", "sourcing", current.code, current.id, "SOURCING");
-  await notifications.notifyQuoteReturned(actor, "global", "logistics", current.code, current.id, "LOGISTICS");
-  assert.deepEqual(sent.slice(1).map((item) => item.ids), [["admin", "van-hanh"], ["admin", "van-hanh"]]);
+  for (const lane of ["vn", "global"] as const) {
+    for (const desk of ["sourcing", "logistics"] as const) {
+      for (const state of ["assigned", "missing", "error"] as const) {
+        const { notifications, sent } = notificationRecorder();
+        let rotations = 0;
+        const crm = new CrmService({ returnQuote: async () => current } as unknown as CrmRepository, notifications, null, {
+          assign: async () => { rotations++; return { id: "next-worker", name: "Next" }; },
+          assignees: async (requestedLane, requestedDesk) => {
+            assert.equal(requestedLane, lane);
+            assert.equal(requestedDesk, desk);
+            if (state === "error") throw new Error("db");
+            return state === "assigned" ? { [current.id]: { id: "previous-worker", name: "Previous" } } : {};
+          },
+        });
+        await crm.returnQuote(lane, desk, current.id, actor);
+        assert.equal(rotations, 0, "báo giá lại không gọi bộ chia xoay vòng");
+        assert.deepEqual(sent[0].ids, state === "assigned" ? ["previous-worker"] : ["admin", "van-hanh"]);
+        assert.equal(sent[0].draft.type, "quote.return");
+        assert.equal(sent[0].draft.href, `/van-hanh/${desk}-bao-gia?id=${current.id}&lane=${lane}`);
+      }
+    }
+  }
 });

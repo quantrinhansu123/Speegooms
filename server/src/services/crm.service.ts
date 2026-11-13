@@ -95,7 +95,8 @@ export class CrmService {
   }
 
   private async notifyQuoteReturn(actor: PublicUser, lane: CrmLane, desk: QuoteDesk, quote: QuoteRecord): Promise<void> {
-    const assignee = await this.assignment?.assign(lane, desk, quote.id).catch(() => null);
+    const assignees = await this.assignment?.assignees(lane, desk).catch(() => null);
+    const assignee = assignees?.[quote.id];
     await this.notifications?.notifyQuoteReturned(actor, lane, desk, quote.code, quote.id, quoteAccessKind(quote), assignee?.id);
   }
 
