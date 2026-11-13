@@ -1,7 +1,7 @@
 # Chuyển hợp đồng khi chưa có giá Logistics
 
 - Phạm vi: Sale chuyển báo giá Sourcing thành hợp đồng trước khi Logistics báo giá lần đầu, cả Việt Nam và Global.
-- Đối chiếu: 2026-11-13, nền `d3521d5`, nguồn `6605e52` trên nhánh `fix/sourcing-contract-before-logistics`; đích bàn giao main local theo yêu cầu, chưa push/deploy.
+- Đối chiếu: 2026-11-13, nền `d3521d5`, nguồn `6605e52` trên nhánh `fix/sourcing-contract-before-logistics`; đã bàn giao main, chưa xác nhận deployment.
 
 ## Quyết định
 
@@ -23,5 +23,6 @@
 - Trước sửa, 3 test hồi quy thất bại đúng nguyên nhân: điều kiện giao diện/API đòi Logistics và repository dùng phí tự gửi khi chưa có giá. Sau sửa, 56/56 test trong hai file trên qua với `node ../../node_modules/tsx/dist/cli.mjs --tsconfig server/tsconfig.json --test server/src/config/contract-readiness.test.ts server/src/config/quote-workflow.test.ts` tại worktree.
 - Bao phủ cả hai tuyến, Logistics chưa tồn tại/nháp rỗng/nháp có giá/nháp chưa hợp lệ, không cho vượt điều kiện Sourcing, giữ chặn báo giá lại và giữ nguyên cước đã gửi/khác loại tiền/khách thuần Logistics.
 - Typecheck API (`tsc --noEmit --project server/tsconfig.json`), frontend (`next typegen`, `tsc --noEmit --incremental false`) và `git diff --check` qua. Worktree dùng lại thư viện server đã cài ở worktree main qua junction, không đổi dependency.
-- Chưa thử trình duyệt hoặc API/DB thật, chưa chạy toàn bộ test/build và chưa xác nhận production.
+- Chưa thử trình duyệt hoặc luồng tạo hợp đồng trên API/DB thật và chưa xác nhận production. Build và toàn bộ test API đã được chạy khi ghép main ở mục cuối.
 - Trước tích hợp: `git pull --ff-only origin main` xác nhận main vẫn ở `d3521d5`, không phát sinh thay đổi code hay xung đột so với revision đã kiểm tra. Ghi chú bàn giao chỉ sửa tài liệu; không chạy lại test đã qua trên cùng code.
+- Khi ghép với đồng bộ tên khách: bản `6c18440` giữ nguyên logic Sourcing của `6605e52`; build API, 203 test API và 1 test native Vercel entry qua, 4 test DB khác bỏ qua. Typecheck API/frontend qua. Ca PostgreSQL đồng bộ tên chạy thật nhưng không thay cho kiểm thử API/DB của luồng tạo hợp đồng Sourcing.
