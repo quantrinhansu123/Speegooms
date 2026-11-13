@@ -65,19 +65,47 @@ export class PostgresAssignmentRepository {
         return { id: existing.id, name: existing.name };
       }
       const members = (await client.query<MemberRow>(membersSql, [desk])).rows.map(toMember);
-      const last = (await client.query<{ id: string }>(
-        `select nguoi_nhan_id as id from crm.chia_don where ban = $1 and nguoi_nhan_id is not null order by phan_cong_luc desc limit 1`,
+      const last = (await client.query<{ id: string; lane: CrmLane; quote_id: string }>(
+        `select nguoi_nhan_id as id, tuyen as lane, bao_gia_id::text as quote_id
+         from crm.chia_don where ban = $1 and nguoi_nhan_id is not null order by phan_cong_luc desc limit 1`,
         [desk],
       )).rows[0];
-      const pickedId = pickNextAssignee(members.map((m) => m.id), new Set(members.filter((m) => !m.off).map((m) => m.id)), last?.id ?? null);
+      const available = new Set(members.filter((m) => !m.off).map((m) => m.id));
+      let sameOrder = false;
+      if (last?.lane === lane && available.has(last.id)) {
+        const suffix = lane === "vn" ? "viet_nam" : "global";
+        const quotes = desk === "sourcing" ? ["sourcing"] : ["logistics", "sourcing"];
+        const context = (await client.query<{ id: string; customer_id: string; phone: string | null; email: string | null; name: string | null }>(
+          quotes.map((table) => `
+            select q.id::text, p.id::text as customer_id, p.so_dien_thoai_chuan as phone, p.thu_dien_tu_chuan as email,
+                   coalesce((select o->>'name' from jsonb_array_elements(q.chi_tiet_don_hang) with ordinality as item(o, position)
+                             order by (o->>'selected' = 'true') desc nulls last, position limit 1),
+                            m.thong_tin_don_hang->>'name') as name
+            from crm.bao_gia_${table}_${suffix} q
+            join crm.khach_hang_tiem_nang_${suffix} p on p.id = q.ma_khach_hang_tiem_nang and p.xoa_luc is null
+            left join crm.tin_nhan_${suffix} m on m.id = p.ma_tin_nhan
+            where q.id = any($1::uuid[])`).join(" union all "),
+          [[quoteId, last.quote_id]],
+        )).rows;
+        const current = context.find((row) => row.id === quoteId);
+        const previous = context.find((row) => row.id === last.quote_id);
+        const normalizeName = (name: string | null) => name?.trim().replace(/\s+/g, " ").toLowerCase();
+        // shortcut: chỉ xét đơn vừa chia; có đơn khác xen giữa thì chia vòng như thường.
+        sameOrder = Boolean(current && previous && normalizeName(current.name)
+          && normalizeName(current.name) === normalizeName(previous.name)
+          && (current.customer_id === previous.customer_id
+            || (current.phone && current.phone === previous.phone)
+            || (!current.phone && !previous.phone && current.email && current.email === previous.email)));
+      }
+      const pickedId = sameOrder ? last!.id : pickNextAssignee(members.map((m) => m.id), available, last?.id ?? null);
       const picked = members.find((m) => m.id === pickedId);
       if (!picked) {
         await client.query("commit");
         return null;
       }
       await client.query(
-        `insert into crm.chia_don (tuyen, ban, bao_gia_id, nguoi_nhan_id) values ($1, $2, $3::uuid, $4)
-         on conflict (tuyen, ban, bao_gia_id) do update set nguoi_nhan_id = excluded.nguoi_nhan_id, phan_cong_luc = now()`,
+        `insert into crm.chia_don (tuyen, ban, bao_gia_id, nguoi_nhan_id, phan_cong_luc) values ($1, $2, $3::uuid, $4, clock_timestamp())
+         on conflict (tuyen, ban, bao_gia_id) do update set nguoi_nhan_id = excluded.nguoi_nhan_id, phan_cong_luc = excluded.phan_cong_luc`,
         [lane, desk, quoteId, picked.id],
       );
       await client.query("commit");
