@@ -4,7 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
-| Sale tạo hợp đồng khi mới có giá Sourcing, chưa có giá Logistics; phí vận chuyển tạm tính 0 | [Điều kiện chuyển hợp đồng](crm/contract-readiness.md) | nền `d3521d5`, nhánh `fix/sourcing-contract-before-logistics`, 2026-11-13; chưa push/deploy |
+| Sale tạo hợp đồng khi mới có giá Sourcing, chưa có giá Logistics; phí vận chuyển tạm tính 0 | [Điều kiện chuyển hợp đồng](crm/contract-readiness.md) | nguồn `6605e52`, bàn giao main local theo yêu cầu, 2026-11-13; chưa push/deploy |
 | Sourcing tạo/sửa thông tin đơn hàng, nút thao tác luôn thấy trên laptop | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `83deddd`, `fix/quote-laptop-actions`, 2026-11-12 |
 | Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
 | Báo giá: ngắt trang không chừa khoảng trống lớn, lưu ý, Regions Wire/ACH, bản in/PDF/Excel, mẫu local | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `ccd8758`, In/Tải PDF và nội dung dài đã kiểm chứng, 2026-11-13; chưa xác nhận deployment |

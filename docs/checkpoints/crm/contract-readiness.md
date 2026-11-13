@@ -1,7 +1,7 @@
 # Chuyển hợp đồng khi chưa có giá Logistics
 
 - Phạm vi: Sale chuyển báo giá Sourcing thành hợp đồng trước khi Logistics báo giá lần đầu, cả Việt Nam và Global.
-- Đối chiếu: 2026-11-13, nền `d3521d5`, nhánh `fix/sourcing-contract-before-logistics`; chưa merge/push/deploy.
+- Đối chiếu: 2026-11-13, nền `d3521d5`, nguồn `6605e52` trên nhánh `fix/sourcing-contract-before-logistics`; đích bàn giao main local theo yêu cầu, chưa push/deploy.
 
 ## Quyết định
 
@@ -24,3 +24,4 @@
 - Bao phủ cả hai tuyến, Logistics chưa tồn tại/nháp rỗng/nháp có giá/nháp chưa hợp lệ, không cho vượt điều kiện Sourcing, giữ chặn báo giá lại và giữ nguyên cước đã gửi/khác loại tiền/khách thuần Logistics.
 - Typecheck API (`tsc --noEmit --project server/tsconfig.json`), frontend (`next typegen`, `tsc --noEmit --incremental false`) và `git diff --check` qua. Worktree dùng lại thư viện server đã cài ở worktree main qua junction, không đổi dependency.
 - Chưa thử trình duyệt hoặc API/DB thật, chưa chạy toàn bộ test/build và chưa xác nhận production.
+- Trước tích hợp: `git pull --ff-only origin main` xác nhận main vẫn ở `d3521d5`, không phát sinh thay đổi code hay xung đột so với revision đã kiểm tra. Ghi chú bàn giao chỉ sửa tài liệu; không chạy lại test đã qua trên cùng code.
