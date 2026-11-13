@@ -6,7 +6,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 |---|---|---|
 | Sourcing tạo/sửa thông tin đơn hàng, nút thao tác luôn thấy trên laptop | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `83deddd`, `fix/quote-laptop-actions`, 2026-11-12 |
 | Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
-| RFQ: lưu ý in trên một trang, màu tổng logistics, bỏ cột kg/CBM/m² | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `e15f757` + head/footer `41c68ec`, 2026-11-11 |
+| Báo giá: ngắt trang không chừa khoảng trống lớn, lưu ý, Regions Wire/ACH, bản in/PDF/Excel, mẫu local | [Bố cục bản in báo giá](crm/quote-print-layout.md) | nguồn `ccd8758`, In/Tải PDF và nội dung dài đã kiểm chứng, 2026-11-13; chưa xác nhận deployment |
 | Phân biệt loại đơn Logistics/Sourcing ở danh sách và chi tiết hợp đồng | [Loại đơn hợp đồng](crm/contract-source-type.md) | nền `f96af95`, nhánh `fix/contract-print-quote-id`, 2026-11-11; chưa triển khai |
 | Thu chi: tìm/chọn đơn, tài khoản nhận, ngày giao dịch riêng, tổng ngoại tệ, import/mẫu/xuất Excel | [Thu chi ngoại tệ và Excel](accounting/ledger-currency.md) | main `9f985da`; migration 050 đã áp dụng, 13 test gồm Postgres qua, 2026-11-12; chưa xác nhận deploy |
 | Gom đơn cùng khách/tên, Báo giá từ Khách tiềm năng, quyền Sourcing/Logistics, local Turbopack và DB local có dữ liệu test | [Thông báo yêu cầu báo giá](crm/quote-request-notifications.md) | Nguồn `28d936f`; DB local có 3 khách `TEST TIỀM NĂNG` chưa có báo giá, xác minh endpoint A/A/B, 2026-11-13; chưa push/deploy |
