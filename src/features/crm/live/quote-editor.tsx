@@ -25,6 +25,7 @@ import { QuotePaymentEditor } from "./quote-payment-editor";
 import { emptyFclQuote, FclQuoteForm } from "./fcl-quote-form";
 import { FreightPricingTable } from "./freight-pricing-table";
 import { QuoteOriginalPrices } from "./quote-original-prices";
+import { PhoneInput } from "./phone-input";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
@@ -2685,7 +2686,7 @@ export function QuoteEditor({
                     <Input id={fieldId("sale-company")} value={saleDraft.companyName} onChange={(event) => setSaleDraft({ ...saleDraft, companyName: event.target.value })} />
                   </Field>
                   <Field label="Số điện thoại" htmlFor={fieldId("sale-phone")}>
-                    <Input id={fieldId("sale-phone")} value={saleDraft.phone} onChange={(event) => setSaleDraft({ ...saleDraft, phone: event.target.value })} />
+                    <PhoneInput id={fieldId("sale-phone")} value={saleDraft.phone} onChange={(phone) => setSaleDraft({ ...saleDraft, phone })} />
                   </Field>
                   <Field label="Email" htmlFor={fieldId("sale-email")}>
                     <Input id={fieldId("sale-email")} value={saleDraft.email} onChange={(event) => setSaleDraft({ ...saleDraft, email: event.target.value })} />

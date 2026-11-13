@@ -25,6 +25,7 @@ import { RowMenu } from "./row-menu";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { QuoteTracking } from "./quote-tracking";
 import { missingQuoteFields } from "./potential-quote-validation";
+import { PhoneInput } from "./phone-input";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge, QuoteStatusBadge } from "./status-badges";
@@ -467,7 +468,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
                 <Input id="pot-company" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
               </Field>
               <Field label="Số điện thoại" htmlFor="pot-phone" required>
-                <Input id="pot-phone" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
+                <PhoneInput id="pot-phone" value={draft.phone} onChange={(phone) => setDraft({ ...draft, phone })} />
               </Field>
               <Field label="Email" htmlFor="pot-email">
                 <Input id="pot-email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />

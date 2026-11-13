@@ -1,7 +1,7 @@
 # CRM: mess → khách tiềm năng
 
 - Từ khóa: mess, conversion, convertMessage, Sourcing, Logistics, quantityNote, market, order draft.
-- Đối chiếu mới nhất: thay đổi `83b7edb` từ nền `34cd5b8`, ghép `main` local `08fe6e5` tại `8e76fda`, ngày 2026-11-13; bàn giao main local theo yêu cầu, chưa push/deploy.
+- Đối chiếu mới nhất: `feat/phone-country-dropdown` từ main `e242d9a`, ngày 2026-11-13; người dùng yêu cầu merge main và push sau khi hoàn tất. Thay đổi bỏ ô trùng trước đó ở `83b7edb`, đã bàn giao main local tại `6076ffe`.
 - Trạng thái: đã đọc các schema và luồng gọi liên quan; cần đối chiếu lại nếu chúng thay đổi. Đây không phải audit toàn bộ CRM.
 
 ## Hành vi cần giữ
@@ -11,6 +11,8 @@
 
 - Tạo/sửa mess yêu cầu `market` khác rỗng. Số điện thoại/email của mess chỉ kiểm tra định dạng nếu có nhập; bước chuyển đổi có schema riêng và yêu cầu số điện thoại.
 - Số điện thoại giữ nguyên định dạng quốc tế như `(+84)0346612345`, `+1 (234) 567-8900`; cho phép số, `+`, ngoặc, khoảng trắng, chấm và gạch ngang, phải có chữ số và tối đa 30 ký tự. Cùng quy tắc cho tạo/sửa mess, chuyển mess và sửa hồ sơ khách. Không tự bỏ mã quốc gia hoặc đổi sang E.164.
+- Bộ chọn mã quốc gia dùng chung `PhoneInput` ở tạo/sửa mess, tạo khách trực tiếp, chuyển mess, sửa khách tiềm năng và sửa liên hệ trên báo giá. Mặc định Việt Nam (+84); các mã dùng chung được gộp (Mỹ/Canada +1, Nga/Kazakhstan +7). Danh mục mã theo metadata Google libphonenumber, tên hiển thị bằng `Intl.DisplayNames("vi")`, không thêm dependency.
+- Mở sửa không tự ghi lại số cũ. Khi nhập/sửa, lưu chuỗi `+mã số`, giữ số 0 đầu và định dạng phần số; dán cả số quốc tế thì nhận lại mã, tránh ghép mã hai lần. Chọn mã khi phần số trống, hoặc chỉ dán mã như `+84`, vẫn lưu rỗng để validation bắt thiếu số. Số với mã chưa nhận diện giữ nguyên ở lựa chọn Mã khác; không migration/backfill dữ liệu cũ.
 - Sourcing ghi số lượng trên từng dòng hàng. UI chuyển đổi không yêu cầu `quantityNote` cho Sourcing; schema chỉ bắt buộc trường này khi có `shippingMode`.
 - Với Logistics, UI nhận diện qua `row.demand === "SHIPPING"` và yêu cầu chọn phương thức. Schema kiểm tra số lượng, địa chỉ nhận, yêu cầu khách và lý do chuyển. SEA cần LCL/FCL, AIR không dùng phân loại đó.
 - Form tạo khách trực tiếp/chuyển mess bỏ hai ô Trọng lượng và Kích thước kiện hàng; không sao chép cân/kích thước thành chuỗi trong payload chuyển. Hồ sơ đọc cân thực/kích thước từ kiện trên đơn hàng qua `toPotential` khi chưa có ghi chú thủ công cũ; cân tay tính cước vẫn nằm trên dòng, không coi là cân thực. `missingQuoteFields` không chặn vì thiếu hai chuỗi hồ sơ. Các trường API vẫn tùy chọn để tương thích client/dữ liệu cũ; không xóa dữ liệu cũ hoặc sửa cách tính cước.
@@ -24,6 +26,7 @@
 |---|---|
 | Payload và điều kiện bắt buộc | [shared/src/crm.ts](../../../shared/src/crm.ts): `messageFields`, `createMessageSchema`, `updateMessageSchema`, `convertMessageSchema` |
 | Dialog chuyển đổi và nháp đơn hàng | [mess-convert.tsx](../../../src/features/crm/live/mess-convert.tsx): `detailsFrom`, `prefillOrder`, `convertMessageSchema.safeParse` |
+| Bộ chọn mã điện thoại, tách/ghép số và kiểm tra hồi quy | [phone-input.tsx](../../../src/features/crm/live/phone-input.tsx), [phone-number.ts](../../../src/features/crm/live/phone-number.ts), [phone-number.test.ts](../../../src/features/crm/live/phone-number.test.ts) |
 | Kiểm tra hồ sơ trước khi báo giá | [potential-quote-validation.ts](../../../src/features/crm/live/potential-quote-validation.ts): `missingQuoteFields` |
 | API và quyền | [crm.routes.ts](../../../server/src/routes/crm.routes.ts): `/messages/:id/convert`, `message.convert` |
 | Service và lưu DB | [crm.service.ts](../../../server/src/services/crm.service.ts), [crm.repository.ts](../../../server/src/adapters/postgres/crm.repository.ts): `convertMessage` |
@@ -31,6 +34,9 @@
 | Test workflow/fixture API | [quote-workflow.test.ts](../../../server/src/config/quote-workflow.test.ts), [crm.repository.integration.test.ts](../../../server/src/adapters/postgres/crm.repository.integration.test.ts) |
 
 ## Bằng chứng và việc còn mở
+
+- Bộ chọn mã quốc gia (nền `e242d9a`): 61 test liên quan và typecheck frontend qua; lint bộ chọn/helper và form mess/chuyển mess qua. Playwright chạy form `MessFormDialog` thật trong harness local: mặc định +84, chọn mã mà chưa nhập số vẫn rỗng, lưu số VN, mở số +61 và (+84) không thay giá trị cũ, đổi mã giữ phần số, xóa số giữ mã đã chọn, dán cả số nhận đúng mã, gõ khoảng trắng không mất. Harness đã được dọn, không ghi API/DB.
+- Production build frontend của bộ chọn chưa hoàn tất: Turbopack báo không tải được Inter/Geist Mono từ Google Fonts. Không sửa font/cấu hình ngoài phạm vi. Chưa xác nhận deployment Vercel.
 
 - Bản sửa 2026-11-13: 65 test tập trung qua (`mess-form`, `potential-quote-validation`, `quote-workflow`, `potential-quote-status`); typecheck frontend/API, lint các file frontend sửa, `check:crm` và diff check qua (shared được cấu hình bỏ qua lint); `pnpm test:api` build API thành công, 200 test qua/3 bỏ qua theo cấu hình DB, test Vercel entry qua.
 - Playwright trên form thật qua harness local tạm: tạo mess giữ nguyên số quốc tế; form tạo khách/chuyển mess không còn hai ô trùng; AIR/LCL gửi payload không chứa hai chuỗi, giữ kiện và tính lại cân từ đơn; FCL mở form lô hàng với cân để nhập tại đây và chưa tự bàn giao. API trong lượt UI được giả lập; không ghi production. Harness đã được dọn sau kiểm tra.

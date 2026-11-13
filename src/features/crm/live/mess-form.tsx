@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { packageMetrics } from "@/services/crm/quote-lines";
 import { MessOrderDialog } from "./quote-editor";
 import { orderSummary } from "./order-summary";
+import { PhoneInput } from "./phone-input";
 import { brandOptions, careChannelOptions, customerTypeOptions, demandOptions, messageClassificationOptions, type MessageRecord } from "./types";
 
 export const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
@@ -346,14 +347,11 @@ export function MessFormDialog({
                   {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Vận chuyển nhập thêm đơn vị, cân tính cước và quy cách đóng gói. Đóng gói có thể bổ sung ở bước báo giá. Hàng biển FCL nhập ở form cước riêng.</p>}
                 </div>
               )}
-              <Field label="Số điện thoại" htmlFor="mess-phone" error={fieldErrors?.["mess-phone"]} required={lead} hint="Ví dụ: (+84)0346612345">
-                <Input
+              <Field label="Số điện thoại" htmlFor="mess-phone" error={fieldErrors?.["mess-phone"]} required={lead}>
+                <PhoneInput
                   id="mess-phone"
-                  type="tel"
-                  autoComplete="tel"
-                  maxLength={30}
                   value={draft.phone}
-                  onChange={(event) => update({ phone: event.target.value })}
+                  onChange={(phone) => update({ phone })}
                 />
               </Field>
               <Field label="Email" htmlFor="mess-email" error={fieldErrors?.["mess-email"]}>
