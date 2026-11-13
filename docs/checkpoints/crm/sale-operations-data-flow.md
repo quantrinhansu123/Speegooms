@@ -1,5 +1,7 @@
 # Sale → Sourcing/Logistics: dữ liệu xử lý báo giá
 
+- Cập nhật 2026-11-13, nhánh `fix/mess-order-metrics-phone` từ `34cd5b8`: bỏ ô cân/kích thước nhập riêng lúc tạo khách/chuyển mess; không sao chép thành ghi chú hồ sơ. Cân/kích thước trên đơn hàng và kiểm tra bàn giao thường/FCL giữ nguyên. Hồ sơ thiếu hai chuỗi không còn chặn tạo báo giá. Xem [Chuyển đổi mess](mess-conversion.md) cho số điện thoại quốc tế, nguồn code, kết quả kiểm tra và giới hạn triển khai.
+
 ## Tạo/sửa đơn khi Sourcing nhập giá (2026-11-12)
 
 - Nền `c3d53d9`, nhánh `feat/sourcing-order-information`. `QuoteEditor` đã cho Sourcing tạo/sửa trong tab Sourcing; khối đơn giá ở tab Logistics trước đây chỉ có ô giá trên các đơn có sẵn.

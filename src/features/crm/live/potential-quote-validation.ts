@@ -38,7 +38,6 @@ const requiredQuoteFields = [
 
 const requiredLogisticsFields = [
   ["shippingMode", "Phương thức vận chuyển"],
-  ["weightKg", "Trọng lượng"],
   ["shipToAddress", "Địa chỉ nhận hàng"],
   ["requirements", "Yêu cầu của khách"],
   ["convertReason", "Lý do chuyển"],
@@ -52,6 +51,5 @@ export function missingQuoteFields(row: QuoteFields): string[] {
     .filter(([field]) => !row[field]?.trim())
     .map(([, label]) => label);
   if (row.customerKind === "LOGISTICS" && row.shippingMode === "SEA" && !row.logisticsClass) missing.push("LCL/FCL");
-  if (row.customerKind === "LOGISTICS" && row.logisticsClass !== "FCL" && !row.packageDimensions?.trim()) missing.push("Kích thước kiện hàng");
   return missing;
 }

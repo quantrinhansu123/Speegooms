@@ -19,7 +19,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |
 | Cấu trúc ghi chú, cách tìm context cũ, phạm vi chia sẻ | [Tổ chức checkpoint](project/context-notes.md) | `9b17d04` + quyết định 2026-11-08 |
-| CRM: mess → khách tiềm năng; Sourcing/Logistics; số lượng, thị trường, dữ liệu nháp, validation | [Chuyển đổi mess](crm/mess-conversion.md) | `8ea86e4`, 2026-11-08 |
+| CRM: mess → khách tiềm năng; bỏ ô cân/kích thước trùng, số điện thoại quốc tế, validation | [Chuyển đổi mess](crm/mess-conversion.md) | nền `34cd5b8`, `fix/mess-order-metrics-phone`, 2026-11-13; chưa deploy |
 
 ## Luồng dữ liệu báo giá
 

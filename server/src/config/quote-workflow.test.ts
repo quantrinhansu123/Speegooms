@@ -11,7 +11,7 @@ import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-poli
 import { accountingContractSchema, createContractSchema, createMessageSchema, contractPaymentFlags, fclChargeTotal, fclTotals, paymentsInMain, productAmounts, quoteAmount, quoteVndAmount, remainderAfterPayments, remainderByCurrency, shippingAmount, shippingInCurrency, sumByCurrency, totalsInMain } from "@speego/shared";
 import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository";
 import type { NotificationService } from "../services/notification.service";
-import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updateQuoteSchema, withInsuranceCurrency, type PublicUser, type QuoteDesk } from "@speego/shared";
+import { defaultQuoteBank, logisticsOrderFromSourcing, updateMessageSchema, updatePotentialSchema, updateQuoteSchema, withInsuranceCurrency, type PublicUser, type QuoteDesk } from "@speego/shared";
 import { orderPackageMetrics } from "../../../src/services/crm/quote-lines";
 
 test("conversion requires complete potential information, including logistics fields", () => {
@@ -25,6 +25,38 @@ test("conversion requires complete potential information, including logistics fi
   assert.equal(customerKindSchema.safeParse("SOURCING_LOGISTICS").success, false);
   assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA" }).success, false);
   assert.equal(convertMessageSchema.safeParse({ ...base, shippingMode: "SEA", logisticsClass: "FCL", weightKg: "20", shipToAddress: "Địa chỉ", reason: "Có nhu cầu" }).success, true);
+});
+
+test("CRM keeps international phone formatting on message creation, editing, conversion and profile updates", () => {
+  const message = { customerName: "Khách", email: "", goods: "Hàng", note: "Ghi chú", market: "Mỹ", saleName: "Sale", painPoint: "", linkMess: "" };
+  const conversion = { customerType: "INDIVIDUAL", careChannel: "ZALO", productInterest: "Hàng", address: "", saleNote: "Ghi chú", requirements: "Giao hàng" };
+  const potential = { fullName: "Khách", companyName: "", email: "", productInterest: "Hàng", quantityNote: "", address: "", saleNote: "Ghi chú", potential: "POTENTIAL" };
+  for (const phone of ["0346612345", "(+84)0346612345", "+1 (234) 567-8900", "(+84) 034.661.2345"]) {
+    assert.equal(createMessageSchema.parse({ ...message, phone }).phone, phone);
+    assert.equal(updateMessageSchema.parse({ ...message, phone }).phone, phone);
+    assert.equal(convertMessageSchema.parse({ ...conversion, phone }).phone, phone);
+    assert.equal(updatePotentialSchema.parse({ ...potential, phone }).phone, phone);
+  }
+  for (const phone of ["phone", "(+84)abc", "+() -.", "123<script>", "1".repeat(31)]) {
+    assert.equal(createMessageSchema.safeParse({ ...message, phone }).success, false);
+    assert.equal(updateMessageSchema.safeParse({ ...message, phone }).success, false);
+    assert.equal(convertMessageSchema.safeParse({ ...conversion, phone }).success, false);
+    assert.equal(updatePotentialSchema.safeParse({ ...potential, phone }).success, false);
+  }
+  assert.equal(createMessageSchema.safeParse({ ...message, phone: "" }).success, true);
+  assert.equal(convertMessageSchema.safeParse({ ...conversion, phone: "" }).success, false);
+  assert.equal(updatePotentialSchema.safeParse({ ...potential, phone: "" }).success, false);
+});
+
+test("conversion defers weight and dimensions to the order or FCL form", () => {
+  const base = { phone: "(+84)0346612345", customerType: "INDIVIDUAL", careChannel: "ZALO", productInterest: "Hàng", quantityNote: "1 kiện", address: "", saleNote: "Ghi chú", requirements: "Giao hàng", shipToAddress: "US", reason: "Cần gửi" };
+  for (const routing of [{ shippingMode: "AIR" }, { shippingMode: "SEA", logisticsClass: "LCL" }, { shippingMode: "SEA", logisticsClass: "FCL" }]) {
+    assert.equal(convertMessageSchema.safeParse({ ...base, ...routing }).success, true);
+    assert.equal(convertMessageSchema.safeParse({ ...base, ...routing, weightKg: "", packageDimensions: "" }).success, true);
+    for (const field of ["quantityNote", "shipToAddress", "reason", "requirements"] as const) {
+      assert.equal(convertMessageSchema.safeParse({ ...base, ...routing, [field]: "" }).success, false);
+    }
+  }
 });
 
 test("FCL charges include VAT and optional trucking only in the full total", () => {
@@ -712,8 +744,12 @@ test("FCL handoff validates the shipment form and manual kg can hand off without
   const service = new CrmService({ findQuote: async () => current } as unknown as CrmRepository);
   const actor = { id: "sale", role: "sale-vn" } as PublicUser;
   assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);
-  current.notes.fcl!.volume = "";
-  await assert.rejects(service.handoffLogisticsOrder("vn", "quote", actor), { status: 400 });
+  for (const field of ["commodity", "weight", "volume"] as const) {
+    const value = current.notes.fcl![field];
+    current.notes.fcl![field] = "";
+    await assert.rejects(service.handoffLogisticsOrder("vn", "quote", actor), { status: 400 });
+    current.notes.fcl![field] = value;
+  }
   current.logisticsClass = "LCL";
   current.orders = input.orders;
   assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);

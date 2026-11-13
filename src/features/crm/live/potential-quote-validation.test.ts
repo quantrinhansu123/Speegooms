@@ -27,12 +27,14 @@ const complete = {
   convertReason: "Cần báo giá",
 };
 
-test("Logistics quote still requires weight and receiving address", () => {
+test("Logistics quote requires receiving address without duplicate profile metrics", () => {
   assert.deepEqual(missingQuoteFields(complete), []);
   assert.deepEqual(missingQuoteFields({ ...complete, companyName: " ", weightKg: "  ", shipToAddress: null }), [
-    "Trọng lượng",
     "Địa chỉ nhận hàng",
   ]);
+  for (const logisticsClass of ["LCL", "FCL"]) {
+    assert.deepEqual(missingQuoteFields({ ...complete, logisticsClass, packageDimensions: null, weightKg: null }), []);
+  }
 });
 
 test("Logistics quote accepts blank company, email and customer address", () => {
@@ -71,12 +73,10 @@ test("other logistics profile fields remain required", () => {
     "Số lượng",
     "Ghi chú sale",
     "Kênh chăm sóc",
-    "Trọng lượng",
     "Địa chỉ nhận hàng",
     "Yêu cầu của khách",
     "Lý do chuyển",
     "LCL/FCL",
-    "Kích thước kiện hàng",
   ]);
 });
 
