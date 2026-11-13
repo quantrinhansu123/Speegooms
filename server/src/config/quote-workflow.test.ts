@@ -894,7 +894,40 @@ test("explicit handoff notifies Logistics even when its draft already exists", a
   assert.equal(notified, true);
 });
 
-test("creating a contract uses persisted Logistics costs instead of a submitted shipping override", async () => {
+test("a Sourcing contract excludes missing, empty, priced and invalid Logistics drafts on both lanes", async () => {
+  const sourcing = handoffInput();
+  const priced = handoffInput();
+  priced.notes.shippingLabel = "1.250";
+  const invalid = handoffInput();
+  invalid.notes.logisticsFees = [{ label: "Cước", labelEn: "", value: "Chưa chốt", currency: "USD", itemStt: "" }];
+  for (const lane of ["vn", "global"] as const) {
+    for (const logisticsSheet of [null, handoffInput(), priced, invalid]) {
+      let inserted: unknown[] | undefined;
+      const repository = new PostgresCrmRepository({
+        query: async (sql: string, values: unknown[]) => {
+          if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGS" }] };
+          if (sql.includes("select q.id")) return { rowCount: 1, rows: [{
+            customer_kind: "SOURCING", quote_workflow: "COMBINED", order_lines: sourcing.orders,
+            sent_copy: { sentAt: "2026-11-13", order: sourcing.orders[0], notes: sourcing.notes, bank: sourcing.bank },
+            logistics_sheet: logisticsSheet, created_at: new Date(),
+          }] };
+          if (sql.includes("insert into crm.hop_dong (")) inserted = values;
+          return { rowCount: 0, rows: [] };
+        },
+      } as unknown as pg.Pool);
+      await repository.createContract(lane, "quote", createContractSchema.parse({
+        currency: "VND", customerName: "Khách", saleName: "Sale", shipTo: "", product: "Hàng", quantity: 1,
+        productValue: 6000, shippingCost: 999, totalValue: 6999, paidAmount: 0, signedOn: "",
+      }));
+      assert.equal(inserted?.[9], 0);
+      assert.equal(inserted?.[10], 6000);
+      const stored = JSON.parse(String(inserted?.[16]));
+      assert.deepEqual(stored.shipping, [{ currency: "VND", amount: 0 }]);
+    }
+  }
+});
+
+test("creating a contract uses sent Logistics costs instead of a submitted shipping override", async () => {
   for (const lane of ["vn", "global"] as const) {
     let inserted: unknown[] | undefined;
     const shipping = handoffInput();
@@ -902,7 +935,9 @@ test("creating a contract uses persisted Logistics costs instead of a submitted 
     const repository = new PostgresCrmRepository({
       query: async (sql: string, values: unknown[]) => {
         if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGS" }] };
-        if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: shipping, created_at: new Date() }] };
+        if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: {
+          ...shipping, quoteStatus: "DA_CO_BAO_GIA", sentQuote: { sentAt: "2026-11-13", order: shipping.orders[0], notes: shipping.notes, bank: shipping.bank },
+        }, created_at: new Date() }] };
         if (sql.includes("insert into crm.hop_dong (")) inserted = values;
         return { rowCount: 0, rows: [] };
       },
@@ -946,7 +981,9 @@ test("creating a contract keeps the logistics currency and totals in the main cu
   const repository = new PostgresCrmRepository({
     query: async (sql: string, values: unknown[]) => {
       if (sql.includes("select ma_hien_thi as code")) return { rowCount: 1, rows: [{ code: "BGS" }] };
-      if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: sheet, created_at: new Date() }] };
+      if (sql.includes("select q.id")) return { rowCount: 1, rows: [{ customer_kind: "SOURCING", quote_workflow: "COMBINED", logistics_sheet: {
+        ...sheet, quoteStatus: "DA_CO_BAO_GIA", sentQuote: { sentAt: "2026-11-13", order: sheet.orders[0], notes: sheet.notes, bank: sheet.bank },
+      }, created_at: new Date() }] };
       if (sql.includes("insert into crm.hop_dong (")) inserted = values;
       return { rowCount: 0, rows: [] };
     },

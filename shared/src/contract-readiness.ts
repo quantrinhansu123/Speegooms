@@ -15,9 +15,9 @@ function sheetProblem(label: string, sheet: SheetState): string | null {
 }
 
 /**
- * Điều kiện tạo hợp đồng: đủ các báo giá đã gửi.
+ * Điều kiện tạo hợp đồng: có báo giá đã gửi của loại khách.
  * - KH Logistics: báo giá Logistics.
- * - KH Sourcing luồng gộp: báo giá Sourcing và báo giá Logistics.
+ * - KH Sourcing luồng gộp: báo giá Sourcing; không cần chờ Logistics gửi lần đầu.
  * - KH Sourcing luồng cũ: báo giá Sourcing.
  * Đang chờ báo giá lại (Sale đã trả về) thì chưa đủ. Trả về danh sách lý do; rỗng là được tạo.
  */
@@ -32,7 +32,7 @@ export function contractQuoteProblems(quote: {
     return [sheetProblem("Logistics", quote)].filter((item): item is string => Boolean(item));
   }
   const problems = [sheetProblem("Sourcing", quote)];
-  if (isCombinedSourcing(quote)) problems.push(sheetProblem("Logistics", quote.logisticsSheet));
+  if (isCombinedSourcing(quote) && quote.logisticsSheet?.sentQuote) problems.push(sheetProblem("Logistics", quote.logisticsSheet));
   return problems.filter((item): item is string => Boolean(item));
 }
 

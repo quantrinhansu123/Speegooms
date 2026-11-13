@@ -21,9 +21,10 @@ const quote = (patch: Partial<QuoteRecord>) => ({
   quoteStatus: "DA_CO_BAO_GIA", contractStatus: "CHUA_TAO", sentQuote: sent, logisticsSheet: sheet("DA_CO_BAO_GIA"), ...patch,
 } as unknown as QuoteRecord);
 
-test("hợp đồng cần đủ báo giá đã gửi theo loại khách", () => {
+test("hợp đồng Sourcing không phải chờ báo giá Logistics lần đầu", () => {
   assert.deepEqual(contractQuoteProblems(quote({})), []);
-  assert.deepEqual(contractQuoteProblems(quote({ logisticsSheet: null })), ["chưa có báo giá Logistics đã gửi"]);
+  assert.deepEqual(contractQuoteProblems(quote({ logisticsSheet: null })), []);
+  assert.deepEqual(contractQuoteProblems(quote({ logisticsSheet: sheet("CHUA_CO_BAO_GIA", false) })), []);
   assert.deepEqual(contractQuoteProblems(quote({ quoteStatus: "CHUA_CO_BAO_GIA", sentQuote: null })), ["chưa có báo giá Sourcing đã gửi"]);
   assert.deepEqual(contractQuoteProblems(quote({ quoteStatus: "CHUA_CO_BAO_GIA_LAI" })), ["Sourcing đang chờ báo giá lại"]);
   assert.deepEqual(contractQuoteProblems(quote({ logisticsSheet: sheet("CHUA_CO_BAO_GIA_LAI") })), ["Logistics đang chờ báo giá lại"]);
@@ -45,6 +46,28 @@ test("service chặn tạo hợp đồng khi thiếu báo giá", async () => {
   assert.equal(created, 0);
   await service(quote({})).createContract("vn", "quote", {} as never);
   assert.equal(created, 1);
+});
+
+test("Sale tạo hợp đồng từ Sourcing đã gửi khi Logistics chưa có giá trên cả hai tuyến", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    for (const logisticsSheet of [null, sheet("CHUA_CO_BAO_GIA", false)]) {
+      const current = quote({ logisticsSheet });
+      let created = false;
+      const service = new CrmService({
+        findQuote: async () => current,
+        createContract: async (savedLane: string, id: string) => {
+          assert.equal(savedLane, lane);
+          assert.equal(id, current.id);
+          created = true;
+          return { code: "HD-1", id: "c" };
+        },
+      } as unknown as CrmRepository);
+      await service.createContract(lane, current.id, {} as never, { id: "sale", role: lane === "vn" ? "sale-vn" : "sale-global" } as PublicUser);
+      assert.equal(created, true);
+      current.sentQuote = null;
+      await assert.rejects(service.createContract(lane, current.id, {} as never), /chưa có báo giá Sourcing đã gửi/);
+    }
+  }
 });
 
 test("chỉ đổi phần ảnh hưởng tới cước mới tính là đơn đổi", () => {
