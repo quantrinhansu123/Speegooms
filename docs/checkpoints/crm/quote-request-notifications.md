@@ -1,7 +1,7 @@
 # Thông báo yêu cầu báo giá từ khách tiềm năng
 
 - Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, phân công/quyền, người nhận thông báo và danh sách báo giá vận hành; admin Logistics xem mọi tuyến/phiếu.
-- Đối chiếu mới nhất: 2026-11-13, gom đơn liên tiếp nguồn `28d936f` trên nền main `08fe6e5`, nhánh `fix/group-consecutive-quote-assignment`; chuẩn bị bàn giao main local theo yêu cầu, chưa push/deploy. Các kết quả ở từng mục gắn với revision được ghi rõ.
+- Đối chiếu mới nhất: 2026-11-13, gom đơn liên tiếp nguồn `28d936f`, bản ghép main `6076ffe` tại `7aadd4d` đã kiểm chứng; bàn giao main local theo yêu cầu, chưa push/deploy. Các kết quả ở từng mục gắn với revision được ghi rõ.
 
 ## Gom đơn liên tiếp cùng khách và tên (2026-11-13)
 
@@ -11,6 +11,7 @@
 - Đọc cả bảng Logistics và Sourcing khi chia Logistics để hỗ trợ phiếu kết hợp dùng ID Sourcing. Giữ nguyên phân công đã có, quyền và đường gửi thông báo hiện tại; báo giá lại vẫn không chia mới. Không backfill đơn cũ. Thời gian phân công lấy `clock_timestamp()` khi ghi sau khóa, tránh dùng thời điểm bắt đầu giao dịch trước lúc chờ khóa.
 - Giới hạn: nhận diện từ tên và thông tin liên hệ hiện có, không có mã nhóm lô hàng riêng. Cùng khách dùng lại tên cho lô mới ngay sau vẫn có thể được giao cùng người; thiếu tên lúc chia thì không tự gom lại sau khi nhập/sửa tên. FCL không có tên đơn/nháp Mess phù hợp vẫn chia vòng như thường.
 - Kiểm chứng: PostgreSQL 17 local tạm, dữ liệu giả, migration 048 và fixture tối thiểu cho các bảng CRM; 9 test gồm cả hai tuyến/bàn, gom/không gom, nháp Mess, mẫu được chọn, bàn giao kết hợp, email, off/nghỉ phép, giữ phân công cũ và đồng thời đều qua. Bộ test API theo package script: 207 qua, 3 test DB khác bỏ qua; build API và test native Vercel entry qua; API typecheck và diff check qua. Chưa thử UI/production hoặc full schema CRM migration trên DB kiểm thử này.
+- Bàn giao main local: đã pull `origin/main` tại `6076ffe`, ghép vào nhánh sửa bằng `7aadd4d`, không xung đột. Chạy lại toàn bộ test API trên bản ghép: 209 qua, 3 test DB khác bỏ qua; gồm 9 test PostgreSQL gom đơn. API typecheck, build API, test native Vercel entry và diff check qua. Dùng cấu hình `server/.env` hiện có khi chạy local (Supabase), không chạy migration/seed hoặc ghi dữ liệu thử lên database đang dùng.
 
 ## Báo giá lại giữ người phụ trách (2026-11-13)
 
