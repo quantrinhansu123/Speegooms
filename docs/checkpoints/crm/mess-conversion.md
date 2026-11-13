@@ -1,7 +1,7 @@
 # CRM: mess → khách tiềm năng
 
 - Từ khóa: mess, conversion, convertMessage, Sourcing, Logistics, quantityNote, market, order draft.
-- Đối chiếu mới nhất: nền `34cd5b8`, nhánh `fix/mess-order-metrics-phone`, ngày 2026-11-13; chưa merge/push/deploy.
+- Đối chiếu mới nhất: thay đổi `83b7edb` từ nền `34cd5b8`, ghép `main` local `08fe6e5` tại `8e76fda`, ngày 2026-11-13; bàn giao main local theo yêu cầu, chưa push/deploy.
 - Trạng thái: đã đọc các schema và luồng gọi liên quan; cần đối chiếu lại nếu chúng thay đổi. Đây không phải audit toàn bộ CRM.
 
 ## Hành vi cần giữ
@@ -35,6 +35,7 @@
 - Bản sửa 2026-11-13: 65 test tập trung qua (`mess-form`, `potential-quote-validation`, `quote-workflow`, `potential-quote-status`); typecheck frontend/API, lint các file frontend sửa, `check:crm` và diff check qua (shared được cấu hình bỏ qua lint); `pnpm test:api` build API thành công, 200 test qua/3 bỏ qua theo cấu hình DB, test Vercel entry qua.
 - Playwright trên form thật qua harness local tạm: tạo mess giữ nguyên số quốc tế; form tạo khách/chuyển mess không còn hai ô trùng; AIR/LCL gửi payload không chứa hai chuỗi, giữ kiện và tính lại cân từ đơn; FCL mở form lô hàng với cân để nhập tại đây và chưa tự bàn giao. API trong lượt UI được giả lập; không ghi production. Harness đã được dọn sau kiểm tra.
 - Chưa chạy DB integration, production build frontend hoặc kiểm tra deployment Vercel cho bản sửa này.
+- Kiểm tra bản ghép `8e76fda`: 200 test API qua/3 bỏ qua (chạy trực tiếp các file trong script test), 9 test frontend/schema qua, typecheck frontend/API qua. Không có conflict. `git pull --ff-only origin main` thất bại vì không kết nối GitHub:443; chưa xác nhận remote mới nhất. Build API chạy lại bị esbuild báo `Cannot read directory ... Access is denied`, nên chưa tái xác minh build/entry cho bản ghép; kết quả build thành công ở trên thuộc revision trước ghép. Không sửa cấu hình build để né lỗi môi trường.
 
 ### Lịch sử kiểm chứng 2026-11-08
 
