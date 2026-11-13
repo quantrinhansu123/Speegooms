@@ -1135,9 +1135,9 @@ function applyCommercial(base: ContractRecord, source: Record<string, unknown> |
   }
   const quantity = source.quantity;
   const paidAmount = snapMoney(source, "paidAmount");
+  // Tên khách theo hồ sơ hiện tại; các điều khoản còn lại theo bản đã gửi.
   return {
     ...base,
-    customerName: snapText(source, "customerName"),
     saleName: snapNullableText(source, "saleName"),
     shipTo: snapNullableText(source, "shipTo"),
     product: snapNullableText(source, "product"),

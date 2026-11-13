@@ -856,19 +856,20 @@ test("contract source desk survives every contract view on both lanes, including
 test("both lanes show live payments and logistics details to Sale", async () => {
   for (const lane of ["vn", "global"] as const) {
     const raw = {
-      id: "contract", lane, customer_name: "Khách", currency: "VND", total_value: 1000, paid_amount: 500, balance: 500,
+      id: "contract", lane, customer_name: "Tên khách đã sửa", currency: "VND", total_value: 1000, paid_amount: 500, balance: 500,
       confirmed_amount: 500, accounting_status: "DA_HOAN_THANH_COC", ops_status: "Đang vận chuyển", delivery_on: "2026-11-03",
       tracking: "TRACK-NEW", note_1: "Đã nhập kho", note_2: "Chờ container",
       china_warehouse_on: "2026-10-31", container_on: "2026-11-01", arrival_on: "2026-11-02",
       payments: [{ amount: 200, paidOn: "2026-10-30", note: "Lần 1", images: [] }, { amount: 300, paidOn: "2026-10-31", note: "Lần 2", images: [] }],
-      sent_ops_body: { totalValue: 1000, paidAmount: 200, currency: "VND" },
-      sent_accounting_body: { totalValue: 1000, paidAmount: 200, currency: "VND", deliveryOn: "2026-12-20" },
+      sent_ops_body: { customerName: "Tên khách cũ", totalValue: 1000, paidAmount: 200, currency: "VND" },
+      sent_accounting_body: { customerName: "Tên khách cũ", totalValue: 1000, paidAmount: 200, currency: "VND", deliveryOn: "2026-12-20" },
       sent_parties_body: { tracking: "TRACK-OLD", note1: "Cũ", deliveryOn: "2026-12-20" },
       created_at: new Date(), updated_at: new Date(),
     };
     const repository = new PostgresCrmRepository({ query: async () => ({ rowCount: 1, rows: [raw] }) } as unknown as pg.Pool);
     for (const view of ["sale", "ops", "accounting"] as const) {
       const [contract] = await repository.listContracts(lane, false, view, { q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
+      assert.equal(contract.customerName, "Tên khách đã sửa");
       assert.deepEqual(contract.payments.map((line) => line.amount), [200, 300]);
       assert.equal(contract.paidAmount, 500);
       assert.equal(contract.deliveryOn, "2026-11-03");
