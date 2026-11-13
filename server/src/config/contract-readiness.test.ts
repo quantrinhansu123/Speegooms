@@ -56,14 +56,29 @@ test("chỉ đổi phần ảnh hưởng tới cước mới tính là đơn đ�
 test("Sourcing gửi lại với đơn đổi thì báo giá Logistics đã gửi chuyển về chờ báo giá lại", async () => {
   const returned: string[] = [];
   const notified: string[] = [];
+  const assignees: (string | undefined)[] = [];
+  let rotations = 0;
   const current = quote({});
   const repo = {
     findQuote: async () => current,
     sendQuote: async () => current,
     returnQuote: async (_lane: string, desk: string) => { returned.push(desk); return current; },
   } as unknown as CrmRepository;
-  const notes = { notifyQuoteSent: async () => undefined, notifyQuoteReturned: async (_a: unknown, _l: string, desk: string) => { notified.push(desk); } };
-  const service = new CrmService(repo, notes as never);
+  const notes = {
+    notifyQuoteSent: async () => undefined,
+    notifyQuoteReturned: async (_a: unknown, _l: string, desk: string, _code: string, _id: string, _kind: unknown, assigneeId?: string) => {
+      notified.push(desk);
+      assignees.push(assigneeId);
+    },
+  };
+  const service = new CrmService(repo, notes as never, null, {
+    assign: async () => { rotations++; return { id: "next-worker", name: "Next" }; },
+    assignees: async (lane, desk) => {
+      assert.equal(lane, "vn");
+      assert.equal(desk, "logistics");
+      return { [current.id]: { id: "previous-logistics", name: "Previous Logistics" } };
+    },
+  });
   const admin = { id: "u", role: "admin", name: "Admin" } as PublicUser;
   await service.sendQuote("vn", "sourcing", "quote", input, admin);
   assert.deepEqual(returned, []);
@@ -71,4 +86,6 @@ test("Sourcing gửi lại với đơn đổi thì báo giá Logistics đã gử
   await service.sendQuote("vn", "sourcing", "quote", changed, admin);
   assert.deepEqual(returned, ["logistics"]);
   assert.deepEqual(notified, ["logistics"]);
+  assert.deepEqual(assignees, ["previous-logistics"]);
+  assert.equal(rotations, 0);
 });

@@ -1,7 +1,16 @@
 # Thông báo yêu cầu báo giá từ khách tiềm năng
 
 - Phạm vi: Sale bấm Báo giá tại Khách tiềm năng; tạo RFQ, phân công/quyền, người nhận thông báo và danh sách báo giá vận hành; admin Logistics xem mọi tuyến/phiếu.
-- Đối chiếu mới nhất: 2026-11-11, sửa bước gửi trên nền main `d0e405c`, nhánh `fix/sourcing-send-notifications`; nguồn thay đổi được commit cùng ghi chú này. Đã xử lý phiếu thật theo ủy quyền; chưa xác nhận deployment UI. Các kết quả ở từng mục gắn với revision được ghi rõ.
+- Đối chiếu mới nhất: 2026-11-13, báo giá lại giữ phân công trên nền main `34cd5b8`, nhánh `fix/requote-keep-assignee`; chưa deploy. Các kết quả ở từng mục gắn với revision được ghi rõ.
+
+## Báo giá lại giữ người phụ trách (2026-11-13)
+
+- Nền `34cd5b8`, nhánh `fix/requote-keep-assignee`. Nguồn: `server/src/services/crm.service.ts` (`notifyQuoteReturn`), test `server/src/config/chia-don-service.test.ts` và `server/src/config/contract-readiness.test.ts`.
+- Sale yêu cầu báo giá lại hoặc Sourcing đổi thông tin vận chuyển khiến Logistics phải báo giá lại: chỉ đọc người phụ trách đã lưu theo tuyến + bàn + mã phiếu qua `assignees`, gửi `quote.return` cho người đó. Không gọi `assign`, không ghi lại phân công hoặc làm tiến vòng chia đơn, kể cả người cũ đang off.
+- Trước sửa, `notifyQuoteReturn` gọi `assign`. Repository vốn giữ người đã được lưu, nhưng thiếu phân công thì có thể chọn người kế tiếp. Nay thiếu phân công hoặc tra cứu lỗi chỉ báo Admin/Vận hành, không tự chia mới. Không khôi phục người nhận lịch sử cho phiếu cũ chưa có bản ghi phân công.
+- Yêu cầu mới và bàn giao vẫn dùng `assign` như trước. Quyền xem phiếu vẫn dựa trên phân công đã lưu; không đổi API hoặc giao diện.
+- Hai test hồi quy thất bại trước sửa và qua sau sửa; bộ test chia đơn, quyền, workflow, bàn giao Logistics, hợp đồng và chống trùng thông báo qua 81/81. Bao phủ báo giá lại trên hai tuyến/hai bàn, thiếu phân công, lỗi tra cứu và Logistics bị mở lại sau khi Sourcing đổi đơn. API typecheck và `git diff --check` qua.
+- Chưa kiểm tra UI/API với DB thật hoặc production; chưa push hay deploy.
 
 ## Gửi Sourcing, thông báo Sale và chia Logistics (2026-11-11)
 
