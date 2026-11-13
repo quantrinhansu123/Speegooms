@@ -2121,11 +2121,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const product = pureLogistics ? [] : productAmounts(order);
     const productValue = pureLogistics ? 0 : product.find((item) => item.currency === input.currency)?.amount ?? input.productValue;
     const productLines = product.length > 0 ? product : [{ currency: input.currency, amount: productValue }];
-    const sheet = pureLogistics ? source : source?.logisticsSheet && { ...source.logisticsSheet, shippingMode: source.shippingMode, logisticsClass: source.logisticsClass };
+    const sheet = pureLogistics ? source : source?.logisticsSheet?.sentQuote ? { ...source.logisticsSheet, shippingMode: source.shippingMode, logisticsClass: source.logisticsClass } : null;
     const linkedShipping = sheet ? shippingAmount(sheet) : null;
     if (sheet && !linkedShipping) throw new AppError(400, "RULE", "Chi phí vận chuyển trên báo giá chưa hợp lệ");
     const shippingCurrency = linkedShipping?.currency ?? input.currency;
-    const shippingCost = linkedShipping?.amount ?? input.shippingCost;
+    const shippingCost = linkedShipping?.amount ?? 0;
     // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá để tổng giá trị là một loại tiền chính.
     const shippingConverted = shippingCurrency === input.currency ? null : convertedShipping(source, input.currency);
     const shippingInMain = shippingCurrency === input.currency ? shippingCost : shippingConverted;

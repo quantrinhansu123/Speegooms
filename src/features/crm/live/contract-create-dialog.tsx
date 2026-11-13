@@ -84,14 +84,15 @@ export function ContractCreateDialog({
   const quantity = orderQuantity(order);
   const productLines = pureLogistics ? [] : productAmounts(order);
   const productValue = pureLogistics ? 0 : productLines.find((item) => item.currency === currency)?.amount ?? sourceTotal.amount ?? 0;
+  const logisticsSheet = quote.logisticsSheet?.sentQuote ? quote.logisticsSheet : null;
   const linkedShipping = pureLogistics ? shippingAmount(quote)
-    : quote.logisticsSheet ? shippingAmount({ ...quote.logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }) : { currency, amount: 0 };
+    : logisticsSheet ? shippingAmount({ ...logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }) : { currency, amount: 0 };
   const shippingCost = linkedShipping?.amount ?? 0;
   const shippingCurrency = linkedShipping?.currency ?? currency;
   // Cước khác loại tiền chính thì quy đổi theo tỷ giá trên báo giá; thiếu tỷ giá thì giữ riêng từng loại tiền.
   const shippingInMain = linkedShipping == null ? null
     : shippingCurrency === currency ? shippingCost
-    : quote.logisticsSheet ? shippingInCurrency({ ...quote.logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }, { currency, rate: order?.rate ?? null }) : null;
+    : logisticsSheet ? shippingInCurrency({ ...logisticsSheet, shippingMode: quote.shippingMode, logisticsClass: quote.logisticsClass }, { currency, rate: order?.rate ?? null }) : null;
   const totals = shippingInMain == null
     ? sumByCurrency([productLines.length > 0 ? productLines : [{ currency, amount: productValue }], linkedShipping ? [linkedShipping] : []])
     : [{ currency, amount: Math.round((productValue + shippingInMain) * 100) / 100 }];
@@ -145,7 +146,7 @@ export function ContractCreateDialog({
     ["Số lượng", quantity == null ? "—" : String(quantity)],
     ["Tuyến vận chuyển", shipTo || "—"],
     ...(productLines.length > 0 ? productLines : [{ currency, amount: productValue }]).map((line) => [`Giá trị sản phẩm (${line.currency})`, formatMoney(line.amount, line.currency)] as [string, string]),
-    ["Chi phí vận chuyển", linkedShipping == null ? "Chưa đủ dữ liệu" : formatMoney(shippingCost, shippingCurrency)],
+    ["Chi phí vận chuyển", !pureLogistics && !logisticsSheet ? "Chưa có báo giá Logistics · tạm tính 0" : linkedShipping == null ? "Chưa đủ dữ liệu" : formatMoney(shippingCost, shippingCurrency)],
     ...totals.map((line) => [`Tổng ${line.currency}`, formatMoney(line.amount, line.currency)] as [string, string]),
     ["Ngày ký", "Để trống đến khi ký"],
     ["Đã thanh toán", formatMoney(0, currency)],
