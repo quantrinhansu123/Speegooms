@@ -28,7 +28,7 @@ export const messFieldIds: Record<string, string> = {
 export const leadConvertFieldIds: Record<string, string> = {
   phone: "mess-phone", brand: "lead-brand", customerType: "mess-type", careChannel: "lead-care",
   productInterest: "mess-goods", requirements: "mess-goods", quantityNote: "lead-quantity", address: "lead-address",
-  saleNote: "mess-note", packageDimensions: "lead-dimensions", weightKg: "lead-weight", shipToAddress: "lead-ship-to",
+  saleNote: "mess-note", shipToAddress: "lead-ship-to",
   reason: "lead-reason", shippingMode: "lead-mode", logisticsClass: "lead-class",
 };
 
@@ -70,8 +70,6 @@ export type MessDraft = {
   careChannel: string;
   quantityNote: string;
   address: string;
-  packageDimensions: string;
-  weightKg: string;
   shipToAddress: string;
   convertReason: string;
 };
@@ -98,8 +96,6 @@ export const emptyDraft: MessDraft = {
   careChannel: "",
   quantityNote: "",
   address: "",
-  packageDimensions: "",
-  weightKg: "",
   shipToAddress: "",
   convertReason: "",
 };
@@ -145,8 +141,6 @@ export function draftFrom(row: MessageRecord): MessDraft {
     careChannel: "",
     quantityNote: "",
     address: "",
-    packageDimensions: "",
-    weightKg: "",
     shipToAddress: "",
     convertReason: "",
   };
@@ -312,8 +306,6 @@ export function MessFormDialog({
                 {draft.demand !== "SOURCING" && <Field label="Số lượng" htmlFor="lead-quantity" error={fieldErrors?.["lead-quantity"]} required><Input id="lead-quantity" value={draft.quantityNote} onChange={(event) => update({ quantityNote: event.target.value })} /></Field>}
                 <Field label="Địa chỉ gửi hàng" htmlFor="lead-address" error={fieldErrors?.["lead-address"]}><Input id="lead-address" value={draft.address} onChange={(event) => update({ address: event.target.value })} /></Field>
                 {draft.demand === "SHIPPING" && <>
-                  {draft.logisticsClass !== "FCL" && <Field label="Kích thước kiện hàng" htmlFor="lead-dimensions" error={fieldErrors?.["lead-dimensions"]} required><Input id="lead-dimensions" value={draft.packageDimensions} onChange={(event) => update({ packageDimensions: event.target.value })} /></Field>}
-                  <Field label="Trọng lượng" htmlFor="lead-weight" error={fieldErrors?.["lead-weight"]} required><Input id="lead-weight" value={draft.weightKg} onChange={(event) => update({ weightKg: event.target.value })} /></Field>
                   <Field label="Địa chỉ nhận hàng" htmlFor="lead-ship-to" error={fieldErrors?.["lead-ship-to"]} required><Input id="lead-ship-to" value={draft.shipToAddress} onChange={(event) => update({ shipToAddress: event.target.value })} /></Field>
                   <Field label="Lý do chuyển" htmlFor="lead-reason" error={fieldErrors?.["lead-reason"]} required><Input id="lead-reason" value={draft.convertReason} onChange={(event) => update({ convertReason: event.target.value })} /></Field>
                 </>}
@@ -354,13 +346,14 @@ export function MessFormDialog({
                   {draft.demand === "SHIPPING" && <p className="text-xs text-muted-foreground">Vận chuyển nhập thêm đơn vị, cân tính cước và quy cách đóng gói. Đóng gói có thể bổ sung ở bước báo giá. Hàng biển FCL nhập ở form cước riêng.</p>}
                 </div>
               )}
-              <Field label="Số điện thoại" htmlFor="mess-phone" error={fieldErrors?.["mess-phone"]} required={lead} hint="Chỉ nhập số">
+              <Field label="Số điện thoại" htmlFor="mess-phone" error={fieldErrors?.["mess-phone"]} required={lead} hint="Ví dụ: (+84)0346612345">
                 <Input
                   id="mess-phone"
-                  inputMode="numeric"
+                  type="tel"
                   autoComplete="tel"
+                  maxLength={30}
                   value={draft.phone}
-                  onChange={(event) => update({ phone: event.target.value.replace(/\D/g, "").slice(0, 30) })}
+                  onChange={(event) => update({ phone: event.target.value })}
                 />
               </Field>
               <Field label="Email" htmlFor="mess-email" error={fieldErrors?.["mess-email"]}>
@@ -394,7 +387,7 @@ export function MessFormDialog({
           demand={draft.demand}
           order={draft.order}
           onClose={() => setOrderDialog(false)}
-          onSave={(order) => { const summary = orderSummary(order); update({ order, quantityNote: draft.quantityNote || summary.quantityNote, packageDimensions: draft.packageDimensions || summary.packageDimensions, weightKg: draft.weightKg || summary.weightKg }); }}
+          onSave={(order) => { update({ order, quantityNote: draft.quantityNote || orderSummary(order).quantityNote }); }}
         />
       )}
     </>

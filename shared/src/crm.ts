@@ -54,13 +54,15 @@ export const industryCategoryOptions = [
 ] as const;
 
 const text = (max: number) => z.string().trim().max(max);
+const phonePattern = /^(?=.*\d)[+\d(). -]+$/;
+const phoneError = "Số điện thoại chỉ được chứa số, dấu +, ngoặc, khoảng trắng, dấu chấm hoặc gạch ngang";
 
 function contact(value: { phone: string; email: string }, ctx: z.RefinementCtx) {
   if (!value.phone && !value.email) {
     ctx.addIssue({ code: "custom", message: "Cần số điện thoại hoặc email", path: ["phone"] });
   }
-  if (value.phone && !/^\d+$/.test(value.phone)) {
-    ctx.addIssue({ code: "custom", message: "Số điện thoại chỉ được chứa số", path: ["phone"] });
+  if (value.phone && !phonePattern.test(value.phone)) {
+    ctx.addIssue({ code: "custom", message: phoneError, path: ["phone"] });
   }
   if (value.email && !z.string().email().safeParse(value.email).success) {
     ctx.addIssue({ code: "custom", message: "Email không đúng định dạng", path: ["email"] });
@@ -75,8 +77,8 @@ const receivedOn = z
 
 /** Mess chỉ kiểm tra định dạng SĐT/email khi có nhập; không bắt buộc phải có. */
 function contactFormat(value: { phone: string; email: string }, ctx: z.RefinementCtx) {
-  if (value.phone && !/^\d+$/.test(value.phone)) {
-    ctx.addIssue({ code: "custom", message: "Số điện thoại chỉ được chứa số", path: ["phone"] });
+  if (value.phone && !phonePattern.test(value.phone)) {
+    ctx.addIssue({ code: "custom", message: phoneError, path: ["phone"] });
   }
   if (value.email && !z.string().email().safeParse(value.email).success) {
     ctx.addIssue({ code: "custom", message: "Email không đúng định dạng", path: ["email"] });
@@ -147,7 +149,7 @@ export const updatePotentialSchema = z
 
 export const convertMessageSchema = z.object({
   handlerId: z.string().trim().min(1).max(160).optional(),
-  phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(/^\d+$/, "Số điện thoại chỉ được chứa số"),
+  phone: z.string().trim().min(1, "Nhập số điện thoại").max(30).regex(phonePattern, phoneError),
   /** Bỏ trống thì lấy Nguồn đã chọn trên mess. */
   brand: leadBrandSchema.optional(),
   customerType: z.enum(customerTypeSchema.options, { error: "Chọn đối tượng" }),
@@ -171,9 +173,7 @@ export const convertMessageSchema = z.object({
   reason: z.string().trim().max(2000).default(""),
 }).superRefine((input, ctx) => {
   if (input.shippingMode && !input.quantityNote?.trim()) ctx.addIssue({ code: "custom", message: "Nhập số lượng", path: ["quantityNote"] });
-  if (input.shippingMode && !input.weightKg?.trim()) ctx.addIssue({ code: "custom", message: "Nhập trọng lượng", path: ["weightKg"] });
   if (input.shippingMode && !input.shipToAddress?.trim()) ctx.addIssue({ code: "custom", message: "Nhập địa chỉ nhận hàng", path: ["shipToAddress"] });
-  if (input.shippingMode && input.logisticsClass !== "FCL" && !input.packageDimensions?.trim()) ctx.addIssue({ code: "custom", message: "Nhập kích thước kiện hàng", path: ["packageDimensions"] });
   if (input.shippingMode && !input.reason.trim()) ctx.addIssue({ code: "custom", message: "Nhập lý do chuyển", path: ["reason"] });
   if (input.shippingMode === "SEA" && !input.logisticsClass) {
     ctx.addIssue({ code: "custom", message: "Chọn LCL hoặc FCL", path: ["logisticsClass"] });

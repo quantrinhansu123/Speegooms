@@ -20,16 +20,16 @@ import { CrmHandoverField } from "./crm-handover-field";
 
 type Mode = "" | "AIR" | "SEA";
 type ShipClass = "" | "LCL" | "FCL";
-export type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; packageDimensions: string; weightKg: string; shipToAddress: string; reason: string };
+export type Details = { phone: string; brand: string; customerType: string; careChannel: string; productInterest: string; quantityNote: string; address: string; saleNote: string; requirements: string; shipToAddress: string; reason: string };
 /** Trường của schema chuyển khách tiềm năng → id ô trong hộp thoại Chuyển. */
 const convertFieldIds: Record<string, string> = {
   phone: "convert-phone", brand: "convert-brand", customerType: "convert-customerType", careChannel: "convert-careChannel",
   productInterest: "convert-productInterest", quantityNote: "convert-quantityNote", address: "convert-address",
-  saleNote: "convert-saleNote", requirements: "convert-requirements", packageDimensions: "convert-dimensions",
-  weightKg: "convert-weightKg", shipToAddress: "convert-shipToAddress", reason: "convert-reason",
+  saleNote: "convert-saleNote", requirements: "convert-requirements",
+  shipToAddress: "convert-shipToAddress", reason: "convert-reason",
   shippingMode: "convert-mode", logisticsClass: "convert-class",
 };
-const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: row.brand ?? "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", ...orderSummary(row.order), address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
+const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: row.brand ?? "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", quantityNote: orderSummary(row.order).quantityNote, address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
 
 /**
  * Luồng chuyển mess thành khách tiềm năng: chọn đường bay/biển (Vận chuyển) → chuyển → tạo báo giá →
@@ -264,8 +264,7 @@ export function useMessConvert({
               )}
             </div>
             {converting.row.demand === 'SHIPPING' && <>
-              {([['weightKg', 'Trọng lượng'], ['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
-              {converting.logisticsClass !== 'FCL' && <Field label="Kích thước kiện hàng" htmlFor="convert-dimensions" error={fieldErrors["convert-dimensions"]} required><Input id="convert-dimensions" value={converting.details.packageDimensions} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, packageDimensions: event.target.value } })} /></Field>}
+              {([['shipToAddress', 'Địa chỉ nhận hàng'], ['reason', 'Lý do chuyển']] as const).map(([key, label]) => <Field key={key} label={label} htmlFor={`convert-${key}`} error={fieldErrors[`convert-${key}`]} required><Input id={`convert-${key}`} value={converting.details[key]} onChange={(event) => setConverting({ ...converting, details: { ...converting.details, [key]: event.target.value } })} /></Field>)}
             </>}
           </div>}
           {converting?.row.demand === "SHIPPING" && (
@@ -304,8 +303,6 @@ export function useMessConvert({
               details: {
                 ...current.details,
                 quantityNote: current.details.quantityNote || summary.quantityNote,
-                packageDimensions: current.details.packageDimensions || summary.packageDimensions,
-                weightKg: current.details.weightKg || summary.weightKg,
               },
             } : current);
             setOrderDialog(false);

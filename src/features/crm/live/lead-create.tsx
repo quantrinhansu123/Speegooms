@@ -61,7 +61,6 @@ export function LeadCreate({
       careChannel: draft.careChannel, productInterest: draft.goods,
       quantityNote: draft.demand === "SHIPPING" ? draft.quantityNote : "", address: draft.address, saleNote: draft.note,
       requirements: [draft.goods, draft.painPoint, draft.note].filter(Boolean).join("\n\n"),
-      packageDimensions: draft.packageDimensions, weightKg: draft.weightKg,
       shipToAddress: draft.shipToAddress, reason: draft.convertReason,
     };
     const conversion = convertMessageSchema.safeParse({
