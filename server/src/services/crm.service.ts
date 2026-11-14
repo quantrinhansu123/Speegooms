@@ -131,6 +131,13 @@ export class CrmService {
     return this.ready().createMessage(lane, this.withOrderDraft(input, role), creatorId);
   }
 
+  async updateMessageProcessing(lane: CrmLane, id: string, status: MessageRecord["processingStatus"], actor?: MessageActor): Promise<MessageRecord> {
+    await this.assertMessageAccess(lane, id, actor);
+    const row = await this.ready().updateMessageProcessing(lane, id, status);
+    if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy mess");
+    return row;
+  }
+
   async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput, role?: Role, actor?: MessageActor): Promise<MessageRecord> {
     await this.assertMessageAccess(lane, id, actor);
     const row = await this.ready().updateMessage(lane, id, this.withOrderDraft(input, role));

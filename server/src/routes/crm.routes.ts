@@ -1,6 +1,6 @@
 import { exchangeRate } from "../services/exchange-rate.service";
 import express, { Router } from "express";
-import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updatePotentialSchema, updateQuoteOutcomeSchema, updateQuoteSchema } from "@speego/shared";
+import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updateMessageProcessingSchema, updatePotentialSchema, updateQuoteOutcomeSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
@@ -22,6 +22,7 @@ export function crmRoutes(container: AppContainer) {
   }));
   router.get("/messages", requirePermission("message.read"), asyncHandler(crm.listMessages));
   router.post("/messages", requirePermission("message.write"), validate({ body: createMessageSchema }), asyncHandler(crm.createMessage));
+  router.patch("/messages/:id/processing-status", requirePermission("message.write"), validate({ body: updateMessageProcessingSchema }), asyncHandler(crm.updateMessageProcessing));
   router.patch("/messages/:id", requirePermission("message.write"), validate({ body: updateMessageSchema }), asyncHandler(crm.updateMessage));
   router.delete("/messages/:id", requirePermission("message.write"), asyncHandler(crm.deleteMessage));
   router.post("/messages/:id/convert", requirePermission("message.convert"), validate({ body: convertMessageSchema }), asyncHandler(crm.convertMessage));

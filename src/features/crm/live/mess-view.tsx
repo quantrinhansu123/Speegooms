@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { canHandleCrm, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
+import { canHandleCrm, messageProcessingOptions, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { InlineAlert } from "@/components/shared/form-fields";
+import { InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-provider";
@@ -33,6 +33,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const canWrite = writeRoles.includes(user.role);
   const canConvert = convertRoles.includes(user.role);
   const [rows, setRows] = useState<MessageRecord[]>([]);
+  const [processingFilter, setProcessingFilter] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [draft, setDraft] = useState<MessDraft | null>(null);
@@ -42,7 +44,11 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
-  const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "" });
+  const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "", saleName: "" });
+  const statusRows = rows.filter((row) => !filters.applied.saleName || row.saleName?.trim() === filters.applied.saleName);
+  const shown = statusRows.filter((row) => !processingFilter || row.processingStatus === processingFilter);
+  const saleOptions = uniqueSuggestions([...rows.map((row) => row.saleName), filters.draft.saleName, filters.applied.saleName])
+    .map((name) => [name, name] as const);
 
   const load = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
@@ -128,6 +134,21 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   };
 
 
+  const setProcessingStatus = async (row: MessageRecord, processingStatus: string) => {
+    setStatusSaving(true);
+    setError(undefined);
+    try {
+      const result = await api<{ message: MessageRecord }>(crmPath(`/api/crm/messages/${row.id}/processing-status`, lane), {
+        method: "PATCH", body: JSON.stringify({ processingStatus }),
+      });
+      setRows((current) => current.map((item) => item.id === row.id ? result.message : item));
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : "Không lưu được trạng thái xử lý");
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
   const remove = () => {
     if (!removing) return;
     const id = removing.id;
@@ -161,15 +182,23 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={() => { filters.reset(); setProcessingFilter(""); }}
         dateLabel="Từ ngày"
       >
         <FilterSelect id="mess-classification" label="Phân loại" value={filters.draft.classification} onChange={(value) => filters.set("classification", value)} options={messageClassificationOptions} />
         <FilterSelect id="mess-market" label="Thị trường" value={filters.draft.market} onChange={(value) => filters.set("market", value)} options={marketOptions} />
+        <FilterSelect id="mess-sale-filter" label="Nhân viên sale" value={filters.draft.saleName} onChange={(value) => filters.set("saleName", value)} options={saleOptions} />
         <FilterSelect id="mess-demand" label="Nhu cầu" value={filters.draft.demand} onChange={(value) => filters.set("demand", value)} options={demandOptions} />
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
-        <FilterSelect id="mess-status" label="Trạng thái" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
+        <FilterSelect id="mess-status" label="Trạng thái mess" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
+      <div role="group" aria-label="Lọc trạng thái xử lý" className="mb-4 flex gap-2 overflow-x-auto pb-2">
+        {[["", "Tất cả"], ...messageProcessingOptions].map(([status, label]) => (
+          <Button key={status} type="button" variant={processingFilter === status ? "default" : "outline"} aria-pressed={processingFilter === status} onClick={() => setProcessingFilter(status)}>
+            {label} ({statusRows.filter((row) => !status || row.processingStatus === status).length})
+          </Button>
+        ))}
+      </div>
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1800px] text-sm">
           <thead>
@@ -179,28 +208,34 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nguồn</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái xử lý</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Phân loại</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Đối tượng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Nhu cầu</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Sales - hot & warm</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Nhân viên sale</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Pain-Point của KH</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Link mess</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú Sale</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái chuyển</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={16} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
-            {rows.map((row) => (
+            {shown.length === 0 && <tr><td colSpan={17} className="px-3 py-8 text-center text-muted-foreground">{filters.active || processingFilter ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
+            {shown.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
                 <td className="px-3 py-3" title={row.customerName ?? undefined}>{row.customerName}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.receivedAt ? formatDate(dateInputFromIso(row.receivedAt)) : "—"}</td>
                 <td className="px-3 py-3">{row.market || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-3">{brandOptions.find(([value]) => value === row.brand)?.[1] ?? "—"}</td>
+                <td className="min-w-64 px-3 py-3">
+                  <NativeSelect aria-label={`Trạng thái xử lý · ${row.messCode}`} value={row.processingStatus} disabled={!canWrite || !canHandleCrm(user, row) || statusSaving} onChange={(event) => void setProcessingStatus(row, event.target.value)}>
+                    {messageProcessingOptions.map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+                  </NativeSelect>
+                </td>
                 <td className="px-3 py-3"><HeatBadge value={row.classification} /></td>
                 <td className="px-3 py-3"><CustomerTypeBadge value={row.customerType} /></td>
                 <td className="px-3 py-3"><DemandBadge value={row.demand} /></td>
