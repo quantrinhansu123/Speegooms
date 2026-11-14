@@ -2,16 +2,13 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { BrandWatermark } from "@/components/layout/brand-watermark";
 import { AuthBrandPanel } from "@/features/auth/auth-brand-panel";
-import { LoginForm, type DemoAccount } from "@/features/auth/login-form";
-import users from "@/mocks/users.json";
+import { LoginForm } from "@/features/auth/login-form";
 
 export const metadata: Metadata = { title: "Đăng nhập" };
 
 const rise = (i: number) => ({ "--i": i }) as React.CSSProperties;
 
 export default function LoginPage() {
-  const accounts = users.map((u) => ({ role: u.role, email: u.email })) as DemoAccount[];
-
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[58fr_42fr]">
       <AuthBrandPanel />
@@ -31,7 +28,7 @@ export default function LoginPage() {
             Đăng nhập để quản lý và kết nối toàn bộ hoạt động SpeeGo.
           </p>
           <div className="auth-rise" style={rise(3)}>
-            <LoginForm accounts={accounts} />
+            <LoginForm />
           </div>
         </div>
 

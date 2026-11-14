@@ -1,39 +1,29 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, ChevronDown, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { roleConfig } from "@/config/roles";
 import { cn } from "@/lib/utils";
-import type { Role } from "@/types/role";
 import { ApiError, api } from "@/lib/api";
-import { DEMO_PASSWORD, loginSchema, type LoginInput } from "./schema";
+import { loginSchema, type LoginInput } from "./schema";
 
-export interface DemoAccount {
-  role: Role;
-  email: string;
-}
-
-export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
+export function LoginForm() {
   const [pending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string>();
   const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
-    setValue,
     setFocus,
-    control,
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     mode: "onTouched",
     defaultValues: { email: "", password: "", remember: false },
   });
-  const email = useWatch({ control, name: "email" });
 
   // Chỉ tự focus trên desktop để tránh bật bàn phím ảo trên điện thoại.
   useEffect(() => {
@@ -51,12 +41,6 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
         setFocus("password");
       }
     });
-  };
-
-  const fillDemo = (acc: DemoAccount) => {
-    setValue("email", acc.email, { shouldValidate: true });
-    setValue("password", DEMO_PASSWORD, { shouldValidate: true });
-    setServerError(undefined);
   };
 
   const field = "h-11 rounded-lg border-input bg-background pl-11 text-sm shadow-xs transition-[border-color,box-shadow] duration-200 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/15";
@@ -151,36 +135,6 @@ export function LoginForm({ accounts }: { accounts: DemoAccount[] }) {
           {pending ? "Đang đăng nhập…" : "Đăng nhập"}
         </Button>
       </form>
-
-      <details className="group mt-8 rounded-xl border bg-background">
-        <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-4 py-3 text-sm font-medium focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
-          Tài khoản demo theo vai trò
-          <ChevronDown aria-hidden className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="border-t px-4 pt-3 pb-4">
-          <p className="text-xs text-muted-foreground">
-            Chọn một vai trò để điền sẵn email. Mật khẩu demo là speego@demo. Đăng nhập kiểm tra trên máy chủ.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {accounts.map((acc) => (
-              <button
-                key={acc.role}
-                type="button"
-                onClick={() => fillDemo(acc)}
-                aria-pressed={email === acc.email}
-                className={cn(
-                  "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:ring-3 focus-visible:ring-primary/30 focus-visible:outline-none",
-                  email === acc.email
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "bg-surface text-foreground hover:bg-muted",
-                )}
-              >
-                {roleConfig[acc.role].label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </details>
     </div>
   );
 }
