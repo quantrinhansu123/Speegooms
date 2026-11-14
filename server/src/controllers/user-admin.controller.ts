@@ -11,6 +11,21 @@ function one(value: string | string[] | undefined): string {
 export class UserAdminController {
   constructor(private readonly admin: UserAdminService) {}
 
+  create = async (req: Request, res: Response) => {
+    res.status(201).json({ user: await this.admin.create(req.body) });
+  };
+
+  update = async (req: Request, res: Response) => {
+    if (!req.user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+    res.status(200).json({ user: await this.admin.update(req.user.id, one(req.params.id), req.body) });
+  };
+
+  delete = async (req: Request, res: Response) => {
+    if (!req.user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+    await this.admin.delete(req.user.id, one(req.params.id));
+    res.status(204).end();
+  };
+
   list = async (_req: Request, res: Response) => {
     res.status(200).json({ users: await this.admin.list() });
   };

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import type { Role } from "@speego/shared";
+import type { Role, UpdateUserInput } from "@speego/shared";
 import type pg from "pg";
-import { InfrastructureError } from "../../lib/errors";
+import { AppError, InfrastructureError } from "../../lib/errors";
 import { hashSessionId, isSessionId } from "../../lib/session-id";
 import { toUserRecord, type UserRecord } from "../../models/user.model";
 import type { SessionRepository } from "../../repositories/session.repository";
@@ -42,6 +42,38 @@ export class PostgresUserRepository implements UserRepository, UserDirectory {
     );
     const row = result.rows[0];
     return row ? toUserRecord(row) : null;
+  }
+
+  async create(user: UserRecord): Promise<void> {
+    await this.query(
+      `insert into nguoi_dung (ma_nguoi_dung, thu_dien_tu, ho_ten, vai_tro, phong_ban, chuc_danh, mat_khau_bam)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [user.id, user.email, user.name, user.role, user.department, user.title, user.passwordHash],
+    );
+  }
+
+  async update(id: string, input: UpdateUserInput): Promise<UserRecord | null> {
+    const result = await this.query<UserRow>(
+      `update nguoi_dung set thu_dien_tu=$2, ho_ten=$3, vai_tro=$4, phong_ban=$5, chuc_danh=$6
+       where ma_nguoi_dung=$1
+       returning ma_nguoi_dung as id, thu_dien_tu as email, ho_ten as name, vai_tro as role,
+                 phong_ban as department, chuc_danh as title, mat_khau_bam as password_hash`,
+      [id, input.email, input.name, input.role, input.department, input.title],
+    );
+    return result.rows[0] ? toUserRecord(result.rows[0]) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await this.query(`delete from nguoi_dung where ma_nguoi_dung=$1 returning ma_nguoi_dung`, [id]);
+    return result.rows.length > 0;
+  }
+
+  async changePassword(id: string, currentHash: string, nextHash: string): Promise<boolean> {
+    const result = await this.query(
+      `update nguoi_dung set mat_khau_bam=$3 where ma_nguoi_dung=$1 and mat_khau_bam=$2 returning ma_nguoi_dung`,
+      [id, currentHash, nextHash],
+    );
+    return result.rows.length > 0;
   }
 
   async upsert(user: UserRecord): Promise<void> {
@@ -90,6 +122,9 @@ export class PostgresUserRepository implements UserRepository, UserDirectory {
     try {
       return await this.pool.query<T>(sql, [...params]);
     } catch (cause) {
+      if (cause && typeof cause === "object" && "code" in cause && cause.code === "23505") {
+        throw new AppError(409, "EMAIL_EXISTS", "Email đã được sử dụng");
+      }
       throw new InfrastructureError("database query failed", { cause });
     }
   }
@@ -124,6 +159,10 @@ export class PostgresSessionRepository implements SessionRepository {
       return null;
     }
     return { userId: row.user_id };
+  }
+
+  async revokeForUser(userId: string): Promise<void> {
+    await this.query(`delete from phien_dang_nhap where ma_nguoi_dung=$1`, [userId]);
   }
 
   async revoke(sessionId: string): Promise<void> {

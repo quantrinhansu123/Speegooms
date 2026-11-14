@@ -39,6 +39,9 @@ test("Only admin sees system and executive menus or opens their restricted pages
       for (const suffix of ["", "/example"]) assert.equal(canAccess(role, path + suffix), role === "admin", `${role}: ${path + suffix}`);
     }
     assert.equal(canAccess(role, "/dashboard"), true, role);
+    assert.equal(canAccess(role, "/tai-khoan"), true, role);
+    assert.equal(isImplemented("/tai-khoan"), true);
+    assert.equal(getBreadcrumbs("/tai-khoan").at(-1)?.title, "Tài khoản cá nhân");
   }
 });
 

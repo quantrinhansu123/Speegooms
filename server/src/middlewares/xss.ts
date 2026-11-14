@@ -61,7 +61,19 @@ function scrubRecord(target: Record<string, unknown>) {
 
 export function xssClean(req: Request, _res: Response, next: NextFunction) {
   try {
-    if (req.body !== undefined) req.body = sanitizeUnknown(req.body);
+    if (req.body !== undefined) {
+      const path = req.path.replace(/\/+$/, "");
+      const passwordKeys = req.method === "POST"
+        ? path === "/api/auth/password" ? ["currentPassword", "newPassword"]
+          : ["/api/auth/login", "/api/users"].includes(path) ? ["password"] : []
+        : [];
+      // Mật khẩu là dữ liệu opaque: giữ nguyên ký tự, schema của route giới hạn độ dài.
+      const passwords = Object.fromEntries(passwordKeys
+        .filter((key) => typeof req.body?.[key] === "string")
+        .map((key) => [key, req.body[key]]));
+      req.body = sanitizeUnknown(req.body);
+      Object.assign(req.body, passwords);
+    }
     scrubRecord(req.query as Record<string, unknown>);
     scrubRecord(req.params as Record<string, unknown>);
     next();

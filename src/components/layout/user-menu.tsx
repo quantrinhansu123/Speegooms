@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Settings, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ const initials = (name: string) =>
     .toUpperCase();
 
 export function UserMenu({ user }: { user: CurrentUser }) {
+  const router = useRouter();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -49,12 +51,15 @@ export function UserMenu({ user }: { user: CurrentUser }) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/tai-khoan")}>
           <UserRound /> Hồ sơ cá nhân
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings /> Cài đặt
+        <DropdownMenuItem onClick={() => router.push("/tai-khoan")}>
+          <KeyRound /> Đổi mật khẩu
         </DropdownMenuItem>
+        {user.role === "admin" && <DropdownMenuItem onClick={() => router.push("/cai-dat")}>
+          <Settings /> Cài đặt
+        </DropdownMenuItem>}
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={() => void logout()}>
           <LogOut /> Đăng xuất

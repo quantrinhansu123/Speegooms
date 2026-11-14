@@ -1,4 +1,4 @@
-import type { Role } from "@speego/shared";
+import type { Role, UpdateUserInput } from "@speego/shared";
 import type { UserRecord } from "../models/user.model";
 
 /** Cổng đọc user. Auth phụ thuộc interface này, không phụ thuộc Postgres hay Supabase. */
@@ -8,8 +8,12 @@ export interface UserRepository {
   ping(): Promise<void>;
 }
 
-/** Ghi user cho seed. Tách khỏi UserRepository để service đăng nhập không có quyền ghi. */
+/** Ghi tài khoản cho seed, quản trị và đổi mật khẩu cá nhân. */
 export interface UserDirectory {
+  create(user: UserRecord): Promise<void>;
+  update(id: string, input: UpdateUserInput): Promise<UserRecord | null>;
+  delete(id: string): Promise<boolean>;
+  changePassword(id: string, currentHash: string, nextHash: string): Promise<boolean>;
   upsert(user: UserRecord): Promise<void>;
   list(): Promise<UserRecord[]>;
   updateRole(id: string, role: Role): Promise<UserRecord | null>;
