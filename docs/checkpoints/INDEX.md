@@ -18,6 +18,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 | Data lạnh: tạo khách, import/tải Excel, chia vòng tròn, bàn giao Sale care, quyền xem | [Data lạnh](crm/data-lanh.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
 | Dữ liệu demo đã gỡ, trang chưa nối DB hiện trống, ẩn tài khoản demo ở login / Demo Guide | [Demo đã gỡ](project/demo-data-removed.md) | sau `5569cff`; ẩn tài khoản trên nền `b32ff1f`, 2026-11-14 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
+| Admin tạo/sửa/xóa tài khoản, mật khẩu cá nhân và thu hồi phiên | [Quản lý tài khoản](project/account-management.md) | `4d910ed`, 2026-11-14 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |
 | Cấu trúc ghi chú, cách tìm context cũ, phạm vi chia sẻ | [Tổ chức checkpoint](project/context-notes.md) | `9b17d04` + quyết định 2026-11-08 |
