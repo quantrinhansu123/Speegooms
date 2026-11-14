@@ -92,6 +92,10 @@ export class CrmController {
     res.status(201).json({ message: await this.crm.createMessage(laneOf(req), req.body, roleOf(req), actorOf(req).id) });
   };
 
+  updateMessageProcessing = async (req: Request, res: Response) => {
+    res.json({ message: await this.crm.updateMessageProcessing(laneOf(req), one(req.params.id), req.body.processingStatus, actorOf(req)) });
+  };
+
   updateMessage = async (req: Request, res: Response) => {
     res.status(200).json({ message: await this.crm.updateMessage(laneOf(req), one(req.params.id), req.body, roleOf(req), actorOf(req)) });
   };

@@ -72,6 +72,7 @@ type MessageRow = {
   handler_id: string | null; handler_name: string | null;
   id: string;
   mess_code: string;
+  processing_status: MessageRecord["processingStatus"];
   source: string;
   customer_name_raw: string | null;
   phone: string | null;
@@ -668,7 +669,7 @@ function messageSelect(lane: CrmLane): string {
   select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
          l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
          m.ten_khach_hang_tho as customer_name_raw, m.so_dien_thoai as phone, m.thu_dien_tu as email,
-         m.trang_thai::text as status, m.hang_hoa as goods, m.nganh_hang as industry, m.nhu_cau::text as demand,
+         m.trang_thai_xu_ly as processing_status, m.trang_thai::text as status, m.hang_hoa as goods, m.nganh_hang as industry, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
@@ -1235,6 +1236,7 @@ function toMessage(row: MessageRow): MessageRecord {
     messCode: row.mess_code,
     source: row.source,
     customerName: row.customer_name_raw,
+    processingStatus: row.processing_status,
     phone: row.phone,
     email: row.email,
     status: row.status,
@@ -1350,7 +1352,7 @@ export class PostgresCrmRepository implements CrmRepository {
   async listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
     const compiled = messageSearch(search).build();
     const result = await this.query<MessageRow>(
-      `${messageSelect(lane)} where true ${compiled.sql} order by m.tao_luc desc limit 200`,
+      `${messageSelect(lane)} where true ${compiled.sql} order by m.tao_luc desc`,
       compiled.values,
     );
     return result.rows.map(toMessage);
@@ -1403,6 +1405,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const row = await this.findMessage(lane, id);
     if (!row) throw new InfrastructureError("message missing after insert");
     return row;
+  }
+
+  async updateMessageProcessing(lane: CrmLane, id: string, status: MessageRecord["processingStatus"]): Promise<MessageRecord | null> {
+    const result = await this.query(`update ${laneTables[lane].message} set trang_thai_xu_ly = $2 where id = $1::uuid returning id`, [id, status]);
+    return result.rows[0] ? this.findMessage(lane, id) : null;
   }
 
   async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null> {

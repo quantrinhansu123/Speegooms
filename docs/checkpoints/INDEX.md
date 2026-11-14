@@ -15,14 +15,14 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 | Bàn giao Sale trong form chuyển Mess/sửa khách tiềm năng, người nhận xử lý và lịch sử | [Bàn giao CRM](crm/sale-handover.md) | nền `6c1ae66`, 2026-11-09 |
 | Nút bộ lọc Cột hiển thị trên các bảng nhiều trường | [Chọn cột bảng](project/table-column-filters.md) | `ec47f7e` + column filters, 2026-11-09 |
 | Data khách hàng: menu Việt Nam/Global, thông báo bàn giao, bộ lọc và số lượng Facebook/Telesale | [Bộ lọc Data lạnh](crm/data-lanh-filters.md) | nền `fd545d5` + phân nhóm/reset FB, 2026-11-10 |
-| Data lạnh: tạo khách, import/tải Excel, chia vòng tròn, bàn giao Sale care, quyền xem | [Data lạnh](crm/data-lanh.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |
+| Data lạnh: người nhận trong Cài đặt admin, thêm Tú, tự chia lại khách chưa xử lý, tạo/import Excel, bàn giao và quyền xem | [Data lạnh](crm/data-lanh.md) | `796c4e7`, DB đã thêm Tú; giao diện chưa deploy, 2026-11-14 |
 | Dữ liệu demo đã gỡ, trang chưa nối DB hiện trống, ẩn tài khoản demo ở login / Demo Guide | [Demo đã gỡ](project/demo-data-removed.md) | sau `5569cff`; ẩn tài khoản trên nền `b32ff1f`, 2026-11-14 |
 | Admin-only System / Executive sections and route access | [Admin sections](project/admin-sections-access.md) | `b6f8562` + access restriction, 2026-11-09 |
-| Admin tạo/sửa/xóa tài khoản, mật khẩu cá nhân và thu hồi phiên | [Quản lý tài khoản](project/account-management.md) | `4d910ed`, 2026-11-14 |
+| Admin tạo/sửa/xóa tài khoản, mật khẩu cá nhân và thu hồi phiên | [Quản lý tài khoản](project/account-management.md) | `4d910ed` + main `bea14ac`, 2026-11-14 |
 | Desktop sidebar / horizontal navigation toggle | [Navigation layout](project/navigation-layout.md) | `4608443` + layout toggle, 2026-11-09 |
 | Sourcing/Logistics roles, routes, and menu expansion | [Access checkpoint](operations/sourcing-and-logistics-access.md) | `ad44857` + menu fix, 2026-11-09 |
 | Cấu trúc ghi chú, cách tìm context cũ, phạm vi chia sẻ | [Tổ chức checkpoint](project/context-notes.md) | `9b17d04` + quyết định 2026-11-08 |
-| CRM: mess → khách tiềm năng; bỏ ô cân/kích thước trùng, chọn mã điện thoại mặc định VN +84, validation | [Chuyển đổi mess](crm/mess-conversion.md) | nền `e242d9a`, `feat/phone-country-dropdown`, 2026-11-13; chưa xác nhận deploy |
+| CRM: Mess, trạng thái xử lý L0–L8 và số lượng; chuyển khách, mã điện thoại, validation | [Chuyển đổi mess](crm/mess-conversion.md) | nền `47ebbc8`, `feat/mess-processing-status`, 2026-11-14; chưa deploy |
 
 ## Luồng dữ liệu báo giá
 

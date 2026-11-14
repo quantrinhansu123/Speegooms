@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+export const messageProcessingStatusSchema = z.enum(["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]);
+export type MessageProcessingStatus = z.infer<typeof messageProcessingStatusSchema>;
+export const updateMessageProcessingSchema = z.object({ processingStatus: messageProcessingStatusSchema }).strict();
+export const messageProcessingOptions = [
+  ["L0", "L0 đã nhận mess"],
+  ["L1", "L1 đã nhắn khách"],
+  ["L2", "L2 đã tư vấn"],
+  ["L3", "L3 đã nhận đủ Thông tin"],
+  ["L4", "L4 đã báo giá"],
+  ["L5", "L5 đã chốt hợp đồng"],
+  ["L6", "L6 Lost"],
+  ["L7", "L7 đã nhận hàng"],
+  ["L8", "L8 đã được chăm sóc sau bán"],
+] as const;
+
 export const crmLaneSchema = z.enum(["vn", "global"]);
 export type CrmLane = z.infer<typeof crmLaneSchema>;
 

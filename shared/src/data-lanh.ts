@@ -68,6 +68,9 @@ export type CreateDataLanhInput = z.infer<typeof createDataLanhSchema>;
 export const handoverDataLanhSchema = z.object({ saleId: z.string().trim().min(1, "Chọn Sale care").max(64) });
 export type HandoverDataLanhInput = z.infer<typeof handoverDataLanhSchema>;
 
+export const dataLanhRecipientSchema = z.object({ userId: z.string().trim().min(1).max(64) });
+export type DataLanhRecipient = { id: string; name: string; email: string };
+
 export type DataLanhRecord = {
   id: string;
   stt: number;

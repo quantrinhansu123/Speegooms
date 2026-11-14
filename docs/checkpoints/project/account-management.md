@@ -1,7 +1,7 @@
 # Quản lý tài khoản và đổi mật khẩu
 
 - Phạm vi: Cài đặt admin, tạo/sửa/xóa tài khoản, mật khẩu cá nhân, quyền API.
-- Đối chiếu: 2026-11-14, commit chức năng `4d910ed`, nền `47ebbc8`, nhánh `feat/admin-accounts`; chuẩn bị bàn giao vào `main` theo yêu cầu người dùng.
+- Đối chiếu: 2026-11-14, commit chức năng `4d910ed`, tích hợp với `main` tại `bea14ac`, nhánh `feat/admin-accounts`; bàn giao vào `main` theo yêu cầu người dùng, chưa xác nhận deployment.
 
 ## Hành vi
 
@@ -25,6 +25,7 @@
 
 ## Kiểm chứng và giới hạn
 
+- Khi tích hợp `bea14ac`, giải quyết xung đột `settings-view.tsx` bằng cách giữ cả ChangePasswordForm, AccountManagement và DataLanhRecipients mới của main; không khôi phục RoleAssignment cũ vì đã thay bằng AccountManagement. Chạy lại `pnpm test:api`: 206 pass, 6 DB integration test skip; Vercel entry thêm 1 pass. Typecheck frontend/server, 5 test navigation, ESLint trang Cài đặt và diff check đều qua.
 - `pnpm test:api` thành công ngoài sandbox sau khi esbuild bị sandbox chặn duyệt thư mục: 202 pass, 5 integration test bỏ qua khi chưa có DB; built Vercel entry thêm 1 pass. Gồm test CRUD, email trùng, dữ liệu sai, chặn non-admin/tự xóa/tự đổi vai trò, mật khẩu chứa markup/khoảng trắng, đổi mật khẩu và thu hồi nhiều phiên.
 - `tsc --noEmit -p server/tsconfig.json`, `next typegen` + `tsc --noEmit --incremental false` thành công; 5 test navigation/sidebar pass; ESLint phần thay đổi không có lỗi (còn warning điều hướng đăng nhập toàn trang vốn có).
 - Playwright với API memory riêng: tạo/sửa/xóa qua dialog, menu đổi mật khẩu, lỗi xác nhận không khớp, đổi thành công và đăng nhập bằng mật khẩu mới. Đã chụp desktop/mobile và kiểm tra trang mật khẩu 390px không tràn ngang; ảnh/script thử nằm trong `.next/` bị Git bỏ qua.

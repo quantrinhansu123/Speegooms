@@ -1,5 +1,16 @@
 # CRM: mess → khách tiềm năng
 
+## Trạng thái xử lý Mess — 2026-11-14
+
+- Nền `47ebbc8`, nhánh `feat/mess-processing-status`. Áp dụng chung Mess Việt Nam/Global trong `MessView`.
+- Bộ lọc cũ đổi thành **Trạng thái mess**; cột cũ thành **Trạng thái chuyển**. Thêm **Trạng thái xử lý** trước Phân loại, chọn trực tiếp L0–L8 theo `messageProcessingOptions` trong `shared/src/crm.ts`.
+- Cột **Sales - hot & warm** đổi thành **Nhân viên sale**. Bộ lọc cùng tên lấy tên sale duy nhất từ mess được phép xem, áp dụng khi bấm Tìm và kết hợp các bộ lọc khác. Lọc theo `saleName` đã trim, không dùng người xử lý/nhận bàn giao. Số lượng L0–L8 tính sau bộ lọc sale; Xóa lọc khôi phục Tất cả. Browser fixture đã kiểm tra chọn sale, số lượng và reset.
+- Người dùng cập nhật trạng thái xử lý riêng, không tự suy ra từ chuyển khách/báo giá/hợp đồng. Mess đã chuyển vẫn hiển thị và chọn được theo quyền sửa hiện có. Migration `052_mess_processing_status.sql` thêm `trang_thai_xu_ly` cho hai bảng, mặc định L0 cho mess mới và cũ; đã đăng ký trong `server/src/scripts/migrate.ts`. Cần chạy migration trước khi đưa API mới lên.
+- PATCH `/messages/:id/processing-status` chỉ nhận enum L0–L8, từ chối trường thừa; dùng quyền `message.write`, kiểm tra tuyến và người tạo/Admin như cập nhật Mess hiện có. Repository chỉ ghi cột xử lý, không ghi lại dữ liệu khách hoặc trạng thái chuyển.
+- Hàng nút Tất cả/L0–L8 có số lượng, kể cả 0; đếm trên kết quả tìm kiếm/bộ lọc API trong phạm vi quyền, trước lựa chọn L. Xóa lọc xóa cả lựa chọn L. Bỏ giới hạn 200 dòng danh sách Mess để không đếm thiếu; chưa đo hiệu năng tập dữ liệu lớn, danh sách vẫn tải/render toàn bộ.
+- Kiểm chứng: typecheck FE/BE, 3 test schema/repository/service mới và `node scripts/check-mess-processing.mjs` qua. Browser fixture kiểm tra 205 mess, nhãn/thứ tự cột, 9 lựa chọn, lọc/số 0/tìm kiếm/reset, sửa mess đã chuyển và lỗi lưu giữ giá trị cũ. Bộ API build + 205 test qua, 5 test DB bỏ qua; Vercel entry test qua. ESLint có đúng 2 lỗi effect cũ trong `mess-view.tsx`, tái hiện bằng HEAD gốc; diff check qua.
+- Chưa chạy migration/kiểm thử trên PostgreSQL thật, chưa deploy hoặc kiểm tra production.
+
 - Từ khóa: mess, conversion, convertMessage, Sourcing, Logistics, quantityNote, market, order draft.
 - Đối chiếu mới nhất: `feat/phone-country-dropdown` từ main `e242d9a`, ngày 2026-11-13; người dùng yêu cầu merge main và push sau khi hoàn tất. Thay đổi bỏ ô trùng trước đó ở `83b7edb`, đã bàn giao main local tại `6076ffe`.
 - Trạng thái: đã đọc các schema và luồng gọi liên quan; cần đối chiếu lại nếu chúng thay đổi. Đây không phải audit toàn bộ CRM.

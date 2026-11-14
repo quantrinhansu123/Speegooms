@@ -34,6 +34,7 @@ export type ContractView = "sale" | "ops" | "accounting";
 export interface MessageRecord extends CrmHandler {
   id: string;
   messCode: string;
+  processingStatus: import("@speego/shared").MessageProcessingStatus;
   source: string;
   customerName: string | null;
   phone: string | null;
@@ -248,6 +249,7 @@ export interface CrmRepository {
   createMessage(lane: CrmLane, input: CreateMessageInput, creatorId?: string): Promise<MessageRecord>;
   /** Người tạo mess: id, null nếu chưa rõ, "missing" nếu không có mess. */
   messageCreator(lane: CrmLane, id: string): Promise<string | null | "missing">;
+  updateMessageProcessing(lane: CrmLane, id: string, status: MessageRecord["processingStatus"]): Promise<MessageRecord | null>;
   updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null>;
   deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked">;
   convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost">;
