@@ -17,9 +17,9 @@ export function PageHeader({
 }) {
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
-    <div className={cn("mb-6 flex flex-wrap items-start justify-between gap-4", className)}>
+    <div className={cn("mb-4 flex flex-wrap items-start justify-between gap-4", className)}>
       <div className="min-w-0">
-        <Heading className={cn("font-bold tracking-tight text-primary", headingLevel === 1 ? "text-2xl" : "text-xl")}><ArrowText>{title}</ArrowText></Heading>
+        <Heading className={cn("font-bold tracking-tight text-primary", headingLevel === 1 ? "text-xl" : "text-xl")}><ArrowText>{title}</ArrowText></Heading>
         {description && <p className="mt-1 text-sm text-muted-foreground"><ArrowText>{description}</ArrowText></p>}
       </div>
       {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}

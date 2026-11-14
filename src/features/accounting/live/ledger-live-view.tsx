@@ -284,7 +284,7 @@ export function LedgerLiveView() {
     </div>
     <ListSearchBar q={filters.draft.q} from={filters.draft.from} to={filters.draft.to}
       onQ={(v) => filters.set("q", v)} onFrom={(v) => filters.set("from", v)} onTo={(v) => filters.set("to", v)}
-      onSearch={filters.search} onReset={filters.reset} dateLabel="Ngày ghi sổ" searchPlaceholder="Tìm người nộp/nhận, mã đơn, tên khách, tài khoản nhận…">
+      onSearch={filters.search} onReset={filters.reset} activeCount={filters.activeCount} dateLabel="Ngày ghi sổ" searchPlaceholder="Tìm người nộp/nhận, mã đơn, tên khách, tài khoản nhận…">
       <FilterSelect id="ledger-kind-filter" label="Loại" value={filters.draft.kind} onChange={(v) => filters.set("kind", v)} options={[["THU", "Thu"], ["CHI", "Chi"]]} />
       <FilterSelect id="ledger-category-filter" label="Khoản mục" value={filters.draft.category} onChange={(v) => filters.set("category", v)} options={ledgerCategories.map((v) => [v, ledgerCategoryLabels[v]])} />
     </ListSearchBar>

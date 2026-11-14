@@ -235,7 +235,7 @@ export function PaymentsLiveView() {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ ngày nhập"
         searchPlaceholder="Mã đề nghị, đơn hàng, người nhận, tham chiếu, khách, nội dung thanh toán…"
       >

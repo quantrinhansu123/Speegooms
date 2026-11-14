@@ -41,12 +41,12 @@ export function FilterableTable({ children, style, ref, ...props }: ComponentPro
   return (
     <>
       {enabled && (
-        <div className="sticky left-0 m-2 flex w-fit print:hidden">
+        <div className="sticky left-0 flex w-full justify-end p-2 print:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger type="button" className={buttonVariants({ variant: "outline", size: "sm" })}>
               <Columns3 aria-hidden /> Cột hiển thị
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-80 w-64">
+            <DropdownMenuContent align="end" className="max-h-80 w-64">
               {columns.map((label, index) => (
                 <DropdownMenuCheckboxItem key={keys[index]} checked={!hidden.includes(keys[index])} closeOnClick={false}
                   disabled={!hidden.includes(keys[index]) && hiddenIndexes.length === columns.length - 1}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Search } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import { FilterPanel } from "@/components/shared/filter-panel";
 import { Field, NativeSelect } from "@/components/shared/form-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,11 @@ export function useAppliedSearch<T extends DateSearch>(initial: T) {
     applied,
     set,
     active,
+    activeCount: Object.entries(applied).filter(([key, value]) => key !== "q" && key !== "customerKind" && String(value).trim() !== "").length,
+    select: <K extends keyof T>(key: K, value: T[K]) => {
+      setDraft((current) => ({ ...current, [key]: value }));
+      setApplied((current) => ({ ...current, [key]: value }));
+    },
     search: () => setApplied(draft),
     reset: () => {
       setDraft(initial);
@@ -61,6 +66,8 @@ export function ListSearchBar({
   dateLabel,
   searchPlaceholder = "Mã, tên, hàng hóa...",
   children,
+  tabs,
+  activeCount = 0,
 }: {
   q: string;
   from: string;
@@ -73,33 +80,36 @@ export function ListSearchBar({
   dateLabel: string;
   searchPlaceholder?: string;
   children?: ReactNode;
+  tabs?: ReactNode;
+  activeCount?: number;
 }) {
   const rangeError = dateRangeError(from, to);
+  const id = useId();
   return (
     <form
-      className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4 [&>div]:max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full"
+      className="mb-4"
       onSubmit={(event) => {
         event.preventDefault();
         if (!rangeError) onSearch();
       }}
     >
-      <Field label="Tìm kiếm" htmlFor="list-q" className="w-full shrink-0 sm:w-64">
-        <div className="relative">
-          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input id="list-q" className="pl-9" value={q} placeholder={searchPlaceholder} onChange={(event) => onQ(event.target.value)} />
-        </div>
-      </Field>
-      <Field label={dateLabel} htmlFor="list-from" error={rangeError}>
-        <Input id="list-from" type="date" value={from} onChange={(event) => onFrom(event.target.value)} />
-      </Field>
-      <Field label="Đến ngày" htmlFor="list-to">
-        <Input id="list-to" type="date" value={to} onChange={(event) => onTo(event.target.value)} />
-      </Field>
-      {children}
-      <div className="flex items-end gap-2">
+      {tabs && <div className="mb-3">{tabs}</div>}
+      <FilterPanel count={activeCount} toolbar={<>
+        <label className="sr-only" htmlFor={id + "-q"}>Tìm kiếm</label>
+        <Input className="min-w-40 flex-1 sm:max-w-md" id={id + "-q"} value={q} placeholder={searchPlaceholder} onChange={(event) => onQ(event.target.value)} />
         <Button type="submit">Tìm</Button>
-        <Button type="button" variant="outline" onClick={onReset}>Xóa lọc</Button>
-      </div>
+        <Button type="button" variant="ghost" onClick={onReset}>Xóa lọc</Button>
+      </>}>
+        <Field label={dateLabel} htmlFor={id + "-from"}>
+          <Input id={id + "-from"} type="date" value={from} onChange={(event) => onFrom(event.target.value)} />
+        </Field>
+        <Field label="Đến ngày" htmlFor={id + "-to"}>
+          <Input id={id + "-to"} type="date" value={to} onChange={(event) => onTo(event.target.value)} />
+        </Field>
+        {children}
+        <Button type="submit">Áp dụng</Button>
+      </FilterPanel>
+      {rangeError && <p role="alert" className="text-sm text-destructive">{rangeError}</p>}
     </form>
   );
 }
@@ -127,4 +137,12 @@ export function FilterSelect({
       </NativeSelect>
     </Field>
   );
+}
+
+export function CustomerKindTabs({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return <div role="group" aria-label="Loại khách" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+    {[["", "Tất cả"], ["SOURCING", "Sourcing"], ["LOGISTICS", "Logistic"]].map(([key, label]) =>
+      <Button key={key} type="button" variant={value === key ? "secondary" : "ghost"} aria-pressed={value === key} className={value === key ? "bg-card shadow-sm" : ""} onClick={() => onChange(key)}>{label}</Button>
+    )}
+  </div>;
 }

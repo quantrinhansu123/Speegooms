@@ -257,7 +257,7 @@ function PayrollSection({ canWrite }: { canWrite: boolean }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ kỳ (ngày đầu kỳ)"
         searchPlaceholder="Mã, tên nhân sự, phòng ban, vị trí…"
       >
@@ -343,7 +343,7 @@ function ExpenseSection({ canWrite }: { canWrite: boolean }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ ngày chi"
         searchPlaceholder="Mã, hạng mục, nội dung, số tiền…"
       >

@@ -31,7 +31,7 @@ import type { Role } from "@/types/role";
 import { ContractDocDialog } from "./contract-doc-dialog";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
-import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { TableHScroll } from "./table-h-scroll";
 import { labelOf, type QuoteRecord } from "./types";
@@ -434,7 +434,8 @@ export function ContractsLiveView({
   const [focusId, setFocusId] = useState<string | null>(null);
   const [focusLane, setFocusLane] = useState<CrmLane | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const filters = useAppliedSearch({ q: "", from: "", to: "", opsStatus: "", accountingStatus: "" });
+  const filters = useAppliedSearch({ q: "", from: "", to: "", opsStatus: "", accountingStatus: "", customerKind: "" });
+  const shown = rows.filter((row) => !filters.applied.customerKind || row.quoteDesk?.toUpperCase() === filters.applied.customerKind);
   const opsStatusFilterOptions = opsStatusOptions.map((status) => [status, status] as const);
 
   useEffect(() => {
@@ -592,6 +593,7 @@ export function ContractsLiveView({
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       {excel.banner}
       <ListSearchBar
+        tabs={<CustomerKindTabs value={filters.applied.customerKind} onChange={(value) => filters.select("customerKind", value)} />}
         q={filters.draft.q}
         from={filters.draft.from}
         to={filters.draft.to}
@@ -599,7 +601,7 @@ export function ContractsLiveView({
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ ngày ký"
         searchPlaceholder="Tìm mọi trường: mã, khách, sản phẩm, trạng thái, tracking, ghi chú…"
       >
@@ -633,10 +635,10 @@ export function ContractsLiveView({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {shown.length === 0 && (
               <tr><td colSpan={20} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
-            {rows.map((row) => {
+            {shown.map((row) => {
               const { amounts, paidLines, summary } = rowVnd(row);
               const totals = totalsInMain(amounts, row.currency);
               const paidTotals = sumByCurrency([paidLines]);

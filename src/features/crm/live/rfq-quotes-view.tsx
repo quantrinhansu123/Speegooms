@@ -25,7 +25,7 @@ import { ContractCreateDialog } from "./contract-create-dialog";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
-import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputActions, quoteOutputIcon, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
 import { printableRfqQuote, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
@@ -448,6 +448,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       {excel.banner}
       <ListSearchBar
+        tabs={<CustomerKindTabs value={filters.applied.customerKind} onChange={(value) => filters.select("customerKind", value)} />}
         q={filters.draft.q}
         from={filters.draft.from}
         to={filters.draft.to}
@@ -455,13 +456,12 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ ngày"
       >
         <FilterSelect id="rfq-desk" label="Bàn" value={filters.draft.deskFilter} onChange={(value) => filters.set("deskFilter", value)} options={Object.entries(deskLabels)} />
         <FilterSelect id="rfq-status" label="Trạng thái" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
         <FilterSelect id="rfq-contract" label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
-        <FilterSelect id="rfq-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1600px] text-sm">

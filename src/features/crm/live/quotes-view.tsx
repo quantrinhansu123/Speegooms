@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { AssignmentDialog } from "./assignment-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
-import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
 import { quoteRecordMissing } from "./quote-sheet";
@@ -32,7 +32,6 @@ import { TableHScroll } from "./table-h-scroll";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge, ValidityBadge } from "./status-badges";
 import {
   contractStatusOptions,
-  customerKindOptions,
   quoteStatusOptions,
   type QuoteRecord,
   type QuoteTemplateRecord,
@@ -225,12 +224,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         </InlineAlert>
       )}
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
-      {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter" className="mb-4 max-w-56">
-        <NativeSelect id="logistics-mode-filter" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
-          <option value="">Tất cả</option><option value="AIR">Đường bay</option><option value="LCL">Đường biển LCL</option><option value="FCL">Đường biển FCL</option>
-        </NativeSelect>
-      </Field>}
       <ListSearchBar
+        tabs={<CustomerKindTabs value={filters.applied.customerKind} onChange={(value) => filters.select("customerKind", value)} />}
         q={filters.draft.q}
         from={filters.draft.from}
         to={filters.draft.to}
@@ -238,12 +233,16 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={() => { filters.reset(); setModeFilter(""); }} activeCount={filters.activeCount + Number(!!modeFilter)}
         dateLabel="Từ ngày"
       >
+      {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter" className="mb-4 max-w-56">
+        <NativeSelect id="logistics-mode-filter" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
+          <option value="">Tất cả</option><option value="AIR">Đường bay</option><option value="LCL">Đường biển LCL</option><option value="FCL">Đường biển FCL</option>
+        </NativeSelect>
+      </Field>}
         <FilterSelect id={`${desk}-quote-status`} label="Trạng thái báo giá" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
         <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
-        <FilterSelect id={`${desk}-quote-kind`} label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1250px] text-sm">

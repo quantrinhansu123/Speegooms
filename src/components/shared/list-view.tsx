@@ -14,6 +14,8 @@ import { date as dateSchema } from "@/services/backoffice/rules";
 import { usePagination } from "@/features/crm/hooks";
 import { matchesQuery } from "@/lib/text";
 
+import { FilterPanel } from "./filter-panel";
+
 export interface FilterDef<T> {
   id: string;
   label: string;
@@ -116,13 +118,15 @@ export function ListView<T>({
       {title && <PageHeader title={title} description={description} actions={actions} headingLevel={headingLevel} />}
       {banner}
       {summary}
-      <div className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-4 [&>div]:max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full">
+      <FilterPanel count={activeCount} toolbar={<>
         <Field label={searchLabel} htmlFor={`${dateId}-search`} className="w-full shrink-0 sm:w-64">
         <div className="relative min-w-0">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input id={`${dateId}-search`} placeholder={searchPlaceholder} value={query} onChange={(e) => { setQuery(e.target.value); paging.setPage(1); }} className="h-10 pl-8" />
         </div>
         </Field>
+        <Button type="button" variant="outline" disabled={!activeCount && !sortKey} onClick={() => { setQuery(""); setValues({}); setOn({}); setFrom(""); setTo(""); setSortKey(""); setExportMessage(undefined); paging.setPage(1); }}><RotateCcw aria-hidden /> Đặt lại{activeCount > 0 && ` (${activeCount})`}</Button>
+      </>}>
         {filters.map((f) => (
           <Field key={f.id} label={f.label} htmlFor={`${dateId}-${f.id}`} className={f.className}>
           <NativeSelect id={`${dateId}-${f.id}`} className="h-10 w-full" value={values[f.id] ?? ""} onChange={(e) => { setValues({ ...values, [f.id]: e.target.value }); paging.setPage(1); }}>
@@ -155,8 +159,8 @@ export function ListView<T>({
             {t.label}
           </label>
         ))}
-        <Button type="button" variant="outline" disabled={!activeCount && !sortKey} onClick={() => { setQuery(""); setValues({}); setOn({}); setFrom(""); setTo(""); setSortKey(""); setExportMessage(undefined); paging.setPage(1); }}><RotateCcw aria-hidden /> Đặt lại{activeCount > 0 && ` (${activeCount})`}</Button>
-      </div>
+
+      </FilterPanel>
       {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
       {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}
       <div className="space-y-4">

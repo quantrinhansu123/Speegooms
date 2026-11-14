@@ -20,7 +20,7 @@ import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { LeadCreate } from "./lead-create";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
-import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { RowMenu } from "./row-menu";
 import { QuoteEditor, quoteFieldsFromPotential } from "./quote-editor";
 import { QuoteTracking } from "./quote-tracking";
@@ -361,6 +361,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
       {excel.banner}
       <ListSearchBar
+        tabs={<CustomerKindTabs value={filters.applied.customerKind} onChange={(value) => filters.select("customerKind", value)} />}
         q={filters.draft.q}
         from={filters.draft.from}
         to={filters.draft.to}
@@ -368,12 +369,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
         onFrom={(value) => filters.set("from", value)}
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
-        onReset={filters.reset}
+        onReset={filters.reset} activeCount={filters.activeCount}
         dateLabel="Từ ngày tạo"
       >
         <FilterSelect id="lead-source" label="Nguồn" value={filters.draft.source} onChange={(value) => filters.set("source", value)} options={sourceOptions} />
         <FilterSelect id="lead-potential" label="Giai đoạn" value={filters.draft.potential} onChange={(value) => filters.set("potential", value)} options={potentialOptions} />
-        <FilterSelect id="lead-kind" label="Loại khách" value={filters.draft.customerKind} onChange={(value) => filters.set("customerKind", value)} options={customerKindOptions} />
         <FilterSelect id="lead-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>

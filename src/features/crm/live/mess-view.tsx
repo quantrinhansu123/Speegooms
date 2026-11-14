@@ -15,14 +15,14 @@ import { formatDate } from "@/lib/format";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
-import { dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
+import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { dateInputFromIso, draftFrom, emptyDraft, marketPresets, messFieldIds, MessFormDialog, todayInput, uniqueSuggestions, type MessDraft } from "./mess-form";
 import { useMessConvert } from "./mess-convert";
 import { RowMenu } from "./row-menu";
 import { zodFieldErrors } from "@/lib/zod-errors";
 import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
-import { brandOptions, customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
+import { brandOptions, customerTypeOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
 const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global", "sale-global-lead"];
 const convertRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
@@ -175,6 +175,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       {notice && <InlineAlert tone="success" className="mb-4">{notice}</InlineAlert>}
       {excel.banner}
       <ListSearchBar
+        tabs={<CustomerKindTabs value={filters.applied.demand === "SHIPPING" ? "LOGISTICS" : filters.applied.demand} onChange={(value) => filters.select("demand", value === "LOGISTICS" ? "SHIPPING" : value)} />}
+        activeCount={filters.activeCount - Number(!!filters.applied.demand)}
         q={filters.draft.q}
         from={filters.draft.from}
         to={filters.draft.to}
@@ -188,7 +190,6 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         <FilterSelect id="mess-classification" label="Phân loại" value={filters.draft.classification} onChange={(value) => filters.set("classification", value)} options={messageClassificationOptions} />
         <FilterSelect id="mess-market" label="Thị trường" value={filters.draft.market} onChange={(value) => filters.set("market", value)} options={marketOptions} />
         <FilterSelect id="mess-sale-filter" label="Nhân viên sale" value={filters.draft.saleName} onChange={(value) => filters.set("saleName", value)} options={saleOptions} />
-        <FilterSelect id="mess-demand" label="Nhu cầu" value={filters.draft.demand} onChange={(value) => filters.set("demand", value)} options={demandOptions} />
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
         <FilterSelect id="mess-status" label="Trạng thái mess" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>
