@@ -1,4 +1,6 @@
 export { updateRoleSchema, type UpdateRoleInput } from "./admin";
+export { createUserSchema, updateUserSchema, type CreateUserInput, type UpdateUserInput } from "./admin";
+export { changePasswordSchema, newPasswordSchema } from "./auth";
 export { canHandleCrm, type CrmHandler, type CrmActivity } from "./crm-handover";
 export { loginSchema, type LoginInput } from "./auth";
 export {
@@ -187,6 +189,8 @@ export {
   hasActiveTelesale,
   createDataLanhSchema,
   handoverDataLanhSchema,
+  dataLanhRecipientSchema,
+  type DataLanhRecipient,
   updateDataLanhSchema,
   type CreateDataLanhInput,
   type DataLanhRecord,

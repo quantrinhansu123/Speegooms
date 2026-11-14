@@ -139,6 +139,68 @@ test("auth, csrf, cors and security headers", { timeout: 20_000 }, async () => {
     });
     assert.equal(me.status, 200);
 
+    const mutate = (method: string, path: string, body?: unknown) => send(port, {
+      method, path,
+      headers: { "content-type": "application/json", origin: "http://localhost:3000", "x-csrf-token": token, cookie: jar },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const profile = { name: "Test Account", email: "account@example.com", role: "sale-vn", department: "Sale", title: "Nhân viên" };
+    const initialPassword = "  <script>initial</script>&123  ";
+    assert.equal((await mutate("POST", "/api/users", { ...profile, password: "short" })).status, 422);
+    assert.equal((await mutate("POST", "/api/users", { ...profile, role: "unknown", password: initialPassword })).status, 422);
+    const created = await mutate("POST", "/api/users", { ...profile, email: "  ACCOUNT@example.com  ", password: initialPassword });
+    assert.equal(created.status, 201, created.text);
+    assert.equal(created.text.includes("password"), false);
+    const account = JSON.parse(created.text).user;
+    assert.equal(account.email, profile.email);
+    assert.equal((await mutate("POST", "/api/users", { ...profile, password: initialPassword })).status, 409);
+    const changedProfile = { ...profile, name: "Updated Account", email: "updated@example.com", role: "sourcing" };
+    const edited = await mutate("PATCH", `/api/users/${account.id}`, changedProfile);
+    assert.equal(edited.status, 200, edited.text);
+    assert.equal(JSON.parse(edited.text).user.name, changedProfile.name);
+    assert.equal((await mutate("PATCH", `/api/users/${account.id}`, { ...changedProfile, email: "admin@speego.vn" })).status, 409);
+    assert.equal((await mutate("PATCH", "/api/users/missing", changedProfile)).status, 404);
+    const adminId = JSON.parse(ok.text).user.id;
+    assert.equal((await mutate("DELETE", `/api/users/${adminId}`)).status, 403);
+    assert.equal((await mutate("PATCH", `/api/users/${adminId}`, changedProfile)).status, 403);
+    assert.equal((await mutate("PATCH", `/api/users/${adminId}/role`, { role: "sale-vn" })).status, 403);
+
+    const adminJar = jar;
+    assert.equal((await login(profile.email, initialPassword)).status, 401);
+    const accountLogin = await login(changedProfile.email, initialPassword);
+    assert.equal(accountLogin.status, 200, accountLogin.text);
+    jar = mergeCookies(jar, accountLogin.headers["set-cookie"]);
+    const accountJar = jar;
+    for (const [method, path, body] of [
+      ["POST", "/api/users", { ...profile, password: initialPassword }],
+      ["PATCH", `/api/users/${account.id}`, profile],
+      ["PATCH", `/api/users/${account.id}/role`, { role: "admin" }],
+      ["DELETE", `/api/users/${account.id}`, undefined],
+    ] as const) assert.equal((await mutate(method, path, body)).status, 403, `${method} ${path}`);
+    assert.equal((await send(port, { path: "/api/users", headers: { cookie: jar } })).status, 403);
+    assert.equal((await mutate("POST", "/api/auth/password", { currentPassword: "wrong", newPassword: "new-password" })).status, 400);
+    assert.equal((await mutate("POST", "/api/auth/password", { currentPassword: initialPassword, newPassword: "short" })).status, 422);
+    const secondLogin = await login(changedProfile.email, initialPassword);
+    const secondJar = mergeCookies(jar, secondLogin.headers["set-cookie"]);
+    const nextPassword = "  <b>new-password</b>&123  ";
+    assert.equal((await mutate("POST", "/api/auth/password", { currentPassword: initialPassword, newPassword: nextPassword, userId: adminId })).status, 204);
+    for (const cookie of [accountJar, secondJar]) {
+      assert.equal((await send(port, { path: "/api/auth/me", headers: { cookie } })).status, 401);
+    }
+    assert.equal((await login(changedProfile.email, initialPassword)).status, 401);
+    const relogin = await login(changedProfile.email, nextPassword);
+    assert.equal(relogin.status, 200, relogin.text);
+    const reloginJar = mergeCookies(jar, relogin.headers["set-cookie"]);
+    jar = adminJar;
+    const listed = await send(port, { path: "/api/users", headers: { cookie: jar } });
+    assert.equal(listed.status, 200);
+    assert.equal(listed.text.includes("passwordHash"), false);
+    assert.equal(listed.text.includes("scrypt"), false);
+    assert.equal((await mutate("DELETE", `/api/users/${account.id}`)).status, 204);
+    assert.equal((await mutate("DELETE", `/api/users/${account.id}`)).status, 404);
+    assert.equal((await send(port, { path: "/api/auth/me", headers: { cookie: reloginJar } })).status, 401);
+    assert.equal((await login(changedProfile.email, nextPassword)).status, 401);
+
     const loggedOut = await send(port, {
       method: "POST",
       path: "/api/auth/logout",

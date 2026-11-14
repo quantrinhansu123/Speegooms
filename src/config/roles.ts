@@ -114,6 +114,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
 const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
 
 export function canAccess(role: Role, href: string): boolean {
+  if (href === "/tai-khoan") return true;
   if (["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
   if (TRACKING_HREF.test(href)) {
     if (role === "sale-global-lead") return /^\/theo-doi-bao-gia\/global(\/|$)/.test(href);

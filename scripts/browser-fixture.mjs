@@ -10,7 +10,8 @@ export async function bundleFixture(contents) {
     // Resolve through Node so the native bundler need not enumerate restricted parent directories on Windows.
     plugins: [{ name: "node-resolution", setup(builder) {
       builder.onResolve({ filter: /.*/ }, args => {
-        const localRequire = createRequire(path.isAbsolute(args.importer) ? args.importer : path.join(process.cwd(), "package.json"));
+        // Shared worktree dependencies must use the same React instance as the renderer.
+        const localRequire = /^(react|react-dom)(\/|$)/.test(args.path) ? require : createRequire(path.isAbsolute(args.importer) ? args.importer : path.join(process.cwd(), "package.json"));
         if (args.path === "fflate") return { path: localRequire.resolve("fflate/browser"), namespace: "node-source" };
         if (args.path === "jspdf" || args.path === "exceljs") {
           const manifest = localRequire.resolve(`${args.path}/package.json`);

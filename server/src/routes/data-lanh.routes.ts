@@ -1,5 +1,5 @@
 import express, { Router } from "express";
-import { createDataLanhSchema, handoverDataLanhSchema, updateDataLanhSchema } from "@speego/shared";
+import { createDataLanhSchema, dataLanhRecipientSchema, handoverDataLanhSchema, updateDataLanhSchema } from "@speego/shared";
 import type { AppContainer } from "../container";
 import { asyncHandler } from "../lib/async-handler";
 import { requirePermission } from "../middlewares/authorize";
@@ -9,6 +9,9 @@ export function dataLanhRoutes(container: AppContainer) {
   const router = Router();
   const c = container.dataLanhController;
   router.use(container.authenticate);
+  router.get("/recipients", requirePermission("datalanh.assign"), asyncHandler(c.recipients));
+  router.post("/recipients", requirePermission("datalanh.assign"), validate({ body: dataLanhRecipientSchema }), asyncHandler(c.addRecipient));
+  router.delete("/recipients", requirePermission("datalanh.assign"), validate({ body: dataLanhRecipientSchema }), asyncHandler(c.removeRecipient));
   router.get("/", requirePermission("datalanh.read"), asyncHandler(c.list));
   router.post("/", requirePermission("datalanh.create"), validate({ body: createDataLanhSchema }), asyncHandler(c.create));
   router.get("/export", requirePermission("datalanh.read"), asyncHandler(c.exportExcel));

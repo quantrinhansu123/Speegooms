@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ApiError, api } from "@/lib/api";
 import { loginSchema, type LoginInput } from "./schema";
+import { InlineAlert } from "@/components/shared/form-fields";
 
 export function LoginForm() {
   const [pending, startTransition] = useTransition();
@@ -47,6 +49,7 @@ export function LoginForm() {
 
   return (
     <div>
+      <Suspense><PasswordChangedNotice /></Suspense>
       <form method="post" onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
         {serverError && (
           <div role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft px-3 py-2.5 text-sm text-danger">
@@ -137,4 +140,11 @@ export function LoginForm() {
       </form>
     </div>
   );
+}
+
+function PasswordChangedNotice() {
+  const params = useSearchParams();
+  return params.get("passwordChanged") === "1"
+    ? <InlineAlert tone="success" className="mb-4">Đã đổi mật khẩu. Vui lòng đăng nhập bằng mật khẩu mới.</InlineAlert>
+    : null;
 }

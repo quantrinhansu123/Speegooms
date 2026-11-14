@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import type { Role } from "@speego/shared";
+import type { Role, UpdateUserInput } from "@speego/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { InfrastructureError } from "../../lib/errors";
+import { AppError, InfrastructureError } from "../../lib/errors";
 import { hashSessionId, isSessionId } from "../../lib/session-id";
 import { toUserRecord, type UserRecord } from "../../models/user.model";
 import type { SessionRepository } from "../../repositories/session.repository";
@@ -10,7 +10,8 @@ import type { UserDirectory, UserRepository } from "../../repositories/user.repo
 const USER_COLUMNS =
   "id:ma_nguoi_dung,email:thu_dien_tu,name:ho_ten,role:vai_tro,department:phong_ban,title:chuc_danh,password_hash:mat_khau_bam";
 
-function fail(error: { message: string } | null): void {
+function fail(error: { message: string; code?: string } | null): void {
+  if (error?.code === "23505") throw new AppError(409, "EMAIL_EXISTS", "Email đã được sử dụng");
   if (error) throw new InfrastructureError("database query failed", { cause: error });
 }
 
@@ -45,6 +46,36 @@ export class SupabaseUserRepository implements UserRepository, UserDirectory {
       .maybeSingle();
     fail(error);
     return data ? toUserRecord(data as UserRow) : null;
+  }
+
+  async create(user: UserRecord): Promise<void> {
+    const { error } = await this.client.from("nguoi_dung").insert({
+      ma_nguoi_dung: user.id, thu_dien_tu: user.email, ho_ten: user.name, vai_tro: user.role,
+      phong_ban: user.department, chuc_danh: user.title, mat_khau_bam: user.passwordHash,
+    });
+    fail(error);
+  }
+
+  async update(id: string, input: UpdateUserInput): Promise<UserRecord | null> {
+    const { data, error } = await this.client.from("nguoi_dung").update({
+      thu_dien_tu: input.email, ho_ten: input.name, vai_tro: input.role,
+      phong_ban: input.department, chuc_danh: input.title,
+    }).eq("ma_nguoi_dung", id).select(USER_COLUMNS).maybeSingle();
+    fail(error);
+    return data ? toUserRecord(data as UserRow) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const { data, error } = await this.client.from("nguoi_dung").delete().eq("ma_nguoi_dung", id).select("ma_nguoi_dung");
+    fail(error);
+    return Boolean(data?.length);
+  }
+
+  async changePassword(id: string, currentHash: string, nextHash: string): Promise<boolean> {
+    const { data, error } = await this.client.from("nguoi_dung").update({ mat_khau_bam: nextHash })
+      .eq("ma_nguoi_dung", id).eq("mat_khau_bam", currentHash).select("ma_nguoi_dung");
+    fail(error);
+    return Boolean(data?.length);
   }
 
   async upsert(user: UserRecord): Promise<void> {
@@ -116,6 +147,11 @@ export class SupabaseSessionRepository implements SessionRepository {
       return null;
     }
     return { userId: row.user_id };
+  }
+
+  async revokeForUser(userId: string): Promise<void> {
+    const { error } = await this.client.from("phien_dang_nhap").delete().eq("ma_nguoi_dung", userId);
+    fail(error);
   }
 
   async revoke(sessionId: string): Promise<void> {

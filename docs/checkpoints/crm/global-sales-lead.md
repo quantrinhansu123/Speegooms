@@ -1,7 +1,7 @@
 # Trưởng sale global
 
 - **Phạm vi:** role `sale-global-lead`, menu và dữ liệu Sale Global, Mess, Data khách hàng, migration 053.
-- **Đối chiếu:** 2026-11-14, nền `f2f9479`, thay đổi trên `feat/global-sales-lead`; bàn giao lên main theo yêu cầu người dùng; chưa xác nhận deployment.
+- **Đối chiếu:** 2026-11-14, nguồn `c03f151` trên `feat/global-sales-lead`, ghép main `dcf642e`; bàn giao lên main theo yêu cầu người dùng; chưa xác nhận deployment.
 
 ## Quyết định
 
@@ -21,6 +21,8 @@
 ## Kiểm chứng và giới hạn
 
 - API typecheck và frontend `next typegen` + `tsc --noEmit` đạt.
-- `pnpm test:api`: 209 đạt, 5 bài tích hợp PostgreSQL bỏ qua vì không cấu hình DB test; thêm 1 bài Vercel entry đạt. API build đạt.
+- `pnpm test:api`: bản ghép main: 210 đạt, 6 bài tích hợp PostgreSQL bỏ qua vì không cấu hình DB test; thêm 1 bài Vercel entry đạt. API build đạt.
 - Test menu và thông báo: 7 đạt, bao gồm toàn bộ trang Global, chặn tuyến VN/quản trị và link thông báo role mới.
 - Chưa kiểm tra đăng nhập bằng trình duyệt hoặc chạy full frontend production build; chưa triển khai website. Kiểm tra mật khẩu trên DB không đồng nghĩa đã kiểm tra website đang chạy.
+
+- **Ghép main 2026-11-14:** giữ transaction và `FOR UPDATE` trong bàn giao Data khách hàng của main, thêm role mới vào kiểm tra Sale nhận bàn giao. Giữ cả test người nhận mới của main và test role mới; trang tài khoản cá nhân và quản trị tài khoản của main được giữ nguyên.

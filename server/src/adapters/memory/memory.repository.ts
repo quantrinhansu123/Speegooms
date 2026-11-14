@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import type { Role } from "@speego/shared";
+import type { Role, UpdateUserInput } from "@speego/shared";
+import { AppError } from "../../lib/errors";
 import { hashSessionId, isSessionId } from "../../lib/session-id";
 import type { UserRecord } from "../../models/user.model";
 import type { SessionRepository } from "../../repositories/session.repository";
@@ -8,6 +9,36 @@ import type { UserDirectory, UserRepository } from "../../repositories/user.repo
 export class MemoryUserRepository implements UserRepository, UserDirectory {
   private readonly byEmail = new Map<string, UserRecord>();
   private readonly byId = new Map<string, UserRecord>();
+
+  async create(user: UserRecord): Promise<void> {
+    if (this.byEmail.has(user.email.toLowerCase())) throw new AppError(409, "EMAIL_EXISTS", "Email đã được sử dụng");
+    await this.upsert(user);
+  }
+
+  async update(id: string, input: UpdateUserInput): Promise<UserRecord | null> {
+    const found = this.byId.get(id);
+    if (!found) return null;
+    const duplicate = this.byEmail.get(input.email);
+    if (duplicate && duplicate.id !== id) throw new AppError(409, "EMAIL_EXISTS", "Email đã được sử dụng");
+    this.byEmail.delete(found.email);
+    const next = { ...found, ...input };
+    await this.upsert(next);
+    return { ...next };
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const found = this.byId.get(id);
+    if (!found) return false;
+    this.byEmail.delete(found.email);
+    return this.byId.delete(id);
+  }
+
+  async changePassword(id: string, currentHash: string, nextHash: string): Promise<boolean> {
+    const found = this.byId.get(id);
+    if (!found || found.passwordHash !== currentHash) return false;
+    await this.upsert({ ...found, passwordHash: nextHash });
+    return true;
+  }
 
   async upsert(user: UserRecord): Promise<void> {
     const record = { ...user, email: user.email.toLowerCase() };
@@ -60,6 +91,10 @@ export class MemorySessionRepository implements SessionRepository {
       return null;
     }
     return { userId: row.userId };
+  }
+
+  async revokeForUser(userId: string): Promise<void> {
+    for (const [key, row] of this.rows) if (row.userId === userId) this.rows.delete(key);
   }
 
   async revoke(sessionId: string): Promise<void> {

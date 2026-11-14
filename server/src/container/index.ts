@@ -81,7 +81,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
     authController: new AuthController(auth, cookies),
     healthController: new HealthController(new HealthService(repositories.users)),
     securityController: new SecurityController(csrf.issue),
-    userAdminController: new UserAdminController(new UserAdminService(repositories.users)),
+    userAdminController: new UserAdminController(new UserAdminService(repositories.users, passwords, repositories.sessions)),
     crmController: new CrmController(new CrmService(
       crm,
       notificationService,

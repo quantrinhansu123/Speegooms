@@ -31,6 +31,18 @@ export class DataLanhController {
     res.status(200).json({ sales: await this.ready().listSales() });
   };
 
+  recipients = async (_req: Request, res: Response) => {
+    res.status(200).json({ recipients: await this.ready().listRecipients() });
+  };
+
+  addRecipient = async (req: Request, res: Response) => {
+    res.status(200).json(await this.ready().changeRecipient(req.body.userId, "add"));
+  };
+
+  removeRecipient = async (req: Request, res: Response) => {
+    res.status(200).json(await this.ready().changeRecipient(req.body.userId, "remove"));
+  };
+
   handover = async (req: Request, res: Response) => {
     const actor = req.user;
     if (!actor) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
