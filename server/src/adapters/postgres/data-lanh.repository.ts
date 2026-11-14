@@ -1,4 +1,4 @@
-import { facebookStatuses, hasActiveTelesale, type CreateDataLanhInput, type DataLanhRecord, type UpdateDataLanhInput } from "@speego/shared";
+import { facebookStatuses, telesaleStatuses, hasActiveTelesale, type CreateDataLanhInput, type DataLanhRecord, type DataLanhRecipient, type UpdateDataLanhInput } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
 
@@ -47,6 +47,62 @@ const toRecord = (r: Row): DataLanhRecord => ({
 
 export class PostgresDataLanhRepository {
   constructor(private readonly pool: pg.Pool) {}
+
+  async listRecipients(): Promise<DataLanhRecipient[]> {
+    return (await this.pool.query<DataLanhRecipient>(
+      `select u.ma_nguoi_dung as id, u.ho_ten as name, u.thu_dien_tu as email
+       from crm.data_lanh_nguoi_nhan p join public.nguoi_dung u on u.ma_nguoi_dung = p.nguoi_dung_id order by p.thu_tu`,
+    )).rows;
+  }
+
+  async changeRecipient(userId: string, action: "add" | "remove"): Promise<{ assigned: number; interns: number }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("select pg_advisory_xact_lock(hashtext('data_lanh_assign'))");
+      const recipients = (await client.query<{ id: string }>(
+        `select nguoi_dung_id as id from crm.data_lanh_nguoi_nhan order by thu_tu`,
+      )).rows.map(r => r.id);
+      if (action === "add") {
+        if (recipients.includes(userId)) throw new AppError(409, "CONFLICT", "Người này đã ở trong vòng nhận data");
+        const user = (await client.query(
+          `select ma_nguoi_dung from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global', 'sale-intern') for share`, [userId],
+        )).rows[0];
+        if (!user) throw new AppError(422, "VALIDATION_ERROR", "Chọn tài khoản Sale hợp lệ");
+        await client.query(
+          `insert into crm.data_lanh_nguoi_nhan (nguoi_dung_id, thu_tu) select $1, coalesce(max(thu_tu), 0) + 1 from crm.data_lanh_nguoi_nhan`, [userId],
+        );
+        recipients.push(userId);
+      } else {
+        if (!recipients.includes(userId)) throw new AppError(404, "NOT_FOUND", "Người này không ở trong vòng nhận data");
+        if (recipients.length === 1) throw new AppError(409, "CONFLICT", "Cần giữ ít nhất một người nhận data");
+        await client.query(`delete from crm.data_lanh_nguoi_nhan where nguoi_dung_id = $1`, [userId]);
+        recipients.splice(recipients.indexOf(userId), 1);
+      }
+      // shortcut: xét trạng thái hiện tại; cần lịch sử trạng thái nếu muốn giữ cả khách đã xử lý rồi đặt lại về 0.
+      const rows = (await client.query<{ id: string }>(
+        `select id::text as id from crm.data_lanh
+         where coalesce(trang_thai_facebook, '') in ('', $1)
+           and coalesce(trang_thai_telesale, '') in ('', $2)
+           and sale_care_id is null and ban_giao_luc is null
+         order by stt for update`, [facebookStatuses[0], telesaleStatuses[0]],
+      )).rows;
+      if (rows.length) {
+        await client.query(
+          `update crm.data_lanh d set intern_id = t.intern_id, giao_luc = now(), cap_nhat_luc = now()
+           from unnest($1::uuid[], $2::text[]) as t(id, intern_id) where d.id = t.id`,
+          [rows.map(r => r.id), rows.map((_, i) => recipients[i % recipients.length])],
+        );
+      }
+      await client.query("commit");
+      return { assigned: rows.length, interns: recipients.length };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
   /** internId = chỉ lấy khách giao hoặc bàn giao cho người đó; null = tất cả. */
   async list(internId: string | null, limit: number | null = 2000): Promise<DataLanhRecord[]> {
@@ -138,14 +194,28 @@ export class PostgresDataLanhRepository {
    * Trả null nếu không thấy dòng. Có thể bàn giao lại cho Sale khác.
    */
   async handover(id: string, saleId: string, actorId: string, internId: string | null): Promise<DataLanhRecord | null> {
-    const sale = (await this.pool.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global')`, [saleId])).rows[0];
-    if (!sale) throw new AppError(400, "VALIDATION_ERROR", "Chọn Sale care hợp lệ");
-    const current = (await this.pool.query<{ sale_care_id: string | null }>(
-      `select sale_care_id from crm.data_lanh where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`, [id, internId])).rows[0];
-    if (!current) return null;
-    if (current.sale_care_id === saleId) throw new AppError(409, "CONFLICT", "Khách này đã được bàn giao cho Sale đó");
-    await this.pool.query(`update crm.data_lanh set sale_care_id = $2, ban_giao_luc = now(), ban_giao_boi = $3, cap_nhat_luc = now() where id = $1::uuid`, [id, saleId, actorId]);
-    return (await this.pool.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0] ?? null;
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const sale = (await client.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global')`, [saleId])).rows[0];
+      if (!sale) throw new AppError(400, "VALIDATION_ERROR", "Chọn Sale care hợp lệ");
+      const current = (await client.query<{ sale_care_id: string | null }>(
+        `select sale_care_id from crm.data_lanh where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2) for update`, [id, internId])).rows[0];
+      if (!current) {
+        await client.query("rollback");
+        return null;
+      }
+      if (current.sale_care_id === saleId) throw new AppError(409, "CONFLICT", "Khách này đã được bàn giao cho Sale đó");
+      await client.query(`update crm.data_lanh set sale_care_id = $2, ban_giao_luc = now(), ban_giao_boi = $3, cap_nhat_luc = now() where id = $1::uuid`, [id, saleId, actorId]);
+      const row = (await client.query<Row>(`${select} where d.id = $1::uuid`, [id])).rows.map(toRecord)[0] ?? null;
+      await client.query("commit");
+      return row;
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async remove(id: string): Promise<boolean> {
@@ -213,7 +283,7 @@ export class PostgresDataLanhRepository {
       if (interns.length === 0) throw new AppError(409, "CONFLICT", "Chưa có danh sách người nhận data khách hàng");
       const last = (await client.query<{ id: string }>(`select intern_id as id from crm.data_lanh where giao_luc is not null and intern_id in (select nguoi_dung_id from crm.data_lanh_nguoi_nhan) order by giao_luc desc, stt desc limit 1`)).rows[0];
       const start = last ? (interns.indexOf(last.id) + 1) % interns.length : 0;
-      const rows = (await client.query<{ id: string }>(`select id::text as id from crm.data_lanh where intern_id is null order by stt`)).rows;
+      const rows = (await client.query<{ id: string }>(`select id::text as id from crm.data_lanh where intern_id is null order by stt for update`)).rows;
       if (rows.length > 0) {
         await client.query(
           `update crm.data_lanh d set intern_id = t.intern_id, giao_luc = now(), cap_nhat_luc = now()

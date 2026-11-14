@@ -183,6 +183,8 @@ export {
   hasActiveTelesale,
   createDataLanhSchema,
   handoverDataLanhSchema,
+  dataLanhRecipientSchema,
+  type DataLanhRecipient,
   updateDataLanhSchema,
   type CreateDataLanhInput,
   type DataLanhRecord,
