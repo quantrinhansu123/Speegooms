@@ -4,6 +4,7 @@ import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@s
 export interface MessageRecord extends CrmHandler {
   id: string;
   messCode: string;
+  processingStatus: import("@speego/shared").MessageProcessingStatus;
   source: string;
   customerName: string | null;
   phone: string | null;
