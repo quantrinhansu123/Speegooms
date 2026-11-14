@@ -50,3 +50,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 ## Báo giá Logistics và lợi nhuận
 
 - Đơn vị cước theo mặt hàng, chi tiết giá gốc nội bộ, tài chính và markup theo dòng/tổng: [Cước và giá gốc Logistics](operations/logistics-freight-pricing.md), cước đã push `1652f86`; markup nguồn `feat/logistics-markup` từ `1652f86`, bàn giao `main` theo yêu cầu, 2026-11-12; chưa xác nhận deployment.
+
+- Bố cục Pancake, tab Tất cả/Sourcing/Logistic và icon mở bộ lọc CRM: [Pancake lists](crm/pancake-list-layout.md), nền `80e21f9`, nhánh `feat/crm-pancake-filters`, 2026-11-14.
+
+- Desktop sidebar hiện đầy đủ hoặc chỉ icon (thay toggle thanh ngang): [Navigation layout](project/navigation-layout.md), nhánh `feat/crm-pancake-filters`, 2026-11-14.
