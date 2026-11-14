@@ -206,7 +206,7 @@ const accountingStatusOptions = [
 
 const opsRoles: Role[] = ["admin", "van-hanh", "sourcing"];
 const accountingRoles: Role[] = ["admin", "ke-toan"];
-const saleRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const saleRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
 const quoteDeskLabels = { sourcing: "Sourcing", logistics: "Logistics" };
 
 function enteredAmounts(row: ContractRecord): ContractAmounts {

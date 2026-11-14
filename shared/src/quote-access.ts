@@ -38,7 +38,7 @@ export function canEditQuoteDesk(role: Role, desk: QuoteDesk): boolean {
 }
 
 export function canViewQuoteOriginalPrice(role: Role): boolean {
-  return ["admin", "sourcing", "logistics", "van-hanh", "ke-toan"].includes(role);
+  return ["admin", "sale-global-lead", "sourcing", "logistics", "van-hanh", "ke-toan"].includes(role);
 }
 
 export function canViewQuote(role: Role, desk: QuoteDesk, customerKind: string | null): boolean {

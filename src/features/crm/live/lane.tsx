@@ -11,7 +11,7 @@ export function crmPath(path: string, lane: CrmLane): string {
 
 export function useCrmLane(fixed?: CrmLane) {
   const user = useSession();
-  const roleLane = user.role === "sale-vn" ? "vn" : user.role === "sale-global" ? "global" : null;
+  const roleLane = user.role === "sale-vn" ? "vn" : (user.role === "sale-global" || user.role === "sale-global-lead") ? "global" : null;
   const locked = fixed ?? roleLane;
   const [picked, setPicked] = useState<CrmLane>(locked ?? "vn");
   const storageKey = `speego:crm-lane:${user.id}`;

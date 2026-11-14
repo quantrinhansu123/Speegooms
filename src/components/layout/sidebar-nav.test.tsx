@@ -89,3 +89,10 @@ test("Horizontal navigation keeps the same role-filtered entries and marks activ
     });
   }
 });
+
+test("Global lead opens every Global page and stays outside admin and VN routes", () => {
+  const role = "sale-global-lead";
+  for (const page of ["", "/mess", "/tiem-nang", "/rfq", "/hop-dong", "/sale-my", "/data-lanh"]) assert.equal(canAccess(role, "/sale-global" + page), true);
+  assert.equal(canAccess(role, "/theo-doi-bao-gia/global/id"), true);
+  for (const path of ["/theo-doi-bao-gia/vn/id", "/sale-viet-nam", "/cai-dat", "/reports", "/ke-toan", "/van-hanh"]) assert.equal(canAccess(role, path), false);
+});

@@ -17,10 +17,10 @@ export class DataLanhController {
     return this.repo;
   }
 
-  /** Admin và Ban GĐ thấy tất cả; người khác chỉ thấy khách được giao hoặc được bàn giao cho mình. */
+  /** Admin, Ban GĐ và trưởng Sale Global thấy tất cả; người khác chỉ thấy khách được giao hoặc được bàn giao cho mình. */
   private scope(req: Request): string | null {
     if (!req.user) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
-    return req.user.role === "admin" || req.user.role === "ban-gd" ? null : req.user.id;
+    return req.user.role === "admin" || req.user.role === "ban-gd" || req.user.role === "sale-global-lead" ? null : req.user.id;
   }
 
   list = async (req: Request, res: Response) => {

@@ -47,6 +47,12 @@ export const roleConfig: Record<Role, RoleConfig> = {
     modules: ["/dashboard", "/crm", "/sale-viet-nam", "/khach-hang-dieu-phoi", "/marketing/phan-hoi", "/khieu-nai", "/de-xuat"],
   },
   "sale-intern": { label: "Sales Intern", dashboard: "tasks-only", modules: ["/dashboard", "/sale-viet-nam/data-lanh", "/de-xuat"] },
+  "sale-global-lead": {
+    label: "Trưởng sale global",
+    dashboard: "department",
+    department: "sale-global",
+    modules: ["/dashboard", "/crm", "/sale-global", "/marketing/phan-hoi", "/khieu-nai", "/de-xuat"],
+  },
   "sale-global": {
     label: "Sale Global",
     dashboard: "department",
@@ -110,6 +116,7 @@ const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
 export function canAccess(role: Role, href: string): boolean {
   if (["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
   if (TRACKING_HREF.test(href)) {
+    if (role === "sale-global-lead") return /^\/theo-doi-bao-gia\/global(\/|$)/.test(href);
     return role === "admin" || role === "ban-gd" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing" || role === "logistics";
   }
   const { modules } = roleConfig[role];

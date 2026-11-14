@@ -9,6 +9,7 @@ test("Customer handover notifications open the recipient's sales route, includin
     title: "", body: "", href: "/sale-viet-nam/data-lanh?keep=1", lane: null,
     refType: "data-lanh", refId: "customer", read: false, readAt: null, createdAt: "",
   };
+  assert.equal(resolveHref(item, "sale-global-lead"), "/sale-global/data-lanh?keep=1&id=customer");
   assert.equal(resolveHref(item, "sale-global"), "/sale-global/data-lanh?keep=1&id=customer");
   for (const role of ["sale-vn", "sale-intern", "admin", "ban-gd"] as const) {
     assert.equal(resolveHref(item, role), "/sale-viet-nam/data-lanh?keep=1&id=customer");

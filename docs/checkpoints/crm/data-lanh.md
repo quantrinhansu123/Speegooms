@@ -7,7 +7,7 @@
 ## Quyết định
 
 - Khách lấy từ sheet "Data khach hang - Da loc trung" của file Excel nguồn (887 dòng). Nạp bằng `server/src/scripts/seed-data-lanh.ts`; chạy lại không trùng vì khóa là `stt`.
-- **Quyền xem:** Admin và Ban GĐ thấy tất cả. Mọi vai trò khác chỉ thấy khách có `intern_id` hoặc `sale_care_id` là mình (`DataLanhController.scope`). Sale VN không còn xem toàn bộ.
+- **Quyền xem:** Admin, Ban GĐ và Trưởng sale global (`sale-global-lead`) thấy tất cả (bổ sung ngày 2026-11-14; xem [quyền trưởng Sale Global](global-sales-lead.md)). Mọi vai trò khác chỉ thấy khách có `intern_id` hoặc `sale_care_id` là mình (`DataLanhController.scope`). Sale VN không còn xem toàn bộ.
 - **Tạo/import:** Admin, Sale VN và Sale Global có `datalanh.create`. Khách Sale tạo/import được gán `intern_id` từ tài khoản đang đăng nhập, không nhận người phụ trách từ file/body. Admin tạo/import để chưa giao. Intern và Ban GĐ không có quyền tạo/import. Chỉ Admin chia vòng tròn và xóa (`datalanh.assign`, `datalanh.delete`).
 - **Người nhận chia vòng tròn** nằm ở bảng `crm.data_lanh_nguoi_nhan` (thứ tự = `thu_tu`), không suy từ vai trò. Đổi bằng `server/src/scripts/set-data-lanh-pool.ts` (`--redistribute` chia lại từ đầu; từ chối nếu đã có trạng thái hoặc bàn giao, trừ khi `--force`). Hiện 6 người: Diệu Linh, Thiên Nhi, Thùy Linh, Mỹ Trâm, Trúc Ly, Như Loan (148/148/148/148/148/147).
 - Chia tiếp nối từ người kế sau người được giao gần nhất trong danh sách người nhận (`assignRoundRobin`); chỉ chia dòng chưa giao. Khách Sale tự tạo không làm lệch lượt chia.

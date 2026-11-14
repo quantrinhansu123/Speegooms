@@ -129,7 +129,7 @@ export class PostgresDataLanhRepository {
 
   /** Các Sale có thể nhận bàn giao. */
   async listSales(): Promise<{ id: string; name: string }[]> {
-    const result = await this.pool.query<{ id: string; name: string }>(`select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro in ('sale-vn', 'sale-global') order by ho_ten`);
+    const result = await this.pool.query<{ id: string; name: string }>(`select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro in ('sale-vn', 'sale-global', 'sale-global-lead') order by ho_ten`);
     return result.rows;
   }
 
@@ -138,7 +138,7 @@ export class PostgresDataLanhRepository {
    * Trả null nếu không thấy dòng. Có thể bàn giao lại cho Sale khác.
    */
   async handover(id: string, saleId: string, actorId: string, internId: string | null): Promise<DataLanhRecord | null> {
-    const sale = (await this.pool.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global')`, [saleId])).rows[0];
+    const sale = (await this.pool.query<{ id: string }>(`select ma_nguoi_dung as id from public.nguoi_dung where ma_nguoi_dung = $1 and vai_tro in ('sale-vn', 'sale-global', 'sale-global-lead')`, [saleId])).rows[0];
     if (!sale) throw new AppError(400, "VALIDATION_ERROR", "Chọn Sale care hợp lệ");
     const current = (await this.pool.query<{ sale_care_id: string | null }>(
       `select sale_care_id from crm.data_lanh where id = $1::uuid and ($2::text is null or intern_id = $2 or sale_care_id = $2)`, [id, internId])).rows[0];

@@ -4,6 +4,7 @@ export type Role =
   | "marketing"
   | "sale-vn"
   | "sale-global"
+  | "sale-global-lead"
   | "sale-intern"
   | "van-hanh"
   | "sourcing"

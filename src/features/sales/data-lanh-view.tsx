@@ -35,10 +35,10 @@ type EditDraft = { id: string | null; name: string } & Record<EditField, string>
 export function DataLanhView() {
   const user = useSession();
   const canAssign = user.role === "admin";
-  const canCreate = canAssign || user.role === "sale-vn" || user.role === "sale-global";
+  const canCreate = canAssign || user.role === "sale-vn" || (user.role === "sale-global" || user.role === "sale-global-lead");
   const canDelete = user.role === "admin";
   const canWork = user.role !== "ban-gd";
-  const seesAll = user.role === "admin" || user.role === "ban-gd";
+  const seesAll = user.role === "admin" || user.role === "ban-gd" || user.role === "sale-global-lead";
   const [rows, setRows] = useState<DataLanhRecord[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();

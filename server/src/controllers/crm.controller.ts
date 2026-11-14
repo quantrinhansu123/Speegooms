@@ -36,7 +36,7 @@ function assertImport(req: Request, kind: keyof typeof importPermissions) {
 function importLanes(req: Request): CrmLane[] {
   const role = req.user?.role;
   if (role === "sale-vn") return ["vn"];
-  if (role === "sale-global") return ["global"];
+  if (role === "sale-global" || role === "sale-global-lead") return ["global"];
   const raw = req.query.lane;
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (value === "vn" || value === "global") return [value];
@@ -51,7 +51,7 @@ function laneOf(req: Request): CrmLane {
   }
   const role = req.user?.role;
   if (role === "sale-vn" && value !== "vn") throw new AppError(403, "FORBIDDEN", "Sale Việt Nam chỉ thao tác tuyến Việt Nam");
-  if (role === "sale-global" && value !== "global") throw new AppError(403, "FORBIDDEN", "Sale Global chỉ thao tác tuyến Global");
+  if ((role === "sale-global" || role === "sale-global-lead") && value !== "global") throw new AppError(403, "FORBIDDEN", "Sale Global chỉ thao tác tuyến Global");
   return value;
 }
 
@@ -260,7 +260,7 @@ function contractView(req: Request): ContractView {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const role = req.user?.role;
   const allowed = (candidate: ContractView) => {
-    if (candidate === "sale") return role === "admin" || role === "sale-vn" || role === "sale-global";
+    if (candidate === "sale") return role === "admin" || role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead");
     if (candidate === "ops") return role === "admin" || role === "van-hanh" || role === "sourcing";
     return role === "admin" || role === "ke-toan";
   };
@@ -270,7 +270,7 @@ function contractView(req: Request): ContractView {
   }
   if (role === "ke-toan") return "accounting";
   if (role === "van-hanh" || role === "sourcing") return "ops";
-  if (role === "sale-vn" || role === "sale-global" || role === "admin") return "sale";
+  if (role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead") || role === "admin") return "sale";
   throw new AppError(403, "FORBIDDEN", "Không xem hợp đồng ở bên này");
 }
 
@@ -278,8 +278,8 @@ function resendTarget(req: Request): "ops" | "accounting" | "parties" {
   const raw = req.query.to;
   const value = Array.isArray(raw) ? raw[0] : raw;
   const role = req.user?.role;
-  if (value === "ops" && (role === "admin" || role === "sale-vn" || role === "sale-global")) return "ops";
-  if (value === "accounting" && (role === "admin" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing")) return "accounting";
+  if (value === "ops" && (role === "admin" || role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead"))) return "ops";
+  if (value === "accounting" && (role === "admin" || role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead") || role === "van-hanh" || role === "sourcing")) return "accounting";
   if (value === "parties" && role === "ke-toan") return "parties";
   throw new AppError(403, "FORBIDDEN", "Không gửi lại hợp đồng cho bên này");
 }

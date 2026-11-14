@@ -1337,7 +1337,7 @@ export class PostgresCrmRepository implements CrmRepository {
   constructor(private readonly pool: pg.Pool) {}
 
   async listSales(lane: CrmLane) {
-    return (await this.query<{ id: string; name: string }>("select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro = $1 order by ho_ten", [lane === "vn" ? "sale-vn" : "sale-global"])).rows;
+    return (await this.query<{ id: string; name: string }>("select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where (vai_tro = $1 or ($1 = 'sale-global' and vai_tro = 'sale-global-lead')) order by ho_ten", [lane === "vn" ? "sale-vn" : "sale-global"])).rows;
   }
 
   async potentialHistory(lane: CrmLane, id: string, allowedKinds: readonly string[] | null = null) {

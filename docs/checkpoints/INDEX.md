@@ -4,6 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Role Trưởng sale global, quyền xem Mess/toàn bộ Sale Global, tài khoản quản lý | [Trưởng Sale Global](crm/global-sales-lead.md) | nền `f2f9479`, nhánh `feat/global-sales-lead`, 2026-11-14 |
 | Sale tạo hợp đồng khi mới có giá Sourcing, chưa có giá Logistics; phí vận chuyển tạm tính 0 | [Điều kiện chuyển hợp đồng](crm/contract-readiness.md) | nguồn `6605e52`, đã kiểm chứng khi ghép `6c18440`, 2026-11-13; chưa xác nhận deployment |
 | Sourcing tạo/sửa thông tin đơn hàng, nút thao tác luôn thấy trên laptop | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `83deddd`, `fix/quote-laptop-actions`, 2026-11-12 |
 | Giá gốc nội bộ Sourcing/Logistics, quyền Kế toán, ẩn khỏi Sale và bản in | [Giá gốc báo giá](crm/quote-original-prices.md) | nguồn `e15f757` + main `41c68ec`, 2026-11-11 |

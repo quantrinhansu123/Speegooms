@@ -148,4 +148,5 @@ export const crmPermissions: Record<CrmAction, Role[]> = actionPermissions;
 export const roleRouteScope: Partial<Record<Role, RouteCode>> = {
   "sale-vn": "vn",
   "sale-global": "global",
+  "sale-global-lead": "global",
 };

@@ -32,7 +32,7 @@ export function resolveHref(item: AppNotification, role: Role): string {
   if (!item.refId) return item.href;
   try {
     const url = new URL(item.href, "http://local");
-    if (item.refType === "data-lanh" && role === "sale-global") url.pathname = "/sale-global/data-lanh";
+    if (item.refType === "data-lanh" && (role === "sale-global" || role === "sale-global-lead")) url.pathname = "/sale-global/data-lanh";
     url.searchParams.set("id", item.refId);
     if (item.lane) url.searchParams.set("lane", item.lane);
     return `${url.pathname}${url.search}`;

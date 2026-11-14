@@ -63,7 +63,7 @@ export function RoleDashboard() {
   const card = (label: string, value: string | number, href: string, caption: string) => cards.push({ label, value: String(value), href: canAccess(role, href) ? href : undefined, caption, icon: cardIcon(label) });
   const task = (id: string, title: string, due: string, status: string, href: string) => { if (canAccess(role, href)) work.push({ id, title, due, status, href }); };
   const executive = role === "admin" || role === "ban-gd";
-  const sales = role === "sale-vn" || role === "sale-global";
+  const sales = role === "sale-vn" || role === "sale-global" || role === "sale-global-lead";
 
   if (executive || sales || role === "marketing") {
     card("Lead mới trong kỳ", leads.filter((l) => inRange(l.createdAt)).length, "/crm/leads", "Theo ngày tạo lead; Sale khóa theo tuyến");

@@ -35,8 +35,8 @@ import { TableHScroll } from "./table-h-scroll";
 import { ContractStatusBadge, CustomerKindBadge, QuoteStatusBadge, ValidityBadge } from "./status-badges";
 import { contractStatusOptions, customerKindOptions, deskLabels, labelOf, quoteStatusOptions, type PotentialRecord, type RfqQuoteRecord } from "./types";
 
-const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
-const contractRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const writeRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
+const contractRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
 
 const deskTitles = {
   sourcing: "Sourcing – Báo giá",

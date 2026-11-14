@@ -24,8 +24,8 @@ import { TableHScroll } from "./table-h-scroll";
 import { CustomerTypeBadge, DemandBadge, HeatBadge, MessageStatusBadge } from "./status-badges";
 import { brandOptions, customerTypeOptions, demandOptions, labelOf, messageClassificationOptions, messageStatusLabels, type MessageRecord } from "./types";
 
-const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global"];
-const convertRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const writeRoles: Role[] = ["admin", "marketing", "sale-vn", "sale-global", "sale-global-lead"];
+const convertRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
 
 export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();

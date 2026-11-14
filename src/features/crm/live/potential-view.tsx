@@ -31,7 +31,7 @@ import { TableHScroll } from "./table-h-scroll";
 import { CareChannelBadge, CustomerKindBadge, CustomerTypeBadge, LogisticsClassBadge, PotentialStatusBadge, QuoteStatusBadge } from "./status-badges";
 import { brandOptions, careChannelOptions, classificationOptions, customerKindOptions, customerTypeOptions, labelOf, potentialOptions, type PotentialRecord, type QuoteRecord } from "./types";
 
-const writeRoles: Role[] = ["admin", "sale-vn", "sale-global"];
+const writeRoles: Role[] = ["admin", "sale-vn", "sale-global", "sale-global-lead"];
 const POTENTIAL_FOCUS = { refTypes: ["potential"] };
 const sourceOptions = [
   ["ADS", "ADS"],

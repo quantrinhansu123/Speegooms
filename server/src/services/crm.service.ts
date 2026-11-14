@@ -108,9 +108,9 @@ export class CrmService {
     return this.importer().importWorkbook(kind, file, lanes, creatorId);
   }
 
-  /** Mess chỉ người tạo xem được; Admin xem tất cả. Không truyền actor = nội bộ, không lọc. */
+  /** Mess chỉ người tạo xem được; Admin và trưởng Sale Global xem tất cả trong tuyến được phép. Không truyền actor = nội bộ, không lọc. */
   listMessages(lane: CrmLane, search: MessageListSearch, actor?: MessageActor): Promise<MessageRecord[]> {
-    return this.ready().listMessages(lane, actor && actor.role !== "admin" ? { ...search, creatorId: actor.id } : search);
+    return this.ready().listMessages(lane, actor && actor.role !== "admin" && actor.role !== "sale-global-lead" ? { ...search, creatorId: actor.id } : search);
   }
 
   /** Người không phải Admin chạm mess của người khác thì coi như không thấy (404, không lộ sự tồn tại). */
