@@ -1,5 +1,5 @@
-import { AttendanceView } from "@/features/hrm/hrm-view";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <AttendanceView />;
+  redirect("/hcns");
 }

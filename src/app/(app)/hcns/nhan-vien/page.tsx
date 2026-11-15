@@ -1,5 +1,5 @@
-import { EmployeesView } from "@/features/hrm/hrm-view";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <EmployeesView />;
+  redirect("/hcns");
 }

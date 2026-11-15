@@ -4,6 +4,7 @@ Tìm ngữ cảnh cũ theo chủ đề; chỉ mở ghi chú liên quan đến ta
 
 | Khi cần tìm | Checkpoint | Đối chiếu gần nhất |
 |---|---|---|
+| Nhúng HRM trong OMS, menu HCNS, đăng nhập riêng và local preview | [HRM trong OMS](hrm/iframe-in-oms.md) | nền `619b6dc`, `feat/hrm-embed`, 2026-11-15; bàn giao main theo yêu cầu, chưa xác nhận deployment |
 | Role Trưởng sale global, quyền xem Mess/toàn bộ Sale Global, tài khoản quản lý | [Trưởng Sale Global](crm/global-sales-lead.md) | nguồn `c03f151` + ghép main `dcf642e`, 2026-11-14 |
 | Sale tạo hợp đồng khi mới có giá Sourcing, chưa có giá Logistics; phí vận chuyển tạm tính 0 | [Điều kiện chuyển hợp đồng](crm/contract-readiness.md) | nguồn `6605e52`, đã kiểm chứng khi ghép `6c18440`, 2026-11-13; chưa xác nhận deployment |
 | Sourcing tạo/sửa thông tin đơn hàng, nút thao tác luôn thấy trên laptop | [Sale → vận hành](crm/sale-operations-data-flow.md) | nền `83deddd`, `fix/quote-laptop-actions`, 2026-11-12 |

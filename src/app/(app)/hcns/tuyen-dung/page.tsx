@@ -1,5 +1,5 @@
-import { RecruitmentView } from "@/features/hrm/hrm-view";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <RecruitmentView />;
+  redirect("/hcns");
 }

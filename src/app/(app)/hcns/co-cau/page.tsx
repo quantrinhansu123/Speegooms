@@ -1,5 +1,5 @@
-import { OrganizationView } from "@/features/hrm/hrm-view";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <OrganizationView />;
+  redirect("/hcns");
 }

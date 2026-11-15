@@ -6,6 +6,7 @@
 
 ## Quyết định
 
+- Cập nhật HCNS 2026-11-15: trên nhánh `feat/hrm-embed`, `/hcns` nhúng HRM thật, các route HCNS mẫu chuyển về trang này; ngoại lệ cho ghi chú “HCNS luôn trống” dưới đây. Xem [HRM trong OMS](../hrm/iframe-in-oms.md); bàn giao main theo yêu cầu, chưa xác nhận deployment.
 - Chủ dự án yêu cầu app chỉ hiển thị dữ liệu từ DB do người dùng nhập. Các seed demo của CRM demo, Vận hành, Fulfillment, Kế toán, Backoffice và dashboard đã đổi thành rỗng (các `loadSeed` / `createLocalRepository` / `dashboard.service.ts`). Khóa localStorage đã tăng phiên bản (`speego_crm_demo_v2`, `speego_ops_demo_v4`, `speego_fulfillment_demo_v2`, `speego_accounting_demo_v2`, `speego-backoffice-v2`) để trình duyệt bỏ bản cũ.
 - **Các trang chưa nối DB sẽ luôn trống** cho tới khi xây phần nối DB: Duyệt thanh toán, Công nợ, Quyết toán, HCNS, Pháp chế, Khiếu nại, Fulfillment, Vận hành (ngoài hợp đồng), dashboard/COA/Reports. DB mới có tạo và xem đề nghị thanh toán; chưa có duyệt/chi, công nợ phải thu/trả, quyết toán.
 - Công nợ và Quyết toán còn một công tắc `accountingUsesDemoContracts` (`src/config/accounting.ts`), đang `false`, để không liệt kê hợp đồng demo CRM.

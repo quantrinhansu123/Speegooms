@@ -31,6 +31,19 @@ test("Customer data appears under each sales team's own menu and breadcrumb", ()
   assert.equal(canAccess("sale-vn", "/sale-global/data-lanh"), false);
 });
 
+test("HRM opens directly from one menu entry and preserves the HCNS role boundary", () => {
+  for (const role of Object.keys(roleConfig) as Role[]) {
+    const hrm = navigationForRole(role).flatMap((group) => group.items).filter((item) => item.href === "/hcns");
+    const allowed = ["admin", "ban-gd", "hcns"].includes(role);
+    assert.equal(hrm.length, allowed ? 1 : 0, role);
+    assert.equal(canAccess(role, "/hcns"), allowed, role);
+    if (allowed) {
+      assert.equal(hrm[0].children, undefined, role);
+      assert.equal(isImplemented(hrm[0].href), true, role);
+    }
+  }
+});
+
 test("Only admin sees system and executive menus or opens their restricted pages", () => {
   for (const role of Object.keys(roleConfig) as Role[]) {
     const groups = navigationForRole(role).map((group) => group.label);

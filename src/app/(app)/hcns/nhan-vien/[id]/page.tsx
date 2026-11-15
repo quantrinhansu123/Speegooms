@@ -1,6 +1,5 @@
-import { EmployeeDetail } from "@/features/hrm/hrm-view";
-import { WithParams } from "@/components/shared/with-params";
+import { redirect } from "next/navigation";
 
-export default function Page({ params }: { params: Promise<{ id: string }> }) {
-  return <WithParams params={params}>{({ id }) => <EmployeeDetail id={id} />}</WithParams>;
+export default function Page() {
+  redirect("/hcns");
 }

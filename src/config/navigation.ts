@@ -145,16 +145,9 @@ export const navigation: NavGroup[] = [
         icon: Stamp,
       },
       {
-        title: "HCNS",
+        title: "Hành chính nhân sự",
         href: "/hcns",
         icon: UserCog,
-        children: [
-          { title: "Nhân viên", href: "/hcns/nhan-vien" },
-          { title: "Cơ cấu tổ chức", href: "/hcns/co-cau" },
-          { title: "Chấm công mock", href: "/hcns/cham-cong" },
-          { title: "Tuyển dụng & nhân sự", href: "/hcns/tuyen-dung" },
-          { title: "Hành chính & nhân sự", href: "/hcns/hanh-chinh" },
-        ],
       },
       { title: "Pháp chế", href: "/phap-che", icon: FileCheck2, children: [
         { title: "Hồ sơ cần rà soát", href: "/phap-che" },
