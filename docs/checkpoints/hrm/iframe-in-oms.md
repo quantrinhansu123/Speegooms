@@ -2,7 +2,7 @@
 
 **Phạm vi:** menu HCNS, iframe, HRM, chấm công, đăng nhập riêng.
 
-**Đối chiếu:** 2026-11-15, nền main `619b6dc`, nhánh `feat/hrm-embed`; người dùng đã yêu cầu bàn giao main/push, chưa xác nhận deployment.
+**Đối chiếu:** 2026-11-15, nền main `619b6dc`, code `465e42e` trên `feat/hrm-embed`; bàn giao main local theo yêu cầu. Push đang bị chặn, chưa xác nhận deployment.
 
 ## Quyết định
 
@@ -23,3 +23,4 @@
 - Local: FE `http://127.0.0.1:3010`, API bộ nhớ riêng ở `4010`; đặt `TURBOPACK_ROOT` về repo gốc để giải quyết junction thư viện. Dữ liệu OMS thật không bị dùng/sửa. Tài khoản seed local của backend chỉ dùng xem trước.
 - Self-check HTTP `.next/verify-hrm.mjs` (không commit): CSRF + login local, HTML `/hcns` có iframe/link/quyền vị trí, sáu redirect cũ qua. Người chưa đăng nhập được chuyển về login.
 - Chưa xác nhận render HRM, phiên đăng nhập trong iframe, tải/in file hay vị trí thực tế trên trình duyệt. Computer Use dừng vì không xác định được URL cửa sổ Chrome; không dùng cách khác để điều khiển trình duyệt. Cần kiểm tra response headers HRM và chặn storage bên thứ ba khi xem thực tế.
+- Bàn giao: GitHub connector xác nhận main remote vẫn ở `619b6dce548a9d428d3e32f05c7ded8bf4dda1e3`. Terminal `git fetch origin` không kết nối được github.com:443; connector `create_tree` bị GitHub trả 403 `Resource not accessible by integration`. Chưa ghi thay đổi lên GitHub. Cần push main từ môi trường có mạng và quyền ghi; không force push.
