@@ -1488,7 +1488,7 @@ const OrderLines = memo(function OrderLines({
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <InputError message={errors.lines} />
-      <TableHScroll className="min-w-0 rounded-lg" stickyIdentity>
+      <TableHScroll className="min-w-0 rounded-lg" stickyIdentity localScrollbar>
         <table className="w-full min-w-[980px] text-base">
           <thead>
             <tr className="border-b text-left text-sm">

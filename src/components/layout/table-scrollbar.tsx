@@ -25,6 +25,7 @@ export function TableScrollbar() {
           parent = parent.parentElement;
         }
         if (!parent || parent === main || parent === document.body) continue;
+        if (parent.hasAttribute("data-table-local-scroll")) continue;
         parent.classList.add("table-scroll-managed");
         managed.add(parent);
         const rect = parent.getBoundingClientRect();
