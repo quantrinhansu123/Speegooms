@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild");
 
-test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pending customer quotes", async () => {
+test("editor previews unsaved goods and freight without saving while exports use sent shipments", async () => {
   const bundle = await build({
     stdin: {
       resolveDir: fileURLToPath(new URL(".", import.meta.url)), loader: "tsx",
@@ -33,7 +33,10 @@ test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pendin
         logisticsSent.notes.shippingNoteOther = "Customer arranges forklift. Delivery 40-45 days.";
         const quote = {...input,id:"quote",code:"BGS-REGRESSION",customerName:"Customer",customerKind:"SOURCING",quoteWorkflow:"COMBINED",
           shippingMode:"SEA",createdAt:"2026-11-12T03:59:39Z",requirementImages:[],sentQuote,
-          logisticsSheet:{...input,sentQuote:logisticsSent},sourcingContext:null};
+          logisticsSheet:{...input,notes:structuredClone(logisticsSent.notes),sentQuote:logisticsSent},sourcingContext:null};
+        quote.logisticsSheet.notes.freight.rate = 3;
+        quote.logisticsSheet.notes.logisticsFees[0].value = "200";
+        quote.logisticsSheet.notes.shippingNoteOther = "CURRENT-DRAFT-NOTE";
         quote.orders[0].lines[0].quantity = 120;
         quote.orders[0].lines[1].quantity = 80;
         quote.orders[0].lines[1].packages = [{count:30,lengthCm:245,widthCm:125,heightCm:100,actualKg:0}];
@@ -41,13 +44,16 @@ test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pendin
         if(mode === "mismatch") quote.sentQuote.order.lines[0].quantity = 120;
         if(mode === "waiting") quote.logisticsSheet.quoteStatus = "CHUA_CO_BAO_GIA_LAI";
         if(mode === "draft") quote.sentQuote = null;
+        if(mode === "logistics") Object.assign(quote,{orders:[structuredClone(logisticsSent.order)],notes:structuredClone(logisticsSent.notes),
+          sentQuote:logisticsSent,logisticsSheet:null,sourcingContext:{order:structuredClone(logisticsSent.order),opsNote:null}});
+        window.saves = 0;
         window.outputs = [];
         for(const action of ["print","pdf","excel"]) quoteOutputRunners[action] = async(source,lang) => {
           const model = buildQuoteSheet(quoteSheetInputOf(source,source.orders[0],lang));
           window.outputs.push({action,quantities:model.lines.map(line=>line.quantity),freight:model.freight,totals:model.feeSubtotals,issuedOn:model.meta.issuedOn});
         };
         createRoot(document.getElementById("root")).render(<SessionProvider user={{id:"admin",role:"admin"}}>
-          <QuoteEditor quote={quote} desk="sourcing" templates={[]} embedded editMode="full" pending={false} onClose={()=>{}} onSave={async()=>true}/>
+          <QuoteEditor quote={quote} desk={mode === "logistics" ? "logistics" : "sourcing"} templates={[]} embedded editMode="full" pending={false} onClose={()=>{}} onSave={async()=>{window.saves++;return true;}}/>
         </SessionProvider>);`,
     },
     bundle: true, write: false,
@@ -58,7 +64,8 @@ test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pendin
     res.setHeader("Content-Type", req.url === "/bundle.js" ? "text/javascript" : "text/html");
     res.end(req.url === "/bundle.js" ? bundle.outputFiles[0].text : `<style>
       [data-slot="dialog-overlay"] {position:fixed; inset:0; z-index:50}
-      [data-slot="dialog-content"] {position:fixed; top:2%; left:2%; z-index:60; background:white}
+      [data-slot="dialog-content"] {position:fixed; top:2%; left:2%; z-index:60; background:white; width:96vw; max-height:96vh}
+      [data-slot="dialog-content"] > .grid {min-height:0; flex:1; overflow:auto}
       </style><div id="root"></div><script src="/bundle.js"></script>`);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -70,6 +77,28 @@ test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pendin
     page.on("pageerror", error => errors.push(error.message));
     const origin = `http://127.0.0.1:${server.address().port}`;
     await page.goto(origin);
+    await page.getByRole("button", { name: "Xem trước bản nháp", exact: true }).click();
+    const preview = page.frameLocator('iframe[title="Xem trước bản nháp Shipment"]');
+    await preview.getByText("BẢN NHÁP — CHƯA GỬI", { exact: true }).waitFor();
+    let previewText = await preview.locator("body").innerText();
+    assert.match(previewText, /17\.162,5/);
+    assert.match(previewText, /51\.487,5/);
+    assert.match(previewText, /51\.687,5/);
+    assert.match(previewText, /CURRENT-DRAFT-NOTE/);
+    assert.equal(await page.getByRole("dialog").getByRole("button", { name: "In", exact: true }).count(), 0);
+    await page.getByRole("dialog").getByRole("button", { name: "Tiếp tục chỉnh sửa", exact: true }).click();
+    await page.getByLabel("Số lượng dòng 1", { exact: true }).fill("130");
+    await page.getByLabel("Mặt hàng dòng 1", { exact: true }).fill("UNSAVED-MARBLE");
+    await page.getByRole("dialog").getByRole("button", { name: "Xem trước bản nháp", exact: true }).click();
+    await preview.getByText("UNSAVED-MARBLE", { exact: true }).waitFor();
+    previewText = await preview.locator("body").innerText();
+    assert.match(previewText, /130/);
+    assert.match(previewText, /51\.687,5/);
+    await page.getByRole("dialog").getByRole("button", { name: "Tiếp tục chỉnh sửa", exact: true }).click();
+    assert.equal(await page.getByLabel("Số lượng dòng 1", { exact: true }).inputValue(), "130");
+    assert.equal(await page.getByLabel("Mặt hàng dòng 1", { exact: true }).inputValue(), "UNSAVED-MARBLE");
+    assert.equal(await page.evaluate(() => window.saves), 0);
+    await page.getByRole("dialog").getByRole("button", { name: "Đóng", exact: true }).first().click();
     for (const [index, label] of ["In", "Tải PDF", "Tải Excel"].entries()) {
       await page.getByRole("button", { name: label, exact: true }).click();
       await page.getByRole("dialog").getByRole("button", { name: label, exact: true }).click();
@@ -89,6 +118,19 @@ test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pendin
       assert.equal(await page.getByRole("dialog").count(), 0);
       assert.equal(await page.evaluate(() => window.outputs.length), 0);
     }
+    await page.goto(`${origin}?mode=logistics`);
+    await page.getByLabel("Giá cước / kg", { exact: true }).fill("3");
+    await page.getByRole("button", { name: "Xem trước bản nháp", exact: true }).click();
+    await preview.getByText("BẢN NHÁP — CHƯA GỬI", { exact: true }).waitFor();
+    previewText = await preview.locator("body").innerText();
+    assert.match(previewText, /6\.450/);
+    assert.match(previewText, /6\.550/);
+    assert.equal(await page.evaluate(() => window.saves), 0);
+    await page.getByRole("dialog").getByRole("button", { name: "Đóng", exact: true }).first().click();
+    await page.getByRole("button", { name: "In", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "In", exact: true }).click();
+    await page.waitForFunction(() => window.outputs.length === 1);
+    assert.equal(await page.evaluate(() => window.outputs[0].freight.total), 4515);
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

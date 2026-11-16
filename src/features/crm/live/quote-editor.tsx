@@ -57,7 +57,7 @@ import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, se
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteSheetHtml, quoteTotals } from "./quote-print";
 import { quoteOutputRunners } from "./quote-output";
-import { buildQuoteSheet, orderForQuotePdf, printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
+import { buildQuoteSheet, draftQuoteSheetInput, orderForQuotePdf, printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
@@ -1807,11 +1807,9 @@ function OrderDraftDialog({
   printLang,
   quoteCode,
   fieldId,
-  pdfPending,
-  previewHtml,
+  renderPreview,
   onClose,
   onPersist,
-  onOutput,
 }: {
   mode: "create" | "edit" | "view";
   order: QuoteOrder;
@@ -1829,11 +1827,9 @@ function OrderDraftDialog({
   printLang: QuoteLang;
   quoteCode: string;
   fieldId: (name: string) => string;
-  pdfPending: boolean;
-  previewHtml: string;
+  renderPreview?: (order: QuoteOrder) => string;
   onClose: () => void;
   onPersist: (order: QuoteOrder) => Promise<boolean>;
-  onOutput: (action: "print" | "pdf" | "excel", order: QuoteOrder) => void;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [order, setOrderState] = useState(initialOrder);
@@ -1906,7 +1902,7 @@ function OrderDraftDialog({
             </Field>
           </div>}
           {mode === "view" ? (
-            <QuoteSheetPreview html={previewHtml} title={`Xem trước ${order.name || quoteCode}`} />
+            <QuoteSheetPreview html={renderPreview?.(order) ?? ""} title={`Xem trước bản nháp ${order.name || quoteCode}`} />
           ) : (
             <>
               {pureLogistics && (
@@ -1952,20 +1948,14 @@ function OrderDraftDialog({
         <DialogFooter className="shrink-0">
           {mode === "view" && (
             <>
-              <Button type="button" variant="outline" onClick={() => onOutput("print", order)}><Printer />In</Button>
-              <Button type="button" variant="outline" disabled={pdfPending} onClick={() => onOutput("pdf", order)}>
-                <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
-              </Button>
-              <Button type="button" variant="outline" disabled={pdfPending} onClick={() => onOutput("excel", order)}>
-                <Download />Tải Excel
-              </Button>
               {canEditContent && (
-                <Button type="button" variant="outline" disabled={pending} onClick={() => { setOrderError(undefined); setOrderFields({}); setMode("edit"); }}>
-                  <Pencil />Sửa
+                <Button type="button" variant="outline" disabled={pending} onClick={() => { setOrderError(undefined); setOrderFields({}); setMode(initialMode === "create" ? "create" : "edit"); }}>
+                  <Pencil />Tiếp tục chỉnh sửa
                 </Button>
               )}
             </>
           )}
+          {mode !== "view" && renderPreview && <Button type="button" variant="outline" onClick={() => setMode("view")}><Eye />Xem trước bản nháp</Button>}
           <Button type="button" variant="outline" onClick={onClose}>Đóng</Button>
           {mode !== "view" && <Button type="button" disabled={pending} onClick={() => void save()}>{pending ? "Đang lưu…" : "Lưu"}</Button>}
         </DialogFooter>
@@ -2017,11 +2007,8 @@ export function MessOrderDialog({
       printLang="vi"
       quoteCode=""
       fieldId={(name) => `mess-order-${name}`}
-      pdfPending={false}
-      previewHtml=""
       onClose={onClose}
       onPersist={async (next) => { onSave({ ...next, selected: true }); return true; }}
-      onOutput={() => undefined}
     />
   );
 }
@@ -2363,9 +2350,9 @@ export function QuoteEditor({
   const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
 
   const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
-    quoteSheetInputOf(
+    draftQuoteSheetInput(
       { ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank },
-      withInsuranceCurrency([order], { ...lead, notes })[0], lang, issuedOn);
+      withInsuranceCurrency([order], { ...lead, notes })[0], desk === "sourcing" ? quote.logisticsSheet : null, lang, issuedOn);
 
   const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => `<p style="color:#b45309;font-weight:bold">${lang === "en" ? "DRAFT — NOT SENT" : "BẢN NHÁP — CHƯA GỬI"}</p>${quoteSheetHtml(sheetInputFor(order, lang))}`;
 
@@ -2376,11 +2363,7 @@ export function QuoteEditor({
     lang === "en" && order ? buildQuoteSheet(sheetInputFor(order, lang)).missing : [];
   // Chỉ dựng lại mô hình khi nội dung báo giá đổi, không dựng lại ở mỗi lần gõ phím ở ô khác.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const enMissing = useMemo(() => (printLang === "en" ? missingFor(selectedOrder, "en") : []), [printLang, selectedOrder, lead, notes, bank, issuedOn, quote.code]);
-  /** Xem trước đơn hàng chỉ dựng khi đang mở chế độ xem. */
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const previewHtml = useMemo(() => (draft?.mode === "view" ? sheetHtmlFor(draft.order) : ""), [draft, printLang, lead, notes, bank, issuedOn, quote.code]);
-
+  const enMissing = useMemo(() => (printLang === "en" ? missingFor(selectedOrder, "en") : []), [printLang, selectedOrder, lead, notes, bank, issuedOn, quote.code, quote.logisticsSheet, desk]);
   /** In, PDF, Excel đều mở hộp thoại chọn ngôn ngữ trước khi chạy. */
   const [outputPick, setOutputPick] = useState<{ action: QuoteOutputAction; source: QuotePdfSource } | null>(null);
 
@@ -2485,6 +2468,10 @@ export function QuoteEditor({
       {!quoteStep && <NativeSelect className="h-9 w-36" aria-label="Ngôn ngữ nhập nội dung" title="Ngôn ngữ đang nhập nội dung chữ (quy cách, ghi chú...)" value={printLang} onChange={(event) => setPrintLang(event.target.value as QuoteLang)}>
         {quoteLangs.map((lang) => <option key={lang} value={lang}>{`Nhập: ${quoteLangLabels[lang]}`}</option>)}
       </NativeSelect>}
+      {!quoteStep && <Button type="button" variant="outline" onClick={() => {
+        if (!selectedOrder) { setFormError("Chưa có thông tin đơn hàng để xem trước."); return; }
+        setDraft({ mode: "view", order: structuredClone(selectedOrder) });
+      }}><Eye />Xem trước bản nháp</Button>}
       {!quoteStep && <Button type="button" variant="outline" onClick={() => askOutput("print")}><Printer />In</Button>}
       {!quoteStep && <Button type="button" variant="outline" disabled={pdfPending} onClick={() => askOutput("pdf")}>
         <Download />{pdfPending ? "Đang tải…" : "Tải PDF"}
@@ -2581,7 +2568,7 @@ export function QuoteEditor({
       {onReload && <InlineAlert tone="info">Phiếu có dữ liệu mới. Tải lại sẽ bỏ các thay đổi chưa lưu trong form này. <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onReload}>Tải dữ liệu mới</Button></InlineAlert>}
       {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
-      {!quoteStep && <InlineAlert tone="info">In/PDF/Excel sử dụng bản đã gửi. Thay đổi đang sửa chỉ là bản nháp; cần gửi lại và xác nhận cước nếu hàng hóa hoặc đóng gói thay đổi.</InlineAlert>}
+      {!quoteStep && <InlineAlert tone="info">Xem trước bản nháp dùng thông tin đơn và cước hiện tại, không cần Lưu/Gửi. In/PDF/Excel sử dụng bản đã gửi; cần gửi lại và xác nhận cước nếu hàng hóa hoặc đóng gói thay đổi.</InlineAlert>}
       {sendNotice && <InlineAlert tone="success">{sendNotice}</InlineAlert>}
       {printLang === "en" && (
         <InlineAlert tone={enMissing.length > 0 ? "warning" : "info"}>
@@ -3451,11 +3438,9 @@ export function QuoteEditor({
           printLang={printLang}
           quoteCode={quote.code}
           fieldId={fieldId}
-          pdfPending={pdfPending}
-          previewHtml={previewHtml}
+          renderPreview={sheetHtmlFor}
           onClose={() => setDraft(null)}
           onPersist={persistDraft}
-          onOutput={askOutput}
         />
       )}
 

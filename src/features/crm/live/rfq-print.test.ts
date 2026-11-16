@@ -3,7 +3,7 @@ import test from "node:test";
 import { defaultQuoteBank, quoteSheetInputOf, updateQuoteSchema } from "@speego/shared";
 import { buildQuoteWorkbook } from "./quote-excel";
 import { quoteSheetHtml } from "./quote-print";
-import { buildQuoteSheet, printableRfqQuote, quoteOutputProblem, quoteWithLogisticsCosts } from "./quote-sheet";
+import { buildQuoteSheet, draftQuoteSheetInput, printableRfqQuote, quoteOutputProblem, quoteWithLogisticsCosts } from "./quote-sheet";
 import type { RfqQuoteRecord } from "./types";
 
 function quote(): RfqQuoteRecord {
@@ -137,4 +137,35 @@ test("shipping match ignores factory prose, product prices and derived weight ro
   line.weightKg = 18.5;
   line.cbm = 0.01556;
   assert.equal(quoteOutputProblem(row), null);
+});
+
+test("draft preview combines current goods and current freight without freezing the sent total", () => {
+  const row = shipmentQuote();
+  row.logisticsSheet!.notes = structuredClone(row.logisticsSheet!.sentQuote!.notes);
+  row.logisticsSheet!.notes.freight.rate = 3;
+  row.logisticsSheet!.notes.logisticsFees[0].value = "200";
+  const before = structuredClone(row);
+  const input = draftQuoteSheetInput(row, row.orders[0], row.logisticsSheet, "vi");
+  const model = buildQuoteSheet(input);
+  assert.deepEqual(model.lines.map(line => line.quantity), [120, 80]);
+  assert.equal(model.freight.chargeableKg, 17162.5);
+  assert.equal(model.freight.total, 51487.5);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 51687.5 }]);
+  const sent = printableRfqQuote(row)!;
+  assert.equal(buildQuoteSheet(quoteSheetInputOf(sent, sent.orders[0])).freight.total, 4515);
+  assert.deepEqual(row, before);
+  row.sentQuote = null;
+  assert.equal(buildQuoteSheet(draftQuoteSheetInput(row, row.orders[0], row.logisticsSheet, "vi")).freight.total, 51487.5);
+});
+
+test("draft preview keeps the Logistics currency and intentional manual freight", () => {
+  const row = shipmentQuote();
+  row.orders[0].currency = "VND";
+  row.logisticsSheet!.notes = structuredClone(row.logisticsSheet!.sentQuote!.notes);
+  Object.assign(row.logisticsSheet!.notes.freight, { total: 5000, totalManual: true });
+  const model = buildQuoteSheet(draftQuoteSheetInput(row, row.orders[0], row.logisticsSheet, "vi"));
+  assert.equal(model.currency, "VND");
+  assert.equal(model.freight.currency, "USD");
+  assert.equal(model.freight.total, 5000);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 5100 }]);
 });

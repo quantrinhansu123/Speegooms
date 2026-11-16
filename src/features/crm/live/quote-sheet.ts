@@ -5,6 +5,7 @@ import {
   quotePackageIssue,
   quoteShipmentMatches,
   quoteSheetInputOf,
+  resolvedFreightCurrency,
   type QuoteLang,
   type QuoteOrder,
   type QuoteSheetInput,
@@ -12,7 +13,7 @@ import {
   type QuoteSheetSource,
   type SentQuote,
 } from "@speego/shared";
-import type { RfqQuoteRecord } from "./types";
+import type { QuoteSheet, RfqQuoteRecord } from "./types";
 
 /** Mô hình dữ liệu báo giá dùng chung cho bản in/PDF và Excel. Phần đóng gói cần công thức quy đổi kiện của frontend. */
 export function buildQuoteSheet(input: QuoteSheetInput): QuoteSheetModel {
@@ -29,6 +30,31 @@ export type QuotePdfSource = QuoteSheetSource & { orders: QuoteOrder[] };
 /** Mẫu đang chọn, hoặc mẫu đầu tiên. */
 export function orderForQuotePdf(orders: QuoteOrder[]): QuoteOrder | undefined {
   return orders.find((order) => order.selected) ?? orders[0];
+}
+
+/** Xem thử dữ liệu hiện tại; cước tự động tính trên chính kiện đang sửa, không khóa theo tổng đã gửi. */
+export function draftQuoteSheetInput(
+  source: QuoteSheetSource,
+  order: QuoteOrder,
+  logistics: Pick<QuoteSheet, "orders" | "notes" | "bank"> | null | undefined,
+  lang: QuoteLang,
+  issuedOn?: string,
+): QuoteSheetInput {
+  if (!logistics) return quoteSheetInputOf(source, order, lang, issuedOn);
+  const currency = resolvedFreightCurrency(logistics.notes, orderForQuotePdf(logistics.orders)?.currency ?? order.currency);
+  return quoteSheetInputOf({
+    ...source,
+    notes: {
+      ...source.notes,
+      shippingLabel: logistics.notes.shippingLabel,
+      freight: { ...logistics.notes.freight, currency },
+      logisticsFees: logistics.notes.logisticsFees.map(fee => ({ ...fee, currency: fee.currency || currency })),
+      shippingNotes: logistics.notes.shippingNotes,
+      shippingNoteOther: logistics.notes.shippingNoteOther,
+      ...(logistics.notes.payment ? { payment: logistics.notes.payment } : {}),
+    },
+    bank: logistics.notes.payment ? logistics.bank : source.bank,
+  }, order, lang, issuedOn);
 }
 
 /** Lỗi cần xử lý trước khi xuất bản gửi khách, dùng chung cho editor và các danh sách. */

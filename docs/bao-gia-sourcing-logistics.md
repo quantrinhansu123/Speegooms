@@ -5,6 +5,7 @@
 ## Đã sửa
 
 - In/PDF/Excel dùng bản **đã gửi**, không ghép hàng đang sửa với cước cũ; xem trước bản đang sửa có nhãn **BẢN NHÁP**.
+- **Xem trước bản nháp** có trên thanh công cụ và ngay trong cửa sổ Sửa/Tạo đơn: dùng dữ liệu đang nhập, không cần Lưu/Gửi. Bấm **Tiếp tục chỉnh sửa** để quay lại mà không mất nội dung. Cước tự động tính theo kiện đang sửa; cước nhập tổng thủ công vẫn giữ số nhập tay.
 - Chặn xuất báo giá gộp khi thiếu bản đã gửi, đang chờ báo giá lại hoặc Sourcing/Logistics lệch hàng, số lượng, kiện.
 - Logistics lấy hàng từ Sourcing đã gửi. Sourcing gửi lại với thông tin ảnh hưởng cước thay đổi thì Logistics phải báo lại.
 - Xuất đủ lưu ý Logistics, gồm ghi chú khách thuê xe nâng nếu đã nhập.
@@ -26,4 +27,4 @@
 
 Đã kiểm chứng bằng dữ liệu thật, chỉ đọc: bản xuất sau sửa đúng **100/100, 2.150 kg, cước 4.515 + phụ phí 100 = 4.615 USD**, có ghi chú xe nâng.
 
-Người phụ trách cần rà bản nháp 120/80, 30 kiện và mô tả Marble cũ “260 kg”; nhập thêm **40–45 ngày** vào Lưu ý khác. Giá agent 3.649 USD/lợi nhuận 966 USD là số liệu người dùng cung cấp, chưa tự điền vào DB. Chưa đủ lịch sử để kết luận ai nhập sai.
+Người phụ trách cần xác nhận bản nháp 120/80, 30 kiện có còn dùng không; phân biệt cân thể tích Marble khoảng 260 kg với cân thực 1.850 kg; nhập thêm **40–45 ngày** vào Lưu ý khác. Giá agent 3.649 USD/lợi nhuận 966 USD là số liệu người dùng cung cấp, chưa tự điền vào DB. Chưa đủ lịch sử để kết luận ai nhập sai.
