@@ -197,6 +197,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [outcomePending, setOutcomePending] = useState(false);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const quoteRequest = useRef(0);
+  const loadedListPath = useRef<string | null>(null);
   const potentialData = useListData<PotentialRecord>(crmPath("/api/crm/potentials", lane), "potentials", { q: potentialSearch }, "Không tải được khách hàng tiềm năng", true, Boolean(draft));
   const potentials = potentialChoice && !potentialData.rows.some(row => row.id === potentialChoice.id) ? [potentialChoice, ...potentialData.rows] : potentialData.rows;
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", deskFilter: "" });
@@ -212,7 +213,6 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       return;
     }
     const id = ++quoteRequest.current;
-    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       quoteStatus: filters.applied.quoteStatus,
@@ -220,8 +220,11 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       customerKind: filters.applied.customerKind,
       deskFilter: filters.applied.deskFilter,
     });
-    api<{ quotes: RfqQuoteRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/rfq-quotes", lane)}${query}${pageQuery}`)
-      .then((body) => { if (quoteRequest.current === id) { setRows(body.quotes); receivePage(body.pagination); } })
+    const path = `${crmPath("/api/crm/rfq-quotes", lane)}${query}${pageQuery}`;
+    // Keep the current records visible when refreshing the same list.
+    setListLoading(loadedListPath.current !== path);
+    api<{ quotes: RfqQuoteRecord[]; pagination: PageInfo }>(path)
+      .then((body) => { if (quoteRequest.current === id) { loadedListPath.current = path; setRows(body.quotes); receivePage(body.pagination); } })
       .catch((err: unknown) => { if (quoteRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); })
       .finally(() => { if (quoteRequest.current === id) setListLoading(false); });
   }, [filters.applied, lane, pageQuery, receivePage]);
@@ -236,7 +239,6 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const excel = useExcelImport({ kind: "quotes", lane, allLanes: canPick, enabled: canWrite, onDone: load });
 
   useEffect(() => {
-    setRows([]);
     setDraft(null);
     setRemoving(null);
     setOutcomeQuote(null);

@@ -36,6 +36,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const canWrite = writeRoles.includes(user.role);
   const canConvert = convertRoles.includes(user.role);
   const loadVersion = useRef(0);
+  const loadedListPath = useRef<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [rows, setRows] = useState<MessageRecord[]>([]);
   const [processingFilter, setProcessingFilter] = useState("");
@@ -65,7 +66,6 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       setError(rangeError);
       return;
     }
-    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       status: filters.applied.status,
@@ -76,9 +76,13 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       saleName: filters.applied.saleName,
       processingStatus: processingFilter,
     });
-    api<{ messages: MessageRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/messages", lane)}${query}${pageQuery}`)
+    const path = `${crmPath("/api/crm/messages", lane)}${query}${pageQuery}`;
+    // Keep the current records visible when refreshing the same list.
+    setListLoading(loadedListPath.current !== path);
+    api<{ messages: MessageRecord[]; pagination: PageInfo }>(path)
       .then((body) => {
         if (version !== loadVersion.current) return;
+        loadedListPath.current = path;
         setRows(body.messages);
         receivePage(body.pagination);
         setKnownMarkets((current) => uniqueSuggestions([...current, ...((body.pagination.summary.markets ?? []) as string[])]));

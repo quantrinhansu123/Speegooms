@@ -142,6 +142,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
   const loadVersion = useRef(0);
+  const loadedListPath = useRef<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [rows, setRows] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -170,7 +171,6 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       setError(rangeError);
       return;
     }
-    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       source: filters.applied.source,
@@ -178,8 +178,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       customerKind: filters.applied.customerKind,
       customerType: filters.applied.customerType,
     });
-    api<{ potentials: PotentialRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/potentials", lane)}${query}${pageQuery}`)
-      .then((body) => { if (version === loadVersion.current) { setRows(body.potentials); receivePage(body.pagination); } })
+    const path = `${crmPath("/api/crm/potentials", lane)}${query}${pageQuery}`;
+    // Keep the current records visible when refreshing the same list.
+    setListLoading(loadedListPath.current !== path);
+    api<{ potentials: PotentialRecord[]; pagination: PageInfo }>(path)
+      .then((body) => { if (version === loadVersion.current) { loadedListPath.current = path; setRows(body.potentials); receivePage(body.pagination); } })
       .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); })
       .finally(() => { if (version === loadVersion.current) setListLoading(false); });
   }, [filters.applied, lane, pageQuery, receivePage]);

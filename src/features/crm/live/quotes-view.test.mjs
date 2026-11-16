@@ -84,6 +84,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
   try {
     browser = await chromium.launch({ channel: "msedge", headless: true });
     const page = await browser.newPage();
+    await page.clock.install();
     page.on("pageerror", error => console.error(error.message));
     const origin = `http://127.0.0.1:${server.address().port}`;
     const expectRows = (count) => page.waitForFunction((n) => document.querySelectorAll("tbody tr[data-row-id]").length === n, count);
@@ -94,6 +95,49 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     assert.equal(await page.getByRole("link", { name: "BGL-global" }).getAttribute("href"), "/theo-doi-bao-gia/global/lead-global");
     await page.getByText("Owner global", { exact: true }).waitFor();
     await page.getByText("Owner vn", { exact: true }).waitFor();
+
+    // Background refreshes must keep the existing row DOM mounted, even if
+    // the response is slow or fails. Polling, notifications and tab returns
+    // all use the same list loader.
+    let receiveRefresh;
+    await page.route("**/api/crm/quotes?**", (route) => receiveRefresh(route));
+    await page.evaluate(() => { window.refreshRow = document.querySelector("tbody tr[data-row-id]"); });
+    const holdRefresh = async (trigger) => {
+      const next = new Promise((resolve) => { receiveRefresh = resolve; });
+      await trigger();
+      const route = await next;
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.equal(await page.locator("tbody tr[data-row-id]").count(), 2);
+      assert.equal(await page.evaluate(() => window.refreshRow.isConnected), true);
+      assert.equal(await page.getByText("Đang tải…", { exact: true }).count(), 0);
+      return route;
+    };
+    const refreshedQuotes = Object.values(quotes).map((quote) => ({ ...quote, customerName: "Updated customer" }));
+    const refreshBody = { quotes: refreshedQuotes, pagination: { page: 1, pages: 1, total: 2, pageSize: 20, summary: {} } };
+    const poll = await holdRefresh(() => page.clock.fastForward(30_000));
+    await poll.fulfill({ json: refreshBody });
+    await page.getByText("Updated customer", { exact: true }).first().waitFor();
+    assert.equal(await page.evaluate(() => window.refreshRow.isConnected), true);
+
+    const notification = await holdRefresh(() => page.evaluate(() => window.dispatchEvent(new Event("speego:notifications-changed"))));
+    await notification.fulfill({ status: 500, json: { error: { message: "Refresh unavailable" } } });
+    await page.getByText("Refresh unavailable", { exact: true }).waitFor();
+    assert.equal(await page.locator("tbody tr[data-row-id]").count(), 2);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.fastForward(11_000);
+    const tabReturn = await holdRefresh(() => page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }));
+    await tabReturn.fulfill({ json: refreshBody });
+    await page.getByText("Refresh unavailable", { exact: true }).waitFor({ state: "detached" });
+    assert.equal(await page.locator("tbody tr[data-row-id]").count(), 2);
+    await page.unroute("**/api/crm/quotes?**");
+    await page.evaluate(() => { delete document.visibilityState; });
 
     await page.getByLabel("Tìm kiếm", { exact: true }).fill("Chin Tran");
     await Promise.all([
@@ -129,6 +173,8 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
       page.waitForRequest((request) => request.url().includes("q=missing") && request.url().includes("allLanes=1")),
       page.getByRole("button", { name: "Tìm", exact: true }).click(),
     ]);
+    await page.getByText("Đang tải…", { exact: true }).waitFor();
+    assert.equal(await page.locator("tbody tr[data-row-id]").count(), 0);
     await page.getByLabel("Tìm kiếm", { exact: true }).fill("Chin Tran");
     await Promise.all([
       page.waitForResponse((response) => response.url().includes("q=Chin+Tran") && response.url().includes("allLanes=1")),

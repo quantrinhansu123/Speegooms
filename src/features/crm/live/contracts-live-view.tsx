@@ -414,6 +414,7 @@ export function ContractsLiveView({
   const canResend = canSale || canOps || canAccounting;
   const canDelete = mode === "accounting" && user.role === "ke-toan";
   const loadVersion = useRef(0);
+  const loadedListPath = useRef<string | null>(null);
   const [rows, setRows] = useState<ContractRecord[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -490,7 +491,6 @@ export function ContractsLiveView({
       return;
     }
     setError(undefined);
-    setListLoading(true);
     try {
       const path = crmPath(`/api/crm/contracts?view=${mode}`, lane);
       const sent = mode === "accounting" ? "&sent=1" : "";
@@ -499,8 +499,12 @@ export function ContractsLiveView({
         accountingStatus: filters.applied.accountingStatus,
         customerKind: filters.applied.customerKind,
       });
-      const body = await api<{ contracts: ContractRecord[]; pagination: PageInfo }>(`${path}${sent}${query}${pageQuery}`);
+      const listPath = `${path}${sent}${query}${pageQuery}`;
+      // Keep the current records visible when refreshing the same list.
+      setListLoading(loadedListPath.current !== listPath);
+      const body = await api<{ contracts: ContractRecord[]; pagination: PageInfo }>(listPath);
       if (version !== loadVersion.current) return;
+      loadedListPath.current = listPath;
       setRows(body.contracts);
       receivePage(body.pagination);
       if (mode === "sale") setSeen(seedSeenIfNeeded(user.id, body.contracts));

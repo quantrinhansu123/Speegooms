@@ -61,6 +61,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const showAllLanes = canViewAllLanes && allLanes;
   const selectedLane = showAllLanes ? "all" : lane;
   const loadVersion = useRef(0);
+  const loadedListPath = useRef<string | null>(null);
   const canOps = canEditQuoteDesk(user.role, desk);
   /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
   const editMode = canOps ? ("full" as const) : ("none" as const);
@@ -96,7 +97,6 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       setError(rangeError);
       return;
     }
-    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       quoteStatus: filters.applied.quoteStatus,
@@ -106,8 +106,11 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       allLanes: selectedLane === "all" ? "1" : "",
     });
     const lanes: CrmLane[] = selectedLane === "all" ? ["vn", "global"] : [selectedLane];
-    api<{ quotes: DeskQuote[]; pagination: PageInfo }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, selectedLane === "all" ? "vn" : selectedLane)}${query}${pageQuery}`)
-      .then((body) => { if (version === loadVersion.current) { setRows(body.quotes); receivePage(body.pagination); } })
+    const path = `${crmPath(`/api/crm/quotes?desk=${desk}`, selectedLane === "all" ? "vn" : selectedLane)}${query}${pageQuery}`;
+    // Keep the current records visible when refreshing the same list.
+    setListLoading(loadedListPath.current !== path);
+    api<{ quotes: DeskQuote[]; pagination: PageInfo }>(path)
+      .then((body) => { if (version === loadVersion.current) { loadedListPath.current = path; setRows(body.quotes); receivePage(body.pagination); } })
       .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); })
       .finally(() => { if (version === loadVersion.current) setListLoading(false); });
     Promise.all(lanes.map((quoteLane) => api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${quoteLane}`)))
