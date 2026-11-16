@@ -28,7 +28,7 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
-import { quoteRecordMissing } from "./quote-sheet";
+import { printableRfqQuote, quoteOutputProblem, quoteRecordMissing } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
@@ -198,6 +198,12 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   };
 
   const visibleRows = listLoading ? [] : rows;
+  const askOutput = (action: QuoteOutputAction, row: QuoteRecord) => {
+    const record = { ...row, desk };
+    const source = printableRfqQuote(record);
+    if (!source) { setError(quoteOutputProblem(record) ?? quoteOutputText[action].noSheet); return; }
+    setOutput({ action, row: source });
+  };
   const showFinancials = desk === "logistics" && canViewQuoteOriginalPrice(user.role);
   const columnCount = 13 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
 
@@ -281,8 +287,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               const markup = financials ? quoteMarkupPercent(financials.cost, financials.revenue) : null;
               const items: { key: string; label: string; onClick: () => void; icon?: React.ReactNode }[] = [
                 { key: "quote", label: "Báo giá", icon: <FileText />, onClick: () => { setQuoteError(undefined); setEditing(row); } },
-                { key: "pdf", label: "Tải PDF", icon: <Download />, onClick: () => setOutput({ action: "pdf", row }) },
-                { key: "excel", label: "Tải Excel", icon: <Download />, onClick: () => setOutput({ action: "excel", row }) },
+                { key: "pdf", label: "Tải PDF", icon: <Download />, onClick: () => askOutput("pdf", row) },
+                { key: "excel", label: "Tải Excel", icon: <Download />, onClick: () => askOutput("excel", row) },
               ];
               return (
                 <tr

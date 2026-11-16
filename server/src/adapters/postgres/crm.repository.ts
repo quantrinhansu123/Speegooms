@@ -624,7 +624,7 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     sentQuote: null,
   };
   /** Thông tin đơn hàng Sourcing để Logistics luôn thấy dữ liệu đơn hàng, kể cả khi phiếu mới chuyển còn trống. */
-  const handoffOrder = base.orders.find((order) => order.selected) ?? sourcingHandoffOrder(base);
+  const handoffOrder = sourcingHandoffOrder(base);
   return {
     ...base,
     templateId: sheet.templateId,

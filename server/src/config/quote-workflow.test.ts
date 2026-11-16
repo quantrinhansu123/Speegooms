@@ -370,6 +370,43 @@ const handoffInput = () => updateQuoteSchema.parse({
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
+test("sending rejects incomplete package measurements while saving the draft is allowed", async () => {
+  for (const desk of ["sourcing", "logistics"] as const) {
+    for (const missing of ["lengthCm", "widthCm", "heightCm", "actualKg"] as const) {
+      const input = handoffInput();
+      input.notes.validityDays = 7;
+      input.orders[0].lines[0].packages = [{ count: 10, lengthCm: 242, widthCm: 17, heightCm: 15, actualKg: 30, [missing]: 0 }];
+      const current = { ...input, id: "quote", customerKind: desk === "logistics" ? "LOGISTICS" : "SOURCING", quoteWorkflow: "LEGACY" } as QuoteRecord;
+      let saved = 0, sent = 0;
+      const service = new CrmService({
+        findQuote: async () => current,
+        updateQuote: async () => { saved++; return current; },
+        sendQuote: async () => { sent++; return current; },
+      } as unknown as CrmRepository);
+      await service.updateQuote("global", desk, "quote", input, { contentOnly: false, role: "admin" });
+      assert.equal(saved, 1);
+      await assert.rejects(service.sendQuote("global", desk, "quote", input, { id: "admin", role: "admin" } as PublicUser), /lớn hơn 0/);
+      assert.equal(sent, 0);
+    }
+  }
+});
+
+test("Logistics projection uses sent Sourcing goods even when the current draft has changed", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const input = handoffInput();
+    const sent = { sentAt: "2026-11-12T07:41:59Z", order: structuredClone(input.orders[0]), notes: input.notes, bank: input.bank };
+    input.orders[0].lines[0].quantity = 999;
+    const repository = new PostgresCrmRepository({ query: async (sql: string) => {
+      if (/from crm\.bao_gia_logistics_/.test(sql)) return { rowCount: 0, rows: [] };
+      return { rowCount: 1, rows: [{ id: "quote", customer_kind: "SOURCING", quote_workflow: "COMBINED", order_lines: input.orders,
+        sent_copy: sent, logistics_sheet: { ...input, sentQuote: sent }, created_at: new Date() }] };
+    } } as unknown as pg.Pool);
+    const projected = await repository.findQuote(lane, "logistics", "quote");
+    assert.equal(projected!.orders[0].lines[0].quantity, 12);
+    assert.equal(projected!.sourcingContext!.order.lines[0].quantity, 12);
+  }
+});
+
 test("Sale enters insured Logistics values; Logistics owns currency and exchange rate", () => {
   const stored = handoffInput();
   const current = { ...stored, customerKind: "LOGISTICS" } as unknown as QuoteRecord;
@@ -669,7 +706,7 @@ test("Sourcing send atomically includes a Logistics handoff on both lanes", asyn
   }
 });
 
-test("Logistics uses current Sourcing packaging while preserving shipping prices", async () => {
+test("Logistics keeps sent Sourcing packaging until Sourcing sends its changed draft again", async () => {
   const input = handoffInput();
   for (const existing of [false, true]) {
     const source = input.orders[0];
@@ -688,11 +725,11 @@ test("Logistics uses current Sourcing packaging while preserving shipping prices
     } as unknown as pg.Pool);
     const quote = await repository.findQuote("vn", "logistics", "quote");
     assert.equal(quote?.sourcingContext?.order.lines[0].pricePerSet, 500);
-    assert.deepEqual(quote?.sourcingContext?.order.lines[0].packages, currentSource.lines[0].packages);
+    assert.deepEqual(quote?.sourcingContext?.order.lines[0].packages, source.lines[0].packages);
     assert.equal(quote?.sourcingContext?.opsNote, "Giao hàng dễ vỡ");
     assert.equal(quote?.orders[0].lines[0].quantity, 12);
     assert.equal(quote?.orders[0].lines[0].pricePerSet, existing ? 77 : null);
-    assert.deepEqual(quote?.orders[0].lines[0].packages, currentSource.lines[0].packages);
+    assert.deepEqual(quote?.orders[0].lines[0].packages, source.lines[0].packages);
   }
 });
 

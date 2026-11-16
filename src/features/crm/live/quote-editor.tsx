@@ -1,7 +1,7 @@
 "use client";
 
-import { fclChargeTotal, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
-import { activeLogisticsFees, contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFileBase, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
+import { fclChargeTotal, quotePackageIssue, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
+import { activeLogisticsFees, contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
 import { Download, Eye, ImagePlus, Pencil, Plus, Printer, RotateCcw, Send, Trash2 } from "lucide-react";
@@ -54,10 +54,10 @@ import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
 import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, selectablePricingBases, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
-import { downloadQuoteExcel } from "./quote-excel";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
-import { downloadQuotePdf, printQuoteSheet, quoteSheetHtml, quoteTotals } from "./quote-print";
-import { buildQuoteSheet, orderForQuotePdf, quoteWithLogisticsCosts } from "./quote-sheet";
+import { quoteSheetHtml, quoteTotals } from "./quote-print";
+import { quoteOutputRunners } from "./quote-output";
+import { buildQuoteSheet, orderForQuotePdf, printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
@@ -793,7 +793,7 @@ function filledLine(line: QuoteLine): boolean {
 
 function packagesSummary(packages: QuoteLine["packages"], shippingMode: "AIR" | "SEA" | null): string {
   const m = packageMetrics(packages, shippingMode);
-  return `${m.count} kiện · ${formatMeasure(m.cbm)} cbm · tính cước ${formatMeasure(m.chargeableKg)} kg`;
+  return `${m.count} kiện · thực tế ${formatMeasure(m.actualKg)} kg · ${formatMeasure(m.cbm)} cbm · tính cước ${formatMeasure(m.chargeableKg)} kg`;
 }
 
 const factoryAttrKeys = ["Chất liệu", "MOQ", "Lead time", "Bảo hành"] as const;
@@ -898,25 +898,29 @@ function LinePackagesEditor({
           } as const;
           if (key === "count") {
             return (
-              <Input
-                key={key}
-                {...shared}
-                inputMode="numeric"
-                value={pkg.count ? String(pkg.count) : ""}
-                onChange={(event) => {
-                  const parsed = Number(event.target.value.replace(/[^\d]/g, ""));
-                  onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, count: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 } : x)));
-                }}
-              />
+              <label key={key} className="grid gap-0.5 text-[10px] text-muted-foreground">
+                <span>Số kiện</span>
+                <Input
+                  {...shared}
+                  inputMode="numeric"
+                  value={pkg.count ? String(pkg.count) : ""}
+                  onChange={(event) => {
+                    const parsed = Number(event.target.value.replace(/[^\d]/g, ""));
+                    onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, count: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 } : x)));
+                  }}
+                />
+              </label>
             );
           }
           return (
-            <MeasureInput
-              key={key}
-              {...shared}
-              value={pkg[key]}
-              onValueChange={(next) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: next } : x)))}
-            />
+            <label key={key} className="grid gap-0.5 text-[10px] text-muted-foreground">
+              <span>{shared.placeholder}</span>
+              <MeasureInput
+                {...shared}
+                value={pkg[key]}
+                onValueChange={(next) => onChange(line.packages.map((x, xi) => (xi === pi ? { ...x, [key]: next } : x)))}
+              />
+            </label>
           );
         })}
         {canEdit && (
@@ -2359,12 +2363,11 @@ export function QuoteEditor({
   const issuedOn = useMemo(() => (quote.createdAt ? ISSUED_DATE_FORMAT.format(new Date(quote.createdAt)) : undefined), [quote.createdAt]);
 
   const sheetInputFor = (order: QuoteOrder, lang: QuoteLang = printLang) =>
-    quoteSheetInputOf(quoteWithLogisticsCosts(
+    quoteSheetInputOf(
       { ...lead, code: quote.code, notes: notesWithFreight(notes, [order], lead.shippingMode), bank },
-      desk === "sourcing" ? quote.logisticsSheet?.sentQuote : null,
-    ), withInsuranceCurrency([order], { ...lead, notes })[0], lang, issuedOn);
+      withInsuranceCurrency([order], { ...lead, notes })[0], lang, issuedOn);
 
-  const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => quoteSheetHtml(sheetInputFor(order, lang));
+  const sheetHtmlFor = (order: QuoteOrder, lang: QuoteLang = printLang) => `<p style="color:#b45309;font-weight:bold">${lang === "en" ? "DRAFT — NOT SENT" : "BẢN NHÁP — CHƯA GỬI"}</p>${quoteSheetHtml(sheetInputFor(order, lang))}`;
 
   const selectedOrder = orderForQuotePdf(orders);
 
@@ -2379,11 +2382,7 @@ export function QuoteEditor({
   const previewHtml = useMemo(() => (draft?.mode === "view" ? sheetHtmlFor(draft.order) : ""), [draft, printLang, lead, notes, bank, issuedOn, quote.code]);
 
   /** In, PDF, Excel đều mở hộp thoại chọn ngôn ngữ trước khi chạy. */
-  const [outputPick, setOutputPick] = useState<{ action: QuoteOutputAction; order?: QuoteOrder } | null>(null);
-
-  const printOrder = (order: QuoteOrder, lang: QuoteLang) => {
-    void printQuoteSheet(sheetHtmlFor(order, lang));
-  };
+  const [outputPick, setOutputPick] = useState<{ action: QuoteOutputAction; source: QuotePdfSource } | null>(null);
 
   /** Chạy một lần tải về, bật cờ đang tải và báo lỗi bằng `failure` nếu thất bại. */
   const runDownload = async (failure: string, task: () => Promise<void>) => {
@@ -2391,54 +2390,34 @@ export function QuoteEditor({
     setFormError(undefined);
     try {
       await task();
-    } catch {
-      setFormError(failure);
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : failure);
     } finally {
       setPdfPending(false);
     }
   };
 
-  const downloadOrderExcel = (order: QuoteOrder, lang: QuoteLang) =>
-    runDownload(quoteOutputText.excel.failed, () => downloadQuoteExcel(sheetInputFor(order, lang), quoteFileBase(quote.code, order.name, lang)));
-
-  const downloadOrderPdf = (order: QuoteOrder, lang: QuoteLang) =>
-    runDownload(quoteOutputText.pdf.failed, () => downloadQuotePdf(sheetHtmlFor(order, lang), quoteFileBase(quote.code, order.name, lang)));
-
-  const printSelected = (lang: QuoteLang) => {
-    const selected = orders.filter((order) => order.selected);
-    const targets = selected.length > 0 ? selected : orders;
-    if (targets.length === 0) {
-      setFormError(quoteOutputText.print.noSheet);
-      return;
-    }
-    setFormError(undefined);
-    void printQuoteSheet(targets.map((order) => sheetHtmlFor(order, lang)));
-  };
-
   /** Mở hộp thoại chọn ngôn ngữ cho nút In / Tải PDF / Tải Excel ở thanh công cụ. */
-  const askOutput = (action: QuoteOutputAction) => {
-    if (!selectedOrder) {
-      setFormError(quoteOutputText[action].noSheet);
+  const askOutput = (action: QuoteOutputAction, order?: QuoteOrder) => {
+    const record = { ...quote, desk: desk ?? (quote.customerKind === "LOGISTICS" ? "logistics" : "sourcing") };
+    const source = printableRfqQuote(record);
+    if (!source) {
+      setFormError(quoteOutputProblem(record) ?? quoteOutputText[action].noSheet);
+      return;
+    }
+    if (order && order.id !== source.orders[0]?.id) {
+      setFormError("Mẫu này chưa được gửi. Chọn và gửi mẫu trước khi In/PDF/Excel.");
       return;
     }
     setFormError(undefined);
-    setOutputPick({ action });
+    setOutputPick({ action, source });
   };
 
   const confirmOutput = (lang: QuoteLang) => {
     const pick = outputPick;
     setOutputPick(null);
     if (!pick) return;
-    const target = pick.order ?? selectedOrder;
-    if (notes.payment && !payloadFor(target ? [target] : orders)) return;
-    if (pick.action === "print") {
-      if (pick.order) printOrder(pick.order, lang);
-      else printSelected(lang);
-      return;
-    }
-    if (!target) return;
-    if (pick.action === "pdf") void downloadOrderPdf(target, lang);
-    else void downloadOrderExcel(target, lang);
+    void runDownload(quoteOutputText[pick.action].failed, () => quoteOutputRunners[pick.action](pick.source, lang));
   };
 
   const openCreate = () => {
@@ -2494,6 +2473,9 @@ export function QuoteEditor({
     }
     const priced = orders.length > 0 ? orders : quote.sourcingContext ? [{ ...quote.sourcingContext.order, selected: true }] : orders;
     const ready = priced.some((order) => order.selected) ? priced : priced.map((order, index) => ({ ...order, selected: index === 0 }));
+    const packageIssue = ready.find((order) => order.selected);
+    const issue = packageIssue ? quotePackageIssue(packageIssue) : null;
+    if (issue) { setFormError(issue); return; }
     const data = payloadFor(ready);
     if (data) setSendInput(data);
   };
@@ -2599,6 +2581,7 @@ export function QuoteEditor({
       {onReload && <InlineAlert tone="info">Phiếu có dữ liệu mới. Tải lại sẽ bỏ các thay đổi chưa lưu trong form này. <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onReload}>Tải dữ liệu mới</Button></InlineAlert>}
       {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
+      {!quoteStep && <InlineAlert tone="info">In/PDF/Excel sử dụng bản đã gửi. Thay đổi đang sửa chỉ là bản nháp; cần gửi lại và xác nhận cước nếu hàng hóa hoặc đóng gói thay đổi.</InlineAlert>}
       {sendNotice && <InlineAlert tone="success">{sendNotice}</InlineAlert>}
       {printLang === "en" && (
         <InlineAlert tone={enMissing.length > 0 ? "warning" : "info"}>
@@ -3432,7 +3415,7 @@ export function QuoteEditor({
         <QuoteLanguageDialog
           action={outputPick.action}
           initial={printLang}
-          getMissing={(lang) => missingFor(outputPick.order ?? selectedOrder, lang)}
+          getMissing={(lang) => quoteRecordMissing(outputPick.source, lang)}
           onConfirm={confirmOutput}
           onClose={() => setOutputPick(null)}
         />
@@ -3472,7 +3455,7 @@ export function QuoteEditor({
           previewHtml={previewHtml}
           onClose={() => setDraft(null)}
           onPersist={persistDraft}
-          onOutput={(action, order) => setOutputPick({ action, order })}
+          onOutput={askOutput}
         />
       )}
 

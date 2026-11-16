@@ -34,7 +34,7 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputActions, quoteOutputIcon, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
-import { printableRfqQuote, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
+import { printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
@@ -52,7 +52,7 @@ const deskTitles = {
 function logisticsQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
   const sheet = row.logisticsSheet;
   if (!sheet) return null;
-  const order = row.orders.find((item) => item.selected) ?? sourcingHandoffOrder(row);
+  const order = sourcingHandoffOrder(row);
   return {
     ...row,
     desk: "logistics",
@@ -500,7 +500,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               const canHandleRow = canHandleCrm(user, row);
               const canWriteRow = canWrite && canHandleRow;
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
-              const printSource = printableRfqQuote(row) ?? (logistics ? printableRfqQuote(logistics) : null);
+              const printSource = printableRfqQuote(row);
               return (
               <tr
                 key={row.id}
@@ -577,7 +577,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                           icon: <Icon />,
                           onClick: () => {
                             if (!printSource) {
-                              setError(quoteOutputText[action].noSheet);
+                              setError(quoteOutputProblem(row) ?? quoteOutputText[action].noSheet);
                               return;
                             }
                             setOutput({ action, source: printSource });

@@ -355,7 +355,8 @@ export function buildQuoteSheetModel(input: QuoteSheetInput, deps: QuoteSheetDep
       cbm: Math.round(filled.reduce((sum, line) => sum + (line.cbm ?? 0) * (line.quantity ?? 1), 0) * 1000) / 1000,
       priced,
     },
-    totalLabel: notes.totalLabel?.trim() || t.defaultTotalLabel,
+    // Nhãn tổng là chữ; báo giá cũ có số tiền nhập nhầm ở đây không được in như một tổng thứ hai.
+    totalLabel: notes.totalLabel?.trim() && !/^[\d\s.,]+$/.test(notes.totalLabel.trim()) ? notes.totalLabel.trim() : t.defaultTotalLabel,
     weightNote: pick(notes.weightNote, notes.weightNoteEn, "Ghi chú cân nặng / CBM"),
     validityNote,
     shippingText,
@@ -408,7 +409,7 @@ export function quoteItemFeeLabel(lang: QuoteLang, stt: string, spec: string | u
 }
 
 /** Bản ghi báo giá (hoặc bản nháp trong editor) đủ thông tin để dựng bản in. */
-export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank; customerKind?: string | null; shippingMode?: "AIR" | "SEA" | null; logisticsClass?: string | null };
+export type QuoteSheetSource = QuoteSheetCustomer & { code: string; notes: QuoteNotes; bank: QuoteBank; customerKind?: string | null; shippingMode?: "AIR" | "SEA" | null; logisticsClass?: string | null; issuedOn?: string | null };
 
 export function quoteSheetInputOf(source: QuoteSheetSource, order: QuoteOrder, lang?: QuoteLang, issuedOn?: string | null): QuoteSheetInput {
   return {
@@ -423,7 +424,7 @@ export function quoteSheetInputOf(source: QuoteSheetSource, order: QuoteOrder, l
     bank: source.bank,
     code: source.code,
     orderName: order.name,
-    issuedOn,
+    issuedOn: issuedOn ?? source.issuedOn,
     lang,
   };
 }

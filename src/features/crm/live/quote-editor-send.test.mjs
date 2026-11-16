@@ -8,6 +8,94 @@ import { chromium } from "playwright";
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild");
 
+test("editor In/PDF/Excel uses the sent shipment and blocks mismatched or pending customer quotes", async () => {
+  const bundle = await build({
+    stdin: {
+      resolveDir: fileURLToPath(new URL(".", import.meta.url)), loader: "tsx",
+      contents: `import React from "react";
+        import {createRoot} from "react-dom/client";
+        import {defaultQuoteBank, updateQuoteSchema, quoteSheetInputOf} from "@speego/shared";
+        import {SessionProvider} from "@/features/auth/session-provider";
+        import {QuoteEditor} from "./quote-editor";
+        import {quoteOutputRunners} from "./quote-output";
+        import {buildQuoteSheet} from "./quote-sheet";
+        const input = updateQuoteSchema.parse({templateId:null, opsNote:"", quoteStatus:"DA_CO_BAO_GIA", contractStatus:"CHUA_TAO",
+          orders:[{id:"00000000-0000-4000-8000-000000000001", name:"Shipment", selected:true, currency:"USD",
+            lines:[{stt:"1", productName:"Marble", quantity:100, pricePerSet:9.87, lineTotal:987, weightKg:18.5, spec:"", note:"",
+              packages:[{count:1,lengthCm:245,widthCm:127,heightCm:50,actualKg:1850}]},
+            {stt:"2", productName:"Panel", quantity:100, pricePerSet:15.79, lineTotal:1579, weightKg:3, spec:"", note:"",
+              packages:[{count:10,lengthCm:242,widthCm:17,heightCm:15,actualKg:30}]}]}],
+          notes:{totalLabel:"", weightNote:"", validityNote:"", validityDays:7, deposit:[]}, bank:defaultQuoteBank});
+        const sentQuote = {sentAt:"2026-11-12T07:41:59Z", order:structuredClone(input.orders[0]), notes:structuredClone(input.notes), bank:defaultQuoteBank};
+        const logisticsSent = structuredClone(sentQuote);
+        logisticsSent.notes.freight = {...logisticsSent.notes.freight,rate:2.1,total:4515};
+        logisticsSent.notes.logisticsFees = [{label:"Inspection",labelEn:"Inspection",value:"100",currency:"USD",itemStt:""}];
+        logisticsSent.notes.shippingNoteOther = "Customer arranges forklift. Delivery 40-45 days.";
+        const quote = {...input,id:"quote",code:"BGS-REGRESSION",customerName:"Customer",customerKind:"SOURCING",quoteWorkflow:"COMBINED",
+          shippingMode:"SEA",createdAt:"2026-11-12T03:59:39Z",requirementImages:[],sentQuote,
+          logisticsSheet:{...input,sentQuote:logisticsSent},sourcingContext:null};
+        quote.orders[0].lines[0].quantity = 120;
+        quote.orders[0].lines[1].quantity = 80;
+        quote.orders[0].lines[1].packages = [{count:30,lengthCm:245,widthCm:125,heightCm:100,actualKg:0}];
+        const mode = new URLSearchParams(location.search).get("mode");
+        if(mode === "mismatch") quote.sentQuote.order.lines[0].quantity = 120;
+        if(mode === "waiting") quote.logisticsSheet.quoteStatus = "CHUA_CO_BAO_GIA_LAI";
+        if(mode === "draft") quote.sentQuote = null;
+        window.outputs = [];
+        for(const action of ["print","pdf","excel"]) quoteOutputRunners[action] = async(source,lang) => {
+          const model = buildQuoteSheet(quoteSheetInputOf(source,source.orders[0],lang));
+          window.outputs.push({action,quantities:model.lines.map(line=>line.quantity),freight:model.freight,totals:model.feeSubtotals,issuedOn:model.meta.issuedOn});
+        };
+        createRoot(document.getElementById("root")).render(<SessionProvider user={{id:"admin",role:"admin"}}>
+          <QuoteEditor quote={quote} desk="sourcing" templates={[]} embedded editMode="full" pending={false} onClose={()=>{}} onSave={async()=>true}/>
+        </SessionProvider>);`,
+    },
+    bundle: true, write: false,
+    tsconfig: fileURLToPath(new URL("../../../../tsconfig.json", import.meta.url)),
+    define: { "process.env.NODE_ENV": '"production"' },
+  });
+  const server = createServer((req, res) => {
+    res.setHeader("Content-Type", req.url === "/bundle.js" ? "text/javascript" : "text/html");
+    res.end(req.url === "/bundle.js" ? bundle.outputFiles[0].text : `<style>
+      [data-slot="dialog-overlay"] {position:fixed; inset:0; z-index:50}
+      [data-slot="dialog-content"] {position:fixed; top:2%; left:2%; z-index:60; background:white}
+      </style><div id="root"></div><script src="/bundle.js"></script>`);
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  let browser;
+  try {
+    browser = await chromium.launch({ channel: "msedge", headless: true });
+    const page = await browser.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    await page.goto(origin);
+    for (const [index, label] of ["In", "Tải PDF", "Tải Excel"].entries()) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: label, exact: true }).click();
+      await page.waitForFunction(count => window.outputs.length === count, index + 1);
+      const output = await page.evaluate(() => window.outputs.at(-1));
+      assert.deepEqual(output.quantities, [100, 100]);
+      assert.equal(output.freight.chargeableKg, 2150);
+      assert.equal(output.freight.total, 4515);
+      assert.deepEqual(output.totals, [{ currency: "USD", amount: 4615 }]);
+      assert.match(output.freight.notes.join(" "), /forklift/);
+      assert.equal(output.issuedOn, "12/11/2026");
+    }
+    for (const [mode, message] of [["mismatch", "chưa khớp"], ["waiting", "chờ báo giá lại"], ["draft", "Chưa gửi báo giá"]]) {
+      await page.goto(`${origin}?mode=${mode}`);
+      await page.getByRole("button", { name: "In", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: message }).waitFor();
+      assert.equal(await page.getByRole("dialog").count(), 0);
+      assert.equal(await page.evaluate(() => window.outputs.length), 0);
+    }
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser?.close();
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
 test("quote send requires visible validity, confirms success, and leaves Logistics distribution to the server", async () => {
   const bundle = await build({
     stdin: {

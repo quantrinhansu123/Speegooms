@@ -3,7 +3,7 @@ import test from "node:test";
 import { defaultQuoteBank, quoteSheetInputOf, updateQuoteSchema } from "@speego/shared";
 import { buildQuoteWorkbook } from "./quote-excel";
 import { quoteSheetHtml } from "./quote-print";
-import { printableRfqQuote } from "./quote-sheet";
+import { buildQuoteSheet, printableRfqQuote, quoteOutputProblem, quoteWithLogisticsCosts } from "./quote-sheet";
 import type { RfqQuoteRecord } from "./types";
 
 function quote(): RfqQuoteRecord {
@@ -17,6 +17,7 @@ function quote(): RfqQuoteRecord {
   const logistics = structuredClone(sourcing);
   logistics.orders[0].currency = "USD";
   logistics.orders[0].lines[0].packages = [{ count: 1, lengthCm: 100, widthCm: 100, heightCm: 100, actualKg: 244.9 }];
+  sourcing.orders[0].lines[0].packages = structuredClone(logistics.orders[0].lines[0].packages);
   logistics.notes.freight = { ...logistics.notes.freight, rate: 3.5, total: 857.15 };
   logistics.notes.logisticsFees = [{ label: "Phụ phí địa chỉ", labelEn: "Address surcharge", value: "36", currency: "", itemStt: "" }];
   return {
@@ -48,9 +49,92 @@ test("RFQ print includes sent Logistics freight and surcharges in USD beside VND
 test("RFQ never includes unpublished Logistics costs and preserves pure Logistics snapshots", () => {
   const row = quote();
   row.logisticsSheet!.sentQuote = null;
-  assert.equal(printableRfqQuote(row)?.notes.freight.total, null);
+  assert.equal(printableRfqQuote(row), null);
   row.desk = "logistics";
   row.customerKind = "LOGISTICS";
   row.sentQuote!.notes.freight.total = 55;
   assert.equal(printableRfqQuote(row)?.notes.freight.total, 55);
+});
+
+function shipmentQuote(): RfqQuoteRecord {
+  const row = quote();
+  const order = row.sentQuote!.order;
+  const line = order.lines[0];
+  order.currency = "USD";
+  order.lines = [
+    { ...line, stt: "1", productName: "Marble", quantity: 100, pricePerSet: 9.87, lineTotal: 987,
+      packages: [{ count: 1, lengthCm: 245, widthCm: 127, heightCm: 50, actualKg: 1850 }] },
+    { ...line, stt: "2", productName: "Lam sóng", quantity: 100, pricePerSet: 15.79, lineTotal: 1579,
+      packages: [{ count: 10, lengthCm: 242, widthCm: 17, heightCm: 15, actualKg: 30 }] },
+  ];
+  row.sentQuote!.notes.totalLabel = "2.566";
+  const logistics = row.logisticsSheet!;
+  logistics.sentQuote!.order = structuredClone(order);
+  logistics.sentQuote!.notes.freight = { ...logistics.sentQuote!.notes.freight, rate: 2.1, total: 4515 };
+  logistics.sentQuote!.notes.logisticsFees = [{ label: "Phụ phí kiểm tra thương mại", labelEn: "Commercial inspection", value: "100", currency: "USD", itemStt: "" }];
+  logistics.sentQuote!.notes.shippingNotes = ["estimate", "prepay"];
+  logistics.sentQuote!.notes.shippingNoteOther = "Giao 40–45 ngày. Khách tự thuê và thanh toán xe nâng.";
+  logistics.sentQuote!.notes.opsExtra = "INTERNAL-AGENT-COST-3649";
+  row.orders = [structuredClone(order)];
+  row.orders[0].lines[0].quantity = 120;
+  Object.assign(row.orders[0].lines[1], { quantity: 80, packages: [{ count: 30, lengthCm: 245, widthCm: 125, heightCm: 100, actualKg: 0 }] });
+  return row;
+}
+
+test("saved draft changes never leak into customer print or Excel; sent shipment remains 2150 kg", async () => {
+  const row = shipmentQuote();
+  const before = structuredClone(row);
+  const source = printableRfqQuote(row)!;
+  const input = quoteSheetInputOf(source, source.orders[0]);
+  const model = buildQuoteSheet(input);
+  assert.deepEqual(model.lines.map(line => line.quantity), [100, 100]);
+  assert.equal(model.freight.chargeableKg, 2150);
+  assert.equal(model.freight.total, 4515);
+  assert.deepEqual(model.feeSubtotals, [{ currency: "USD", amount: 4615 }]);
+  assert.equal(model.totals.goods, 2566);
+  assert.notEqual(model.totalLabel, "2.566");
+  const html = quoteSheetHtml(input);
+  assert.doesNotMatch(html, /17\.162,5|INTERNAL-AGENT-COST/);
+  assert.match(html, /40–45 ngày/);
+  assert.match(html, /thuê và thanh toán xe nâng/);
+  assert.match(html, /Thanh toán 100%/);
+  const workbook = await buildQuoteWorkbook(input);
+  const cells = workbook.worksheets.flatMap(sheet => sheet.getSheetValues().flat());
+  const text = JSON.stringify(cells);
+  assert.match(text, /2150/);
+  assert.match(text, /4615/);
+  assert.match(text, /40–45 ngày/);
+  assert.match(text, /xe nâng/);
+  assert.doesNotMatch(text, /17162\.5|INTERNAL-AGENT-COST/);
+  assert.deepEqual(row, before);
+});
+
+test("customer output blocks incomplete, returned and mismatched sent snapshots", () => {
+  for (const change of [
+    (row: RfqQuoteRecord) => { row.sentQuote = null; },
+    (row: RfqQuoteRecord) => { row.quoteStatus = "CHUA_CO_BAO_GIA_LAI"; },
+    (row: RfqQuoteRecord) => { row.logisticsSheet!.quoteStatus = "CHUA_CO_BAO_GIA_LAI"; },
+    (row: RfqQuoteRecord) => { row.logisticsSheet!.sentQuote = null; },
+    (row: RfqQuoteRecord) => { row.sentQuote!.order.lines[0].quantity = 120; },
+    (row: RfqQuoteRecord) => { row.sentQuote!.order.lines[1].packages[0].count = 30; },
+    (row: RfqQuoteRecord) => { row.sentQuote!.order.lines[1].packages[0].actualKg = 0; },
+  ]) {
+    const row = shipmentQuote();
+    change(row);
+    assert.ok(quoteOutputProblem(row));
+    assert.equal(printableRfqQuote(row), null);
+  }
+  const row = shipmentQuote();
+  assert.throws(() => quoteWithLogisticsCosts(row, row.logisticsSheet!.sentQuote, row.orders[0]), /khác phiên bản/);
+});
+
+test("shipping match ignores factory prose, product prices and derived weight rounding", () => {
+  const row = shipmentQuote();
+  const line = row.logisticsSheet!.sentQuote!.order.lines[0];
+  line.spec = "Logistics đã xác nhận cân thực tế";
+  line.pricePerSet = null;
+  line.lineTotal = null;
+  line.weightKg = 18.5;
+  line.cbm = 0.01556;
+  assert.equal(quoteOutputProblem(row), null);
 });
