@@ -1,4 +1,4 @@
-import type { CrmHandler, QuoteWorkflow } from "@speego/shared";
+import type { CrmHandler, QuoteWorkflow, ListPage, PageRequest } from "@speego/shared";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -243,6 +243,11 @@ export interface ContractRecord {
 }
 
 export interface CrmRepository {
+  pageMessages(lane: CrmLane, search: MessageListSearch, page: PageRequest): Promise<ListPage<MessageRecord>>;
+  pagePotentials(lane: CrmLane, search: PotentialListSearch, page: PageRequest): Promise<ListPage<PotentialRecord>>;
+  pageQuotes(lanes: readonly CrmLane[], desk: QuoteDesk, search: QuoteListSearch, page: PageRequest, allowedKinds?: readonly string[] | null): Promise<ListPage<QuoteRecord & { lane: CrmLane }>>;
+  pageRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | QuoteDesk, page: PageRequest): Promise<ListPage<RfqQuoteRecord>>;
+  pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest): Promise<ListPage<ContractRecord>>;
   listSales(lane: CrmLane): Promise<{ id: string; name: string }[]>;
   potentialHistory(lane: CrmLane, id: string, allowedKinds?: readonly string[] | null): Promise<import("@speego/shared").CrmActivity[]>;
   listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]>;

@@ -1,5 +1,8 @@
 import { ledgerMatchesStatement } from "@speego/shared";
 import type pg from "pg";
+import type { ListPage, PageRequest } from "@speego/shared";
+import { queryPage } from "../../lib/pagination";
+import { ledgerSearch, type LedgerListSearch } from "../../search/ke-toan-list-search";
 import type { CreateLedgerEntryInput, CreateStatementInput } from "@speego/shared";
 import { AppError, InfrastructureError } from "../../lib/errors";
 import type { LedgerRecord, StatementRecord } from "../../repositories/ke-toan.repository";
@@ -58,6 +61,31 @@ function databaseError(cause: unknown): never {
 
 export class PostgresLedgerRepository {
   constructor(private readonly pool: pg.Pool) {}
+
+  async pageLedger(search: LedgerListSearch, page: PageRequest): Promise<ListPage<LedgerRecord>> {
+    const compiled = ledgerSearch(search).build();
+    const result = await queryPage<LedgerRow>(this.pool, `${ledgerSelect} where true ${compiled.sql}`, compiled.values, page, {
+      orderBy: "date desc, id desc",
+      summary: `jsonb_build_object('thu', coalesce(sum(amount_vnd::numeric) filter (where kind = 'THU'), 0),
+        'chi', coalesce(sum(amount_vnd::numeric) filter (where kind = 'CHI'), 0),
+        'incomeByCurrency', (select coalesce(jsonb_object_agg(currency, amount), '{}'::jsonb) from (
+          select currency, sum(amount::numeric) as amount from records where kind = 'THU' group by currency
+        ) c))`,
+    });
+    return { ...result, rows: result.rows.map(toLedger) };
+  }
+
+  async pageStatements(page: PageRequest, candidateFor?: string): Promise<ListPage<StatementRecord>> {
+    const result = await queryPage<StatementRow>(this.pool, `${statementSelect} ${candidateFor ? `where l.id is null and exists (
+        select 1 from ke_toan.so_thu_chi target where target.id = $1::uuid and target.loai = s.loai
+          and (target.ma_don_hang is null or s.ma_don_hang is null or target.ma_don_hang = s.ma_don_hang)
+          and (case when s.tien_te = 'VND' then target.so_tien_vnd = s.so_tien
+            else target.tien_te = s.tien_te and target.so_tien = s.so_tien end)
+      )` : ""}`, candidateFor ? [candidateFor] : [], page, {
+      orderBy: "date desc, id desc", summary: "jsonb_build_object('unmatchedCount', count(*) filter (where ledger_id is null))",
+    });
+    return { ...result, rows: result.rows.map(toStatement) };
+  }
 
   async listReceivingAccounts(): Promise<string[]> {
     try {

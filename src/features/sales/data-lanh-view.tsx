@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Pencil, Plus, Search, Shuffle, Trash2 } from "lucide-react";
-import { customerClasses, facebookStatuses, hasActiveTelesale, telesaleStatuses, type DataLanhRecord } from "@speego/shared";
+import { customerClasses, facebookStatuses, hasActiveTelesale, telesaleStatuses, type DataLanhRecord, type DataLanhPage } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,15 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/session-provider";
 import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus-row";
-import { usePagination } from "@/features/crm/hooks";
+import { OPEN_CONTRACT_EVENT, readOpenContractFromUrl, type OpenContractDetail } from "@/features/notifications/open-contract";
 import { FilterSelect } from "@/features/crm/live/list-search-bar";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { useExcelImport } from "@/features/crm/live/excel-import";
 import { ApiError, api } from "@/lib/api";
-import { matchesDataLanhStatus, type StatusChannel } from "./data-lanh-filters";
+import { type StatusChannel } from "./data-lanh-filters";
 
 const UNASSIGNED = "__none";
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 // Phải là hằng cố định: useFocusRow đăng ký lại mỗi khi tham số đổi, hàm/obj tạo mới mỗi lần render gây vòng lặp.
 const noop = () => undefined;
 const FOCUS_OPTIONS = { refTypes: ["data-lanh"] };
@@ -53,51 +53,69 @@ export function DataLanhView() {
   const [transfer, setTransfer] = useState<{ row: DataLanhRecord; status: string } | null>(null);
   const [filters, setFilters] = useState({ q: "", intern: "", channel: "" as StatusChannel, status: "" });
   const statusOptions = (filters.channel === "facebook" ? facebookStatuses : telesaleStatuses).slice(1);
-
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [metadata, setMetadata] = useState<Omit<DataLanhPage, "rows">>({ page: 1, pages: 1, pageSize: PAGE_SIZE, total: 0, scopeTotal: 0, unassigned: 0, interns: [], statusCounts: {} });
+  const [focusId, setFocusId] = useState<string>();
+  const [queryText, setQueryText] = useState("");
+  const loadVersion = useRef(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQueryText(filters.q), 300);
+    return () => window.clearTimeout(timer);
+  }, [filters.q]);
+  const changeFilters = (next: typeof filters) => {
+    setFilters(next);
+    setPage(1);
+    setFocusId(undefined);
+  };
   const load = useCallback(() => {
-    api<{ rows: DataLanhRecord[] }>("/api/data-lanh")
-      .then((body) => setRows(body.rows))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được data khách hàng"));
-  }, []);
+    const version = ++loadVersion.current;
+    setLoading(true);
+    setError(undefined);
+    const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), q: queryText, intern: filters.intern, channel: filters.channel, status: filters.status });
+    if (focusId) query.set("focusId", focusId);
+    void api<DataLanhPage>(`/api/data-lanh?${query}`)
+      .then(({ rows: nextRows, ...meta }) => {
+        if (version !== loadVersion.current) return;
+        setRows(nextRows);
+        setMetadata(meta);
+      })
+      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được data khách hàng"); })
+      .finally(() => { if (version === loadVersion.current) setLoading(false); });
+  }, [page, queryText, filters.intern, filters.channel, filters.status, focusId]);
   const excel = useExcelImport({ kind: "data-lanh", lane: "vn", enabled: canCreate, onDone: load });
-  useEffect(load, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) load(); });
+    return () => { cancelled = true; };
+  }, [load]);
   useEffect(() => {
     if (!canWork) return;
     api<{ sales: { id: string; name: string }[] }>("/api/data-lanh/sales").then((body) => setSales(body.sales)).catch(() => undefined);
   }, [canWork]);
 
-  const interns = useMemo(() => [...new Map(rows.filter((r) => r.internId).map((r) => [r.internId!, r.internName ?? r.internId!])).entries()], [rows]);
-  const unassigned = rows.filter((r) => !r.internId).length;
-
-  const statusRows = useMemo(() => {
-    const q = filters.q.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (q && ![r.fullName, r.company, r.phone, r.facebookLink, r.market, r.saleCareName].some((v) => v?.toLowerCase().includes(q))) return false;
-      if (filters.intern === UNASSIGNED ? r.internId : filters.intern && r.internId !== filters.intern) return false;
-      return matchesDataLanhStatus(r, filters.channel, "");
-    });
-  }, [rows, filters.q, filters.intern, filters.channel]);
-  const shown = useMemo(() => statusRows.filter((r) => matchesDataLanhStatus(r, filters.channel, filters.status)), [statusRows, filters.channel, filters.status]);
-
-  // Đổi bộ lọc thì về trang 1.
-  const paging = usePagination(shown, PAGE_SIZE, JSON.stringify(filters));
-
-  // Bấm thông báo trên chuông: tô vàng khách được bàn giao và nhảy tới đúng trang.
+  const interns = metadata.interns.map(({ id, name }) => [id, name] as const);
+  const unassigned = metadata.unassigned;
   const highlightId = useFocusRow(rows, "vn", false, noop, FOCUS_OPTIONS);
-  const setPage = paging.setPage;
   useEffect(() => {
-    if (!highlightId) return;
-    const index = shown.findIndex((r) => r.id === highlightId);
-    if (index >= 0) setPage(Math.floor(index / PAGE_SIZE) + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ nhảy trang khi có dòng mới cần tô
-  }, [highlightId]);
+    const focus = (detail: OpenContractDetail | null) => {
+      if (!detail || (detail.refType && detail.refType !== "data-lanh")) return;
+      setFilters({ q: "", intern: "", channel: "", status: "" });
+      setQueryText("");
+      setFocusId(detail.id);
+    };
+    focus(readOpenContractFromUrl());
+    const onOpen = (event: Event) => focus((event as CustomEvent<OpenContractDetail>).detail);
+    window.addEventListener(OPEN_CONTRACT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CONTRACT_EVENT, onOpen);
+  }, []);
 
   const handover = (row: DataLanhRecord, saleId: string) => {
     if (!saleId) return;
     setError(undefined);
     api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}/handover`, { method: "POST", body: JSON.stringify({ saleId }) })
       .then((res) => {
-        setRows((current) => current.map((r) => (r.id === res.row.id ? res.row : r)));
+        load();
         setNotice(`Đã bàn giao ${res.row.fullName ?? `STT ${res.row.stt}`} cho ${res.row.saleCareName}. Thông báo đã gửi lên chuông của Sale.`);
       })
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không bàn giao được"));
@@ -119,8 +137,8 @@ export function DataLanhView() {
     setError(undefined);
     setStatusSaving(true);
     try {
-      const res = await api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}`, { method: "PATCH", body: JSON.stringify(patch) });
-      setRows((current) => current.map((r) => (r.id === row.id ? res.row : r)));
+      await api<{ row: DataLanhRecord }>(`/api/data-lanh/${row.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+      load();
       if (patch.facebookStatus === facebookStatuses[6]) setNotice(`Đã chuyển ${row.fullName ?? `STT ${row.stt}`} sang Telesale.`);
       return true;
     } catch (err: unknown) {
@@ -176,7 +194,7 @@ export function DataLanhView() {
           setNotice(`Đã thêm khách STT ${res.row.stt}. ${canAssign ? 'Khách chưa giao, bấm "Chia vòng tròn" để giao cho người phụ trách.' : "Bạn là người phụ trách khách này."}`);
           load();
         } else {
-          setRows((current) => current.map((r) => (r.id === res.row.id ? res.row : r)));
+          load();
         }
       })
       .catch((err: unknown) => setEditError(err instanceof ApiError ? err.message : "Không lưu được thông tin"))
@@ -188,7 +206,7 @@ export function DataLanhView() {
     const id = removing.id;
     setRemoving(null);
     api(`/api/data-lanh/${id}`, { method: "DELETE" })
-      .then(() => setRows((current) => current.filter((r) => r.id !== id)))
+      .then(load)
       .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không xóa được khách"));
   };
 
@@ -240,17 +258,17 @@ export function DataLanhView() {
           <label htmlFor="dl-q" className="mb-1.5 block text-sm font-medium">Tìm kiếm</label>
           <div className="relative">
             <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="dl-q" className="pl-9" value={filters.q} placeholder="Tên, tiệm, SĐT, Facebook…" onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
+            <Input id="dl-q" className="pl-9" value={filters.q} placeholder="Tên, tiệm, SĐT, Facebook…" onChange={(event) => changeFilters({ ...filters, q: event.target.value })} />
           </div>
         </div>
         {seesAll && (
           <div className="w-fit max-w-full [&_select]:block [&_select]:w-auto [&_select]:max-w-full">
-            <FilterSelect id="dl-intern" label="Phụ trách" value={filters.intern} onChange={(intern) => setFilters({ ...filters, intern })} options={[[UNASSIGNED, "Chưa giao"], ...interns]} />
+            <FilterSelect id="dl-intern" label="Phụ trách" value={filters.intern} onChange={(intern) => changeFilters({ ...filters, intern })} options={[[UNASSIGNED, "Chưa giao"], ...interns]} />
           </div>
         )}
         <div className="w-fit max-w-full">
           <Field label="Trạng thái" htmlFor="dl-channel">
-            <NativeSelect id="dl-channel" className="block w-auto max-w-full" value={filters.channel} onChange={(event) => setFilters({ ...filters, channel: event.target.value as StatusChannel, status: "" })}>
+            <NativeSelect id="dl-channel" className="block w-auto max-w-full" value={filters.channel} onChange={(event) => changeFilters({ ...filters, channel: event.target.value as StatusChannel, status: "" })}>
               <option value="">Tất cả</option>
               <option value="facebook">Trạng thái Facebook</option>
               <option value="telesale">Trạng thái Telesale</option>
@@ -261,16 +279,16 @@ export function DataLanhView() {
       {filters.channel && (
         <div role="group" aria-label={filters.channel === "facebook" ? "Lọc trạng thái Facebook" : "Lọc trạng thái Telesale"} className="mb-4 flex gap-2 overflow-x-auto pb-2">
           {["", ...statusOptions].map((status) => (
-            <Button key={status} type="button" variant={filters.status === status ? "default" : "outline"} aria-pressed={filters.status === status} onClick={() => setFilters({ ...filters, status })}>
-              {status || "Tất cả"} ({statusRows.filter((r) => matchesDataLanhStatus(r, filters.channel, status)).length})
+            <Button key={status} type="button" variant={filters.status === status ? "default" : "outline"} aria-pressed={filters.status === status} onClick={() => changeFilters({ ...filters, status })}>
+              {status || "Tất cả"} ({metadata.statusCounts[status] ?? 0})
             </Button>
           ))}
         </div>
       )}
       <p className="mb-2 text-sm text-muted-foreground">
-        {shown.length}/{rows.length} khách
+        {metadata.total}/{metadata.scopeTotal} khách
         {seesAll && ` · Chưa giao: ${unassigned}`}
-        {seesAll && interns.map(([id, name]) => ` · ${name}: ${rows.filter((r) => r.internId === id).length}`).join("")}
+        {seesAll && metadata.interns.map(({ name, count }) => ` · ${name}: ${count}`).join("")}
       </p>
       <TableHScroll>
         <table className="w-full min-w-[2150px] text-sm">
@@ -282,8 +300,9 @@ export function DataLanhView() {
             </tr>
           </thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{rows.length ? "Không có kết quả." : "Chưa có data khách hàng."}</td></tr>}
-            {paging.slice.map((row) => {
+            {loading && <tr><td colSpan={14} role="status" className="px-3 py-4 text-center text-muted-foreground">Đang tải…</td></tr>}
+            {!loading && rows.length === 0 && <tr><td colSpan={14} className="px-3 py-8 text-center text-muted-foreground">{metadata.scopeTotal ? "Không có kết quả." : "Chưa có data khách hàng."}</td></tr>}
+            {!loading && rows.map((row) => {
               const history = [row.history, row.note].filter(Boolean).join(" · ");
               return (
                 <tr key={row.id} data-row-id={row.id} className={`border-b align-top last:border-0${highlightId === row.id ? ` ${FOCUS_ROW_CLASS}` : ""}`}>
@@ -417,7 +436,7 @@ export function DataLanhView() {
       />
 
       <div className="mt-4">
-        <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />
+        <Pagination page={metadata.page} pages={metadata.pages} total={metadata.total} pageSize={PAGE_SIZE} loading={loading} onPageChange={(next) => { setFocusId(undefined); setPage(next); }} />
       </div>
     </>
   );

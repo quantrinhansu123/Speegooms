@@ -10,7 +10,7 @@ export const actionPermissions = {
   "wh.write": ["van-hanh", "admin"], "inquiry.create": sales,
   "pay.create": ["van-hanh", "ke-toan", "admin"], "pay.pay": ["ke-toan"], "ledger.write": ["ke-toan", "admin"],
   "payroll.write": ["ke-toan", "admin"], "expense.write": ["ke-toan", "admin"],
-  "marketing.write": ["marketing", "admin"], "feedback.write": sales,
+  "marketing.write": ["marketing", "marketing-lead", "admin"], "feedback.write": sales,
   "complaints.write": ["van-hanh", "ban-gd", "admin"], "hrm.write": ["hcns", "admin"], "legal.write": ["phap-che", "admin"],
 } satisfies Record<string, Role[]>;
 export type Action = keyof typeof actionPermissions;

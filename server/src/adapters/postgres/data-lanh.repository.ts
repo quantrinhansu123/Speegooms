@@ -1,4 +1,4 @@
-import { facebookStatuses, telesaleStatuses, hasActiveTelesale, type CreateDataLanhInput, type DataLanhRecord, type DataLanhRecipient, type UpdateDataLanhInput } from "@speego/shared";
+import { facebookStatuses, telesaleStatuses, hasActiveTelesale, type CreateDataLanhInput, type DataLanhRecord, type DataLanhRecipient, type DataLanhListSearch, type DataLanhPage, type UpdateDataLanhInput } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
 
@@ -108,6 +108,69 @@ export class PostgresDataLanhRepository {
   async list(internId: string | null, limit: number | null = 2000): Promise<DataLanhRecord[]> {
     const result = await this.pool.query<Row>(`${select} where ($1::text is null or d.intern_id = $1 or d.sale_care_id = $1) order by d.stt limit $2`, [internId, limit]);
     return result.rows.map(toRecord);
+  }
+
+  async listPage(internId: string | null, search: DataLanhListSearch): Promise<DataLanhPage> {
+    const values = [internId, search.q, search.intern, search.channel, search.status,
+      facebookStatuses[0], telesaleStatuses[0], facebookStatuses[6], [...telesaleStatuses.slice(1)],
+      search.page, search.pageSize, search.focusId ?? null];
+    const result = await this.pool.query<{
+      rows: (Omit<Row, "assigned_at" | "handed_over_at"> & { assigned_at: string | null; handed_over_at: string | null })[];
+      page: number; total: number; scopeTotal: number; unassigned: number;
+      interns: DataLanhPage["interns"]; statusCounts: Record<string, number>;
+    }>(`with scoped as materialized (
+        ${select} where ($1::text is null or d.intern_id = $1 or d.sale_care_id = $1)
+      ), searched as (
+        select * from scoped where
+          ($2 = '' or strpos(lower(coalesce(full_name, '')), lower($2)) > 0
+            or strpos(lower(coalesce(company, '')), lower($2)) > 0
+            or strpos(lower(coalesce(phone, '')), lower($2)) > 0
+            or strpos(lower(coalesce(facebook_link, '')), lower($2)) > 0
+            or strpos(lower(coalesce(market, '')), lower($2)) > 0
+            or strpos(lower(coalesce(sale_care_name, '')), lower($2)) > 0)
+          and ($3 = '' or ($3 = '__none' and intern_id is null) or intern_id = $3)
+      ), channel_rows as materialized (
+        select *, case when $4 = 'facebook' then facebook_status else telesale_status end as channel_status
+        from searched where $4 = ''
+          or ($4 = 'facebook' and coalesce(facebook_status, '') not in ('', $6)
+            and not (facebook_status = $8 and coalesce(telesale_status, '') = any($9::text[])))
+          or ($4 = 'telesale' and coalesce(telesale_status, '') not in ('', $7))
+      ), filtered as materialized (
+        select *, row_number() over (order by stt, id) as position from channel_rows
+        where $4 = '' or $5 = '' or channel_status = $5
+      ), totals as (
+        select count(*)::int as total from filtered
+      ), paging as (
+        select total, coalesce(
+          (select ((position - 1) / $11::int + 1)::int from filtered where id = $12::text),
+          least($10::int, greatest(1, ceil(total::numeric / $11)::int))) as page from totals
+      )
+      select p.total, p.page,
+        (select count(*)::int from scoped) as "scopeTotal",
+        (select count(*)::int from scoped where intern_id is null) as unassigned,
+        coalesce((select jsonb_agg(i order by i.name, i.id) from (
+          select intern_id as id, coalesce(intern_name, intern_id) as name, count(*)::int as count
+          from scoped where intern_id is not null group by intern_id, intern_name
+        ) i), '[]'::jsonb) as interns,
+        (select coalesce(jsonb_object_agg(channel_status, count), '{}'::jsonb)
+          || jsonb_build_object('', (select count(*)::int from channel_rows)) from (
+            select channel_status, count(*)::int as count from channel_rows
+            where channel_status is not null group by channel_status
+          ) c) as "statusCounts",
+        coalesce((select jsonb_agg(r order by r.stt, r.id) from (
+          select * from filtered order by stt, id limit $11 offset ((p.page - 1) * $11)
+        ) r), '[]'::jsonb) as rows
+      from paging p`, values);
+    const data = result.rows[0]!;
+    return {
+      ...data,
+      rows: data.rows.map((row) => toRecord({ ...row,
+        assigned_at: row.assigned_at ? new Date(row.assigned_at) : null,
+        handed_over_at: row.handed_over_at ? new Date(row.handed_over_at) : null,
+      })),
+      pageSize: search.pageSize,
+      pages: Math.max(1, Math.ceil(data.total / search.pageSize)),
+    };
   }
 
   /** Sale tự thêm thì nhận phụ trách; Admin thêm vào danh sách chờ chia. */

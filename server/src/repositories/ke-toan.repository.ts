@@ -1,5 +1,6 @@
 import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
-import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "../search/ke-toan-list-search";
+import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch, LedgerListSearch } from "../search/ke-toan-list-search";
+import type { ListPage, PageRequest } from "@speego/shared";
 
 export interface PaymentRequestRecord {
   id: string;
@@ -100,6 +101,11 @@ export type CreatePaymentResult =
   | { result: "employee_missing" };
 
 export interface KeToanRepository {
+  pageLedger(search: LedgerListSearch, page: PageRequest): Promise<ListPage<LedgerRecord>>;
+  pageStatements(page: PageRequest, candidateFor?: string): Promise<ListPage<StatementRecord>>;
+  pagePayments(search: PaymentListSearch, page: PageRequest): Promise<ListPage<PaymentRequestRecord>>;
+  pagePayroll(search: PayrollListSearch, page: PageRequest): Promise<ListPage<PayrollRecord>>;
+  pageExpenses(search: ExpenseListSearch, page: PageRequest): Promise<ListPage<InternalExpenseRecord>>;
   listReceivingAccounts(): Promise<string[]>;
   createReceivingAccount(name: string): Promise<string>;
   listLedger(): Promise<LedgerRecord[]>;

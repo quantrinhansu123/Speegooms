@@ -12,6 +12,8 @@ export interface MessageListSearch extends ListSearch {
   demand: string;
   customerType: string;
   market: string;
+  saleName?: string;
+  processingStatus?: string;
   /** Chỉ lấy mess do người này tạo. Đặt ở service theo vai trò, không đọc từ query string. */
   creatorId?: string;
 }
@@ -37,11 +39,13 @@ export interface QuoteListSearch extends ListSearch {
   quoteIds?: readonly string[];
   /** Admin xem toàn bộ Logistics. Chỉ đặt tại service, không đọc từ query string. */
   unlimited?: boolean;
+  mode?: string;
 }
 
 export interface ContractListSearch extends ListSearch {
   opsStatus: string;
   accountingStatus: string;
+  customerKind?: string;
   /** Chỉ dùng nội bộ (trang theo dõi), không đọc từ query string. */
   quoteIds?: readonly string[];
 }
@@ -75,6 +79,7 @@ export function messageSearch(input: MessageListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("m.nhu_cau::text"), input.demand))
     .add(new ExactMatchCriterion(sql("m.loai_khach_hang::text"), input.customerType))
     .add(new ExactMatchCriterion(sql("m.thi_truong"), input.market))
+    .add(new ExactMatchCriterion(sql("btrim(m.nhan_vien_ban)"), input.saleName ?? ""))
     .add(new ExactMatchCriterion(sql("m.nguoi_tao_id"), input.creatorId ?? ""));
 }
 

@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
-import { proposalVerdictLabels, type ProposalRecord, type PublicUser } from "@speego/shared";
+import { proposalVerdictLabels, proposalListSchema, proposalPeriodRange, type ProposalRecord, type PublicUser } from "@speego/shared";
+import { z } from "zod";
+import { readPagination } from "../lib/pagination";
 import type { PostgresDeXuatRepository } from "../adapters/postgres/de-xuat.repository";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
@@ -46,9 +48,30 @@ export class DeXuatController {
   /** scope=all (tab Quản trị / Thống kê) chỉ dành cho người có quyền xem toàn bộ. */
   list = async (req: Request, res: Response) => {
     const actor = this.actor(req);
-    const all = req.query.scope === "all";
+    const parsed = proposalListSchema.safeParse(req.query);
+    if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", "Bộ lọc không hợp lệ");
+    const all = parsed.data.tab === "admin";
     if (all && !can(actor.role, "proposal.review")) throw new AppError(403, "FORBIDDEN", "Bạn không có quyền xem tất cả đề xuất");
-    res.status(200).json({ rows: await this.ready().list(all ? null : actor.id) });
+    const search = { ...parsed.data, q: parsed.data.q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d") };
+    const result = await this.ready().pageList(all ? null : actor.id, actor.id, search, readPagination(req));
+    res.status(200).json(result);
+  };
+
+  detail = async (req: Request, res: Response) => {
+    const actor = this.actor(req);
+    const row = await this.ready().byId(idParam(req));
+    if (!row || !(can(actor.role, "proposal.review") || row.requesterId === actor.id || row.steps.some(s => s.approverId === actor.id) || row.followers.some(f => f.id === actor.id))) throw new AppError(404, "NOT_FOUND", "Không tìm thấy đề xuất");
+    res.json({ row });
+  };
+
+  usage = async (req: Request, res: Response) => { res.json(await this.ready().usage(this.actor(req).id)); };
+
+  stats = async (req: Request, res: Response) => {
+    if (!can(this.actor(req).role, "proposal.review")) throw new AppError(403, "FORBIDDEN", "Không có quyền xem thống kê");
+    const parsed = z.object({ period: z.enum(["week", "month", "year"]).default("month"), date: z.iso.date(), q: z.string().trim().max(200).default("") }).safeParse(req.query);
+    if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", "Kỳ thống kê không hợp lệ");
+    const { start, end } = proposalPeriodRange(parsed.data.period, new Date(`${parsed.data.date}T00:00:00`));
+    res.json(await this.ready().stats(start, end, parsed.data.q, readPagination(req)));
   };
 
   templates = async (_req: Request, res: Response) => {

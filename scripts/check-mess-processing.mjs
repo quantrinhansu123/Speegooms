@@ -19,8 +19,15 @@ window.fetch = async (url, options = {}) => {
     return Response.json({message: row});
   }
   if (String(url).includes("/api/crm/messages")) {
-    const q = new URL(String(url), location.origin).searchParams.get("q");
-    return Response.json({messages: q ? rows.filter(row => row.customerName === q) : rows});
+    const params = new URL(String(url), location.origin).searchParams;
+    const q = params.get("q");
+    const sale = params.get("saleName");
+    const status = params.get("processingStatus");
+    const base = rows.filter(row => (!q || row.customerName === q) && (!sale || row.saleName === sale));
+    const statusCounts = Object.fromEntries(["", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"].map(key => [key, base.filter(row => !key || row.processingStatus === key).length]));
+    const shown = base.filter(row => !status || row.processingStatus === status);
+    const page = Number(params.get("page") || 1);
+    return Response.json({messages: shown.slice((page-1)*20,page*20),pagination:{page,pages:Math.max(1,Math.ceil(shown.length/20)),total:shown.length,pageSize:20,summary:{statusCounts,sales:["Sale An","Sale Bình"],markets:["US"]}}});
   }
   return Response.json({sales: [], notifications: []});
 };
@@ -46,6 +53,7 @@ try {
   assert.ok(headers.includes("Trạng thái chuyển"));
   assert.ok(headers.includes("Nhân viên sale"));
   const saleFilter = page.getByLabel("Nhân viên sale", {exact: true});
+  await page.getByRole("button", {name:"Bộ lọc",exact:true}).click();
   await saleFilter.selectOption("Sale An");
   await page.getByRole("button", {name: "Tìm", exact: true}).click();
   await group.getByRole("button", {name: "Tất cả (1)", exact: true}).waitFor();

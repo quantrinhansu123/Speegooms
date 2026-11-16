@@ -154,7 +154,8 @@ export {
   type QuoteSheetModel,
 } from "./quote-sheet-model";
 export { QUOTE_VALIDITY_WARN_DAYS, formatQuoteDay, quoteValidity, type QuoteValidity } from "./quote-validity";
-export { listSearchSchema,type ListSearch } from "./search";
+export { listSearchSchema, paginationSchema, type ListSearch, type PageRequest, type PageInfo, type ListPage } from "./search";
+export { proposalListSchema, type ProposalListSearch, type ProposalStatsRow } from "./de-xuat";
 export { publicUserSchema, roleSchema, type PublicUser, type Role } from "./user";
 
 export { isCombinedSourcing, quoteAccessKind, type QuoteWorkflow } from "./quote-workflow";
@@ -194,6 +195,9 @@ export {
   updateDataLanhSchema,
   type CreateDataLanhInput,
   type DataLanhRecord,
+  dataLanhListSchema,
+  type DataLanhListSearch,
+  type DataLanhPage,
   type UpdateDataLanhInput,
 } from "./data-lanh";
 export {
@@ -229,3 +233,4 @@ export {
   type SaveProposalTemplateInput,
 } from "./de-xuat";
 export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";
+export * from "./marketing";

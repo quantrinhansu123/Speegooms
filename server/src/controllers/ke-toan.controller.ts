@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { AppError } from "../lib/errors";
-import { readExpenseSearch, readPaymentSearch, readPayrollSearch } from "../search/parse-list-search";
+import { readPagination } from "../lib/pagination";
+import { readExpenseSearch, readPaymentSearch, readPayrollSearch, readLedgerSearch } from "../search/parse-list-search";
 import type { KeToanService } from "../services/ke-toan.service";
 
 function actorName(req: Request): string {
@@ -18,11 +19,15 @@ export class KeToanController {
   createReceivingAccount = async (req: Request, res: Response) => {
     res.status(201).json({ account: await this.keToan.createReceivingAccount(req.body.name) });
   };
-  listLedger = async (_req: Request, res: Response) => {
-    res.status(200).json({ entries: await this.keToan.listLedger() });
+  listLedger = async (req: Request, res: Response) => {
+    const result = await this.keToan.pageLedger(readLedgerSearch(req), readPagination(req));
+    res.status(200).json({ entries: result.rows, pagination: result.pagination });
   };
-  listStatements = async (_req: Request, res: Response) => {
-    res.status(200).json({ statements: await this.keToan.listStatements() });
+  listStatements = async (req: Request, res: Response) => {
+    const candidateFor = req.query.candidateFor;
+    if (candidateFor !== undefined && (typeof candidateFor !== "string" || !/^[0-9a-f-]{36}$/i.test(candidateFor))) throw new AppError(400, "VALIDATION_ERROR", "Khoản thu chi không hợp lệ");
+    const result = await this.keToan.pageStatements(readPagination(req), candidateFor);
+    res.status(200).json({ statements: result.rows, pagination: result.pagination });
   };
   listLedgerOrders = async (_req: Request, res: Response) => {
     res.status(200).json({ orders: await this.keToan.listLedgerOrders() });
@@ -53,7 +58,8 @@ export class KeToanController {
   };
 
   listPayments = async (req: Request, res: Response) => {
-    res.status(200).json({ payments: await this.keToan.listPayments(readPaymentSearch(req)) });
+    const result = await this.keToan.pagePayments(readPaymentSearch(req), readPagination(req));
+    res.status(200).json({ payments: result.rows, pagination: result.pagination });
   };
 
   createPayment = async (req: Request, res: Response) => {
@@ -61,7 +67,8 @@ export class KeToanController {
   };
 
   listPayroll = async (req: Request, res: Response) => {
-    res.status(200).json({ payroll: await this.keToan.listPayroll(readPayrollSearch(req)) });
+    const result = await this.keToan.pagePayroll(readPayrollSearch(req), readPagination(req));
+    res.status(200).json({ payroll: result.rows, pagination: result.pagination });
   };
 
   createPayroll = async (req: Request, res: Response) => {
@@ -69,7 +76,8 @@ export class KeToanController {
   };
 
   listExpenses = async (req: Request, res: Response) => {
-    res.status(200).json({ expenses: await this.keToan.listExpenses(readExpenseSearch(req)) });
+    const result = await this.keToan.pageExpenses(readExpenseSearch(req), readPagination(req));
+    res.status(200).json({ expenses: result.rows, pagination: result.pagination });
   };
 
   createExpense = async (req: Request, res: Response) => {

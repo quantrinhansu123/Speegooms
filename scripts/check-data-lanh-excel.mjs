@@ -24,7 +24,7 @@ window.fetch = async (url, options = {}) => {
     customers.push(row);
     return Response.json({ row });
   }
-  if (url === "/api/data-lanh") return Response.json({ rows: customers });
+  if (new URL(String(url), location.origin).pathname === "/api/data-lanh") return Response.json({ rows: customers, page:1,pages:1,total:customers.length,pageSize:20,scopeTotal:customers.length,unassigned:0,interns:[],statusCounts:{} });
   if (String(url).startsWith("/api/data-lanh/export")) {
     return window.failExport ? new Response("failed", { status: 500 }) : new Response("Excel fixture", { headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
   }
@@ -63,10 +63,10 @@ try {
   await page.getByText(/Đã thêm 2, cập nhật 0, bỏ qua 1/).waitFor();
   await page.getByText(/Dòng 4: Tên quá dài/).waitFor();
   await page.evaluate(() => { window.failImport = true; window.failExport = true; });
-  const loads = await page.evaluate(() => window.calls.filter(call => call.url === "/api/data-lanh" && call.method === "GET").length);
+  const loads = await page.evaluate(() => window.calls.filter(call => new URL(call.url, location.origin).pathname === "/api/data-lanh" && call.method === "GET").length);
   await page.locator('input[type="file"]').setInputFiles({ name: "retry.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from("fixture") });
   await page.getByText(/Import bị gián đoạn/).waitFor();
-  await page.waitForFunction(count => window.calls.filter(call => call.url === "/api/data-lanh" && call.method === "GET").length > count, loads);
+  await page.waitForFunction(count => window.calls.filter(call => new URL(call.url, location.origin).pathname === "/api/data-lanh" && call.method === "GET").length > count, loads);
   await page.getByRole("button", { name: "Tải Excel", exact: true }).click();
   await page.getByText("Không tải được Excel. Vui lòng thử lại.").waitFor();
   for (const role of ["ban-gd", "sale-intern", "admin", "sale-global"]) {

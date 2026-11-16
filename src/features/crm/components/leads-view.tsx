@@ -56,7 +56,7 @@ export function LeadsView() {
     [data.leads, temp, source, care, owner, route, query],
   );
   const listTools = useListTools(filtered, { filename: "speego-leads.csv", name: (r) => r.contactName, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.messId }, { label: "Tên / nội dung", value: (r) => r.contactName }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "source", value: (r) => r.source }, { label: "status", value: (r) => r.careStatus }, { label: "owner_id", value: (r) => r.ownerId }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
   const owners = all.staff.filter((s) => s.team === "sale-vn" || s.team === "sale-global");
   const filtering = listTools.filtering || !!(query || temp || source || care || owner || route);
 

@@ -20,6 +20,16 @@ export interface ExpenseListSearch extends ListSearch {
   status: string;
 }
 
+export interface LedgerListSearch extends ListSearch { kind: string; category: string }
+
+export function ledgerSearch(input: LedgerListSearch): SearchBuilder {
+  return new SearchBuilder()
+    .add(new TextSearchCriterion(input.q, [sql("l.doi_tuong"), sql("l.ma_don_hang"), sql("h.ten_khach_hang"), sql("l.ma_tham_chieu"), sql("l.tai_khoan_nhan")]))
+    .add(new DateRangeCriterion(sql("l.ngay"), input.from, input.to, "date"))
+    .add(new ExactMatchCriterion(sql("l.loai::text"), input.kind))
+    .add(new ExactMatchCriterion(sql("l.khoan_muc::text"), input.category));
+}
+
 /** Tìm theo mã, đơn hàng, người nhận, mã tham chiếu, tên khách và nội dung thanh toán. */
 const paymentTextColumns = [
   sql("d.ma_hien_thi"),

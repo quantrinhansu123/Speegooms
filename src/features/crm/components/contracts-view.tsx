@@ -29,7 +29,7 @@ export function ContractsView({ routeScope, accounting = false }: { routeScope?:
     (c) => (!deposit || c.deposit.status === deposit) && matchesQuery(query, c.orderId, c.contractNo, c.rfqId, c.messId, customerName.get(c.customerId)),
   );
   const listTools = useListTools(filtered, { filename: "speego-contracts.csv", name: (r) => r.contractNo, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.orderId }, { label: "Tên / nội dung", value: (r) => r.contractNo }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "currency", value: (r) => r.currency }, { label: "value", value: (r) => r.value }, { label: "status", value: (r) => r.status }, { label: "deposit_status", value: (r) => r.deposit.status }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<Contract>[] = [
     { key: "order", header: "order_id", cell: (c) => <Link href={`/crm/hop-dong/${c.orderId}`} className="font-mono text-xs font-medium text-primary hover:underline">{c.orderId}</Link> },

@@ -64,7 +64,7 @@ export function useCrm(route?: RouteCode) {
 }
 
 /** Phân trang phía client: tự kẹp trang khi danh sách ngắn lại. */
-export function usePagination<T>(items: T[], pageSize = 15, resetKey = "") {
+export function usePagination<T>(items: T[], pageSize = 20, resetKey = "") {
   const [requested, setRequested] = useState({ page: 1, key: resetKey });
   const pages = Math.max(1, Math.ceil(items.length / pageSize));
   const page = Math.min(requested.key === resetKey ? requested.page : 1, pages);

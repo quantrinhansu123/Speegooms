@@ -1,5 +1,11 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
+import { useListData } from "@/features/accounting/live/list-query";
+
+import type { PageInfo } from "@speego/shared";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
 import { quoteVndAmount } from "@speego/shared";
 
 import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, logisticsOrderFromSourcing, sourcingHandoffOrder } from "@speego/shared";
@@ -163,6 +169,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const canCreateContract = contractRoles.includes(user.role);
   const contentEditMode = canContent ? "content" as const : "none" as const;
   const [rows, setRows] = useState<RfqQuoteRecord[]>([]);
+  const [listLoading, setListLoading] = useState(true);
   const rowsWithTotals = useMemo(() => rows.map((row) => ({
     row,
     sourcingTotal: row.desk === "sourcing" && quoteIssued(row.quoteStatus) ? quoteVndAmount(row, "sourcing") : null,
@@ -170,7 +177,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       ? (quoteIssued(row.quoteStatus) ? quoteVndAmount(row, "logistics") : null)
       : row.logisticsSheet && quoteIssued(logisticsQuote(row)?.quoteStatus) ? quoteVndAmount(logisticsQuote(row), "logistics") : null,
   })), [rows]);
-  const [potentials, setPotentials] = useState<PotentialRecord[]>([]);
+  const [potentialSearch, setPotentialSearch] = useState("");
+  const [potentialChoice, setPotentialChoice] = useState<PotentialRecord | null>(null);
   const [error, setError] = useState<string>();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [formError, setFormError] = useState<string>();
@@ -189,17 +197,22 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [outcomePending, setOutcomePending] = useState(false);
   const [returning, setReturning] = useState<RfqQuoteRecord | null>(null);
   const quoteRequest = useRef(0);
-  const potentialRequest = useRef(0);
+  const potentialData = useListData<PotentialRecord>(crmPath("/api/crm/potentials", lane), "potentials", { q: potentialSearch }, "Không tải được khách hàng tiềm năng", true, Boolean(draft));
+  const potentials = potentialChoice && !potentialData.rows.some(row => row.id === potentialChoice.id) ? [potentialChoice, ...potentialData.rows] : potentialData.rows;
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", deskFilter: "" });
+  const paging = useServerPagination(lane + JSON.stringify(filters.applied), "quote");
+  const { query: pageQuery, receive: receivePage } = paging;
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
   const loadQuotes = useCallback(() => {
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
+      setListLoading(false);
       setError(rangeError);
       return;
     }
     const id = ++quoteRequest.current;
+    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       quoteStatus: filters.applied.quoteStatus,
@@ -207,17 +220,13 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
       customerKind: filters.applied.customerKind,
       deskFilter: filters.applied.deskFilter,
     });
-    api<{ quotes: RfqQuoteRecord[] }>(`${crmPath("/api/crm/rfq-quotes", lane)}${query}`)
-      .then((body) => { if (quoteRequest.current === id) setRows(body.quotes); })
-      .catch((err: unknown) => { if (quoteRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
-  }, [filters.applied, lane]);
+    api<{ quotes: RfqQuoteRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/rfq-quotes", lane)}${query}${pageQuery}`)
+      .then((body) => { if (quoteRequest.current === id) { setRows(body.quotes); receivePage(body.pagination); } })
+      .catch((err: unknown) => { if (quoteRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); })
+      .finally(() => { if (quoteRequest.current === id) setListLoading(false); });
+  }, [filters.applied, lane, pageQuery, receivePage]);
 
-  const loadPotentials = useCallback(() => {
-    const id = ++potentialRequest.current;
-    api<{ potentials: PotentialRecord[] }>(crmPath("/api/crm/potentials", lane))
-      .then((body) => { if (potentialRequest.current === id) setPotentials(body.potentials); })
-      .catch((err: unknown) => { if (potentialRequest.current === id) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); });
-  }, [lane]);
+  const loadPotentials = potentialData.reload;
 
   const load = useCallback(() => {
     loadQuotes();
@@ -235,10 +244,6 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
     loadQuotes();
   }, [loadQuotes]);
 
-  useEffect(() => {
-    setPotentials([]);
-    loadPotentials();
-  }, [loadPotentials]);
 
   /** Sourcing, Logistics hoặc Sale gửi qua lại: tải lại báo giá và khách tiềm năng mỗi 30 giây, và ngay khi có thông báo mới. */
   usePolling(load);
@@ -261,6 +266,8 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
   const selected = potentials.find((row) => row.id === draft?.potentialId);
 
   const openCreate = () => {
+    setPotentialSearch("");
+    setPotentialChoice(null);
     setDraft({ id: null, potentialId: "", desk: null });
     setFormError(undefined);
   };
@@ -485,10 +492,11 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {listLoading && <tr><td colSpan={15} role="status" className="px-3 py-8 text-center text-muted-foreground">Đang tải…</td></tr>}
+            {!listLoading && rows.length === 0 && (
               <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
-            {rowsWithTotals.map(({ row, sourcingTotal, logisticsTotal }) => {
+            {(listLoading ? [] : rowsWithTotals).map(({ row, sourcingTotal, logisticsTotal }) => {
               const canHandleRow = canHandleCrm(user, row);
               const canWriteRow = canWrite && canHandleRow;
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
@@ -607,6 +615,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={listLoading} />
 
       <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
         <DialogContent className="sm:max-w-lg">
@@ -622,11 +631,14 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                 required
                 hint={`Chỉ khách tuyến ${laneName(lane)}${draft.desk ? `, cùng bàn ${deskLabels[draft.desk]}` : ""}.`}
               >
-                <NativeSelect id="rfq-potential" value={draft.potentialId} onChange={(event) => setDraft({ ...draft, potentialId: event.target.value })}>
+                <Input aria-label="Tìm khách hàng tiềm năng" placeholder="Tìm mã, tên, SĐT…" value={potentialSearch} maxLength={200} onChange={event => setPotentialSearch(event.target.value)} />
+                <NativeSelect id="rfq-potential" value={draft.potentialId} onChange={(event) => { setPotentialChoice(potentials.find(row => row.id === event.target.value) ?? null); setDraft({ ...draft, potentialId: event.target.value }); }}>
                   <option value="">Chọn khách</option>
                   {choices.map((row) => <option key={row.id} value={row.id}>{optionLabel(row)}</option>)}
                 </NativeSelect>
               </Field>
+              <ServerPagination paging={potentialData.paging} loading={potentialData.loading} />
+              {potentialData.error && <InlineAlert>{potentialData.error}</InlineAlert>}
               {choices.length === 0 && (
                 <p className="text-sm text-muted-foreground">Chưa có khách hàng tiềm năng phù hợp trên tuyến {laneName(lane)}.</p>
               )}

@@ -175,3 +175,17 @@ export interface ProposalUser {
   department: string;
   title: string;
 }
+
+export const proposalListSchema = z.object({
+  tab: z.enum(["inbox", "sent", "admin"]).default("inbox"),
+  filter: z.enum(["todo", "watch", "done", "all"]).default("todo"),
+  q: z.string().trim().max(200).default(""),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  requester: z.string().max(64).default(""),
+});
+export type ProposalListSearch = z.infer<typeof proposalListSchema>;
+export type ProposalStatsRow = {
+  id: string; code: string; name: string; total: number; pending: number; approved: number; rejected: number;
+  leaveApproved: number; leaveRejected: number; byTemplate: Record<string, number>;
+};

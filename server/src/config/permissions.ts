@@ -51,5 +51,5 @@ export const permissions = {
 export type Permission = keyof typeof permissions;
 
 export function can(role: Role, action: Permission): boolean {
-  return (permissions[action] as readonly Role[]).includes(role);
+  return (permissions[action] as readonly Role[]).includes(role === "marketing-lead" ? "marketing" : role);
 }

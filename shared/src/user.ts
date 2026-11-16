@@ -5,6 +5,8 @@ export const roleSchema = z.enum([
   "admin",
   "ban-gd",
   "marketing",
+  "marketing-lead",
+  "marketing-content",
   "sale-vn",
   "sale-global",
   "sale-global-lead",

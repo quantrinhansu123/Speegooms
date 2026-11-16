@@ -40,6 +40,8 @@ export const roleConfig: Record<Role, RoleConfig> = {
     ],
   },
   marketing: { label: "Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/crm/mess", "/de-xuat"] },
+  "marketing-lead": { label: "Leader Marketing", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/crm/mess", "/de-xuat"] },
+  "marketing-content": { label: "Marketing Content", dashboard: "department", department: "marketing", modules: ["/dashboard", "/marketing", "/de-xuat"] },
   "sale-vn": {
     label: "Sale Việt Nam",
     dashboard: "department",

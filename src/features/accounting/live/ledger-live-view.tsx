@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ServerPagination } from "@/components/shared/server-pagination";
+
+import { useEffect, useState } from "react";
 import { ChevronDown, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Combobox } from "@base-ui/react/combobox";
 import {
-  quoteCurrencies, ledgerAmountVnd, ledgerMatchesStatement, ledgerIncomeInCurrency, createReceivingAccountSchema,
+  quoteCurrencies, ledgerAmountVnd, createReceivingAccountSchema,
   createLedgerEntrySchema, createStatementSchema, ledgerCategories, ledgerCategoryLabels,
   type CreateLedgerEntryInput, type CreateStatementInput,
 } from "@speego/shared";
@@ -21,10 +23,10 @@ import { RowMenu } from "@/features/crm/live/row-menu";
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { useSession } from "@/features/auth/session-provider";
 import { canPerform } from "@/config/permissions";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, fetchListPages } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { matchesQuery } from "@/lib/text";
-import { useListData } from "./list-query";
+import { listQuery, useListData } from "./list-query";
 import { LedgerExcelActions } from "./ledger-excel-actions";
 
 type LedgerEntry = {
@@ -208,38 +210,32 @@ function EntryDialog({
 export function LedgerLiveView() {
   const user = useSession();
   const canWrite = canPerform(user.role, "ledger.write");
-  const ledger = useListData<LedgerEntry>("/api/ke-toan/ledger", "entries", {}, "Không tải được sổ thu chi");
-  const statements = useListData<Statement>("/api/ke-toan/statements", "statements", {}, "Không tải được sao kê");
+  const filters = useAppliedSearch({ q: "", from: "", to: "", kind: "", category: "" });
+  const [reconciling, setReconciling] = useState<LedgerEntry | null>(null);
+  const ledger = useListData<LedgerEntry>("/api/ke-toan/ledger", "entries", filters.applied, "Không tải được sổ thu chi", true);
+  const statements = useListData<Statement>("/api/ke-toan/statements", "statements", {}, "Không tải được sao kê", true);
+  const candidateStatements = useListData<Statement>("/api/ke-toan/statements", "statements", { candidateFor: reconciling?.id ?? "" }, "Không tải được sao kê phù hợp", true, Boolean(reconciling));
   const [orders, setOrders] = useState<Order[]>([]);
   const accounts = useListData<string>("/api/ke-toan/receiving-accounts", "accounts", {}, "Không tải được tài khoản nhận");
   const [incomeCurrency, setIncomeCurrency] = useState("USD");
   const [mode, setMode] = useState<Mode | null>(null);
-  const [reconciling, setReconciling] = useState<LedgerEntry | null>(null);
   const [viewing, setViewing] = useState<LedgerEntry | null>(null);
   const [editing, setEditing] = useState<LedgerEntry | null>(null);
   const [removing, setRemoving] = useState<LedgerEntry | null>(null);
   const [statementId, setStatementId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const filters = useAppliedSearch({ q: "", from: "", to: "", kind: "", category: "" });
   useEffect(() => {
     api<{ orders: Order[] }>("/api/ke-toan/ledger-orders")
       .then((body) => setOrders(body.orders))
       .catch((cause) => setError(cause instanceof ApiError ? cause.message : "Không tải được đơn hàng"));
   }, []);
   const reload = () => { ledger.reload(); statements.reload(); accounts.reload(); };
-  const rows = useMemo(() => ledger.rows.filter((row) => {
-    const f = filters.applied;
-    const q = f.q.trim().toLocaleLowerCase();
-    return (!q || [row.counterparty, row.orderCode ?? "", row.customerName ?? "", row.reference ?? "", row.receivingAccount ?? ""].some((v) => v.toLocaleLowerCase().includes(q)))
-      && (!f.from || row.date >= f.from) && (!f.to || row.date <= f.to)
-      && (!f.kind || row.kind === f.kind) && (!f.category || row.category === f.category);
-  }), [ledger.rows, filters.applied]);
-  const thu = rows.filter((row) => row.kind === "THU").reduce((sum, row) => sum + row.amountVnd, 0);
-  const chi = rows.filter((row) => row.kind === "CHI").reduce((sum, row) => sum + row.amountVnd, 0);
-  const unmatched = statements.rows.filter((row) => !row.ledgerId);
-  const candidates = reconciling ? unmatched.filter((row) =>
-    ledgerMatchesStatement(reconciling, row)) : [];
+  const rows = ledger.rows;
+  const thu = Number(ledger.paging.summary.thu ?? 0);
+  const chi = Number(ledger.paging.summary.chi ?? 0);
+  const unmatchedCount = Number(statements.paging.summary.unmatchedCount ?? 0);
+  const candidates = candidateStatements.rows;
   const remove = async () => {
     if (!removing) return;
     try {
@@ -262,7 +258,7 @@ export function LedgerLiveView() {
   return <>
     <PageHeader className="[&>div:last-child]:max-w-full" title="Thu chi & đối soát" description="Sổ thu chi và sao kê lưu trên hệ thống. Đối soát theo loại, loại tiền, số tiền và đơn hàng. Tổng thu/chi tính theo VND."
       actions={<div className="flex flex-wrap gap-2">
-        <LedgerExcelActions rows={rows} canWrite={canWrite} loading={ledger.loading || !!ledger.error} onDone={reload} />
+        <LedgerExcelActions total={ledger.paging.total} loadRows={() => fetchListPages<LedgerEntry>(`/api/ke-toan/ledger${listQuery(filters.applied)}`, "entries")} canWrite={canWrite} loading={ledger.loading || !!ledger.error} onDone={reload} />
         {canWrite && <>
         <Button variant="outline" onClick={() => setMode("statement")}>Nhập sao kê</Button>
         <Button onClick={() => setMode("ledger")}><Plus aria-hidden /> Nhập mới</Button>
@@ -275,12 +271,12 @@ export function LedgerLiveView() {
       <div className="rounded-lg border p-4">
         <label htmlFor="ledger-income-currency" className="block text-sm text-muted-foreground">Tổng thu ngoại tệ</label>
         <div className="flex flex-wrap items-start justify-between gap-x-2">
-          <p className="text-xl font-semibold" aria-live="polite">{formatMoney(ledgerIncomeInCurrency(rows, incomeCurrency), incomeCurrency)}</p>
+          <p className="text-xl font-semibold" aria-live="polite">{formatMoney(Number((ledger.paging.summary.incomeByCurrency as Record<string, number> | undefined)?.[incomeCurrency] ?? 0), incomeCurrency)}</p>
           <NativeSelect id="ledger-income-currency" className="h-7 w-20 px-2" value={incomeCurrency} onChange={event => setIncomeCurrency(event.target.value)}>
             {quoteCurrencies.filter(code => code !== "VND").map(code => <option key={code} value={code}>{code}</option>)}
           </NativeSelect></div>
       </div>
-      <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Sao kê chưa khớp</p><p className="text-xl font-semibold">{unmatched.length}</p></div>
+      <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Sao kê chưa khớp</p><p className="text-xl font-semibold">{unmatchedCount}</p></div>
     </div>
     <ListSearchBar q={filters.draft.q} from={filters.draft.from} to={filters.draft.to}
       onQ={(v) => filters.set("q", v)} onFrom={(v) => filters.set("from", v)} onTo={(v) => filters.set("to", v)}
@@ -310,6 +306,7 @@ export function LedgerLiveView() {
         </tr>)}
       </tbody>
     </table></TableHScroll>
+    <ServerPagination paging={ledger.paging} loading={ledger.loading} />
     {editing && <EntryDialog mode="ledger" orders={orders} accounts={accounts.rows} onAccountAdded={() => accounts.reload()} entry={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     <ConfirmDialog open={removing !== null} onOpenChange={(open) => { if (!open) setRemoving(null); }} destructive
       title="Xóa khoản thu chi?" description={removing ? `${removing.counterparty} · ${formatMoney(removing.amount, removing.currency)} sẽ bị xóa.` : ""}
@@ -347,6 +344,8 @@ export function LedgerLiveView() {
           <option value="">Chọn dòng sao kê</option>
           {candidates.map((row) => <option key={row.id} value={row.id}>{row.date} · {row.counterparty} · {formatMoney(row.amount, row.currency)}</option>)}
         </NativeSelect>
+        <ServerPagination paging={{ ...candidateStatements.paging, setPage: (page) => { setStatementId(""); candidateStatements.paging.setPage(page); } }} loading={candidateStatements.loading} />
+        {candidateStatements.error && <InlineAlert>{candidateStatements.error}</InlineAlert>}
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setReconciling(null)}>Hủy</Button>
           <Button disabled={busy || !statementId} onClick={() => void reconcile()}>{busy ? "Đang lưu…" : "Xác nhận đối soát"}</Button></DialogFooter>

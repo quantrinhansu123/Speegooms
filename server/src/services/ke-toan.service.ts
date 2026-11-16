@@ -1,5 +1,6 @@
 import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import { AppError } from "../lib/errors";
+import type { PageRequest } from "@speego/shared";
 import type {
   InternalExpenseRecord,
   LedgerRecord,
@@ -10,11 +11,17 @@ import type {
   PaymentRequestRecord,
   PayrollRecord,
 } from "../repositories/ke-toan.repository";
-import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "../search/ke-toan-list-search";
+import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch, LedgerListSearch } from "../search/ke-toan-list-search";
 
 /** Kế toán: đề nghị thanh toán, bảng lương, chi phí nội bộ. Quyền kiểm ở route. */
 export class KeToanService {
   constructor(private readonly repo: KeToanRepository | null) {}
+
+  pagePayments(search: PaymentListSearch, page: PageRequest) { return this.repository().pagePayments(search, page); }
+  pageLedger(search: LedgerListSearch, page: PageRequest) { return this.repository().pageLedger(search, page); }
+  pageStatements(page: PageRequest, candidateFor?: string) { return this.repository().pageStatements(page, candidateFor); }
+  pagePayroll(search: PayrollListSearch, page: PageRequest) { return this.repository().pagePayroll(search, page); }
+  pageExpenses(search: ExpenseListSearch, page: PageRequest) { return this.repository().pageExpenses(search, page); }
 
   listReceivingAccounts(): Promise<string[]> { return this.repository().listReceivingAccounts(); }
   createReceivingAccount(name: string): Promise<string> { return this.repository().createReceivingAccount(name); }

@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { dataLanhListSchema } from "@speego/shared";
 import type { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
 import { AppError } from "../lib/errors";
 import type { NotificationService } from "../services/notification.service";
@@ -24,7 +25,9 @@ export class DataLanhController {
   }
 
   list = async (req: Request, res: Response) => {
-    res.status(200).json({ rows: await this.ready().list(this.scope(req)) });
+    const search = dataLanhListSchema.safeParse(req.query);
+    if (!search.success) throw new AppError(422, "VALIDATION_ERROR", "Bộ lọc hoặc phân trang không hợp lệ");
+    res.status(200).json(await this.ready().listPage(this.scope(req), search.data));
   };
 
   sales = async (_req: Request, res: Response) => {

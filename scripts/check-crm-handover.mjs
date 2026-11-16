@@ -21,7 +21,7 @@ window.fetch = async (rawUrl, options = {}) => {
   if(url.pathname === "/api/crm/sales") return Response.json({sales:[{id:a.id,name:a.name},{id:b.id,name:b.name}]});
   if(url.pathname.endsWith("/history")) return Response.json({history:[{id:"activity-1",actorName:a.name,action:"handover",entity:"potential",previousHandlerName:a.name,handlerName:b.name,createdAt:"2026-11-09T10:00:00Z"}]});
   if(url.pathname.endsWith("/convert")) { Object.assign(potential,{handlerId:b.id,handlerName:b.name}); return Response.json({potential, message}); }
-  if(url.pathname === "/api/crm/potentials") return Response.json({potentials:[potential]});
+  if(url.pathname === "/api/crm/potentials") return Response.json({potentials:[potential],pagination:{page:1,pages:1,total:1,pageSize:20,summary:{}}});
   if(url.pathname === "/api/crm/potentials/" + potential.id && options.method === "PATCH") { Object.assign(potential,JSON.parse(options.body)); return Response.json({potential}); }
   throw new Error("Unexpected request: " + rawUrl);
 };

@@ -42,7 +42,7 @@ export function SourcingRequestsView() {
         matchesQuery(query, r.requestId, r.rfqId, rfqById.get(r.rfqId)?.goodsName, customerName.get(r.customerId)),
     );
   const listTools = useListTools(filtered, { filename: "speego-sourcing-requests.csv", name: (r) => r.rfqId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.requestId }, { label: "Tên / nội dung", value: (r) => r.rfqId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "status", value: (r) => r.status }, { label: "due_on", value: (r) => r.dueOn }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
   const waiting = ops.requests.filter((r) => r.status === "moi" || r.status === "dang-tim").length;
 
   const columns: Column<SourcingRequest>[] = [

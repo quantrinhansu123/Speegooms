@@ -14,11 +14,12 @@ const orders = [
 const saved = [];
 const backend = createServer(async (req, res) => {
   res.setHeader("content-type", "application/json");
+  const pathname = new URL(req.url, "http://localhost").pathname;
   let body = {};
   if (req.url === "/api/auth/me") body = { user: { id: "test", name: "Test", email: "test@example.com", role: "ke-toan", department: "Kế toán", title: "Test" } };
   if (req.url === "/api/ke-toan/ledger-orders") body = { orders };
-  if (req.url === "/api/ke-toan/ledger") body = { entries: [] };
-  if (req.url === "/api/ke-toan/statements") body = { statements: [] };
+  if (pathname === "/api/ke-toan/ledger") body = { entries: [], pagination: { page: 1, pages: 1, total: 0, pageSize: 20, summary: { thu: 0, chi: 0, incomeByCurrency: {} } } };
+  if (pathname === "/api/ke-toan/statements") body = { statements: [], pagination: { page: 1, pages: 1, total: 0, pageSize: 20, summary: { unmatchedCount: 0 } } };
   if (req.url === "/api/security/csrf") body = { token: "test" };
   if (req.method === "POST") {
     let raw = "";

@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, CheckCircle2, Eye, Inbox, Paperclip, Plus, Search, Trash2 } from "lucide-react";
-import type { ProposalDecision, ProposalRecord, ProposalTemplateRecord, ProposalUser } from "@speego/shared";
+import type { PageInfo, ProposalDecision, ProposalRecord, ProposalTemplateRecord, ProposalUser } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InlineAlert } from "@/components/shared/form-fields";
@@ -13,11 +15,10 @@ import { Input } from "@/components/ui/input";
 import { useSession } from "@/features/auth/session-provider";
 import { clearOpenContractParams, OPEN_CONTRACT_EVENT, readOpenContractFromUrl, type OpenContractDetail } from "@/features/notifications/open-contract";
 import { ApiError, api } from "@/lib/api";
-import { matchesQuery } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { ApprovalCreate } from "./approval-create";
 import { ApprovalDetail } from "./approval-detail";
-import { Avatar, formatDay, formatDateTime, isFinished, isMyTurn, statusMeta, summaryChip } from "./approval-shared";
+import { Avatar, formatDay, formatDateTime, isMyTurn, statusMeta, summaryChip } from "./approval-shared";
 import { ApprovalStats } from "./approval-stats";
 import { ApprovalTemplates } from "./approval-templates";
 
@@ -50,14 +51,29 @@ export function ApprovalsView() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingOpen, setPendingOpen] = useState<string | null>(() => readOpenContractFromUrl()?.id ?? null);
 
-  const loadRows = useCallback(() => api<{ rows: ProposalRecord[] }>(`/api/de-xuat${canReview ? "?scope=all" : ""}`).then((b) => setRows(b.rows)), [canReview]);
+  const paging = useServerPagination(JSON.stringify({ tab, filter, search }));
+  const { query: pageQuery, receive: receivePage } = paging;
+  const rowRequest = useRef(0);
+  const [detailRow, setDetailRow] = useState<ProposalRecord | null>(null);
+  const loadRows = useCallback(async () => {
+    if (tab === "stats" || tab === "templates") return;
+    const request = ++rowRequest.current;
+    const query = new URLSearchParams({ tab, filter, q: search });
+    const body = await api<{ rows: ProposalRecord[]; pagination: PageInfo }>(`/api/de-xuat?${query}${pageQuery}`);
+    if (request === rowRequest.current) { setRows(body.rows); receivePage(body.pagination); }
+  }, [tab, filter, search, pageQuery, receivePage]);
   const loadTemplates = useCallback(() => api<{ templates: ProposalTemplateRecord[] }>("/api/de-xuat/templates").then((b) => setTemplates(b.templates)), []);
 
   useEffect(() => {
-    Promise.all([loadRows(), loadTemplates(), api<{ users: ProposalUser[] }>("/api/de-xuat/users").then((b) => setUsers(b.users))])
+    Promise.all([loadTemplates(), api<{ users: ProposalUser[] }>("/api/de-xuat/users").then((b) => setUsers(b.users))])
       .catch((err: unknown) => setError(errorText(err, "Không tải được dữ liệu đề xuất")))
       .finally(() => setLoading(false));
-  }, [loadRows, loadTemplates]);
+  }, [loadTemplates]);
+  useEffect(() => {
+    let active = true;
+    void loadRows().catch((err: unknown) => { if (active) setError(errorText(err, "Không tải được danh sách đề xuất")); });
+    return () => { active = false; };
+  }, [loadRows]);
 
   // Bấm thông báo trên chuông (hoặc mở link ?id=): vào thẳng chi tiết đề xuất đó.
   useEffect(() => {
@@ -72,25 +88,26 @@ export function ApprovalsView() {
     if (pendingOpen) clearOpenContractParams();
   }, [pendingOpen]);
 
+  const detailId = pendingOpen ?? (screen.name === "detail" ? screen.id : null);
+  const loadDetail = useCallback(async () => {
+    if (!detailId) return;
+    const body = await api<{ row: ProposalRecord }>(`/api/de-xuat/${detailId}`);
+    setDetailRow(body.row);
+  }, [detailId]);
+  useEffect(() => {
+    let active = true;
+    if (detailId) api<{ row: ProposalRecord }>(`/api/de-xuat/${detailId}`)
+      .then(body => { if (active) setDetailRow(body.row); })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); });
+    return () => { active = false; };
+  }, [detailId]);
+
   const go = (next: Screen) => { setPendingOpen(null); setScreen(next); };
 
-  const reload = () => loadRows().catch((err: unknown) => setError(errorText(err, "Không tải lại được danh sách")));
+  const reload = () => Promise.all([loadRows(), loadDetail()]).catch((err: unknown) => setError(errorText(err, "Không tải lại được danh sách")));
 
-  const { todo, watch, done } = useMemo(() => {
-    const me = user.id;
-    const mine = (r: ProposalRecord) => r.steps.some((s) => s.approverId === me);
-    const base = tab === "inbox" ? rows.filter((r) => mine(r) || r.followers.some((f) => f.id === me))
-      : tab === "sent" ? rows.filter((r) => r.requesterId === me) : rows;
-    const pending = base.filter((r) => !isFinished(r));
-    // Gửi đến: "Cần làm" là đề xuất đang đến lượt mình; "Hoàn thành" là đề xuất mình đã xử lý hoặc đang theo dõi và đã xong.
-    const todo = tab === "inbox" ? pending.filter((r) => isMyTurn(r, me)) : pending;
-    // Đang theo dõi: đề xuất còn chờ mà mình là người theo dõi hoặc người duyệt ở bước sau (chưa đến lượt).
-    const watch = tab === "inbox" ? pending.filter((r) => !isMyTurn(r, me)) : [];
-    const done = tab === "inbox" ? base.filter((r) => r.steps.some((s) => s.approverId === me && s.decision) || (isFinished(r) && r.followers.some((f) => f.id === me))) : base.filter(isFinished);
-    return { todo, watch, done };
-  }, [rows, tab, user.id]);
-
-  const active = (filter === "todo" ? todo : filter === "watch" ? watch : done).filter((r) => matchesQuery(search, `${r.subject} ${r.content} ${r.code} ${r.requesterName}`));
+  const active = rows;
+  const counts = paging.summary;
   const canDelete = filter === "done" && (tab === "sent" || (tab === "admin" && user.role === "admin"));
 
   const decide = (row: ProposalRecord, decision: ProposalDecision, comment = "") => {
@@ -117,14 +134,14 @@ export function ApprovalsView() {
   if (loading) return <p className="py-10 text-center text-muted-foreground">Đang tải dữ liệu...</p>;
 
   // Mở từ thông báo: hiện chi tiết ngay khi danh sách đã có đề xuất đó.
-  const shownScreen: Screen = pendingOpen && rows.some((r) => r.id === pendingOpen) ? { name: "detail", id: pendingOpen } : screen;
+  const shownScreen: Screen = pendingOpen ? { name: "detail", id: pendingOpen } : screen;
 
   if (shownScreen.name === "create") {
     const template = templates.find((t) => t.id === shownScreen.templateId) ?? templates[0];
     if (template) {
       return (
         <ApprovalCreate
-          template={template} templates={templates} users={users} rows={rows} me={user}
+          template={template} templates={templates} users={users} me={user}
           onBack={back}
           onCreated={() => { setNotice("Đã nộp yêu cầu"); setTab("sent"); setFilter("todo"); go({ name: "list" }); void reload(); }}
         />
@@ -132,8 +149,9 @@ export function ApprovalsView() {
     }
   }
   if (shownScreen.name === "detail") {
-    const row = rows.find((r) => r.id === shownScreen.id);
+    const row = detailRow?.id === shownScreen.id ? detailRow : rows.find((r) => r.id === shownScreen.id);
     if (row) return <ApprovalDetail row={row} me={user} onBack={back} onChanged={() => void reload()} deciding={deciding} error={error} onDecide={(decision, comment) => decide(row, decision, comment)} />;
+    return <div className="space-y-4"><Button variant="outline" onClick={back}>Quay lại</Button>{error ? <InlineAlert>{error}</InlineAlert> : <p role="status">Đang tải đề xuất…</p>}</div>;
   }
 
   const tabs: [Tab, string][] = [["inbox", "Gửi đến"], ["sent", "Gửi đi"], ...(canReview ? [["admin", "Quản trị"] as [Tab, string]] : []), ["templates", "Mẫu yêu cầu"], ...(canReview ? [["stats", "Thống kê"] as [Tab, string]] : [])];
@@ -150,7 +168,7 @@ export function ApprovalsView() {
 
       <div className="relative mb-4 max-w-xl">
         <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="Tìm kiếm" className="pl-9" value={search} placeholder={tab === "stats" ? "Tìm theo mã NV, họ tên..." : "Tìm kiếm"} onChange={(e) => setSearch(e.target.value)} />
+        <Input aria-label="Tìm kiếm" className="pl-9" value={search} maxLength={200} placeholder={tab === "stats" ? "Tìm theo mã NV, họ tên..." : "Tìm kiếm"} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       <div role="tablist" aria-label="Đề xuất" className="no-scrollbar mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b">
@@ -165,13 +183,13 @@ export function ApprovalsView() {
       {tab === "templates" ? (
         <ApprovalTemplates templates={templates} users={users} search={search} canManage={canManageTemplates} onUse={(t) => openCreate(t.id)} onChanged={() => void loadTemplates()} />
       ) : tab === "stats" ? (
-        <ApprovalStats rows={rows} search={search} onOpen={(id) => go({ name: "detail", id })} />
+        <ApprovalStats search={search} onOpen={(id) => go({ name: "detail", id })} />
       ) : (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Button variant={filter === "todo" ? "default" : "outline"} onClick={() => setFilter("todo")}><Inbox /> {tab === "inbox" ? "Cần làm" : "Đang xử lý"} ({todo.length})</Button>
-            {tab === "inbox" && <Button variant={filter === "watch" ? "default" : "outline"} onClick={() => setFilter("watch")}><Eye /> Theo dõi ({watch.length})</Button>}
-            <Button variant={filter === "done" ? "default" : "outline"} onClick={() => setFilter("done")}><CheckCircle2 /> {tab === "admin" ? "Đã xong" : "Hoàn thành"} ({done.length})</Button>
+            <Button variant={filter === "todo" ? "default" : "outline"} onClick={() => setFilter("todo")}><Inbox /> {tab === "inbox" ? "Cần làm" : "Đang xử lý"} ({Number(counts.todo ?? 0)})</Button>
+            {tab === "inbox" && <Button variant={filter === "watch" ? "default" : "outline"} onClick={() => setFilter("watch")}><Eye /> Theo dõi ({Number(counts.watch ?? 0)})</Button>}
+            <Button variant={filter === "done" ? "default" : "outline"} onClick={() => setFilter("done")}><CheckCircle2 /> {tab === "admin" ? "Đã xong" : "Hoàn thành"} ({Number(counts.done ?? 0)})</Button>
             {canDelete && active.length > 0 && (
               <div className="ml-auto flex items-center gap-3 text-sm">
                 <label className="flex items-center gap-2">
@@ -229,6 +247,7 @@ export function ApprovalsView() {
               })}
             </ul>
           )}
+          <ServerPagination paging={paging} />
         </>
       )}
       <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title="Xóa đề xuất đã chọn?" description={`Xóa ${active.filter((r) => selected.has(r.id)).length} đề xuất đã hoàn thành. Không hoàn tác được.`} confirmLabel="Xóa" destructive onConfirm={removeSelected} />

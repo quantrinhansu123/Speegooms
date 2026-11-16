@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bell, Paperclip, Plus, Send, Trash2, UserPlus, X } from "lucide-react";
 import {
-  MAX_PROPOSAL_STEPS, leaveDayCount, proposalGroups, proposalPeriodLabels, proposalPeriodRange,
+  MAX_PROPOSAL_STEPS, leaveDayCount, proposalGroups, proposalPeriodLabels,
   type ProposalRecord, type ProposalTemplateRecord, type ProposalUser,
 } from "@speego/shared";
 import { ArrowText } from "@/components/shared/arrow-text";
@@ -17,23 +17,16 @@ import { Avatar, PeopleDialog, today } from "./approval-shared";
 
 type Picker = { kind: "step"; index: number } | { kind: "follower" } | null;
 
-/** Số đơn của mẫu đã dùng trong chu kỳ hiện tại (đơn bị từ chối không tính), khớp cách server đếm. */
-function usedInPeriod(template: ProposalTemplateRecord, rows: ProposalRecord[], userId: string) {
-  const { start, end } = proposalPeriodRange(template.period, new Date());
-  return rows.filter((r) => r.requesterId === userId && r.templateId === template.id && r.status !== "tu-choi" && new Date(r.createdAt) >= start && new Date(r.createdAt) < end).length;
-}
-
 /** Người duyệt mặc định của mẫu (bỏ chính mình); không có thì để 1 bước trống để chọn. */
 const defaultApprovers = (t: ProposalTemplateRecord, meId: string) => {
   const ids = t.approvers.map((a) => a.id).filter((id) => id !== meId);
   return ids.length ? ids : [""];
 };
 
-export function ApprovalCreate({ template: initial, templates, users, rows, me, onBack, onCreated }: {
+export function ApprovalCreate({ template: initial, templates, users, me, onBack, onCreated }: {
   template: ProposalTemplateRecord;
   templates: ProposalTemplateRecord[];
   users: ProposalUser[];
-  rows: ProposalRecord[];
   me: { id: string; name: string; department: string };
   onBack: () => void;
   onCreated: () => void;
@@ -55,12 +48,17 @@ export function ApprovalCreate({ template: initial, templates, users, rows, me, 
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
   const candidates = users.filter((u) => u.id !== me.id);
-  const used = template.limit ? usedInPeriod(template, rows, me.id) : 0;
+  const [usage, setUsage] = useState<{ monthTotal: number; byTemplate: Record<string, number> }>();
+  useEffect(() => {
+    let active = true;
+    api<{ monthTotal: number; byTemplate: Record<string, number> }>("/api/de-xuat/usage")
+      .then(body => { if (active) setUsage(body); })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "Không tải được hạn mức"); });
+    return () => { active = false; };
+  }, []);
+  const used = usage?.byTemplate[template.id] ?? 0;
   const limitReached = template.limit !== null && used >= template.limit;
-  const monthTotal = useMemo(() => {
-    const { start, end } = proposalPeriodRange("month", new Date());
-    return rows.filter((r) => r.requesterId === me.id && new Date(r.createdAt) >= start && new Date(r.createdAt) < end).length;
-  }, [rows, me.id]);
+  const monthTotal = usage?.monthTotal ?? 0;
 
   const pickTemplate = (id: string) => {
     const next = templates.find((t) => t.id === id);

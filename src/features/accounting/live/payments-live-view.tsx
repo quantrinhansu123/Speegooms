@@ -1,5 +1,7 @@
 "use client";
 
+import { ServerPagination } from "@/components/shared/server-pagination";
+
 import { useEffect, useState } from "react";
 import { Plus, Save, X } from "lucide-react";
 import {
@@ -214,7 +216,7 @@ export function PaymentsLiveView() {
   const user = useSession();
   const canCreate = canPerform(user.role, "pay.create");
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", payeeKind: "", purpose: "" });
-  const { rows, loading, error, reload } = useListData<PaymentRecord>("/api/ke-toan/payments", "payments", filters.applied, "Không tải được đề nghị thanh toán");
+  const { rows, loading, error, reload, paging } = useListData<PaymentRecord>("/api/ke-toan/payments", "payments", filters.applied, "Không tải được đề nghị thanh toán", true);
   const [notice, setNotice] = useState<string>();
   const [creating, setCreating] = useState(false);
 
@@ -288,6 +290,7 @@ export function PaymentsLiveView() {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={loading} />
       {creating && (
         <CreatePaymentDialog
           onClose={() => setCreating(false)}

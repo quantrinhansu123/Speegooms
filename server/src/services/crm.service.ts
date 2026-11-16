@@ -24,6 +24,8 @@ import {
   type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import { can } from "../config/permissions";
+import type { PageRequest } from "@speego/shared";
+import { emptyPage } from "../lib/pagination";
 import { AppError } from "../lib/errors";
 import { crmActor } from "../lib/crm-actor";
 import {
@@ -111,6 +113,32 @@ export class CrmService {
   /** Mess chỉ người tạo xem được; Admin và trưởng Sale Global xem tất cả trong tuyến được phép. Không truyền actor = nội bộ, không lọc. */
   listMessages(lane: CrmLane, search: MessageListSearch, actor?: MessageActor): Promise<MessageRecord[]> {
     return this.ready().listMessages(lane, actor && actor.role !== "admin" && actor.role !== "sale-global-lead" ? { ...search, creatorId: actor.id } : search);
+  }
+
+  pageMessages(lane: CrmLane, search: MessageListSearch, page: PageRequest, actor: MessageActor) {
+    return this.ready().pageMessages(lane, actor.role !== "admin" && actor.role !== "sale-global-lead" ? { ...search, creatorId: actor.id } : search, page);
+  }
+
+  pagePotentials(lane: CrmLane, search: PotentialListSearch, page: PageRequest, role: Role) {
+    const allowedKinds = visibleCustomerKinds(role);
+    if (allowedKinds?.length === 0) return Promise.resolve(emptyPage<PotentialRecord>(page));
+    return this.ready().pagePotentials(lane, { ...search, allowedKinds }, page);
+  }
+
+  async pageQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, page: PageRequest, role: Role, allLanes = false) {
+    this.assertDeskView(role, desk);
+    if (allLanes && (role !== "admin" || desk !== "logistics")) throw new AppError(403, "FORBIDDEN", "Không có quyền xem tất cả tuyến");
+    const quoteIds = await this.assignedQuoteIds(lane);
+    if (quoteIds?.length === 0) return emptyPage<QuoteRecord & { lane: CrmLane }>(page);
+    return this.ready().pageQuotes(allLanes ? ["vn", "global"] : [lane], desk, { ...search, quoteIds }, page, visibleKindsForDesk(role, desk));
+  }
+
+  pageRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | QuoteDesk, page: PageRequest) {
+    return this.ready().pageRfqQuotes(lane, search, desk, page);
+  }
+
+  pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest) {
+    return this.ready().pageContracts(lane, sentOnly, view, search, page);
   }
 
   /** Người không phải Admin chạm mess của người khác thì coi như không thấy (404, không lộ sự tồn tại). */

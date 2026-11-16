@@ -1,5 +1,8 @@
 "use client";
 
+import type { PageInfo } from "@speego/shared";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
 import { quoteMarkupPercent, canViewQuoteOriginalPrice, logisticsQuoteFinancials, isCombinedSourcing } from "@speego/shared";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -62,6 +65,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   /** Logistics xem bàn Sourcing (khách thuần sourcing) chỉ đọc; Sale sửa nội dung ở màn RFQ. */
   const editMode = canOps ? ("full" as const) : ("none" as const);
   const [rows, setRows] = useState<DeskQuote[]>([]);
+  const [listLoading, setListLoading] = useState(true);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
   /** quoteId → người được chia đơn (chia xoay vòng giữa nhân sự Vận hành). */
   const [assignees, setAssignees] = useState<Record<string, { id: string; name: string }>>({});
@@ -80,32 +84,36 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [quoteError, setQuoteError] = useState<string>();
   const [modeFilter, setModeFilter] = useState("");
   const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
+  const paging = useServerPagination(lane + JSON.stringify(filters.applied) + selectedLane + desk + modeFilter, "quote");
+  const { query: pageQuery, receive: receivePage } = paging;
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
 
   const loadQuotes = useCallback(() => {
     const version = ++loadVersion.current;
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
+      setListLoading(false);
       setError(rangeError);
       return;
     }
+    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       quoteStatus: filters.applied.quoteStatus,
       contractStatus: filters.applied.contractStatus,
       customerKind: filters.applied.customerKind,
+      mode: desk === "logistics" ? modeFilter : "",
+      allLanes: selectedLane === "all" ? "1" : "",
     });
     const lanes: CrmLane[] = selectedLane === "all" ? ["vn", "global"] : [selectedLane];
-    Promise.all(lanes.map(async (quoteLane) => {
-      const body = await api<{ quotes: QuoteRecord[] }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, quoteLane)}${query}`);
-      return body.quotes.map((row) => ({ ...row, lane: quoteLane }));
-    }))
-      .then((groups) => { if (version === loadVersion.current) setRows(groups.flat().sort((left, right) => right.createdAt.localeCompare(left.createdAt))); })
-      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); });
+    api<{ quotes: DeskQuote[]; pagination: PageInfo }>(`${crmPath(`/api/crm/quotes?desk=${desk}`, selectedLane === "all" ? "vn" : selectedLane)}${query}${pageQuery}`)
+      .then((body) => { if (version === loadVersion.current) { setRows(body.quotes); receivePage(body.pagination); } })
+      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); })
+      .finally(() => { if (version === loadVersion.current) setListLoading(false); });
     Promise.all(lanes.map((quoteLane) => api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${quoteLane}`)))
       .then((bodies) => { if (version === loadVersion.current) setAssignees(Object.assign({}, ...bodies.map((body) => body.assignees))); })
       .catch(() => undefined); // cột người phụ trách chỉ là thông tin thêm, lỗi thì để trống
-  }, [desk, filters.applied, selectedLane]);
+  }, [desk, filters.applied, selectedLane, modeFilter, pageQuery, receivePage]);
 
   const loadTemplates = useCallback(() => {
     if (!canOps) return;
@@ -116,8 +124,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
 
   useEffect(() => {
     loadQuotes();
-    loadTemplates();
-  }, [loadQuotes, loadTemplates]);
+  }, [loadQuotes]);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   useNotificationRefresh(loadQuotes);
   usePolling(loadQuotes);
@@ -189,9 +197,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       .catch((err: unknown) => setTemplateError(err instanceof ApiError ? err.message : "Không xóa được mẫu"));
   };
 
-  const visibleRows = desk === "logistics" && modeFilter
-    ? rows.filter((row) => (row.shippingMode === "AIR" ? "AIR" : row.logisticsClass) === modeFilter)
-    : rows;
+  const visibleRows = listLoading ? [] : rows;
   const showFinancials = desk === "logistics" && canViewQuoteOriginalPrice(user.role);
   const columnCount = 13 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
 
@@ -268,7 +274,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           </thead>
           <tbody>
             {visibleRows.length === 0 && (
-              <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có báo giá."}</td></tr>
+              <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có báo giá."}</td></tr>
             )}
             {visibleRows.map((row) => {
               const financials = showFinancials ? logisticsQuoteFinancials(row) : null;
@@ -328,6 +334,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={listLoading} />
 
       {assignmentOpen && <AssignmentDialog desk={desk} onClose={() => setAssignmentOpen(false)} onChanged={loadQuotes} />}
 

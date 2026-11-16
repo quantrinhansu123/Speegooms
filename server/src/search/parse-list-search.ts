@@ -3,8 +3,10 @@ import {
   customerTypeSchema,
   expenseStatuses,
   leadSourceSchema,
+  ledgerCategories,
   listSearchSchema,
   messageClassificationSchema,
+  messageProcessingOptions,
   messageDemandSchema,
   opsStatusOptions,
   paymentPayeeKinds,
@@ -18,7 +20,7 @@ import {
 import type { Request } from "express";
 import { AppError } from "../lib/errors";
 import type { ContractListSearch, MessageListSearch, PotentialListSearch, QuoteListSearch } from "./crm-list-search";
-import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch } from "./ke-toan-list-search";
+import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch, LedgerListSearch } from "./ke-toan-list-search";
 
 const messageStatuses = ["NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "LOST", "DORMANT"] as const;
 const accountingStatuses = ["DA_HOAN_THANH_COC", "DA_HOAN_THANH_THANH_TOAN", "CHUA_HOAN_THANH_COC", "CHUA_HOAN_THANH_THANH_TOAN"] as const;
@@ -57,6 +59,8 @@ export function readMessageSearch(req: Request): MessageListSearch {
     demand: oneOf(req, "demand", messageDemandSchema.options),
     customerType: oneOf(req, "customerType", customerTypeSchema.options),
     market: queryText(req, "market").trim(),
+    saleName: queryText(req, "saleName").trim().slice(0, 200),
+    processingStatus: oneOf(req, "processingStatus", messageProcessingOptions.map(([value]) => value)),
   };
 }
 
@@ -75,6 +79,7 @@ export function readQuoteSearch(req: Request): QuoteListSearch {
     ...readListSearch(req),
     quoteStatus: oneOf(req, "quoteStatus", quoteStatusSchema.options),
     contractStatus: oneOf(req, "contractStatus", contractQuoteStatusSchema.options),
+    mode: oneOf(req, "mode", ["AIR", "LCL", "FCL"]),
     customerKind: oneOf(req, "customerKind", customerKindSchema.options),
   };
 }
@@ -97,6 +102,10 @@ export function readPayrollSearch(req: Request): PayrollListSearch {
   return { ...readListSearch(req), department: queryText(req, "department").trim().slice(0, 120) };
 }
 
+export function readLedgerSearch(req: Request): LedgerListSearch {
+  return { ...readListSearch(req), kind: oneOf(req, "kind", ["THU", "CHI"]), category: oneOf(req, "category", ledgerCategories) };
+}
+
 export function readExpenseSearch(req: Request): ExpenseListSearch {
   return {
     ...readListSearch(req),
@@ -110,5 +119,6 @@ export function readContractSearch(req: Request): ContractListSearch {
     ...readListSearch(req),
     opsStatus: oneOf(req, "opsStatus", opsStatusOptions),
     accountingStatus: oneOf(req, "accountingStatus", accountingStatuses),
+    customerKind: oneOf(req, "customerKind", ["SOURCING", "LOGISTICS"]),
   };
 }

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { MarketingController } from "../controllers/marketing.controller";
 import type { RequestHandler } from "express";
 import type { Env } from "../config/env";
 import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudinary/upload";
@@ -39,6 +40,7 @@ import { UserAdminService } from "../services/user-admin.service";
  * Controller và service không tự new repository.
  */
 export interface AppContainer {
+  marketingController: MarketingController;
   env: Env;
   authController: AuthController;
   healthController: HealthController;
@@ -77,6 +79,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   if (cloudinary) ensureCloudinary(cloudinary);
 
   return {
+    marketingController: new MarketingController(pool),
     env,
     authController: new AuthController(auth, cookies),
     healthController: new HealthController(new HealthService(repositories.users)),

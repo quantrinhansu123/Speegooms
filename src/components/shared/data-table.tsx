@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Pagination } from "./pagination";
 import { ArrowText } from "@/components/shared/arrow-text";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -20,7 +22,7 @@ export interface Column<T> {
 
 /**
  * Khung bảng dữ liệu: toolbar + bảng + trạng thái loading/rỗng + footer.
- * Chưa có sort/filter/phân trang, thêm khi module nghiệp vụ cần.
+ * Danh sách cục bộ hiển thị tối đa 20 dòng mỗi trang.
  */
 export function DataTable<T>({
   columns,
@@ -32,6 +34,7 @@ export function DataTable<T>({
   empty,
   className,
   onRowClick,
+  paginate = true,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -41,6 +44,7 @@ export function DataTable<T>({
   footer?: React.ReactNode;
   empty?: React.ReactNode;
   className?: string;
+  paginate?: boolean;
   /**
    * Bấm vào dòng. Mặc định đi theo link nội bộ đầu tiên trong dòng (thường là link tới trang chi tiết);
    * truyền onRowClick cho các dòng mở dialog thay vì chuyển trang.
@@ -48,6 +52,11 @@ export function DataTable<T>({
   onRowClick?: (row: T) => void;
 }) {
   const router = useRouter();
+  const key = rows.map(getRowId).join("|");
+  const [requested, setRequested] = useState({ key, page: 1 });
+  const pages = Math.max(1, Math.ceil(rows.length / 20));
+  const page = Math.min(requested.key === key ? requested.page : 1, pages);
+  const shown = paginate ? rows.slice((page - 1) * 20, page * 20) : rows;
   const activate = (row: T, el: HTMLTableRowElement) => {
     if (onRowClick) return onRowClick(row);
     const href = el.querySelector<HTMLAnchorElement>("a[href^='/']")?.getAttribute("href");
@@ -79,7 +88,7 @@ export function DataTable<T>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
+            {shown.map((row) => (
               <TableRow
                 key={getRowId(row)}
                 className={onRowClick ? "cursor-pointer" : "has-[a[href^='/']]:cursor-pointer"}
@@ -105,6 +114,7 @@ export function DataTable<T>({
         </Table>
       )}
       {footer && <div className="border-t px-4 py-3 text-sm text-muted-foreground">{footer}</div>}
+      {paginate && rows.length > 20 && <div className="border-t px-4 py-3 print:hidden"><Pagination page={page} pages={pages} total={rows.length} pageSize={20} loading={loading} onPageChange={(next) => setRequested({ key, page: next })} /></div>}
     </div>
   );
 }

@@ -13,11 +13,14 @@ export function deXuatRoutes(container: AppContainer) {
   router.get("/", asyncHandler(c.list));
   router.post("/", validate({ body: createProposalSchema }), asyncHandler(c.create));
   router.get("/users", asyncHandler(c.users));
+  router.get("/usage", asyncHandler(c.usage));
+  router.get("/stats", asyncHandler(c.stats));
   router.get("/templates", asyncHandler(c.templates));
   router.post("/templates", requirePermission("proposal.template"), validate({ body: saveProposalTemplateSchema }), asyncHandler(c.saveTemplate));
   router.put("/templates/:id", requirePermission("proposal.template"), validate({ body: saveProposalTemplateSchema }), asyncHandler(c.saveTemplate));
   router.delete("/templates/:id", requirePermission("proposal.template"), asyncHandler(c.removeTemplate));
   router.post("/delete", validate({ body: deleteProposalsSchema }), asyncHandler(c.removeFinished));
+  router.get("/:id", asyncHandler(c.detail));
   router.post("/:id/comments", validate({ body: createProposalCommentSchema }), asyncHandler(c.comment));
   router.post("/:id/decision", validate({ body: decideProposalSchema }), asyncHandler(c.decide));
   return router;

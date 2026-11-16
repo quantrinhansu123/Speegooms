@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { TableScrollbar } from "./table-scrollbar";
 import { Header } from "./header";
 import { BrandWatermark } from "./brand-watermark";
 import { Sidebar } from "./sidebar";
@@ -34,7 +35,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Header onOpenMenu={() => setMenuOpen(true)} compact={compact} onToggleNavigation={() => setCompact((current) => !current)} />
         <main id="main" tabIndex={-1} className="workspace-scroll relative z-10 min-h-0 w-full min-w-0 flex-1 overflow-y-auto bg-muted/20 px-3 py-4 lg:px-5 lg:py-5">
           <RouteGate>{children}</RouteGate>
+          <div className="h-8" aria-hidden />
         </main>
+        <TableScrollbar />
       </div>
     </div>
   );

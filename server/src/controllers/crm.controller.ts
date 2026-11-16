@@ -1,5 +1,6 @@
 import type { CrmLane, PublicUser, QuoteDesk, Role } from "@speego/shared";
 import type { Request, Response } from "express";
+import { readPagination } from "../lib/pagination";
 import { can, type Permission } from "../config/permissions";
 import { isImportKind } from "../services/crm-import-sheets";
 import { AppError } from "../lib/errors";
@@ -85,7 +86,8 @@ export class CrmController {
   };
 
   listMessages = async (req: Request, res: Response) => {
-    res.status(200).json({ messages: await this.crm.listMessages(laneOf(req), readMessageSearch(req), actorOf(req)) });
+    const result = await this.crm.pageMessages(laneOf(req), readMessageSearch(req), readPagination(req), actorOf(req));
+    res.status(200).json({ messages: result.rows, pagination: result.pagination });
   };
 
   createMessage = async (req: Request, res: Response) => {
@@ -110,7 +112,8 @@ export class CrmController {
   };
 
   listPotentials = async (req: Request, res: Response) => {
-    res.status(200).json({ potentials: await this.crm.listPotentials(laneOf(req), readPotentialSearch(req), roleOf(req)) });
+    const result = await this.crm.pagePotentials(laneOf(req), readPotentialSearch(req), readPagination(req), roleOf(req));
+    res.status(200).json({ potentials: result.rows, pagination: result.pagination });
   };
 
   updatePotential = async (req: Request, res: Response) => {
@@ -127,7 +130,8 @@ export class CrmController {
   };
 
   listQuotes = async (req: Request, res: Response) => {
-    res.status(200).json({ quotes: await this.crm.listQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), roleOf(req)) });
+    const result = await this.crm.pageQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), readPagination(req), roleOf(req), req.query.allLanes === "1");
+    res.status(200).json({ quotes: result.rows, pagination: result.pagination });
   };
 
   contractSource = async (req: Request, res: Response) => {
@@ -135,7 +139,8 @@ export class CrmController {
   };
 
   listRfqQuotes = async (req: Request, res: Response) => {
-    res.status(200).json({ quotes: await this.crm.listRfqQuotes(laneOf(req), readQuoteSearch(req), readQuoteDeskFilter(req)) });
+    const result = await this.crm.pageRfqQuotes(laneOf(req), readQuoteSearch(req), readQuoteDeskFilter(req), readPagination(req));
+    res.status(200).json({ quotes: result.rows, pagination: result.pagination });
   };
 
   reassignRfqQuote = async (req: Request, res: Response) => {
@@ -210,7 +215,8 @@ export class CrmController {
   listContracts = async (req: Request, res: Response) => {
     const view = contractView(req);
     const sentOnly = req.query.sent === "1" || view === "accounting";
-    res.status(200).json({ contracts: await this.crm.listContracts(laneOf(req), sentOnly, view, readContractSearch(req)) });
+    const result = await this.crm.pageContracts(laneOf(req), sentOnly, view, readContractSearch(req), readPagination(req));
+    res.status(200).json({ contracts: result.rows, pagination: result.pagination });
   };
 
   createContract = async (req: Request, res: Response) => {

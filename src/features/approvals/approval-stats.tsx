@@ -1,48 +1,38 @@
 "use client";
 
+import { ServerPagination } from "@/components/shared/server-pagination";
+import { useListData } from "@/features/accounting/live/list-query";
+
 import { useMemo, useState } from "react";
 import { List } from "lucide-react";
-import { proposalPeriodRange, type ProposalPeriod, type ProposalRecord } from "@speego/shared";
+import { proposalPeriodRange, type ProposalPeriod, type ProposalStatsRow, type ProposalRecord } from "@speego/shared";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { matchesQuery } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { formatDateTime, statusMeta, today } from "./approval-shared";
 
 const periods: [ProposalPeriod, string][] = [["week", "Tuần"], ["month", "Tháng"], ["year", "Năm"]];
 
-type Row = { code: string; name: string; total: number; pending: number; approved: number; rejected: number; leaveApproved: number; leaveRejected: number; byTemplate: Map<string, number> };
 
 /** Thống kê đề xuất theo mã nhân viên trong tuần / tháng / năm. */
-export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]; search: string; onOpen: (id: string) => void }) {
+export function ApprovalStats({ search, onOpen }: { search: string; onOpen: (id: string) => void }) {
   const [period, setPeriod] = useState<ProposalPeriod>("month");
   const [date, setDate] = useState(today());
   const [detail, setDetail] = useState<string | null>(null);
 
   const range = useMemo(() => proposalPeriodRange(period, new Date(`${date}T00:00:00`)), [period, date]);
-  const inRange = useMemo(() => rows.filter((r) => { const t = new Date(r.createdAt); return t >= range.start && t < range.end; }), [rows, range]);
-
-  const byEmployee = useMemo(() => {
-    const map = new Map<string, Row>();
-    for (const r of inRange) {
-      const row = map.get(r.requesterId) ?? { code: r.requesterId, name: r.requesterName, total: 0, pending: 0, approved: 0, rejected: 0, leaveApproved: 0, leaveRejected: 0, byTemplate: new Map() };
-      row.total += 1;
-      if (r.status === "da-duyet") row.approved += 1; else if (r.status === "tu-choi") row.rejected += 1; else row.pending += 1;
-      if (r.kind === "nghi-phep" && r.status === "da-duyet") row.leaveApproved += 1;
-      if (r.kind === "nghi-phep" && r.status === "tu-choi") row.leaveRejected += 1;
-      row.byTemplate.set(r.templateTitle, (row.byTemplate.get(r.templateTitle) ?? 0) + 1);
-      map.set(r.requesterId, row);
-    }
-    return [...map.values()].sort((a, b) => b.total - a.total || a.code.localeCompare(b.code));
-  }, [inRange]);
-
-  const shown = byEmployee.filter((r) => matchesQuery(search, `${r.code} ${r.name}`));
-  const sum = (key: "total" | "pending" | "approved" | "rejected" | "leaveApproved" | "leaveRejected") => String(byEmployee.reduce((n, r) => n + r[key], 0));
-  const detailRows = detail ? inRange.filter((r) => r.requesterId === detail) : [];
-  const detailEmployee = byEmployee.find((r) => r.code === detail);
+  const stats = useListData<ProposalStatsRow>("/api/de-xuat/stats", "rows", { period, date, q: search }, "Không tải được thống kê", true);
+  const byEmployee = stats.rows;
+  const shown = byEmployee;
+  const sum = (key: string) => String(stats.paging.summary[key] ?? 0);
+  const detailData = useListData<ProposalRecord>("/api/de-xuat", "rows", {
+    tab: "admin", filter: "all", requester: detail ?? "", from: range.start.toISOString(), to: range.end.toISOString(),
+  }, "Không tải được đề xuất", true, Boolean(detail));
+  const detailRows = detailData.rows;
+  const detailEmployee = byEmployee.find(row => row.code === detail);
 
   const label = period === "year" ? `Năm ${range.start.getFullYear()}` : period === "month"
     ? `Tháng ${String(range.start.getMonth() + 1).padStart(2, "0")}/${range.start.getFullYear()}`
@@ -64,7 +54,7 @@ export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <StatCard label="Nhân viên" value={String(byEmployee.length)} />
+        <StatCard label="Nhân viên" value={String(stats.paging.summary.employees ?? 0)} />
         <StatCard label="Tổng đề xuất" value={sum("total")} />
         <StatCard label="Chờ duyệt" value={sum("pending")} />
         <StatCard label="Đã duyệt" value={sum("approved")} />
@@ -84,12 +74,12 @@ export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]
             {shown.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">Không có đề xuất trong kỳ này</td></tr>}
             {shown.map((r, i) => (
               <tr key={r.code} className="border-b last:border-0">
-                <td className="px-3 py-2">{i + 1}</td>
+                <td className="px-3 py-2">{(stats.paging.page - 1) * stats.paging.pageSize + i + 1}</td>
                 <td className="px-3 py-2 font-semibold">{r.code}</td>
                 <td className="px-3 py-2">{r.name}</td>
                 <td className="px-3 py-2">{r.total}</td><td className="px-3 py-2">{r.pending}</td><td className="px-3 py-2">{r.approved}</td><td className="px-3 py-2">{r.rejected}</td>
                 <td className="px-3 py-2">{r.leaveApproved}</td><td className="px-3 py-2">{r.leaveRejected}</td>
-                <td className="px-3 py-2"><div className="flex flex-wrap gap-1">{[...r.byTemplate].map(([name, n]) => <span key={name} className="rounded-full bg-muted px-2 py-0.5 text-xs">{name}: {n}</span>)}</div></td>
+                <td className="px-3 py-2"><div className="flex flex-wrap gap-1">{Object.entries(r.byTemplate).map(([name, n]) => <span key={name} className="rounded-full bg-muted px-2 py-0.5 text-xs">{name}: {n}</span>)}</div></td>
                 <td className="px-3 py-2"><Button variant="outline" size="sm" onClick={() => setDetail(r.code)}><List /> Xem chi tiết</Button></td>
               </tr>
             ))}
@@ -97,12 +87,14 @@ export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]
         </table>
       </div>
 
+      <ServerPagination paging={stats.paging} loading={stats.loading} />
+      {stats.error && <p role="alert">{stats.error}</p>}
       {detail && (
         <Dialog open onOpenChange={(open) => { if (!open) setDetail(null); }}>
           <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>{detailEmployee?.name ?? "—"}</DialogTitle>
-              <p className="text-sm text-muted-foreground">Mã NV: {detail} • {label} • {detailRows.length} đề xuất</p>
+              <p className="text-sm text-muted-foreground">Mã NV: {detail} • {label} • {detailData.paging.total} đề xuất</p>
             </DialogHeader>
             <div className="min-h-0 overflow-auto">
               <table className="w-full text-sm">
@@ -110,7 +102,7 @@ export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]
                 <tbody>
                   {detailRows.map((r, i) => (
                     <tr key={r.id} className="cursor-pointer border-b last:border-0 hover:bg-muted/60" onClick={() => { setDetail(null); onOpen(r.id); }}>
-                      <td className="px-3 py-2">{i + 1}</td><td className="px-3 py-2">{r.templateTitle}</td><td className="px-3 py-2">{r.subject}</td>
+                      <td className="px-3 py-2">{(detailData.paging.page - 1) * detailData.paging.pageSize + i + 1}</td><td className="px-3 py-2">{r.templateTitle}</td><td className="px-3 py-2">{r.subject}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(r.createdAt)}</td>
                       <td className="px-3 py-2"><StatusBadge tone={statusMeta[r.status].tone}>{statusMeta[r.status].label}</StatusBadge></td>
                     </tr>
@@ -118,6 +110,8 @@ export function ApprovalStats({ rows, search, onOpen }: { rows: ProposalRecord[]
                 </tbody>
               </table>
             </div>
+            <ServerPagination paging={detailData.paging} loading={detailData.loading} />
+            {detailData.error && <p role="alert">{detailData.error}</p>}
           </DialogContent>
         </Dialog>
       )}

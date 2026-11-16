@@ -93,7 +93,7 @@ export function SuppliersView() {
       matchesQuery(query, s.name, s.city, s.supplierId, s.contactName),
   );
   const listTools = useListTools(filtered, { filename: "speego-suppliers.csv", name: (r) => r.name,  columns: [{ label: "Mã", value: (r) => r.supplierId }, { label: "Tên / nội dung", value: (r) => r.name }, { label: "country", value: (r) => r.country }, { label: "rating", value: (r) => r.rating }, { label: "on_time_rate_mock", value: (r) => r.onTimeRate }, { label: "status", value: (r) => r.status }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<Supplier>[] = [
     {

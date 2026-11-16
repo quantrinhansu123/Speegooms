@@ -36,7 +36,7 @@ export function RfqsView({ routeScope }: { routeScope?: RouteCode } = {}) {
       matchesQuery(query, r.rfqId, r.messId, r.goodsName, customerName.get(r.customerId)),
   );
   const listTools = useListTools(filtered, { filename: "speego-rfqs.csv", name: (r) => r.goodsName, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.rfqId }, { label: "Tên / nội dung", value: (r) => r.goodsName }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "route", value: (r) => r.route }, { label: "status", value: (r) => r.status }, { label: "quantity", value: (r) => r.quantity }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<Rfq>[] = [
     { key: "id", header: "rfq_id", cell: (r) => <Link href={`/crm/rfq/${r.rfqId}`} className="font-mono text-xs font-medium text-primary hover:underline">{r.rfqId}</Link> },

@@ -51,7 +51,7 @@ export function ListView<T>({
   filters = [],
   toggles = [],
   sort,
-  pageSize = 15,
+  pageSize = 20,
   emptyTitle = "Không có bản ghi phù hợp",
   exportFilename,
   headingLevel = 1,
@@ -164,7 +164,7 @@ export function ListView<T>({
       {!dateValid && <InlineAlert className="mb-4">Khoảng ngày không hợp lệ.</InlineAlert>}
       {exportMessage && <InlineAlert className="mb-4" tone={exportMessage.tone}>{exportMessage.text}</InlineAlert>}
       <div className="space-y-4">
-        <DataTable columns={columns} rows={paging.slice} getRowId={getRowId} onRowClick={onRowClick} empty={<EmptyState title={emptyTitle} />} />
+        <DataTable columns={columns} rows={paging.slice} paginate={false} getRowId={getRowId} onRowClick={onRowClick} empty={<EmptyState title={emptyTitle} />} />
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} pageSize={paging.pageSize} onPageChange={paging.setPage} />
       </div>
     </>

@@ -291,3 +291,7 @@ th {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Table scrolling is controlled by the single viewport scrollbar. */
+.table-scroll-managed { scrollbar-width: none; }
+.table-scroll-managed::-webkit-scrollbar { display: none; }

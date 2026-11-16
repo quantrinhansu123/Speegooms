@@ -75,7 +75,7 @@ export function DocumentsView() {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.docId.localeCompare(a.docId))
     .filter((d) => (!status || d.status === status) && matchesQuery(query, d.shipmentId, d.orderId, docTypeLabels[d.type], d.fileName));
   const listTools = useListTools(filtered, { filename: "speego-documents.csv", name: (r) => r.fileName ?? r.type, date: (r) => r.updatedAt, dateLabel: "Ngày cập nhật", columns: [{ label: "Mã", value: (r) => r.docId }, { label: "Tên / nội dung", value: (r) => r.fileName ?? r.type }, { label: "Ngày cập nhật", value: (r) => r.updatedAt }, { label: "order_id", value: (r) => r.orderId }, { label: "shipment_id", value: (r) => r.shipmentId }, { label: "status", value: (r) => r.status }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
   const pending = ops.documents.filter((d) => d.status === "cho-duyet").length;
   const missing = ops.documents.filter((d) => d.status === "thieu").length;
 

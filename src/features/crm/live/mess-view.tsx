@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { PageInfo } from "@speego/shared";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { canHandleCrm, messageProcessingOptions, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -32,6 +35,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
   const canConvert = convertRoles.includes(user.role);
+  const loadVersion = useRef(0);
+  const [listLoading, setListLoading] = useState(true);
   const [rows, setRows] = useState<MessageRecord[]>([]);
   const [processingFilter, setProcessingFilter] = useState("");
   const [statusSaving, setStatusSaving] = useState(false);
@@ -45,17 +50,22 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const [removing, setRemoving] = useState<MessageRecord | null>(null);
   const [knownMarkets, setKnownMarkets] = useState<string[]>(marketPresets);
   const filters = useAppliedSearch({ q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "", saleName: "" });
-  const statusRows = rows.filter((row) => !filters.applied.saleName || row.saleName?.trim() === filters.applied.saleName);
-  const shown = statusRows.filter((row) => !processingFilter || row.processingStatus === processingFilter);
-  const saleOptions = uniqueSuggestions([...rows.map((row) => row.saleName), filters.draft.saleName, filters.applied.saleName])
+  const paging = useServerPagination(lane + JSON.stringify(filters.applied) + processingFilter, "");
+  const { query: pageQuery, receive: receivePage } = paging;
+  const shown = listLoading ? [] : rows;
+  const statusCounts = (paging.summary.statusCounts ?? {}) as Record<string, number>;
+  const saleOptions = uniqueSuggestions([...((paging.summary.sales ?? []) as string[]), filters.draft.saleName, filters.applied.saleName])
     .map((name) => [name, name] as const);
 
   const load = useCallback(() => {
+    const version = ++loadVersion.current;
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
+      setListLoading(false);
       setError(rangeError);
       return;
     }
+    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       status: filters.applied.status,
@@ -63,14 +73,19 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       demand: filters.applied.demand,
       customerType: filters.applied.customerType,
       market: filters.applied.market,
+      saleName: filters.applied.saleName,
+      processingStatus: processingFilter,
     });
-    api<{ messages: MessageRecord[] }>(`${crmPath("/api/crm/messages", lane)}${query}`)
+    api<{ messages: MessageRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/messages", lane)}${query}${pageQuery}`)
       .then((body) => {
+        if (version !== loadVersion.current) return;
         setRows(body.messages);
-        setKnownMarkets((current) => uniqueSuggestions([...current, ...body.messages.map((row) => row.market)]));
+        receivePage(body.pagination);
+        setKnownMarkets((current) => uniqueSuggestions([...current, ...((body.pagination.summary.markets ?? []) as string[])]));
       })
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được mess"));
-  }, [filters.applied, lane]);
+      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được mess"); })
+      .finally(() => { if (version === loadVersion.current) setListLoading(false); });
+  }, [filters.applied, lane, processingFilter, pageQuery, receivePage]);
   const { openConvert, convertPending, dialogs: convertDialogs } = useMessConvert({ lane, load, error, setError, setNotice });
 
   const excel = useExcelImport({ kind: "messages", lane, allLanes: canPick, enabled: canWrite, onDone: load });
@@ -142,6 +157,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
         method: "PATCH", body: JSON.stringify({ processingStatus }),
       });
       setRows((current) => current.map((item) => item.id === row.id ? result.message : item));
+      load();
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : "Không lưu được trạng thái xử lý");
     } finally {
@@ -196,7 +212,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       <div role="group" aria-label="Lọc trạng thái xử lý" className="mb-4 flex gap-2 overflow-x-auto pb-2">
         {[["", "Tất cả"], ...messageProcessingOptions].map(([status, label]) => (
           <Button key={status} type="button" variant={processingFilter === status ? "default" : "outline"} aria-pressed={processingFilter === status} onClick={() => setProcessingFilter(status)}>
-            {label} ({statusRows.filter((row) => !status || row.processingStatus === status).length})
+            {label} ({statusCounts[status] ?? 0})
           </Button>
         ))}
       </div>
@@ -224,7 +240,8 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={17} className="px-3 py-8 text-center text-muted-foreground">{filters.active || processingFilter ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
+            {listLoading && <tr><td colSpan={17} role="status" className="px-3 py-8 text-center text-muted-foreground">Đang tải…</td></tr>}
+            {!listLoading && shown.length === 0 && <tr><td colSpan={17} className="px-3 py-8 text-center text-muted-foreground">{filters.active || processingFilter ? "Không có kết quả." : "Chưa có mess."}</td></tr>}
             {shown.map((row) => (
               <tr key={row.id} className="border-b last:border-0">
                 <td className="px-3 py-3 font-medium">{row.messCode}</td>
@@ -293,6 +310,7 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={listLoading} />
 
       <MessFormDialog
         draft={draft}

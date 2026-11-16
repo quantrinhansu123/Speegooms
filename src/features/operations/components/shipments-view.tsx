@@ -50,7 +50,7 @@ export function ShipmentsView() {
     [ops.shipments, mode, status, partner, onlyDelayed, query, today, customerOf],
   );
   const listTools = useListTools(filtered, { filename: "speego-shipments.csv", name: (r) => r.destination, date: (r) => r.etd, dateLabel: "ETD", columns: [{ label: "Mã", value: (r) => r.shipmentId }, { label: "Tên / nội dung", value: (r) => r.destination }, { label: "ETD", value: (r) => r.etd }, { label: "order_id", value: (r) => r.orderId }, { label: "eta", value: (r) => r.eta }, { label: "status", value: (r) => shipmentStatus(r) }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<Shipment>[] = [
     { key: "id", header: "Lô hàng", cell: (s) => <Link href={`/van-hanh/logistics/${s.shipmentId}`} className="font-mono text-xs font-medium text-primary hover:underline">{s.shipmentId}</Link> },

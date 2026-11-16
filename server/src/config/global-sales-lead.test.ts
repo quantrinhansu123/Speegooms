@@ -8,6 +8,7 @@ import { DataLanhController } from "../controllers/data-lanh.controller";
 import { CrmService } from "../services/crm.service";
 import type { CrmRepository } from "../repositories/crm.repository";
 import type { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repository";
+import { emptyPage } from "../lib/pagination";
 
 const user = { id: "lead", role: "sale-global-lead" } as const;
 const res = { status() { return this; }, json() {} } as unknown as Response;
@@ -31,8 +32,8 @@ test("Global lead lists every creator's Mess; ordinary Sale stays creator-scoped
 test("API locks Global lead to Global across list, contract view and imports", async () => {
   const lanes: unknown[] = [];
   const controller = new CrmController({
-    listMessages: async (lane: string) => { lanes.push(lane); return []; },
-    listContracts: async (lane: string, _sent: boolean, view: string) => { lanes.push([lane, view]); return []; },
+    pageMessages: async (lane: string) => { lanes.push(lane); return emptyPage({ page: 1, pageSize: 20 }); },
+    pageContracts: async (lane: string, _sent: boolean, view: string) => { lanes.push([lane, view]); return emptyPage({ page: 1, pageSize: 20 }); },
     importWorkbook: async (_kind: string, _body: Buffer, allowed: string[]) => { lanes.push(allowed); return {}; },
   } as unknown as CrmService);
   const req = (lane: string) => ({ user, query: { lane }, params: {} } as unknown as Request);
@@ -45,8 +46,8 @@ test("API locks Global lead to Global across list, contract view and imports", a
 
 test("Global lead sees all shared customer data; ordinary Sale remains assigned-scoped", async () => {
   const scopes: unknown[] = [];
-  const controller = new DataLanhController({ list: async (scope: unknown) => { scopes.push(scope); return []; } } as unknown as PostgresDataLanhRepository);
-  await controller.list({ user } as Request, res);
-  await controller.list({ user: { id: "sale", role: "sale-global" } } as Request, res);
+  const controller = new DataLanhController({ listPage: async (scope: unknown) => { scopes.push(scope); return {}; } } as unknown as PostgresDataLanhRepository);
+  await controller.list({ user, query: {} } as unknown as Request, res);
+  await controller.list({ user: { id: "sale", role: "sale-global" }, query: {} } as unknown as Request, res);
   assert.deepEqual(scopes, [null, "sale"]);
 });

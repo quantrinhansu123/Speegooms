@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { PageInfo } from "@speego/shared";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { accountingContractSchema, contractPaymentFlags, contractVndSummary, defaultQuoteBank, industryCategoryOptions, quoteNotesSchema, quoteOrderSchema, receivedLineInMain, vndRateOf, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -410,6 +413,7 @@ export function ContractsLiveView({
   const canSale = mode === "sale" && saleRoles.includes(user.role);
   const canResend = canSale || canOps || canAccounting;
   const canDelete = mode === "accounting" && user.role === "ke-toan";
+  const loadVersion = useRef(0);
   const [rows, setRows] = useState<ContractRecord[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -435,7 +439,9 @@ export function ContractsLiveView({
   const [focusLane, setFocusLane] = useState<CrmLane | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const filters = useAppliedSearch({ q: "", from: "", to: "", opsStatus: "", accountingStatus: "", customerKind: "" });
-  const shown = rows.filter((row) => !filters.applied.customerKind || row.quoteDesk?.toUpperCase() === filters.applied.customerKind);
+  const paging = useServerPagination(lane + JSON.stringify(filters.applied) + mode, "contract");
+  const { query: pageQuery, receive: receivePage } = paging;
+  const shown = listLoading ? [] : rows;
   const opsStatusFilterOptions = opsStatusOptions.map((status) => [status, status] as const);
 
   useEffect(() => {
@@ -476,6 +482,7 @@ export function ContractsLiveView({
   }, [user.id]);
 
   const load = useCallback(async () => {
+    const version = ++loadVersion.current;
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
       setError(rangeError);
@@ -490,16 +497,19 @@ export function ContractsLiveView({
       const query = searchParams(filters.applied, {
         opsStatus: filters.applied.opsStatus,
         accountingStatus: filters.applied.accountingStatus,
+        customerKind: filters.applied.customerKind,
       });
-      const body = await api<{ contracts: ContractRecord[] }>(`${path}${sent}${query}`);
+      const body = await api<{ contracts: ContractRecord[]; pagination: PageInfo }>(`${path}${sent}${query}${pageQuery}`);
+      if (version !== loadVersion.current) return;
       setRows(body.contracts);
+      receivePage(body.pagination);
       if (mode === "sale") setSeen(seedSeenIfNeeded(user.id, body.contracts));
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không tải được hợp đồng");
+      if (version === loadVersion.current) setError(cause instanceof ApiError ? cause.message : "Không tải được hợp đồng");
     } finally {
-      setListLoading(false);
+      if (version === loadVersion.current) setListLoading(false);
     }
-  }, [filters.applied, lane, mode, user.id]);
+  }, [filters.applied, lane, mode, user.id, pageQuery, receivePage]);
 
   const excel = useExcelImport({ kind: "contracts", lane, allLanes: canPick, enabled: canSale, onDone: () => { void load(); } });
 
@@ -636,7 +646,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {shown.length === 0 && (
-              <tr><td colSpan={20} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={20} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {shown.map((row) => {
               const { amounts, paidLines, summary } = rowVnd(row);
@@ -777,6 +787,7 @@ export function ContractsLiveView({
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={listLoading} />
       {printing && (
         <ContractDocDialog
           code={printing.row.code}

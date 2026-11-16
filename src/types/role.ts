@@ -2,6 +2,8 @@ export type Role =
   | "admin"
   | "ban-gd"
   | "marketing"
+  | "marketing-lead"
+  | "marketing-content"
   | "sale-vn"
   | "sale-global"
   | "sale-global-lead"

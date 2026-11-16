@@ -42,6 +42,8 @@ import {
   type UpdateQuoteOutcomeInput,
 } from "@speego/shared";
 import type pg from "pg";
+import type { ListPage, PageRequest } from "@speego/shared";
+import { queryPage, emptyPage } from "../../lib/pagination";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { AppError, InfrastructureError } from "../../lib/errors";
 import { COMBINED_HANDED_OFF_SQL, isLogisticsHandedOff, LOGISTICS_SHEET_UNSEEDED_SQL, mergeHandoffSql } from "./logistics-handoff";
@@ -676,7 +678,7 @@ function messageSelect(lane: CrmLane): string {
          m.thong_tin_don_hang as order_info, m.thuong_hieu::text as brand,
          case when l.nhom_khach = 'LOGISTICS' and l.phan_loai_logistics is distinct from 'FCL'
            then lq.chi_tiet_don_hang when l.nhom_khach = 'SOURCING' then sq.chi_tiet_don_hang end as order_lines,
-         m.nhan_luc as received_at,
+         m.nhan_luc as received_at, m.tao_luc as created_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
   from ${message} m
   left join ${potential} l on l.ma_tin_nhan = m.id and l.xoa_luc is null
@@ -1336,6 +1338,85 @@ export class PostgresCrmRepository implements CrmRepository {
   private readonly connection = new AsyncLocalStorage<pg.PoolClient>();
   constructor(private readonly pool: pg.Pool) {}
 
+  async pageMessages(lane: CrmLane, search: MessageListSearch, page: PageRequest): Promise<ListPage<MessageRecord>> {
+    const compiled = messageSearch({ ...search, saleName: "" }).build();
+    const params = [...compiled.values, search.processingStatus ?? "", search.saleName ?? ""];
+    const saleFilter = `($${params.length}::text = '' or btrim(sale_name) = $${params.length})`;
+    const result = await queryPage<MessageRow>({ query: this.query.bind(this) },
+      `${messageSelect(lane)} where true ${compiled.sql}`, params, page, {
+        orderBy: "created_at desc, id desc",
+        where: `${saleFilter} and ($${params.length - 1}::text = '' or processing_status = $${params.length - 1})`,
+        summary: `jsonb_build_object(
+          'statusCounts', (select coalesce(jsonb_object_agg(processing_status, n), '{}'::jsonb) from
+            (select processing_status, count(*)::int as n from records where processing_status is not null and ${saleFilter} group by processing_status) c)
+            || jsonb_build_object('', count(*) filter (where ${saleFilter})),
+          'sales', coalesce(jsonb_agg(distinct btrim(sale_name)) filter (where nullif(btrim(sale_name), '') is not null), '[]'::jsonb),
+          'markets', coalesce(jsonb_agg(distinct market) filter (where nullif(market, '') is not null), '[]'::jsonb))`,
+      });
+    return { ...result, rows: result.rows.map(toMessage) };
+  }
+
+  async pagePotentials(lane: CrmLane, search: PotentialListSearch, page: PageRequest): Promise<ListPage<PotentialRecord>> {
+    const compiled = potentialSearch(search).build();
+    const result = await queryPage<PotentialRow>({ query: this.query.bind(this) },
+      `${potentialSelect(lane)} ${compiled.sql}`, compiled.values, page, { orderBy: "created_at desc, id desc" });
+    return { ...result, rows: await this.withPotentialStatuses(lane, result.rows.map(toPotential)) };
+  }
+
+  private quotePageSource(lanes: readonly CrmLane[], desks: readonly QuoteDesk[], search: QuoteListSearch, allowedKinds: readonly string[] | null, rfq = false) {
+    const values: unknown[] = [];
+    const sources: string[] = [];
+    for (const lane of lanes) {
+      const t = quoteTables[lane];
+      const add = (desk: QuoteDesk, shared: boolean) => {
+        if (allowedKinds && !(desk === "sourcing" ? allowedKinds.some(kind => kind !== "LOGISTICS") : allowedKinds.includes(shared ? "SOURCING_LOGISTICS" : "LOGISTICS"))) return;
+        const compiled = quoteSearch(search,
+          sql(shared ? "q.bao_gia_logistics->>'quoteStatus'" : "q.trang_thai_bao_gia::text"),
+          sql(shared ? "q.bao_gia_logistics->>'contractStatus'" : "q.trang_thai_hop_dong::text")).build(values.length + 1);
+        values.push(...compiled.values);
+        const kind = desk === "sourcing" ? kindClause(allowedKinds, values.length + 1) : { sql: "", values: [] };
+        values.push(...kind.values);
+        const condition = shared ? ` and ${COMBINED_HANDED_OFF_SQL}` : desk === "logistics" ? " and l.nhom_khach::text = 'LOGISTICS'" : "";
+        const table = desk === "sourcing" || shared ? t.sourcing : t.logistics;
+        const source = quoteSelect(table, t.potential, t.message, desk === "sourcing" ? t.logistics : null, desk === "sourcing" || shared);
+        sources.push(`select raw.*, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}) raw`);
+      };
+      if (desks.includes("sourcing")) add("sourcing", false);
+      if (desks.includes("logistics")) {
+        add("logistics", false);
+        if (!rfq || !desks.includes("sourcing")) add("logistics", true);
+      }
+    }
+    return { source: sources.join(" union all "), values };
+  }
+
+  async pageQuotes(lanes: readonly CrmLane[], desk: QuoteDesk, search: QuoteListSearch, page: PageRequest, allowedKinds: readonly string[] | null = null): Promise<ListPage<QuoteRecord & { lane: CrmLane }>> {
+    const { source, values } = this.quotePageSource(lanes, [desk], search, allowedKinds);
+    if (!source) return emptyPage(page);
+    values.push(search.mode ?? "");
+    const result = await queryPage<QuoteRow & { __lane: CrmLane; __shared: boolean }>({ query: this.query.bind(this) }, source, values, page, {
+      orderBy: "created_at desc, id desc, __lane",
+      where: `($${values.length}::text = '' or (case when shipping_mode = 'AIR' then 'AIR' else logistics_class end) = $${values.length})`,
+    });
+    return { ...result, rows: result.rows.map(row => ({ ...(row.__shared ? toLogisticsQuote(row) : toQuote(row)), lane: row.__lane })) };
+  }
+
+  async pageRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | QuoteDesk, page: PageRequest): Promise<ListPage<RfqQuoteRecord>> {
+    const { source, values } = this.quotePageSource([lane], desk ? [desk] : ["sourcing", "logistics"], search, null, true);
+    const result = await queryPage<QuoteRow & { __desk: QuoteDesk }>({ query: this.query.bind(this) }, source, values, page, { orderBy: "created_at desc, id desc" });
+    return { ...result, rows: result.rows.map(row => ({ ...toQuote(row), desk: row.__desk })) };
+  }
+
+  async pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest): Promise<ListPage<ContractRecord>> {
+    const compiled = contractSearch(view, search).build(3);
+    const values = [lane, sentOnly, ...compiled.values, search.customerKind ?? ""];
+    const result = await queryPage<ContractRow>({ query: this.query.bind(this) },
+      `${contractSelect(lane)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null) ${compiled.sql}`,
+      values, page, { orderBy: "created_at desc, id desc", where: `($${values.length}::text = '' or upper(quote_desk) = $${values.length})` });
+    const quotes = new Map<string, QuoteRecord | null>();
+    return { ...result, rows: await Promise.all(result.rows.map(row => this.withMainTotal(lane, projectContract(row, view), quotes))) };
+  }
+
   async listSales(lane: CrmLane) {
     return (await this.query<{ id: string; name: string }>("select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where (vai_tro = $1 or ($1 = 'sale-global' and vai_tro = 'sale-global-lead')) order by ho_ten", [lane === "vn" ? "sale-vn" : "sale-global"])).rows;
   }
@@ -1608,6 +1689,10 @@ export class PostgresCrmRepository implements CrmRepository {
       compiled.values,
     );
     const potentials = result.rows.map(toPotential);
+    return this.withPotentialStatuses(lane, potentials);
+  }
+
+  private async withPotentialStatuses(lane: CrmLane, potentials: PotentialRecord[]): Promise<PotentialRecord[]> {
     if (potentials.length === 0) return potentials;
     const { sourcing, logistics } = quoteTables[lane];
     const statuses = await this.query<{ potential_id: string; desk: "sourcing" | "logistics"; status: string }>(

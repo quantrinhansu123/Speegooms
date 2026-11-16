@@ -42,7 +42,7 @@ export function PosView() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.poId.localeCompare(a.poId))
     .filter((p) => (!status || p.status === status) && (!supplier || p.supplierId === supplier) && matchesQuery(query, p.poId, p.orderId, supplierName.get(p.supplierId)));
   const listTools = useListTools(filtered, { filename: "speego-pos.csv", name: (r) => r.supplierId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.poId }, { label: "Tên / nội dung", value: (r) => r.supplierId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "order_id", value: (r) => r.orderId }, { label: "amount_vnd", value: (r) => r.amount }, { label: "status", value: (r) => r.status }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<PurchaseOrder>[] = [
     { key: "po", header: "PO", cell: (p) => <Link href={`/van-hanh/po/${p.poId}`} className="font-mono text-xs font-medium text-primary hover:underline">{p.poId}</Link> },

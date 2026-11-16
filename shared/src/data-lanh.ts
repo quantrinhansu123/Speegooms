@@ -94,3 +94,26 @@ export type DataLanhRecord = {
   saleCareName: string | null;
   handedOverAt: string | null;
 };
+
+export const dataLanhListSchema = z.object({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().max(200).default(""),
+  intern: z.string().trim().max(64).default(""),
+  channel: z.enum(["", "facebook", "telesale"]).default(""),
+  status: z.string().max(200).default(""),
+  focusId: z.uuid().optional(),
+});
+
+export type DataLanhListSearch = z.infer<typeof dataLanhListSchema>;
+export type DataLanhPage = {
+  rows: DataLanhRecord[];
+  page: number;
+  pageSize: number;
+  pages: number;
+  total: number;
+  scopeTotal: number;
+  unassigned: number;
+  interns: { id: string; name: string; count: number }[];
+  statusCounts: Record<string, number>;
+};

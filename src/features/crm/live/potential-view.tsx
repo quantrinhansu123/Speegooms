@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { PageInfo } from "@speego/shared";
+import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Pencil, Trash2 } from "lucide-react";
 import { canEditQuoteDesk, canHandleCrm, industryCategoryOptions, updatePotentialSchema, type CrmLane, type UpdatePotentialInput, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -138,6 +141,8 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane(fixedLane);
   const canWrite = writeRoles.includes(user.role);
+  const loadVersion = useRef(0);
+  const [listLoading, setListLoading] = useState(true);
   const [rows, setRows] = useState<PotentialRecord[]>([]);
   const [error, setError] = useState<string>();
   const [editing, setEditing] = useState<PotentialRecord | null>(null);
@@ -154,13 +159,18 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
   const highlightId = useFocusRow(rows, lane, canPick, setLane, POTENTIAL_FOCUS);
   const canEditSelected = canWrite && Boolean(editing && canHandleCrm(user, editing));
   const filters = useAppliedSearch({ q: "", from: "", to: "", source: "", potential: "", customerKind: "", customerType: "" });
+  const paging = useServerPagination(lane + JSON.stringify(filters.applied), "potential");
+  const { query: pageQuery, receive: receivePage } = paging;
 
   const load = useCallback(() => {
+    const version = ++loadVersion.current;
     const rangeError = dateRangeError(filters.applied.from, filters.applied.to);
     if (rangeError) {
+      setListLoading(false);
       setError(rangeError);
       return;
     }
+    setListLoading(true);
     setError(undefined);
     const query = searchParams(filters.applied, {
       source: filters.applied.source,
@@ -168,10 +178,11 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
       customerKind: filters.applied.customerKind,
       customerType: filters.applied.customerType,
     });
-    api<{ potentials: PotentialRecord[] }>(`${crmPath("/api/crm/potentials", lane)}${query}`)
-      .then((body) => setRows(body.potentials))
-      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"));
-  }, [filters.applied, lane]);
+    api<{ potentials: PotentialRecord[]; pagination: PageInfo }>(`${crmPath("/api/crm/potentials", lane)}${query}${pageQuery}`)
+      .then((body) => { if (version === loadVersion.current) { setRows(body.potentials); receivePage(body.pagination); } })
+      .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được khách hàng tiềm năng"); })
+      .finally(() => { if (version === loadVersion.current) setListLoading(false); });
+  }, [filters.applied, lane, pageQuery, receivePage]);
 
   const excel = useExcelImport({ kind: "potentials", lane, allLanes: canPick, enabled: canWrite, onDone: load });
 
@@ -408,8 +419,9 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={25} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
-            {rows.map((row) => (
+            {listLoading && <tr><td colSpan={25} role="status" className="px-3 py-8 text-center text-muted-foreground">Đang tải…</td></tr>}
+            {!listLoading && rows.length === 0 && <tr><td colSpan={25} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : "Chưa có khách hàng tiềm năng."}</td></tr>}
+            {(listLoading ? [] : rows).map((row) => (
               <tr key={row.id} data-row-id={row.id} className={`border-b last:border-0 ${highlightId === row.id ? FOCUS_ROW_CLASS : ""}`}>
                 <td className="px-3 py-3 font-medium"><QuoteTracking variant="code" code={row.leadCode} potentialId={row.id} lane={lane} /></td>
                 <td className="px-3 py-3" title={row.fullName ?? undefined}>{row.fullName}{row.handlerName && <p className="mt-1 text-xs text-muted-foreground">Xử lý: {row.handlerName}</p>}</td>
@@ -452,6 +464,7 @@ export function PotentialView({ lane: fixedLane }: { lane?: CrmLane }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={listLoading} />
 
       <Dialog open={draft !== null} onOpenChange={(openDialog) => { if (!openDialog) { setDraft(null); setEditing(null); } }}>
         <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-4 overflow-hidden sm:max-w-4xl">

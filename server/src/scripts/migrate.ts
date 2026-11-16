@@ -78,6 +78,8 @@ const files = [
   "051_hop_dong_ten_khach_hang.sql",
   "052_mess_processing_status.sql",
   "053_sale_global_lead.sql",
+  "069_marketing.sql",
+  "070_marketing_assignment_roles.sql",
 ];
 
 await client.connect();

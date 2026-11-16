@@ -5,12 +5,12 @@ import { Download, FileDown, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InlineAlert } from "@/components/shared/form-fields";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, fetchListPages } from "@/lib/api";
 import { downloadBlob } from "@/lib/download";
 import { buildLedgerWorkbook, readLedgerWorkbook, unchangedLedgerRow, type ExcelLedgerEntry, type LedgerImportRow } from "./ledger-excel";
 
-export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
-  rows: ExcelLedgerEntry[]; canWrite: boolean; loading: boolean; onDone: () => void;
+export function LedgerExcelActions({ loadRows, total, canWrite, loading, onDone }: {
+  loadRows: () => Promise<ExcelLedgerEntry[]>; total: number; canWrite: boolean; loading: boolean; onDone: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -22,7 +22,7 @@ export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
   const download = async (template: boolean) => {
     setBusy(true); setMessage(undefined);
     try {
-      const workbook = await buildLedgerWorkbook(template ? [] : rows);
+      const workbook = await buildLedgerWorkbook(template ? [] : await loadRows());
       const buffer = await workbook.xlsx.writeBuffer();
       downloadBlob(template ? "mau-thu-chi.xlsx" : "thu-chi.xlsx", new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -48,10 +48,10 @@ export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
     const remaining: LedgerImportRow[] = [];
     const failures: string[] = [];
     try {
-      const current = await api<{ entries: ExcelLedgerEntry[] }>("/api/ke-toan/ledger");
+      const current = await fetchListPages<ExcelLedgerEntry>("/api/ke-toan/ledger", "entries");
       const accounts = await api<{ accounts: string[] }>("/api/ke-toan/receiving-accounts");
       const accountNames = new Set(accounts.accounts);
-      const byId = new Map(current.entries.map((entry) => [entry.id, entry]));
+      const byId = new Map(current.map((entry) => [entry.id, entry]));
       for (const [index, item] of pending.entries()) {
         setProgress(`Đang nhập ${index + 1}/${pending.length}…`);
         try {
@@ -84,8 +84,8 @@ export function LedgerExcelActions({ rows, canWrite, loading, onDone }: {
     finally { setBusy(false); onDone(); }
   };
   return <>
-    <Button variant="outline" title="Tải toàn bộ thu chi khớp bộ lọc hiện tại" disabled={busy || loading || !rows.length} onClick={() => void download(false)}>
-      <Download aria-hidden /> Xuất Excel ({rows.length})
+    <Button variant="outline" title="Tải toàn bộ thu chi khớp bộ lọc hiện tại" disabled={busy || loading || !total} onClick={() => void download(false)}>
+      <Download aria-hidden /> Xuất Excel ({total})
     </Button>
     {canWrite && <>
       <Button variant="outline" disabled={busy} onClick={() => void download(true)}><FileDown aria-hidden /> Tải mẫu Excel</Button>

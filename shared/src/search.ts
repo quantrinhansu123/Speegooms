@@ -13,3 +13,12 @@ export const listSearchSchema = z.object({
 });
 
 export type ListSearch = z.infer<typeof listSearchSchema>;
+
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  focusId: z.uuid().optional(),
+});
+export type PageRequest = z.infer<typeof paginationSchema>;
+export type PageInfo = { page: number; pageSize: number; pages: number; total: number; summary: Record<string, unknown> };
+export type ListPage<T> = { rows: T[]; pagination: PageInfo };

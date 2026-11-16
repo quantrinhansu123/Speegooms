@@ -1,10 +1,10 @@
 "use client";
 
-import { createElement, isValidElement, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode, type UIEvent } from "react";
+import { createElement, isValidElement, useCallback, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import { FilterableTable } from "@/components/ui/filterable-table";
 import { cn } from "@/lib/utils";
 
-/** Bảng rộng: thanh kéo ngang ở trên đầu, đồng bộ với vùng bảng bên dưới. */
+/** Wide table with synchronized sticky identity column measurements. */
 export function TableHScroll({
   children,
   className,
@@ -15,20 +15,12 @@ export function TableHScroll({
   /** Keep the first two columns (code and name) visible while scrolling. */
   stickyIdentity?: boolean;
 }) {
-  const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const spacerRef = useRef<HTMLDivElement>(null);
-  const syncing = useRef<"top" | "body" | null>(null);
-  const [ready, setReady] = useState(false);
 
   const syncWidth = useCallback(() => {
     const body = bodyRef.current;
-    const spacer = spacerRef.current;
-    if (!body || !spacer) return;
+    if (!body) return;
     const table = body.querySelector("table");
-    const width = Math.max(table?.scrollWidth ?? 0, body.scrollWidth);
-    spacer.style.width = `${width}px`;
-    setReady(width > body.clientWidth + 1);
     if (stickyIdentity) {
       const codeHeader = table?.querySelector("thead th:first-child");
       body.style.setProperty("--sticky-code-width", `${codeHeader?.getBoundingClientRect().width ?? 0}px`);
@@ -52,35 +44,13 @@ export function TableHScroll({
     };
   }, [syncWidth, children]);
 
-  const onTopScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (syncing.current === "body") return;
-    syncing.current = "top";
-    if (bodyRef.current) bodyRef.current.scrollLeft = event.currentTarget.scrollLeft;
-    syncing.current = null;
-  };
-
-  const onBodyScroll = (event: UIEvent<HTMLDivElement>) => {
-    if (syncing.current === "top") return;
-    syncing.current = "body";
-    if (topRef.current) topRef.current.scrollLeft = event.currentTarget.scrollLeft;
-    syncing.current = null;
-  };
-
   return (
     <div className={cn("min-w-0 max-w-full rounded-xl border bg-card", className)}>
-      <div
-        ref={topRef}
-        className={cn("overflow-x-auto", ready ? "border-b" : "hidden")}
-        onScroll={onTopScroll}
-        aria-hidden={!ready}
-      >
-        <div ref={spacerRef} className="h-3" />
-      </div>
+
       <div
         ref={bodyRef}
         className="overflow-x-auto [&_th]:whitespace-nowrap"
         data-sticky-identity={stickyIdentity || undefined}
-        onScroll={onBodyScroll}
       >
         {isValidElement<ComponentProps<"table">>(children) && children.type === "table" ? createElement(FilterableTable, children.props) : children}
       </div>

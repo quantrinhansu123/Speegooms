@@ -40,9 +40,11 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     define: { "process.env.NODE_ENV": '"production"' },
   });
   const quotes = Object.fromEntries(["vn", "global"].map((lane) => [lane, {
+    lane,
     id: `quote-${lane}`, code: `BGL-${lane}`, potentialId: `lead-${lane}`, leadCode: `LD-${lane}`,
     customerName: lane === "global" ? "Chin Tran" : "Chin Tran 2", customerKind: "LOGISTICS",
     quoteWorkflow: "COMBINED", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+    orders: [], notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", opsExtra: "", freight: { basis: "shipment", rate: null, total: null, totalManual: false }, logisticsFees: [], deposit: [] },
     createdAt: lane === "global" ? "2026-11-10T12:00:00Z" : "2026-11-09T12:00:00Z",
   }]));
   const requests = [];
@@ -59,14 +61,16 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     res.setHeader("Content-Type", "application/json");
     const lane = url.searchParams.get("lane");
     if (url.pathname === "/api/crm/quotes") {
-      if (failGlobal && lane === "global") {
+      if (failGlobal && (lane === "global" || url.searchParams.get("allLanes") === "1")) {
         res.statusCode = 500;
         res.end(JSON.stringify({ error: { message: "Global unavailable" } }));
       } else {
-        const quote = quotes[lane];
         const q = (url.searchParams.get("q") || "").toLowerCase();
         if (q === "missing") { heldResponses.push(res); return; }
-        res.end(JSON.stringify({ quotes: quote.customerName.toLowerCase().includes(q) ? [quote] : [] }));
+        const rows = (url.searchParams.get("allLanes") === "1" ? Object.values(quotes) : [quotes[lane]])
+          .filter(quote => quote.customerName.toLowerCase().includes(q))
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        res.end(JSON.stringify({ quotes: rows, pagination: { page: 1, pages: 1, total: rows.length, pageSize: 20, summary: {} } }));
       }
     } else if (url.pathname.includes("/assignees")) {
       res.end(JSON.stringify({ assignees: { [`quote-${lane}`]: { id: lane, name: `Owner ${lane}` } } }));
@@ -80,6 +84,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
   try {
     browser = await chromium.launch({ channel: "msedge", headless: true });
     const page = await browser.newPage();
+    page.on("pageerror", error => console.error(error.message));
     const origin = `http://127.0.0.1:${server.address().port}`;
     const expectRows = (count) => page.waitForFunction((n) => document.querySelectorAll("tbody tr[data-row-id]").length === n, count);
     await page.goto(origin);
@@ -92,7 +97,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
 
     await page.getByLabel("Tìm kiếm", { exact: true }).fill("Chin Tran");
     await Promise.all([
-      page.waitForResponse((response) => response.url().includes("lane=global&q=Chin+Tran")),
+      page.waitForResponse((response) => response.url().includes("q=Chin+Tran") && response.url().includes("allLanes=1")),
       page.getByRole("button", { name: "Tìm", exact: true }).click(),
     ]);
     assert.ok(requests.some(({ url }) => url.searchParams.get("lane") === "vn" && url.searchParams.get("q") === "Chin Tran"));
@@ -121,17 +126,17 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     await expectRows(2);
     await page.getByLabel("Tìm kiếm", { exact: true }).fill("missing");
     await Promise.all([
-      page.waitForRequest((request) => request.url().includes("lane=global&q=missing")),
+      page.waitForRequest((request) => request.url().includes("q=missing") && request.url().includes("allLanes=1")),
       page.getByRole("button", { name: "Tìm", exact: true }).click(),
     ]);
     await page.getByLabel("Tìm kiếm", { exact: true }).fill("Chin Tran");
     await Promise.all([
-      page.waitForResponse((response) => response.url().includes("lane=global&q=Chin+Tran")),
+      page.waitForResponse((response) => response.url().includes("q=Chin+Tran") && response.url().includes("allLanes=1")),
       page.getByRole("button", { name: "Tìm", exact: true }).click(),
     ]);
     await expectRows(2);
     await Promise.all([
-      page.waitForResponse((response) => response.url().includes("lane=global&q=missing")),
+      page.waitForResponse((response) => response.url().includes("q=missing") && response.url().includes("allLanes=1")),
       Promise.resolve().then(() => heldResponses.forEach((res) => res.end('{"quotes":[]}'))),
     ]);
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));

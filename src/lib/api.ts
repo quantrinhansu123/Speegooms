@@ -86,3 +86,17 @@ export async function logout(): Promise<void> {
     window.location.assign("/login");
   }
 }
+
+/** Load all pages only for explicit operations such as Excel export/import. */
+export async function fetchListPages<T>(path: string, field: string): Promise<T[]> {
+  const rows: T[] = [];
+  let page = 1;
+  let pages = 1;
+  do {
+    const body = await api<Record<string, T[]> & { pagination: { pages: number } }>(`${path}${path.includes("?") ? "&" : "?"}page=${page}&pageSize=100`);
+    rows.push(...body[field]);
+    pages = body.pagination.pages;
+    page += 1;
+  } while (page <= pages);
+  return rows;
+}

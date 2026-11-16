@@ -1,5 +1,7 @@
 "use client";
 
+import { ServerPagination } from "@/components/shared/server-pagination";
+
 import { useEffect, useState } from "react";
 import { Banknote, Hourglass, Plus, Receipt, Save, Users, X } from "lucide-react";
 import { createInternalExpenseSchema, createPayrollSchema, expenseStatusLabels, payrollNet } from "@speego/shared";
@@ -231,17 +233,17 @@ function CreateExpenseDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
 function PayrollSection({ canWrite }: { canWrite: boolean }) {
   const filters = useAppliedSearch({ q: "", from: "", to: "", department: "" });
-  const { rows, loading, error, reload } = useListData<PayrollRecord>("/api/ke-toan/payroll", "payroll", filters.applied, "Không tải được bảng lương");
+  const { rows, loading, error, reload, paging } = useListData<PayrollRecord>("/api/ke-toan/payroll", "payroll", filters.applied, "Không tải được bảng lương", true);
   const [notice, setNotice] = useState<string>();
   const [creating, setCreating] = useState(false);
 
-  const totalNet = rows.reduce((sum, row) => sum + row.netPay, 0);
+  const totalNet = Number(paging.summary.totalNet ?? 0);
 
   return (
     <>
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
         <StatCard label="Quỹ lương thực nhận" value={formatVndCompact(totalNet)} icon={Banknote} caption="Theo bộ lọc hiện tại" />
-        <StatCard label="Dòng lương" value={formatNumber(rows.length)} icon={Users} caption="Mỗi nhân sự một dòng mỗi kỳ" />
+        <StatCard label="Dòng lương" value={formatNumber(paging.total)} icon={Users} caption="Mỗi nhân sự một dòng mỗi kỳ" />
       </div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Chưa tính thuế TNCN và chưa kết nối hệ thống chi trả.</p>
@@ -299,6 +301,7 @@ function PayrollSection({ canWrite }: { canWrite: boolean }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={loading} />
       {creating && (
         <CreatePayrollDialog
           onClose={() => setCreating(false)}
@@ -315,19 +318,19 @@ function PayrollSection({ canWrite }: { canWrite: boolean }) {
 
 function ExpenseSection({ canWrite }: { canWrite: boolean }) {
   const filters = useAppliedSearch({ q: "", from: "", to: "", department: "", status: "" });
-  const { rows, loading, error, reload } = useListData<ExpenseRecord>("/api/ke-toan/expenses", "expenses", filters.applied, "Không tải được chi phí nội bộ");
+  const { rows, loading, error, reload, paging } = useListData<ExpenseRecord>("/api/ke-toan/expenses", "expenses", filters.applied, "Không tải được chi phí nội bộ", true);
   const [notice, setNotice] = useState<string>();
   const [creating, setCreating] = useState(false);
 
-  const paid = rows.filter((row) => row.status === "DA_CHI").reduce((sum, row) => sum + row.amount, 0);
-  const pending = rows.filter((row) => row.status === "CHO_DUYET");
-  const pendingTotal = pending.reduce((sum, row) => sum + row.amount, 0);
+  const paid = Number(paging.summary.paid ?? 0);
+  const pendingCount = Number(paging.summary.pendingCount ?? 0);
+  const pendingTotal = Number(paging.summary.pendingTotal ?? 0);
 
   return (
     <>
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
         <StatCard label="Chi phí nội bộ đã chi" value={formatVndCompact(paid)} icon={Receipt} caption="Theo bộ lọc hiện tại" />
-        <StatCard label="Chi phí chờ duyệt" value={formatVndCompact(pendingTotal)} icon={Hourglass} caption={`${pending.length} khoản`} />
+        <StatCard label="Chi phí chờ duyệt" value={formatVndCompact(pendingTotal)} icon={Hourglass} caption={`${pendingCount} khoản`} />
       </div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Văn phòng phẩm, đi lại, phần mềm, tiếp khách… không gồm thanh toán nhà cung cấp.</p>
@@ -382,6 +385,7 @@ function ExpenseSection({ canWrite }: { canWrite: boolean }) {
           </tbody>
         </table>
       </TableHScroll>
+      <ServerPagination paging={paging} loading={loading} />
       {creating && (
         <CreateExpenseDialog
           onClose={() => setCreating(false)}

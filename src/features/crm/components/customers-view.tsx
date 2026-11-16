@@ -65,7 +65,7 @@ export function CustomersView() {
 
   const filtered = data.customers.filter((c) => (!route || c.route === route) && matchesQuery(query, c.name, c.contactName, c.phone, c.email, c.customerId));
   const listTools = useListTools(filtered, { filename: "speego-customers.csv", name: (r) => r.name, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.customerId }, { label: "Tên / nội dung", value: (r) => r.name }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "route", value: (r) => r.route }, { label: "contact", value: (r) => r.contactName }] });
-  const paging = usePagination(listTools.rows, 15, listTools.resetKey);
+  const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
   const columns: Column<Customer>[] = [
     { key: "id", header: "Mã", cell: (c) => <span className="font-mono text-xs">{c.customerId}</span> },

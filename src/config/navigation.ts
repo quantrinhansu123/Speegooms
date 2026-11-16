@@ -51,6 +51,9 @@ export const navigation: NavGroup[] = [
         icon: Megaphone,
         children: [
           { title: "Tổng quan Marketing", href: "/marketing" },
+          { title: "Giao việc", href: "/marketing/giao-viec" },
+          { title: "Báo cáo thực hiện", href: "/marketing/bao-cao-thuc-hien" },
+          { title: "Tổng hợp KPI", href: "/marketing/tong-hop-kpi" },
           { title: "Chiến dịch", href: "/marketing/chien-dich" },
           { title: "Nguồn lead & chuyển đổi", href: "/marketing/hieu-qua-nguon" },
           { title: "Phản hồi từ Sales", href: "/marketing/phan-hoi" },

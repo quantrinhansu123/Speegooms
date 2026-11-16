@@ -1,5 +1,7 @@
 import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import type pg from "pg";
+import type { ListPage, PageRequest } from "@speego/shared";
+import { queryPage } from "../../lib/pagination";
 import { AppError, InfrastructureError } from "../../lib/errors";
 import { PostgresLedgerRepository } from "./ledger.repository";
 import type {
@@ -17,6 +19,7 @@ import {
   expenseSearch,
   paymentSearch,
   payrollSearch,
+  type LedgerListSearch,
   type ExpenseListSearch,
   type PaymentListSearch,
   type PayrollListSearch,
@@ -179,9 +182,34 @@ export class PostgresKeToanRepository implements KeToanRepository {
     this.ledger = new PostgresLedgerRepository(pool);
   }
 
+  async pagePayments(search: PaymentListSearch, page: PageRequest): Promise<ListPage<PaymentRequestRecord>> {
+    const compiled = paymentSearch(search).build();
+    const result = await queryPage<PaymentRow>({ query: this.query.bind(this) }, `${paymentSelect} where true ${compiled.sql}`, compiled.values, page, { orderBy: "entered_at desc, code desc, id desc" });
+    return { ...result, rows: result.rows.map(toPayment) };
+  }
+
+  async pagePayroll(search: PayrollListSearch, page: PageRequest): Promise<ListPage<PayrollRecord>> {
+    const compiled = payrollSearch(search).build();
+    const result = await queryPage<PayrollRow>({ query: this.query.bind(this) }, `${payrollSelect} where true ${compiled.sql}`, compiled.values, page, {
+      orderBy: "period desc, full_name, id", summary: "jsonb_build_object('totalNet', coalesce(sum(net_pay::numeric), 0))",
+    });
+    return { ...result, rows: result.rows.map(toPayroll) };
+  }
+
+  async pageExpenses(search: ExpenseListSearch, page: PageRequest): Promise<ListPage<InternalExpenseRecord>> {
+    const compiled = expenseSearch(search).build();
+    const result = await queryPage<ExpenseRow>({ query: this.query.bind(this) }, `${expenseSelect} where true ${compiled.sql}`, compiled.values, page, {
+      orderBy: "spent_on desc, code desc, id desc",
+      summary: "jsonb_build_object('paid', coalesce(sum(amount::numeric) filter (where status = 'DA_CHI'), 0), 'pendingTotal', coalesce(sum(amount::numeric) filter (where status = 'CHO_DUYET'), 0), 'pendingCount', count(*) filter (where status = 'CHO_DUYET'))",
+    });
+    return { ...result, rows: result.rows.map(toExpense) };
+  }
+
   listReceivingAccounts(): Promise<string[]> { return this.ledger.listReceivingAccounts(); }
   createReceivingAccount(name: string): Promise<string> { return this.ledger.createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.ledger.listLedger(); }
+  pageLedger(search: LedgerListSearch, page: PageRequest) { return this.ledger.pageLedger(search, page); }
+  pageStatements(page: PageRequest, candidateFor?: string) { return this.ledger.pageStatements(page, candidateFor); }
   listStatements(): Promise<StatementRecord[]> { return this.ledger.listStatements(); }
   listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.ledger.listLedgerOrders(); }
   createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.ledger.createStatement(input); }

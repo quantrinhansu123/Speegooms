@@ -18,6 +18,8 @@ import {
   type SaveProposalTemplateInput,
 } from "@speego/shared";
 import type pg from "pg";
+import type { PageRequest, ProposalListSearch, ProposalStatsRow } from "@speego/shared";
+import { queryPage } from "../../lib/pagination";
 import { AppError } from "../../lib/errors";
 
 type Row = {
@@ -75,6 +77,67 @@ export class PostgresDeXuatRepository {
       [userId, JSON.stringify([{ approverId: userId }]), JSON.stringify([{ id: userId }])],
     );
     return r.rows.map(toRecord);
+  }
+
+  async pageList(scopeId: string | null, actorId: string, search: ProposalListSearch, page: PageRequest) {
+    const source = `select r.*,
+      (trang_thai = 'cho-duyet' and ($3 <> 'inbox' or cac_buoc->buoc_hien_tai->>'approverId' = $2)) as is_todo,
+      (trang_thai = 'cho-duyet' and $3 = 'inbox' and coalesce(cac_buoc->buoc_hien_tai->>'approverId', '') <> $2) as is_watch,
+      (case when $3 <> 'inbox' then trang_thai <> 'cho-duyet' else
+        exists(select 1 from jsonb_array_elements(cac_buoc) step where step->>'approverId' = $2 and nullif(step->>'decision', '') is not null)
+        or (trang_thai <> 'cho-duyet' and nguoi_theo_doi @> jsonb_build_array(jsonb_build_object('id', $2::text))) end) as is_done
+      from (${select}) r where
+        ($1::text is null or nguoi_tao_id = $1 or cac_buoc @> jsonb_build_array(jsonb_build_object('approverId', $1::text)) or nguoi_theo_doi @> jsonb_build_array(jsonb_build_object('id', $1::text)))
+        and ($3 = 'admin' or ($3 = 'sent' and nguoi_tao_id = $2)
+          or ($3 = 'inbox' and (cac_buoc @> jsonb_build_array(jsonb_build_object('approverId', $2::text)) or nguoi_theo_doi @> jsonb_build_array(jsonb_build_object('id', $2::text)))))`;
+    const result = await queryPage<Row>({ query: (sql, values) => this.pool.query(sql, [...values]) }, source,
+      [scopeId, actorId, search.tab, search.filter, search.q, search.from ?? null, search.to ?? null, search.requester], page, {
+        orderBy: "tao_luc desc, id desc",
+        where: `($4 = 'all' or ($4 = 'todo' and is_todo) or ($4 = 'watch' and is_watch) or ($4 = 'done' and is_done))
+          and ($5 = '' or strpos(replace(regexp_replace(normalize(lower(concat_ws(' ', ve_viec, noi_dung, ma, ten_nguoi_tao)), NFD), U&'[\\0300-\\036f]', '', 'g'), 'đ', 'd'), $5) > 0)
+          and ($6::timestamptz is null or tao_luc >= $6) and ($7::timestamptz is null or tao_luc < $7)
+          and ($8 = '' or nguoi_tao_id = $8)`,
+        summary: "jsonb_build_object('todo', count(*) filter (where is_todo), 'watch', count(*) filter (where is_watch), 'done', count(*) filter (where is_done))",
+      });
+    return { ...result, rows: result.rows.map(toRecord) };
+  }
+
+  async usage(userId: string) {
+    const templates = await this.templates();
+    const periods = ["week", "month", "year"] as const;
+    const ranges = periods.map(period => proposalPeriodRange(period, new Date()));
+    const rows = (await this.pool.query<{ mau_id: string; period: string; used: number }>(
+      `select d.mau_id, p.period, count(*)::int as used from app.de_xuat d
+       join unnest($2::text[], $3::timestamptz[], $4::timestamptz[]) p(period, start_at, end_at)
+         on d.tao_luc >= p.start_at and d.tao_luc < p.end_at
+       where d.nguoi_tao_id = $1 and d.trang_thai <> 'tu-choi' group by d.mau_id, p.period`,
+      [userId, periods, ranges.map(range => range.start), ranges.map(range => range.end)],
+    )).rows;
+    const month = ranges[1]!;
+    const monthTotal = Number((await this.pool.query<{ total: number }>(`select count(*)::int as total from app.de_xuat where nguoi_tao_id = $1 and tao_luc >= $2 and tao_luc < $3`, [userId, month.start, month.end])).rows[0]!.total);
+    return { monthTotal, byTemplate: Object.fromEntries(templates.map(t => [t.id, rows.find(r => r.mau_id === t.id && r.period === t.period)?.used ?? 0])) };
+  }
+
+  async stats(start: Date, end: Date, q: string, page: PageRequest) {
+    return queryPage<ProposalStatsRow>({ query: (sql, values) => this.pool.query(sql, [...values]) }, `
+      select d.nguoi_tao_id as id, d.nguoi_tao_id as code, u.ho_ten as name, count(*)::int as total,
+        (count(*) filter (where d.trang_thai = 'cho-duyet'))::int as pending,
+        (count(*) filter (where d.trang_thai = 'da-duyet'))::int as approved,
+        (count(*) filter (where d.trang_thai = 'tu-choi'))::int as rejected,
+        (count(*) filter (where d.loai = 'nghi-phep' and d.trang_thai = 'da-duyet'))::int as "leaveApproved",
+        (count(*) filter (where d.loai = 'nghi-phep' and d.trang_thai = 'tu-choi'))::int as "leaveRejected",
+        (select jsonb_object_agg(ten_mau, n) from (
+          select ten_mau, count(*)::int as n from app.de_xuat x where x.nguoi_tao_id = d.nguoi_tao_id
+            and x.tao_luc >= $1 and x.tao_luc < $2 group by ten_mau
+        ) t) as "byTemplate"
+      from app.de_xuat d join public.nguoi_dung u on u.ma_nguoi_dung = d.nguoi_tao_id
+      where d.tao_luc >= $1 and d.tao_luc < $2 group by d.nguoi_tao_id, u.ho_ten`, [start, end, q], page, {
+        orderBy: "total desc, code",
+        where: "($3 = '' or concat_ws(' ', code, name) ilike '%' || $3 || '%')",
+        summary: `jsonb_build_object('employees', count(*), 'total', coalesce(sum(total), 0), 'pending', coalesce(sum(pending), 0),
+          'approved', coalesce(sum(approved), 0), 'rejected', coalesce(sum(rejected), 0),
+          'leaveApproved', coalesce(sum("leaveApproved"), 0), 'leaveRejected', coalesce(sum("leaveRejected"), 0))`,
+      });
   }
 
   async byId(id: string): Promise<ProposalRecord | null> {
