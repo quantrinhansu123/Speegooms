@@ -57,7 +57,7 @@ import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, se
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteSheetHtml, quoteTotals } from "./quote-print";
 import { quoteOutputRunners } from "./quote-output";
-import { buildQuoteSheet, draftQuoteSheetInput, orderForQuotePdf, printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
+import { buildQuoteSheet, draftQuoteSheetInput, orderForQuotePdf, printableRfqQuote, quoteOutputProblem, quoteRecordMissing, saleDraftQuote, type QuotePdfSource } from "./quote-sheet";
 import { QuoteSheetPreview } from "./quote-sheet-preview";
 import { RequirementImageSlider } from "./requirement-image-slider";
 import { TableHScroll } from "./table-h-scroll";
@@ -2383,7 +2383,7 @@ export function QuoteEditor({
   /** Mở hộp thoại chọn ngôn ngữ cho nút In / Tải PDF / Tải Excel ở thanh công cụ. */
   const askOutput = (action: QuoteOutputAction, order?: QuoteOrder) => {
     const record = { ...quote, desk: desk ?? (quote.customerKind === "LOGISTICS" ? "logistics" : "sourcing") };
-    const source = printableRfqQuote(record);
+    const source = printableRfqQuote(record) ?? saleDraftQuote(record);
     if (!source) {
       setFormError(quoteOutputProblem(record) ?? quoteOutputText[action].noSheet);
       return;

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultQuoteBank, emptyQuoteFreight, fclQuoteSchema, quoteOrderSchema, quoteSheetInputOf, type QuoteSheetInput } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
-import { buildQuoteSheet } from "./quote-sheet";
+import { buildQuoteSheet, saleDraftQuote } from "./quote-sheet";
+import { orderPackageMetrics } from "@/services/crm/quote-lines";
 
 const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   customer: { customerName: null, companyName: null, address: null, phone: null, email: null },
@@ -52,6 +53,20 @@ test("only uninsured pure Logistics hides the entire product table in print with
     }
   }
   assert.equal(buildQuoteSheet(quoteSheetInputOf({ ...source, ...source.customer, customerKind: "SOURCING" }, order)).showPricing, true);
+});
+
+test("uninsured pure Logistics prints images and package size without prices once Sale filled both", () => {
+  const source = { ...input({ freight: { ...emptyQuoteFreight, total: 120, totalManual: true } }), code: "BGL", customerKind: "LOGISTICS" };
+  const line = { stt: "1", productName: "Goods", quantity: 2, pricePerSet: 12345, lineTotal: 24690, weightKg: 5, spec: "", note: "",
+    images: ["https://example.com/a.png"], packages: [{ count: 1, lengthCm: 50, widthCm: 40, heightCm: 30, actualKg: 12 }] };
+  const make = (extra: object) => quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "Goods", selected: true, currency: "USD", lines: [{ ...line, ...extra }] });
+  const html = (order: ReturnType<typeof make>) => quoteSheetHtml(quoteSheetInputOf({ ...source, ...source.customer }, order));
+  const full = html(make({}));
+  assert.match(full, /<img src="https:\/\/example\.com\/a\.png"/);
+  assert.match(full, /50\*40\*30 cm/);
+  assert.doesNotMatch(full, /12[.,]345|24[.,]690/);
+  assert.doesNotMatch(html(make({ images: [] })), /50\*40\*30 cm/);
+  assert.doesNotMatch(html(make({ packages: [] })), /<img src="https:\/\/example\.com/);
 });
 
 test("removing the metric column keeps product, total and deposit cells aligned with extra currencies", () => {
@@ -146,4 +161,14 @@ test("shipping surcharges print inside the shipping cost section, not under the 
     assert.doesNotMatch(before, new RegExp(label));
     assert.match(freightSection, new RegExp(label));
   }
+});
+
+test("Sale converted weight links to actual weight and unlocks draft export for pure Logistics", () => {
+  assert.equal(orderPackageMetrics([{ packages: [], weightKg: 20, quantity: 3 }]).actualKg, 60);
+  const order = (line: object) => quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "G", selected: true, currency: "USD", lines: [{ stt: "1", productName: "Goods", quantity: 3, spec: "", note: "", weightKg: null, pricePerSet: 0, lineTotal: 0, ...line }] });
+  const row = (o: ReturnType<typeof order>, extra: object = {}) => ({ customerKind: "LOGISTICS", sentQuote: null, orders: [o], createdAt: "2026-11-17T00:00:00Z", ...extra }) as never;
+  assert.ok(saleDraftQuote(row(order({ weightKg: 20 }))));
+  assert.equal(saleDraftQuote(row(order({}))), null);
+  assert.equal(saleDraftQuote(row(order({ weightKg: 20 }), { customerKind: "SOURCING" })), null);
+  assert.equal(saleDraftQuote(row(order({ weightKg: 20 }), { sentQuote: {} })), null);
 });

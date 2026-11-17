@@ -46,6 +46,8 @@ export function orderPackageMetrics(lines: { packages: PackageSpec[]; weightKg?:
   for (const line of lines) {
     if (line.packages.length === 0) {
       const quantity = line.quantity ?? 1;
+      // Sale chỉ có cân quy đổi (chưa có kiện): dùng làm cân thực tế đến khi nhập kiện.
+      total.actualKg += (line.weightKg ?? 0) * quantity;
       total.chargeableKg += ceilHalf((line.weightKg ?? 0) * quantity);
       total.cbm += (line.cbm ?? 0) * quantity;
       continue;

@@ -136,7 +136,8 @@ function bankInfoBlock(model: QuoteSheetModel): string {
 }
 
 function quoteItemsHtml(model: QuoteSheetModel): string {
-  if (!model.showPricing) return "";
+  // Thuần Logistics không bảo hiểm: không in giá, chỉ in bảng hàng khi Sale đã điền đủ hình + kích thước kiện.
+  if (!model.showPricing && !(model.lines.length > 0 && model.lines.every((line) => line.images.length > 0 && line.spec.trim()))) return "";
   const { t, lang } = model;
   const fmt = (value: number | null, digits = 2) => value == null ? "" : formatQuoteNumber(value, lang, digits);
   const cols = sheetColumns(model);

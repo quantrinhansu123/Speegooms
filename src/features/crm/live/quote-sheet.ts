@@ -86,6 +86,19 @@ export function printableRfqQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
   return quoteWithLogisticsCosts(source, row.desk === "sourcing" ? row.logisticsSheet?.sentQuote : null, source.orders[0]);
 }
 
+/**
+ * Đơn thuần Logistics Sale đã điền đủ cân (cân quy đổi hoặc kiện đủ số đo) nhưng Logistics chưa gửi giá:
+ * cho Sale xuất từ dữ liệu đang có. ponytail: chưa có cước, Logistics gửi giá thì bản đã gửi thay thế.
+ */
+export function saleDraftQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
+  const order = orderForQuotePdf(row.orders);
+  if (row.customerKind !== "LOGISTICS" || row.sentQuote || !order || quotePackageIssue(order)) return null;
+  const lines = order.lines.filter((line) => line.productName?.trim() || line.packages.length > 0 || line.weightKg != null);
+  if (lines.length === 0 || !lines.every((line) => line.packages.length > 0 || (line.weightKg ?? 0) > 0)) return null;
+  const issuedOn = new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(row.createdAt));
+  return { ...row, issuedOn, orders: [{ ...order, selected: true }] } as RfqQuoteRecord;
+}
+
 /** Gộp chi phí đã gửi để xuất cho khách; không đưa bản nháp Logistics vào báo giá. */
 export function quoteWithLogisticsCosts<T extends QuoteSheetSource>(source: T, logistics: SentQuote | null | undefined, order: QuoteOrder): T {
   if (!logistics) return source;
