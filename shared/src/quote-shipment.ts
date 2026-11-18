@@ -26,7 +26,8 @@ export function quotePackageIssue(order: QuoteOrder): string | null {
       if (!(pkg.count > 0 && pkg.lengthCm > 0 && pkg.widthCm > 0 && pkg.heightCm > 0)) {
         return `${label}: nhập đủ số kiện và dài × rộng × cao lớn hơn 0 trước khi gửi báo giá.`;
       }
-      if (!(pkg.actualKg > 0)) return `${label}: nhập trọng lượng thực tế kg/kiện lớn hơn 0 trước khi gửi báo giá (không nhập tổng kg vào ô kg/kiện).`;
+      // Sale đã nhập cân quy đổi cho dòng thì được dùng làm cân thực khi kiện chưa có kg/kiện.
+      if (!(pkg.actualKg > 0) && !((line.weightKg ?? 0) > 0)) return `${label}: nhập trọng lượng thực tế kg/kiện lớn hơn 0 trước khi gửi báo giá (không nhập tổng kg vào ô kg/kiện).`;
     }
   }
   return null;

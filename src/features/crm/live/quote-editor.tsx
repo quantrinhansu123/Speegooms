@@ -1448,8 +1448,8 @@ const OrderLines = memo(function OrderLines({
       if (lineIndex !== index) return line;
       let next = { ...line, ...patch, prices: patch.prices ?? line.prices ?? [] };
       if (("packages" in patch || "quantity" in patch) && next.packages.length > 0) {
-        const m = packageMetrics(next.packages, shippingMode);
         const quantity = next.quantity && next.quantity > 0 ? next.quantity : 1;
+        const m = packageMetrics(next.packages, shippingMode, pureLogistics ? (next.weightKg ?? 0) * quantity : 0);
         next = { ...next, cbm: m.cbm / quantity, weightKg: m.chargeableKg / quantity };
       }
       if (["quantity", "pricePerSet", "basis", "packages", "weightKg", "cbm", "areaM2", "lineTotalManual"].some((k) => k in patch)) next = recalcLine(next);
@@ -1647,7 +1647,7 @@ const OrderLines = memo(function OrderLines({
                   {!brief && (
                     <td className="px-2 py-2 align-top">
                       <div className="grid w-28 gap-1">
-                        <DraftQuantity className="h-8" placeholder="kg/đơn vị" aria-label={`${pureLogistics ? "Cân tính cước" : "Trọng lượng"} dòng ${index + 1} (kg mỗi đơn vị)`} aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent || line.packages.length > 0} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
+                        <DraftQuantity className="h-8" placeholder="kg/đơn vị" aria-label={`${pureLogistics ? "Cân tính cước" : "Trọng lượng"} dòng ${index + 1} (kg mỗi đơn vị)`} aria-invalid={errors[`line.${index}.weight`] ? true : undefined} value={line.weightKg} disabled={!canEditContent || (line.packages.length > 0 && !pureLogistics)} onValueChange={(weightKg) => { updateLine(index, { weightKg }); onClearError?.(`line.${index}.weight`); }} />
                         <InputError message={errors[`line.${index}.weight`]} />
                       </div>
                     </td>

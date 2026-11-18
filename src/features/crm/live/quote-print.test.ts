@@ -3,7 +3,8 @@ import test from "node:test";
 import { defaultQuoteBank, emptyQuoteFreight, fclQuoteSchema, quoteOrderSchema, quoteSheetInputOf, type QuoteSheetInput } from "@speego/shared";
 import { quoteSheetHtml } from "./quote-print";
 import { buildQuoteSheet, saleDraftQuote } from "./quote-sheet";
-import { orderPackageMetrics } from "@/services/crm/quote-lines";
+import { orderPackageMetrics, packageMetrics } from "@/services/crm/quote-lines";
+import { quotePackageIssue } from "@speego/shared";
 
 const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   customer: { customerName: null, companyName: null, address: null, phone: null, email: null },
@@ -65,8 +66,10 @@ test("uninsured pure Logistics prints images and package size without prices onc
   assert.match(full, /<img src="https:\/\/example\.com\/a\.png"/);
   assert.match(full, /50\*40\*30 cm/);
   assert.doesNotMatch(full, /12[.,]345|24[.,]690/);
-  assert.doesNotMatch(html(make({ images: [] })), /50\*40\*30 cm/);
-  assert.doesNotMatch(html(make({ packages: [] })), /<img src="https:\/\/example\.com/);
+  // Dòng nào có hình hoặc kích thước thì in dòng đó, không cần đủ cả hai.
+  assert.match(html(make({ images: [] })), /50\*40\*30 cm/);
+  assert.match(html(make({ packages: [] })), /<img src="https:\/\/example\.com/);
+  assert.doesNotMatch(html(make({ images: [], packages: [] })), /<img src=|50\*40\*30 cm/);
 });
 
 test("removing the metric column keeps product, total and deposit cells aligned with extra currencies", () => {
@@ -171,4 +174,18 @@ test("Sale converted weight links to actual weight and unlocks draft export for 
   assert.equal(saleDraftQuote(row(order({}))), null);
   assert.equal(saleDraftQuote(row(order({ weightKg: 20 }), { customerKind: "SOURCING" })), null);
   assert.equal(saleDraftQuote(row(order({ weightKg: 20 }), { sentQuote: {} })), null);
+});
+
+test("Sale converted weight stands in for missing per-package kg and no longer blocks output", () => {
+  const pkg = { count: 2, lengthCm: 50, widthCm: 40, heightCm: 30, actualKg: 0 };
+  const order = (weightKg: number | null) => quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "G", selected: true, currency: "USD", lines: [{ stt: "1", productName: "Goods", quantity: 3, spec: "", note: "", weightKg, pricePerSet: 0, lineTotal: 0, packages: [pkg] }] });
+  assert.equal(quotePackageIssue(order(20)), null);
+  assert.match(quotePackageIssue(order(null)) ?? "", /trọng lượng thực tế/);
+  // 20 kg/đv × 3 đv = 60 kg thực; cân thể tích 50×40×30/6000×2 = 20 kg nên giữ 60.
+  assert.equal(packageMetrics([pkg], "AIR", 60).actualKg, 60);
+  assert.equal(packageMetrics([pkg], "AIR", 60).chargeableKg, 60);
+  assert.equal(packageMetrics([pkg], "AIR", 0).actualKg, 0);
+  assert.equal(orderPackageMetrics(order(20).lines).actualKg, 60);
+  // Kiện đã có kg thực thì không bị cân quy đổi ghi đè.
+  assert.equal(packageMetrics([{ ...pkg, actualKg: 5 }], "AIR", 60).actualKg, 10);
 });

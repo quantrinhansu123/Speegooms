@@ -22,7 +22,11 @@ export function ceilHalf(value: number): number {
   return Math.ceil(round(value, 3) * 2) / 2;
 }
 
-export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | null = null) {
+/**
+ * fallbackKg: cân quy đổi Sale nhập cho cả dòng; chỉ dùng làm cân thực khi có kiện chưa nhập kg/kiện
+ * (cân tính cước vẫn lấy số lớn hơn giữa cân này và cân thể tích).
+ */
+export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | null = null, fallbackKg = 0) {
   let cbm = 0, volumetricKg = 0, actualKg = 0, chargeableKg = 0, count = 0;
   for (const p of packages) {
     const pieces = p.count > 0 ? p.count : 0;
@@ -35,6 +39,10 @@ export function packageMetrics(packages: PackageSpec[], mode: "AIR" | "SEA" | nu
     // Mỗi kiện (hoặc nhóm kiện giống nhau) tự so cân thực với cân thể tích, rồi mới cộng dồn.
     chargeableKg += Math.max(actKg, volKg);
     count += pieces;
+  }
+  if (fallbackKg > 0 && packages.some((p) => !(p.actualKg > 0))) {
+    actualKg = fallbackKg;
+    chargeableKg = Math.max(fallbackKg, volumetricKg);
   }
   // Cân tính cước làm tròn lên 0,5 kg cho từng nhóm đóng gói.
   return { count, cbm: round(cbm, 3), volumetricKg: round(volumetricKg, 1), actualKg: round(actualKg, 1), chargeableKg: ceilHalf(chargeableKg) };
@@ -52,7 +60,7 @@ export function orderPackageMetrics(lines: { packages: PackageSpec[]; weightKg?:
       total.cbm += (line.cbm ?? 0) * quantity;
       continue;
     }
-    const m = packageMetrics(line.packages, mode);
+    const m = packageMetrics(line.packages, mode, (line.weightKg ?? 0) * (line.quantity ?? 1));
     total.count += m.count;
     total.cbm += m.cbm;
     total.volumetricKg += m.volumetricKg;

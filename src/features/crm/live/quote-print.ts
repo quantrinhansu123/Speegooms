@@ -136,8 +136,8 @@ function bankInfoBlock(model: QuoteSheetModel): string {
 }
 
 function quoteItemsHtml(model: QuoteSheetModel): string {
-  // Thuần Logistics không bảo hiểm: không in giá, chỉ in bảng hàng khi Sale đã điền đủ hình + kích thước kiện.
-  if (!model.showPricing && !(model.lines.length > 0 && model.lines.every((line) => line.images.length > 0 && line.spec.trim()))) return "";
+  // Thuần Logistics không bảo hiểm: không in giá, chỉ in bảng hàng khi Sale đã điền hình hoặc kích thước kiện (dòng nào có thì in dòng đó).
+  if (!model.showPricing && !model.lines.some((line) => line.images.length > 0 || line.spec.trim())) return "";
   const { t, lang } = model;
   const fmt = (value: number | null, digits = 2) => value == null ? "" : formatQuoteNumber(value, lang, digits);
   const cols = sheetColumns(model);
@@ -182,7 +182,8 @@ function quoteItemsHtml(model: QuoteSheetModel): string {
       ${rows || `<tr><td colspan="${colCount}" class="empty">${escapeHtml(t.empty)}</td></tr>`}
     </tbody>
   </table>
-`;
+
+`;
 }
 
 export function quoteSheetHtml(input: QuoteSheetInput & {

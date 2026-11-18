@@ -34,7 +34,7 @@ import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { QuoteLanguageDialog, quoteOutputActions, quoteOutputIcon, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteOutputRunners } from "./quote-output";
-import { printableRfqQuote, quoteOutputProblem, quoteRecordMissing, type QuotePdfSource } from "./quote-sheet";
+import { printableRfqQuote, quoteOutputProblem, quoteRecordMissing, saleDraftQuote, type QuotePdfSource } from "./quote-sheet";
 import { RowMenu } from "./row-menu";
 import { QuoteTracking } from "./quote-tracking";
 import { TableHScroll } from "./table-h-scroll";
@@ -502,7 +502,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               const canHandleRow = canHandleCrm(user, row);
               const canWriteRow = canWrite && canHandleRow;
               const logistics = isCombinedSourcing(row) ? logisticsQuote(row) : null;
-              const printSource = printableRfqQuote(row);
+              const printSource = printableRfqQuote(row) ?? saleDraftQuote(row);
               return (
               <tr
                 key={row.id}

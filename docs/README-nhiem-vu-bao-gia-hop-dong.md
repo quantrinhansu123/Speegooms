@@ -102,3 +102,12 @@ Sale nhập cân quy đổi, ô cân thực tự có số, nút Xuất báo giá
 - Đọc `node_modules/next/dist/docs/` trước khi sửa frontend (xem `AGENTS.md`).
 - Không sửa Supabase/`.env`/dữ liệu production khi chưa được duyệt.
 - Chạy typecheck + test liên quan trước mỗi commit. Chỉ push lên `origin` (quantrinhansu123/Speegooms).
+
+---
+
+## Bổ sung 18/11: sửa các lỗ hổng sau lần làm 17/11 (nhiệm vụ 2 và 3)
+
+- **In hình + kích thước (thuần Logistics):** trước đây chỉ in bảng hàng khi *mọi* dòng có đủ ảnh và quy cách; một dòng thiếu là mất cả bảng. Nay in nếu *có dòng nào* có ảnh hoặc kích thước, dòng nào có thì in dòng đó (`quote-print.ts`). Excel vốn đã in ảnh/quy cách nên giữ nguyên.
+- **Cân quy đổi → cân thực:** kiện đã có D×R×C nhưng chưa có kg/kiện không còn bị chặn xuất nếu dòng có cân quy đổi (`quotePackageIssue`). Cân quy đổi × số lượng làm cân thực của dòng; cân tính cước = số lớn hơn giữa cân này và cân thể tích (`packageMetrics`, tham số `fallbackKg`). Kiện đã có kg thực thì không bị ghi đè.
+- **Ô "Cân tính cước (kg/đv)"** không còn khóa khi dòng đã có kiện (chỉ với khách thuần Logistics).
+- Test: `quote-print.test.ts` (12 ca), `rules.check.ts`; typecheck web + api sạch.
