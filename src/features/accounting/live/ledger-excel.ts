@@ -21,10 +21,12 @@ export async function buildLedgerWorkbook(entries: ExcelLedgerEntry[] = []) {
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Thu chi");
-  sheet.columns = [...columns.map(([key, header, width]) => ({ key, header, width })),
-    { key: "amountVnd", header: "Thành tiền VND", width: 22 },
-    { key: "reconciled", header: "Đối soát", width: 22 },
-    ...optionalColumns.map(([key, header, width]) => ({ key, header, width }))];
+  sheet.columns = [
+    columns[0], columns[1], optionalColumns[1], ...columns.slice(2),
+    ["amountVnd", "Thành tiền VND", 22] as const,
+    ["reconciled", "Đối soát", 22] as const,
+    optionalColumns[0],
+  ].map(([key, header, width]) => ({ key, header, width }));
   for (const entry of entries) sheet.addRow({ ...entry,
     kind: entry.kind === "THU" ? "Thu" : "Chi", category: ledgerCategoryLabels[entry.category],
     amountVnd: ledgerAmountVnd(entry), reconciled: entry.reconciled ? "Đã đối soát" : "Chờ đối soát" });

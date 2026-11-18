@@ -35,18 +35,21 @@ test("new Excel fields roundtrip and old files preserve existing account and tra
   assert.equal(result.rows[0].input.date, "2026-11-12");
   assert.ok(unchangedLedgerRow(result.rows[0].input, current));
   const sheet = workbook.getWorksheet("Thu chi")!;
-  sheet.getCell("N2").value = new Date("2026-10-30T00:00:00Z");
-  sheet.getCell("N2").numFmt = "yyyy-mm-dd";
+  assert.equal(sheet.getCell("B1").value, "Ngày");
+  assert.equal(sheet.getCell("C1").value, "Ngày giao dịch");
+  sheet.getCell("C2").value = new Date("2026-10-30T00:00:00Z");
+  sheet.getCell("C2").numFmt = "yyyy-mm-dd";
   assert.equal((await read(workbook)).rows[0].input.transactionDate, "2026-10-30");
-  sheet.getCell("N2").value = "2026-02-30";
+  sheet.getCell("C2").value = "2026-02-30";
   assert.equal((await read(workbook)).errors.length, 1);
-  sheet.getCell("M2").value = null;
   sheet.getCell("N2").value = null;
+  sheet.getCell("C2").value = null;
   const cleared = (await read(workbook)).rows[0].input;
   assert.equal(cleared.receivingAccount, null);
   assert.equal(cleared.transactionDate, null);
   assert.equal(unchangedLedgerRow(cleared, current), false);
-  sheet.spliceColumns(13, 2);
+  sheet.spliceColumns(14, 1);
+  sheet.spliceColumns(3, 1);
   const legacy = (await read(workbook)).rows[0].input;
   assert.equal(legacy.receivingAccount, undefined);
   assert.equal(legacy.transactionDate, undefined);
@@ -59,19 +62,22 @@ test("new optional Excel columns reject duplicate headers and formula accounts",
   sheet.getCell("O1").value = "Tài khoản nhận";
   await assert.rejects(read(workbook), /Trùng cột Tài khoản nhận/);
   sheet.getCell("O1").value = null;
-  sheet.getCell("M2").value = { formula: '"Bank"', result: "Bank" };
+  sheet.getCell("N2").value = { formula: '"Bank"', result: "Bank" };
   assert.match((await read(workbook)).errors[0], /công thức/);
 });
 
 test("template accepts new rows, Excel dates and VND defaults", async () => {
   const workbook = await buildLedgerWorkbook();
   const sheet = workbook.getWorksheet("Thu chi")!;
-  sheet.addRow(["", new Date("2026-11-12T00:00:00Z"), "Thu", "Cọc khách", "Khách mới", "", 500000]);
+  assert.equal(sheet.getCell("B1").value, "Ngày");
+  assert.equal(sheet.getCell("C1").value, "Ngày giao dịch");
+  sheet.addRow(["", new Date("2026-11-12T00:00:00Z"), "2026-11-01", "Thu", "Cọc khách", "Khách mới", "", 500000]);
   sheet.getCell("B2").numFmt = "yyyy-mm-dd";
   const result = await read(workbook);
   assert.deepEqual(result.errors, []);
   assert.equal(result.rows[0].id, "");
   assert.equal(result.rows[0].input.date, "2026-11-12");
+  assert.equal(result.rows[0].input.transactionDate, "2026-11-01");
   assert.equal(result.rows[0].input.currency, "VND");
 });
 
@@ -79,12 +85,12 @@ test("rejects bad dates, money, categories, rates and formula cells per row", as
   const workbook = await buildLedgerWorkbook(Array.from({ length: 7 }, () => ({ ...entry, id: "" })));
   const sheet = workbook.getWorksheet("Thu chi")!;
   sheet.getCell("B2").value = "2026-02-30";
-  sheet.getCell("G3").value = -1;
-  sheet.getCell("C4").value = "Thu";
-  sheet.getCell("I5").value = null;
-  sheet.getCell("G6").value = { formula: "1+1", result: 2 };
-  sheet.getCell("G7").value = "1,000";
-  sheet.getCell("E8").value = { text: "Đối tượng", hyperlink: "https://example.com" };
+  sheet.getCell("H3").value = -1;
+  sheet.getCell("D4").value = "Thu";
+  sheet.getCell("J5").value = null;
+  sheet.getCell("H6").value = { formula: "1+1", result: 2 };
+  sheet.getCell("H7").value = "1,000";
+  sheet.getCell("F8").value = { text: "Đối tượng", hyperlink: "https://example.com" };
   const result = await read(workbook);
   assert.equal(result.rows.length, 0);
   assert.equal(result.errors.length, 7);
@@ -112,7 +118,7 @@ test("requires the expected sheet, unique headers and non-empty data", async () 
 
 test("limits bulk input and ignores read-only reconciliation columns", async () => {
   const workbook = await buildLedgerWorkbook([{ ...entry, reconciled: true }]);
-  workbook.getWorksheet("Thu chi")!.getCell("L2").value = "Chờ đối soát";
+  workbook.getWorksheet("Thu chi")!.getCell("M2").value = "Chờ đối soát";
   const result = await read(workbook);
   assert.ok(!("reconciled" in result.rows[0].input));
   assert.ok(unchangedLedgerRow(result.rows[0].input, { ...entry, reconciled: true }));
