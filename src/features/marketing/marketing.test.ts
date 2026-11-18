@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
-import { taskKpi, deadlineLabel, contentEffect, canonicalPostUrl, marketingTaskSchema } from "@speego/shared";
+import { taskKpi, deadlineLabel, contentEffect, canonicalPostUrl, marketingTaskSchema, marketingKpiMet, marketingKpiSettingsSchema } from "@speego/shared";
 import { blankTask, importTasks, importReports } from "./import";
-import { buildTaskTemplate } from "./template";
+import { buildTaskTemplate, buildReportTemplate } from "./template";
 test("downloaded template preserves dropdowns and filled rows import with post links",async()=>{
  const book=await buildTaskTemplate();
  const media=book.getWorksheet("01 Giao việc Media")!, content=book.getWorksheet("02 Giao việc Content")!;
@@ -82,4 +82,58 @@ test("synthetic CSV, XLS and ZIP reports preserve post IDs, metrics and date for
   assert.equal(result.rows[0].views,1234);
   assert.equal(result.rows[0].interactions,item.interactions);
  }
+});
+
+test("Ads template round trips date range and configured KPI targets/results",async()=>{
+ const type={id:"956415bc-a231-4a37-8f3a-1c8e04a7e003",kind:"ads" as const,name:"Lead",unit:"lead",direction:"at-least" as const,defaultTarget:10,active:true};
+ const book=await buildTaskTemplate([type]);
+ const sheet=book.getWorksheet("03 Giao việc Ads")!;
+ sheet.addRow([]);
+ const values=[1,"2026-11","SpeeGo Sourcing","Test Ads","Brief","Facebook Ads","","Media 1","2026-11-01","2026-12-10","","Đang chạy","Chưa nghiệm thu","","","https://example.com/campaign","","",25,0];
+ values.forEach((v,i)=>sheet.getCell(2,i+1).value=v);
+ assert.deepEqual(sheet.getCell("F501").dataValidation.formulae,["DinhDangAds"]);
+ const bytes=await book.xlsx.writeBuffer();
+ const imported=await importTasks(new File([new Uint8Array(bytes)],"tasks.xlsx"),[type]);
+ assert.deepEqual(imported.errors,[]);assert.equal(imported.rows.length,1);
+ assert.equal(imported.rows[0].kind,"ads");assert.equal(imported.rows[0].assignedOn,"2026-11-01");assert.equal(imported.rows[0].deadline,"2026-12-10");
+ assert.deepEqual(imported.rows[0].kpis,[{id:type.id,name:"Lead",unit:"lead",direction:"at-least",target:25,actual:0}]);
+ assert.equal(marketingTaskSchema.safeParse({...imported.rows[0],deadline:"2026-10-31"}).success,false);
+ assert.equal(marketingKpiSettingsSchema.safeParse({version:1,types:[type,type]}).success,false);
+ const kpi=imported.rows[0].kpis[0];
+ assert.equal(marketingKpiMet({...kpi,actual:25}),true);assert.equal(marketingKpiMet({...kpi,actual:24}),false);
+ assert.equal(marketingKpiMet({...kpi,direction:"at-most",actual:0}),true);assert.equal(marketingKpiMet({...kpi,direction:"at-most",actual:null}),false);
+});
+
+test("downloaded report templates import for all platforms and retain measurement period",async()=>{
+ const cases=[
+  {platform:"facebook",channel:"SpeeGo Sourcing",values:["9000000000000001","SpeeGo Sourcing","https://facebook.com/9000000000000001","Post","Video","2026-11-09",0,0]},
+  {platform:"tiktok",channel:"TikTok Anh Phúc",values:["Video","https://www.tiktok.com/@test/video/9000000000000002","2026-11-09",100,0,0,0]},
+  {platform:"linkedin",channel:"LinkedIn SpeeGo",values:["Post","https://www.linkedin.com/feed/update/urn:li:activity:9000000000000003/","2026-11-09","Video",100,1,2,3]},
+ ] as const;
+ for(const item of cases){
+  const book=await buildReportTemplate(item.platform);const sheet=book.getWorksheet("Content")!;
+  assert.equal(sheet.rowCount,1);sheet.addRow([...item.values]);
+  const bytes=await book.xlsx.writeBuffer();const file=new File([new Uint8Array(bytes)],"report.xlsx");
+  const result=await importReports(file,item.platform,item.channel,"2026-11-16","2026","2026-11-01");
+  assert.deepEqual(result.errors,[]);assert.equal(result.rows.length,1);assert.equal(result.rows[0].observedFrom,"2026-11-01");assert.equal(result.rows[0].observedOn,"2026-11-16");
+  await assert.rejects(()=>importReports(file,item.platform,item.channel,"2026-11-01","2026","2026-11-16"),/khoảng ngày đo/);
+ }
+});
+
+test("SEO template preserves several KPIs and uses increasing completion ratios",async()=>{
+ const types=[
+  {id:"956415bc-a231-4a37-8f3a-1c8e04a7e005",kind:"seo" as const,name:"Search",unit:"lượt",direction:"at-least" as const,defaultTarget:250,active:true},
+  {id:"956415bc-a231-4a37-8f3a-1c8e04a7e006",kind:"seo" as const,name:"Top 20",unit:"từ khóa",direction:"at-least" as const,defaultTarget:140000,active:true},
+ ];
+ const book=await buildTaskTemplate(types), sheet=book.getWorksheet("04 Giao việc SEO")!;
+ [1,"2026-11","Khác","Test SEO","Brief","SEO website","","Content 1","2026-11-01","2026-11-30"].forEach((v,i)=>sheet.getCell(2,i+1).value=v);
+ sheet.getCell("S2").value=250;sheet.getCell("T2").value=270;sheet.getCell("V2").value=140000;sheet.getCell("W2").value=130000;
+ assert.match((sheet.getCell("X2").value as {formula:string}).formula,/W2\/V2/);
+ assert.deepEqual(sheet.getCell("F501").dataValidation.formulae,["DinhDangSeo"]);
+ const buffer=await book.xlsx.writeBuffer();
+ const imported=await importTasks(new File([new Uint8Array(buffer)],"seo.xlsx"),types);
+ assert.deepEqual(imported.errors,[]);assert.equal(imported.rows[0].kind,"seo");assert.equal(imported.rows[0].kpis.length,2);
+ assert.equal(marketingKpiMet(imported.rows[0].kpis[1]),false);
+ const incomplete=workbookFile(workbook([{ "Từ ngày":"", "Đến ngày":"", "KPI_1_A_MKT giao (số mess)":250 }],"03 Giao việc Ads"),"incomplete.xlsx");
+ const invalid=await importTasks(incomplete,types);assert.match(invalid.errors[0],/thiếu cột STT ads/);
 });

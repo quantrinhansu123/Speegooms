@@ -20,6 +20,7 @@ import { resetFulfillment } from "@/features/fulfillment/store";
 import { resetOps } from "@/features/operations/store";
 import { DataLanhRecipients } from "./data-lanh-recipients";
 import { KpiSettings } from "./kpi-settings";
+import { MarketingKpiSettingsView } from "./marketing-kpi-settings";
 
 const initials = (name: string) => name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
 
@@ -84,6 +85,7 @@ export function SettingsView() {
     <div className="mt-6"><ChangePasswordForm /></div>
     {user.role === "admin" && <AccountManagement />}
     {user.role === "admin" && <DataLanhRecipients />}
+    {user.role === "admin" && <MarketingKpiSettingsView />}
 
     <SectionCard className="mt-6" title="Dữ liệu demo" description="Mọi thay đổi trong bản demo được lưu trên trình duyệt này. Đặt lại sẽ nạp lại dữ liệu gốc.">
       {message && <InlineAlert tone={message.tone} className="mb-4">{message.text}</InlineAlert>}

@@ -1,9 +1,14 @@
 import type { Request, Response } from "express";
 import type pg from "pg";
 import { z } from "zod";
-import { marketingTaskSchema, marketingReportSchema, canonicalPostUrl, marketingTeamRoles, isMarketingLeader, canOrderMarketing, type MarketingMember, type MarketingTask, type MarketingReport } from "@speego/shared";
+import { marketingTaskSchema, marketingReportSchema, marketingKpiSettingsSchema, marketingKinds, canonicalPostUrl, marketingTeamRoles, isMarketingLeader, canOrderMarketing, type MarketingKpiSettings, type MarketingMember, type MarketingTask, type MarketingReport } from "@speego/shared";
 import { AppError } from "../lib/errors";
 import { queryPage, readPagination } from "../lib/pagination";
+
+// JSONB may reorder object keys; compare KPI values independently of serialization order.
+const kpiSignature = (kpis: MarketingTask["kpis"], includeActual: boolean) => JSON.stringify(
+  [...kpis].sort((a,b) => a.id.localeCompare(b.id)).map(k => [k.id,k.name,k.unit,k.direction,k.target,...(includeActual ? [k.actual] : [])]),
+);
 
 export class MarketingController {
   constructor(private readonly pool: pg.Pool | null) {}
@@ -16,23 +21,26 @@ export class MarketingController {
   list = async (req: Request, res: Response) => {
     const actor = this.actor(req);
     const parsed = z.object({
-      view: z.enum(["tasks", "reports", "kpi"]).default("tasks"), kind: z.enum(["", "media", "content"]).default(""),
+      view: z.enum(["tasks", "reports", "kpi"]).default("tasks"), kind: z.enum(["", ...marketingKinds]).default(""),
       month: z.string().regex(/^$|^\d{4}-(0[1-9]|1[0-2])$/).default(""), channel: z.string().max(200).default(""),
       owner: z.string().max(200).default(""), q: z.string().max(200).default(""),
-      groupBy: z.enum(["assignee", "channel", "kind"]).default("assignee"), drill: z.string().max(200).default(""),
+      groupBy: z.enum(["assignee", "channel", "kind", "kpi"]).default("assignee"), drill: z.string().max(200).default(""),
+      from: z.union([z.literal(""), z.iso.date()]).default(""), to: z.union([z.literal(""), z.iso.date()]).default(""),
       today: z.iso.date().default(new Date().toISOString().slice(0, 10)),
       mine: z.enum(["", "true"]).default(""),
     }).safeParse(req.query);
     if (!parsed.success) throw new AppError(400, "INVALID", "Bộ lọc Marketing không hợp lệ");
     const f = parsed.data;
+    if (f.from && f.to && f.from > f.to) throw new AppError(400, "INVALID", "Từ ngày không được sau đến ngày");
     const page = readPagination(req);
-    const values = [f.month, f.channel, f.owner, f.q, f.kind, f.today, f.drill, f.mine === "true" ? actor.id : ""];
-    const group = f.groupBy === "kind" ? "case when data->>'kind' = 'media' then 'Media' else 'Content' end" : f.groupBy === "assignee" ? "coalesce(nullif(data->>'assigneeId',''),data->>'assignee')" : "data->>'channel'";
+    const values = [f.month, f.channel, f.owner, f.q, f.kind, f.today, f.drill, f.mine === "true" ? actor.id : "", f.from, f.to];
+    const group = f.groupBy === "kind" ? "case data->>'kind' when 'media' then 'Media' when 'ads' then 'Ads' when 'seo' then 'SEO' else 'Content' end" : f.groupBy === "assignee" ? "coalesce(nullif(data->>'assigneeId',''),data->>'assignee')" : "data->>'channel'";
     const source = `select id::text, data || jsonb_build_object('version', version) as data, updated_at
       from app.marketing_tasks where ($1 = '' or data->>'month' = $1) and ($2 = '' or data->>'channel' = $2)
         and ($3 = '' or data->>'assigneeId' = $3 or (coalesce(data->>'assigneeId','') = '' and data->>'assignee' = $3))
         and ($4 = '' or strpos(lower(concat_ws(' ', data->>'title', data->>'brief', data->>'note')), lower($4)) > 0)
         and ($5 = '' or data->>'kind' = $5) and ($8::text = '' or data->>'assigneeId' = $8)
+        and ($9 = '' or data->>'deadline' >= $9) and ($10 = '' or data->>'assignedOn' <= $10)
         and $6::text is not null and $7::text is not null`;
     const summary = `jsonb_build_object('assigned', count(*) filter (where data->>'status' <> 'Hủy'),
       'done', count(*) filter (where data->>'status' <> 'Hủy' and data->>'acceptance' = 'Đạt'))`;
@@ -45,7 +53,9 @@ export class MarketingController {
       const result = await queryPage<{ id: string; data: MarketingReport }>(this.db(),
         `select concat_ws(':', platform, channel, post_id) as id, data, updated_at from app.marketing_reports
          where ($1 = '' or starts_with(data->>'publishedOn', $1)) and ($2 = '' or channel = $2)
-           and ($3 = '' or strpos(lower(data->>'title'), lower($3)) > 0)`, [f.month, f.channel, f.q], page, { orderBy: "updated_at desc, id" });
+           and ($3 = '' or strpos(lower(data->>'title'), lower($3)) > 0)
+           and ($4 = '' or data->>'observedOn' >= $4)
+           and ($5 = '' or coalesce(nullif(data->>'observedFrom',''),data->>'observedOn') <= $5)`, [f.month, f.channel, f.q, f.from, f.to], page, { orderBy: "updated_at desc, id" });
       const urls = new Set(result.rows.map(row => canonicalPostUrl(row.data.postUrl)));
       const links = urls.size ? (await this.db().query<{ data: Pick<MarketingTask, "kind" | "title" | "postUrl"> }>(
         "select jsonb_build_object('kind', data->>'kind', 'title', data->>'title', 'postUrl', data->>'postUrl') as data from app.marketing_tasks where coalesce(data->>'postUrl', '') <> ''",
@@ -54,6 +64,20 @@ export class MarketingController {
       return;
     }
     if (f.view === "kpi") {
+      if (f.groupBy === "kpi") {
+        const result = await queryPage(this.db(), `select k->>'id' as id, min(k->>'name') as key, min(k->>'unit') as unit,
+          min(k->>'direction') as direction,
+          (case when min(k->>'direction') = 'at-most' then avg((k->>'target')::numeric) else sum((k->>'target')::numeric) end)::float8 as assigned,
+          coalesce(case when min(k->>'direction') = 'at-most' then avg((k->>'actual')::numeric) filter (where data->>'acceptance' = 'Đạt')
+            else sum((k->>'actual')::numeric) filter (where data->>'acceptance' = 'Đạt') end,0)::float8 as done,
+          count(*)::int as tasks, count(*) filter (where data->>'acceptance' = 'Đạt' and k->>'actual' is not null)::int as measured,
+          count(*) filter (where data->>'acceptance' = 'Đạt' and case when k->>'direction' = 'at-most'
+            then (k->>'actual')::numeric <= (k->>'target')::numeric else (k->>'actual')::numeric >= (k->>'target')::numeric end)::int as achieved
+          from (${source}) tasks cross join lateral jsonb_array_elements(coalesce(data->'kpis','[]')) k
+          where data->>'status' <> 'Hủy' group by k->>'id'`, values, page, { orderBy: "key" });
+        res.json({ ...common, tasks: [], reports: [], groups: result.rows, pagination: result.pagination });
+        return;
+      }
       const grouped = `select ${group} as id, ${f.groupBy === "assignee" ? "min(data->>'assignee')" : group} as key,
         (count(*) filter (where data->>'status' <> 'Hủy'))::int as assigned,
         (count(*) filter (where data->>'status' <> 'Hủy' and data->>'acceptance' = 'Đạt'))::int as done,
@@ -67,8 +91,33 @@ export class MarketingController {
       res.json({ ...common, tasks: [], reports: [], groups: result.rows.map(row => ({ ...row, rate: row.assigned ? row.done / row.assigned * 100 : null })), pagination: result.pagination });
       return;
     }
-    const result = await queryPage<{ id: string; data: MarketingTask }>(this.db(), `${source} and ($7 = '' or ${group} = $7)`, values, page, { orderBy: "updated_at desc, id", summary });
+    const drillFilter = f.groupBy === "kpi" ? "data->>'status' <> 'Hủy' and exists(select 1 from jsonb_array_elements(coalesce(data->'kpis','[]')) k where k->>'id' = $7)" : `${group} = $7`;
+    const result = await queryPage<{ id: string; data: MarketingTask }>(this.db(), `${source} and ($7 = '' or ${drillFilter})`, values, page, { orderBy: "updated_at desc, id", summary });
     res.json({ ...common, tasks: result.rows.map(row => row.data), reports: [], groups: [], pagination: result.pagination });
+  };
+  settings = async (req: Request, res: Response) => {
+    this.actor(req);
+    const result = await this.db().query("select version, types from app.marketing_kpi_settings where id = true");
+    res.json(result.rows[0] ?? { version: 0, types: [] });
+  };
+  saveSettings = async (req: Request, res: Response) => {
+    const actor = this.actor(req, true);
+    if (actor.role !== "admin") throw new AppError(403, "FORBIDDEN", "Chỉ Admin được cấu hình KPI Marketing trong Cài đặt");
+    const parsed = marketingKpiSettingsSchema.safeParse(req.body);
+    if (!parsed.success) throw new AppError(400, "INVALID", parsed.error.issues[0]!.message);
+    const c = await this.db().connect();
+    try {
+      await c.query("begin");
+      const old = (await c.query<MarketingKpiSettings>("select version, types from app.marketing_kpi_settings where id = true for update")).rows[0];
+      if (!old || old.version !== parsed.data.version) throw new AppError(409, "CONFLICT", "Cấu hình đã thay đổi; tải lại trước khi lưu");
+      for (const type of old.types) {
+        const next = parsed.data.types.find(t => t.id === type.id);
+        if (!next || next.kind !== type.kind || next.name !== type.name || next.unit !== type.unit || next.direction !== type.direction)
+          throw new AppError(400, "INVALID", "Loại KPI đã lưu giữ nguyên tên, nhóm, đơn vị và cách đánh giá; hãy ngừng sử dụng và tạo loại mới");
+      }
+      const result = await c.query("update app.marketing_kpi_settings set types=$1, version=version+1, updated_by=$2, updated_at=now() where id = true returning version, types", [JSON.stringify(parsed.data.types), actor.id]);
+      await c.query("commit"); res.json(result.rows[0]);
+    } catch (e) { await c.query("rollback"); throw e; } finally { c.release(); }
   };
   task = async (req: Request, res: Response) => {
     this.actor(req);
@@ -86,6 +135,7 @@ export class MarketingController {
     const c = await this.db().connect();
     try {
       await c.query("begin");
+      const settings = (await c.query<MarketingKpiSettings>("select version, types from app.marketing_kpi_settings where id = true for share")).rows[0];
       const members = (await c.query<MarketingMember>("select ma_nguoi_dung as id, ho_ten as name, thu_dien_tu as email, vai_tro as role from public.nguoi_dung where vai_tro = any($1::text[])",[marketingTeamRoles])).rows;
       for (const t of parsed.data) {
         await c.query("select pg_advisory_xact_lock(hashtext($1))", [t.id]);
@@ -99,11 +149,21 @@ export class MarketingController {
         const isOrderer = canOrderMarketing(actor.role) && (!oldTask || author === actor.id);
         if (!isMarketingLeader(actor.role) && !isOrderer) {
           if (!oldTask || oldTask.assigneeId !== actor.id) throw new AppError(403,"FORBIDDEN","Chỉ được cập nhật việc được giao cho bạn");
-          const progress = new Set(["version","status","completedOn","assetUrl","postUrl","note"]);
+          const progress = new Set(["version","status","completedOn","assetUrl","postUrl","note","kpis"]);
           for (const key of Object.keys(t) as (keyof MarketingTask)[]) {
             if (!progress.has(key) && (t[key] ?? "") !== (oldTask[key] ?? "")) throw new AppError(403,"FORBIDDEN","Người nhận chỉ được cập nhật tiến độ, sản phẩm và ghi chú");
           }
+          if (kpiSignature(t.kpis,false) !== kpiSignature(oldTask.kpis ?? [],false)) throw new AppError(403,"FORBIDDEN","Người nhận chỉ được nhập kết quả KPI, không được sửa chỉ tiêu");
         }
+        for (const kpi of t.kpis) {
+          const previous = oldTask?.kind === t.kind ? oldTask.kpis?.find(k => k.id === kpi.id) : undefined;
+          const definition = settings?.types.find(k => k.id === kpi.id && k.kind === t.kind && k.active);
+          if (!previous && !definition) throw new AppError(400,"INVALID","Loại KPI không thuộc nhóm công việc hoặc đã ngừng sử dụng");
+          const canonical = previous ?? definition!;
+          kpi.name = canonical.name; kpi.unit = canonical.unit; kpi.direction = canonical.direction;
+        }
+        if (!isMarketingLeader(actor.role) && oldTask?.acceptance === "Đạt" && kpiSignature(t.kpis,true) !== kpiSignature(oldTask.kpis ?? [],true)) t.acceptance = "Chưa nghiệm thu";
+        if (t.acceptance === "Đạt" && t.kpis.some(k => k.actual === null)) throw new AppError(400,"INVALID","Nhập kết quả cho tất cả KPI trước khi nghiệm thu Đạt");
         if (actor.role === "marketing-content" && isOrderer && t.kind === "media" && t.format !== "Video") throw new AppError(403,"FORBIDDEN","Content được order Media định dạng Video");
         const matched = members.filter(u => t.assigneeId ? u.id === t.assigneeId : [u.name,u.email].some(v=>v.trim().toLowerCase()===t.assignee.trim().toLowerCase()));
         if (matched.length !== 1) throw new AppError(400,"INVALID",`Chọn tài khoản nhận việc cụ thể cho: ${t.title}. Tên/email không tồn tại hoặc bị trùng.`);
