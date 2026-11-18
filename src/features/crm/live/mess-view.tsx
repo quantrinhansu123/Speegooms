@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { canHandleCrm, messageProcessingOptions, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { InlineAlert, NativeSelect } from "@/components/shared/form-fields";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-provider";
@@ -18,6 +18,8 @@ import { formatDate } from "@/lib/format";
 import type { Role } from "@/types/role";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
+import { MultiCombobox } from "@/components/shared/multi-combobox";
+import { saleFilterOptions } from "./sale-filter-options";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
 import { dateInputFromIso, draftFrom, emptyDraft, marketPresets, messFieldIds, MessFormDialog, todayInput, uniqueSuggestions, type MessDraft } from "./mess-form";
 import { useMessConvert } from "./mess-convert";
@@ -55,8 +57,10 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const { query: pageQuery, receive: receivePage } = paging;
   const shown = listLoading ? [] : rows;
   const statusCounts = (paging.summary.statusCounts ?? {}) as Record<string, number>;
-  const saleOptions = uniqueSuggestions([...((paging.summary.sales ?? []) as string[]), filters.draft.saleName, filters.applied.saleName])
-    .map((name) => [name, name] as const);
+  const saleOptions = saleFilterOptions((paging.summary.staff ?? []) as string[], (paging.summary.sales ?? []) as string[], (paging.summary.otherStaff ?? []) as string[]);
+  // Chọn nhiều người: giá trị lọc là mọi dạng tên của những người đã chọn, ngăn cách bằng "|".
+  const pickedNames = new Set(filters.draft.saleName.split("|").map((name) => name.trim().toLowerCase()).filter(Boolean));
+  const pickedSales = saleOptions.filter((option) => option.value.split("|").every((name) => pickedNames.has(name.toLowerCase()))).map((option) => option.label);
 
   const load = useCallback(() => {
     const version = ++loadVersion.current;
@@ -209,7 +213,10 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
       >
         <FilterSelect id="mess-classification" label="Phân loại" value={filters.draft.classification} onChange={(value) => filters.set("classification", value)} options={messageClassificationOptions} />
         <FilterSelect id="mess-market" label="Thị trường" value={filters.draft.market} onChange={(value) => filters.set("market", value)} options={marketOptions} />
-        <FilterSelect id="mess-sale-filter" label="Nhân viên sale" value={filters.draft.saleName} onChange={(value) => filters.set("saleName", value)} options={saleOptions} />
+        <Field label="Nhân viên sale" htmlFor="mess-sale-filter">
+          <MultiCombobox id="mess-sale-filter" options={saleOptions.map((option) => option.label)} value={pickedSales} placeholder="Tất cả nhân viên" searchPlaceholder="Tìm nhân viên…"
+            onChange={(labels) => filters.set("saleName", saleOptions.filter((option) => labels.includes(option.label)).map((option) => option.value).join("|"))} />
+        </Field>
         <FilterSelect id="mess-customer-type" label="Đối tượng" value={filters.draft.customerType} onChange={(value) => filters.set("customerType", value)} options={customerTypeOptions} />
         <FilterSelect id="mess-status" label="Trạng thái mess" value={filters.draft.status} onChange={(value) => filters.set("status", value)} options={Object.entries(messageStatusLabels)} />
       </ListSearchBar>

@@ -7,6 +7,7 @@ import {
   payrollNet,
 } from "@speego/shared";
 import { can } from "../config/permissions";
+import { messageSearch } from "./crm-list-search";
 import { expenseSearch, ledgerSearch, paymentSearch, payrollSearch } from "./ke-toan-list-search";
 
 const emptyPayment = { q: "", from: "", to: "", status: "", payeeKind: "", purpose: "" };
@@ -102,4 +103,12 @@ test("sổ thu chi: lọc theo ngày giao dịch và đối tượng khớp chí
   assert.match(many.sql, /lower\(l\.doi_tuong\) = any\(\$\d+::text\[\]\)/);
   assert.deepEqual(many.values.at(-1), ["lưu hương", "an"]);
   assert.doesNotMatch(ledgerSearch({ ...base, dateField: "x; drop" }).build().sql, /ngay_giao_dich|drop/);
+});
+
+test("mess: lọc nhân viên sale khớp mọi dạng tên của cùng một người", () => {
+  const base = { q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "", saleName: "" };
+  assert.doesNotMatch(messageSearch(base).build().sql, /nhan_vien_ban/);
+  const built = messageSearch({ ...base, saleName: "Văn Thái Ngọc Hân| Hân" } as never).build();
+  assert.match(built.sql, /lower\(btrim\(m\.nhan_vien_ban\)\) = any\(\$\d+::text\[\]\)/);
+  assert.deepEqual(built.values.at(-1), ["văn thái ngọc hân", "hân"]);
 });

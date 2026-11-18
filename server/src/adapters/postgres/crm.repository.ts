@@ -1346,8 +1346,9 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async pageMessages(lane: CrmLane, search: MessageListSearch, page: PageRequest): Promise<ListPage<MessageRecord>> {
     const compiled = messageSearch({ ...search, saleName: "" }).build();
-    const params = [...compiled.values, search.processingStatus ?? "", search.saleName ?? ""];
-    const saleFilter = `($${params.length}::text = '' or btrim(sale_name) = $${params.length})`;
+    const params = [...compiled.values, search.processingStatus ?? "", (search.saleName ?? "").toLowerCase()];
+    // saleName có thể gồm nhiều dạng tên của cùng một người, ngăn cách bằng "|".
+    const saleFilter = `($${params.length}::text = '' or lower(btrim(sale_name)) = any(string_to_array($${params.length}, '|')))`;
     const result = await queryPage<MessageRow>({ query: this.query.bind(this) },
       `${messageSelect(lane)} where true ${compiled.sql}`, params, page, {
         orderBy: "created_at desc, id desc",
@@ -1359,7 +1360,12 @@ export class PostgresCrmRepository implements CrmRepository {
           'sales', coalesce(jsonb_agg(distinct btrim(sale_name)) filter (where nullif(btrim(sale_name), '') is not null), '[]'::jsonb),
           'markets', coalesce(jsonb_agg(distinct market) filter (where nullif(market, '') is not null), '[]'::jsonb))`,
       });
-    return { ...result, rows: result.rows.map(toMessage) };
+    // Họ tên đầy đủ của sale trong tuyến, để bộ lọc chỉ hiện mỗi người một tên.
+    // otherStaff: sale các tuyến khác, chỉ để nhận ra tên gõ tắt của họ trong mess tuyến này.
+    const staff = (await this.listSales(lane)).map((sale) => sale.name);
+    const everyone = (await this.query<{ name: string }>("select ho_ten as name from public.nguoi_dung where vai_tro in ('sale-vn', 'sale-global', 'sale-global-lead')")).rows.map((row) => row.name);
+    const otherStaff = everyone.filter((name) => !staff.includes(name));
+    return { ...result, pagination: { ...result.pagination, summary: { ...result.pagination.summary, staff, otherStaff } }, rows: result.rows.map(toMessage) };
   }
 
   async pagePotentials(lane: CrmLane, search: PotentialListSearch, page: PageRequest): Promise<ListPage<PotentialRecord>> {

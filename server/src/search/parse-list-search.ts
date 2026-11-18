@@ -59,7 +59,7 @@ export function readMessageSearch(req: Request): MessageListSearch {
     demand: oneOf(req, "demand", messageDemandSchema.options),
     customerType: oneOf(req, "customerType", customerTypeSchema.options),
     market: queryText(req, "market").trim(),
-    saleName: queryText(req, "saleName").trim().slice(0, 200),
+    saleName: queryText(req, "saleName").trim().slice(0, 2000),
     processingStatus: oneOf(req, "processingStatus", messageProcessingOptions.map(([value]) => value)),
   };
 }

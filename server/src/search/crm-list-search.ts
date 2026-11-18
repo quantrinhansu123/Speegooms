@@ -79,7 +79,10 @@ export function messageSearch(input: MessageListSearch): SearchBuilder {
     .add(new ExactMatchCriterion(sql("m.nhu_cau::text"), input.demand))
     .add(new ExactMatchCriterion(sql("m.loai_khach_hang::text"), input.customerType))
     .add(new ExactMatchCriterion(sql("m.thi_truong"), input.market))
-    .add(new ExactMatchCriterion(sql("btrim(m.nhan_vien_ban)"), input.saleName ?? ""))
+    .add({ apply: (query) => { // một người có thể được lưu bằng vài dạng tên, ngăn cách bằng "|"
+      const names = (input.saleName ?? "").split("|").map((name) => name.trim().toLowerCase()).filter(Boolean);
+      if (names.length) query.where(`lower(btrim(m.nhan_vien_ban)) = any(${query.param(names)}::text[])`);
+    } })
     .add(new ExactMatchCriterion(sql("m.nguoi_tao_id"), input.creatorId ?? ""));
 }
 
