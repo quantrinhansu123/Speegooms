@@ -105,6 +105,7 @@ export const navigation: NavGroup[] = [
         icon: Truck,
         children: [
           { title: "Logistics – Báo giá", href: "/van-hanh/logistics-bao-gia" },
+          { title: "Hợp đồng", href: "/van-hanh/don-hang" },
           { title: "Logistics – Lô hàng", href: "/van-hanh/logistics" },
           { title: "Chứng từ", href: "/van-hanh/chung-tu" },
         ],
