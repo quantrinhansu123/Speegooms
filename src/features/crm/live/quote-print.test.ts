@@ -4,7 +4,7 @@ import { defaultQuoteBank, emptyQuoteFreight, fclQuoteSchema, quoteOrderSchema, 
 import { quoteSheetHtml } from "./quote-print";
 import { buildQuoteSheet, saleDraftQuote } from "./quote-sheet";
 import { orderPackageMetrics, packageMetrics } from "@/services/crm/quote-lines";
-import { quotePackageIssue } from "@speego/shared";
+import { quoteMissingPackagingIssue, quotePackageIssue, quoteShipmentMatches } from "@speego/shared";
 
 const input = (notes: Partial<QuoteSheetInput["notes"]>): QuoteSheetInput => ({
   customer: { customerName: null, companyName: null, address: null, phone: null, email: null },
@@ -188,4 +188,19 @@ test("Sale converted weight stands in for missing per-package kg and no longer b
   assert.equal(orderPackageMetrics(order(20).lines).actualKg, 60);
   // Kiện đã có kg thực thì không bị cân quy đổi ghi đè.
   assert.equal(packageMetrics([{ ...pkg, actualKg: 5 }], "AIR", 60).actualKg, 10);
+});
+
+test("shipment mismatch detects Sourcing editing packaging after sending", () => {
+  const line = (packages: object[]) => ({ stt: "1", productName: "Máy trị liệu", quantity: 1, spec: "", note: "", weightKg: null, pricePerSet: 0, lineTotal: 0, packages });
+  const order = (packages: object[]) => quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "G", selected: true, currency: "AUD", lines: [line(packages)] });
+  const sent = order([]);
+  const draft = order([{ count: 1, lengthCm: 245, widthCm: 128, heightCm: 95, actualKg: 125 }]);
+  assert.equal(quoteShipmentMatches(sent, draft), false);
+  assert.equal(quoteShipmentMatches(draft, draft), true);
+});
+
+test("combined Sourcing quote cannot be sent while a product line has no packaging", () => {
+  const order = (packages: object[]) => quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "G", selected: true, currency: "AUD", lines: [{ stt: "1", productName: "Máy trị liệu", quantity: 1, spec: "", note: "", weightKg: null, pricePerSet: 0, lineTotal: 0, packages }] });
+  assert.match(quoteMissingPackagingIssue(order([])) ?? "", /Máy trị liệu: nhập quy cách đóng gói/);
+  assert.equal(quoteMissingPackagingIssue(order([{ count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 1 }])), null);
 });

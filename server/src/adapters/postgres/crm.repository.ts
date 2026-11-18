@@ -15,6 +15,7 @@ import {
   logisticsFeeSchema,
   quoteFreightSchema,
   sourcingHandoffOrder,
+  quoteShipmentMatches,
   quoteAccessKind,
   type QuoteWorkflow,
   type AccountingContractInput,
@@ -626,6 +627,9 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
   };
   /** Thông tin đơn hàng Sourcing để Logistics luôn thấy dữ liệu đơn hàng, kể cả khi phiếu mới chuyển còn trống. */
   const handoffOrder = sourcingHandoffOrder(base);
+  // Sourcing sửa hàng/đóng gói sau khi gửi mà chưa gửi lại: Logistics chỉ thấy bản đã gửi nên cần báo.
+  const draftOrder = base.orders.find((order) => order.selected) ?? base.orders[0];
+  const draftChanged = Boolean(base.sentQuote && draftOrder && orderHasContent(draftOrder) && !quoteShipmentMatches(base.sentQuote.order, draftOrder));
   return {
     ...base,
     templateId: sheet.templateId,
@@ -640,7 +644,7 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     bank: sheet.bank,
     sentQuote: sheet.sentQuote,
     logisticsSheet: null,
-    sourcingContext: handoffOrder ? { order: handoffOrder, opsNote: base.opsNote } : null,
+    sourcingContext: handoffOrder ? { order: handoffOrder, opsNote: base.opsNote, draftChanged } : null,
   };
 }
 

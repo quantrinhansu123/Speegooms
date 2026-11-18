@@ -7,7 +7,7 @@ import type { CrmRepository, QuoteRecord } from "../repositories/crm.repository"
 const input = updateQuoteSchema.parse({
   templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
   orders: [{ id: "00000000-0000-4000-8000-000000000001", name: "Đơn", selected: true, currency: "VND", rate: null,
-    lines: [{ stt: "1", productName: "Ghế", quantity: 10, pricePerSet: 5, lineTotal: 50, weightKg: 2, unit: "cái", spec: "Gỗ", note: "" }] }],
+    lines: [{ stt: "1", productName: "Ghế", quantity: 10, pricePerSet: 5, lineTotal: 50, weightKg: 2, unit: "cái", spec: "Gỗ", note: "", packages: [{ count: 10, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 2 }] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", validityDays: 7, deposit: [] }, bank: defaultQuoteBank,
 });
 const order = input.orders[0] as QuoteOrder;

@@ -1,5 +1,5 @@
 import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
-import { contractQuoteMessage, contractQuoteProblems, createDirectContractSchema, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePackageIssue, quotePaymentSummary, quoteVndRateError } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, createDirectContractSchema, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quoteMissingPackagingIssue, quotePackageIssue, quotePaymentSummary, quoteVndRateError } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -402,6 +402,8 @@ export class CrmService {
     const packageIssue = orders.find((order) => order.selected);
     const issue = packageIssue ? quotePackageIssue(packageIssue) : null;
     if (issue) throw new AppError(400, "RULE", issue);
+    const missingPackaging = desk === "sourcing" && isCombinedSourcing(current) && packageIssue ? quoteMissingPackagingIssue(packageIssue) : null;
+    if (missingPackaging) throw new AppError(400, "RULE", missingPackaging);
     const rateError = quoteVndRateError({ ...current, ...patched, orders }, desk);
     if (rateError) throw new AppError(400, "RULE", rateError);
     const paymentError = desk === "logistics" ? quotePaymentSummary({ ...current, ...patched, orders })?.error : "";

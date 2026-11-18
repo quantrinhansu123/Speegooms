@@ -366,7 +366,7 @@ const handoffInput = () => updateQuoteSchema.parse({
   orders: [{ id: "00000000-0000-0000-0000-000000000001", name: "Mẫu khách chọn", selected: true, currency: "VND", rate: null,
     lines: [{ stt: "1", image: "https://example.com/product.png", quantity: 12, pricePerSet: 500, lineTotal: 6000,
       weightKg: 20, cbm: 0.4, unit: "thùng", basis: "unit", spec: "Kích thước sản phẩm", note: "Không xếp chồng",
-      attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [] }] }],
+      attrs: [{ key: "Chất liệu", value: "Thủy tinh" }], packages: [{ count: 12, lengthCm: 40, widthCm: 30, heightCm: 30, actualKg: 20 }] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
@@ -377,6 +377,7 @@ test("sending rejects incomplete package measurements without fallback weight wh
       input.notes.validityDays = 7;
       input.orders[0].lines[0].weightKg = null;
       input.orders[0].lines[0].packages = [{ count: 10, lengthCm: 242, widthCm: 17, heightCm: 15, actualKg: 30, [missing]: 0 }];
+      input.orders[0].lines[0].weightKg = null; // có cân quy đổi thì được thay kg/kiện (xem test riêng)
       const current = { ...input, id: "quote", customerKind: desk === "logistics" ? "LOGISTICS" : "SOURCING", quoteWorkflow: "LEGACY" } as QuoteRecord;
       let saved = 0, sent = 0;
       const service = new CrmService({
@@ -791,6 +792,7 @@ test("FCL handoff validates the shipment form and manual kg can hand off without
   current.logisticsClass = "LCL";
   current.orders = input.orders;
   assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);
+  current.orders[0].lines[0].packages = [];
   current.orders[0].lines[0].weightKg = null;
   await assert.rejects(service.handoffLogisticsOrder("vn", "quote", actor), { status: 400 });
 });

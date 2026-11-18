@@ -32,3 +32,9 @@ export function quotePackageIssue(order: QuoteOrder): string | null {
   }
   return null;
 }
+
+/** Báo giá Sourcing luồng gộp: Logistics cần đóng gói của từng dòng hàng để tính cước, nên dòng có hàng phải có kiện. */
+export function quoteMissingPackagingIssue(order: QuoteOrder): string | null {
+  const line = order.lines.find((item) => (item.productName?.trim() || item.quantity != null) && item.packages.length === 0);
+  return line ? `${line.productName?.trim() || `Dòng ${line.stt}`}: nhập quy cách đóng gói (số kiện, dài × rộng × cao, kg/kiện) trước khi gửi để Logistics nhận được thông tin tính cước.` : null;
+}

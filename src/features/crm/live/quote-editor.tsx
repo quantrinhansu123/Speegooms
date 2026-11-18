@@ -1,6 +1,6 @@
 "use client";
 
-import { fclChargeTotal, quotePackageIssue, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
+import { fclChargeTotal, quotePackageIssue, quoteShipmentMatches, quoteVndRateError, shippingNoteKeys, shippingNoteText, withInsuranceCurrency, withFreightCurrency, type ShippingNoteKey } from "@speego/shared";
 import { activeLogisticsFees, contractQuoteMessage, contractQuoteProblems, formatQuoteDay, isCombinedSourcing, isQuoteLang, quoteAttrKeyEn, quoteFreightTotal, quoteItemFeeLabel, quoteLangLabels, quoteLangs, quoteMoneyValue, quotePrintText, quoteSheetInputOf, quoteValidity, resolvedFreightCurrency, type QuoteLang } from "@speego/shared";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentProps, type ReactNode } from "react";
@@ -53,7 +53,7 @@ import { useSession } from "@/features/auth/session-provider";
 import { formatMeasure, formatMeasureInput, formatMoneyGrouped, formatMoneyInput, parseMeasureInput } from "@/lib/format";
 import { clipboardImage } from "@/lib/clipboard-image";
 import { uploadDataImage, uploadImageFile, uploadImageFiles } from "@/lib/upload-image";
-import { lineAmount, orderPackageMetrics, packageMetrics, pricingBasisLabels, selectablePricingBases, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
+import { lineAmount, orderPackageMetrics, packageMetrics, packagesText, pricingBasisLabels, selectablePricingBases, VOLUMETRIC_DIVISOR, type PricingBasis } from "@/services/crm/quote-lines";
 import { QuoteLanguageDialog, quoteOutputText, type QuoteOutputAction } from "./quote-language-dialog";
 import { quoteSheetHtml, quoteTotals } from "./quote-print";
 import { quoteOutputRunners } from "./quote-output";
@@ -2568,6 +2568,10 @@ export function QuoteEditor({
       {onReload && <InlineAlert tone="info">Phiếu có dữ liệu mới. Tải lại sẽ bỏ các thay đổi chưa lưu trong form này. <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onReload}>Tải dữ liệu mới</Button></InlineAlert>}
       {!canProcess && <InlineAlert tone="info">Đã bàn giao cho {quote.handlerName ?? "Sale nhận"}. Bạn chỉ xem báo giá này; lịch sử xử lý được giữ trong hồ sơ khách tiềm năng.</InlineAlert>}
       {(formError || error) && <InlineAlert>{formError || error}</InlineAlert>}
+      {desk === "sourcing" && quote.sentQuote && isCombinedSourcing(quote) && (() => {
+        const draft = orders.find((order) => order.selected) ?? orders[0];
+        return draft && !quoteShipmentMatches(quote.sentQuote.order, draft);
+      })() && <InlineAlert tone="warning">Hàng hoặc đóng gói đã thay đổi so với bản đã gửi. Logistics chỉ thấy bản đã gửi, hãy bấm Gửi báo giá để Logistics nhận thông tin mới.</InlineAlert>}
       {!quoteStep && <InlineAlert tone="info">Xem trước bản nháp dùng thông tin đơn và cước hiện tại, không cần Lưu/Gửi. In/PDF/Excel sử dụng bản đã gửi; cần gửi lại và xác nhận cước nếu hàng hóa hoặc đóng gói thay đổi.</InlineAlert>}
       {sendNotice && <InlineAlert tone="success">{sendNotice}</InlineAlert>}
       {printLang === "en" && (
@@ -3150,6 +3154,7 @@ export function QuoteEditor({
           {!pureLogistics && desk === "logistics" && quote.sourcingContext && (
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
+              {quote.sourcingContext.draftChanged && <InlineAlert tone="warning">Sourcing đã sửa thông tin hàng hoặc đóng gói sau khi gửi nhưng chưa gửi lại, nên bảng dưới đây (bản đã gửi) có thể thiếu. Nhờ Sourcing bấm Gửi báo giá lại để Logistics nhận thông tin mới.</InlineAlert>}
               {quote.sourcingContext.opsNote && <p className="whitespace-pre-wrap text-sm">{quote.sourcingContext.opsNote}</p>}
               <TableHScroll className="rounded-lg">
                 <table className="w-full text-sm">
@@ -3162,8 +3167,8 @@ export function QuoteEditor({
                       <td className="whitespace-pre-wrap px-3 py-2">{line.productName || "—"}</td>
                       <td className="min-w-36 px-3 py-2">{quoteLineImages(line).length > 0 ? <RequirementImageSlider images={quoteLineImages(line)} showTitle={false} /> : "—"}</td>
                       <td className="whitespace-nowrap px-3 py-2">{amountText(line.quantity)}</td>
-                      <td className="whitespace-nowrap px-3 py-2">{line.basis === "kg" ? `${amountText(line.weightKg)} kg/set` : line.basis === "cbm" ? `${amountText(line.cbm)} CBM/set` : "—"}</td>
-                      <td className="min-w-48 whitespace-pre-wrap px-3 py-2">{[line.spec, ...line.attrs.map((attr) => attr.key + ": " + attr.value)].filter(Boolean).join("\n") || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{line.weightKg == null && line.cbm == null ? "—" : [line.weightKg != null && `${formatMeasure(line.weightKg)} kg/${line.unit || "set"}`, line.cbm != null && `${formatMeasure(line.cbm)} CBM/${line.unit || "set"}`].filter(Boolean).join(" · ")}</td>
+                      <td className="min-w-48 whitespace-pre-wrap px-3 py-2">{[line.spec, packagesText(line.packages, "vi", lead.shippingMode), ...line.attrs.map((attr) => attr.key + ": " + attr.value)].filter(Boolean).join("\n") || "—"}</td>
                       <td className="whitespace-pre-wrap px-3 py-2">{line.note || "—"}</td>
                       <td className="whitespace-nowrap px-3 py-2">{line.pricePerSet == null ? "—" : money(line.pricePerSet) + " " + quote.sourcingContext!.order.currency + " / " + pricingBasisLabels[line.basis]}</td>
                     </tr>

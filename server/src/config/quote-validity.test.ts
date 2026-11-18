@@ -13,7 +13,7 @@ const orderId = "00000000-0000-4000-8000-000000000001";
 const baseInput = (notes: Record<string, unknown> = {}) => updateQuoteSchema.parse({
   templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
   orders: [{ id: orderId, name: "Order", selected: true, currency: "VND", rate: null,
-    lines: [{ stt: "1", quantity: 1, pricePerSet: 10, lineTotal: 10, weightKg: null, unit: "set", spec: "Ghế", note: "" }] }],
+    lines: [{ stt: "1", quantity: 1, pricePerSet: 10, lineTotal: 10, weightKg: null, unit: "set", spec: "Ghế", note: "", packages: [{ count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 1 }] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [], ...notes }, bank: defaultQuoteBank,
 });
 

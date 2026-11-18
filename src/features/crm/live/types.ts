@@ -165,7 +165,7 @@ export interface QuoteRecord extends CrmHandler {
   sentQuote: SentQuote | null;
   logisticsQuoteId: string | null;
   logisticsSheet: QuoteSheet | null;
-  sourcingContext: { order: QuoteOrder; opsNote: string | null } | null;
+  sourcingContext: { order: QuoteOrder; opsNote: string | null; draftChanged?: boolean } | null;
   requirements: string | null;
   requirementImages: string[];
   createdAt: string;

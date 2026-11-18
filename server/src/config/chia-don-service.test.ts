@@ -49,7 +49,7 @@ const search = { q: "", from: "", to: "", quoteStatus: "", contractStatus: "", c
 const input = updateQuoteSchema.parse({
   templateId: null, opsNote: "", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
   orders: [{ id: quote.id, name: "Đơn", selected: true, currency: "VND", rate: null,
-    lines: [{ stt: "1", productName: "Ghế", quantity: 10, pricePerSet: 5, lineTotal: 50, weightKg: 2, unit: "cái", spec: "Gỗ", note: "" }] }],
+    lines: [{ stt: "1", productName: "Ghế", quantity: 10, pricePerSet: 5, lineTotal: 50, weightKg: 2, unit: "cái", spec: "Gỗ", note: "", packages: [{ count: 10, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 2 }] }] }],
   notes: { totalLabel: "", weightNote: "", validityNote: "", validityDays: 7, deposit: [] }, bank: defaultQuoteBank,
 });
 const current = { ...input, ...quote, sentQuote: null, logisticsSheet: null, createdAt: "2026-11-10" } as unknown as QuoteRecord;
