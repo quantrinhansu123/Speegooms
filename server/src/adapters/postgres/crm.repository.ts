@@ -1213,7 +1213,8 @@ function projectContract(row: ContractRow, view: ContractView): ContractRecord {
       opsStatus: live.opsStatus,
     };
   }
-  const received = applyOpsDetails(applyCommercial(live, sentToAccounting), sentToAccounting);
+  // Older/imported contracts may never have been sent. Keep their stored details visible to accounting.
+  const received = sentToAccounting ? applyOpsDetails(applyCommercial(live, sentToAccounting), sentToAccounting) : live;
   return {
     ...received,
     payments: live.payments,

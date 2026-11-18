@@ -493,13 +493,12 @@ export function ContractsLiveView({
     setError(undefined);
     try {
       const path = crmPath(`/api/crm/contracts?view=${mode}`, lane);
-      const sent = mode === "accounting" ? "&sent=1" : "";
       const query = searchParams(filters.applied, {
         opsStatus: filters.applied.opsStatus,
         accountingStatus: filters.applied.accountingStatus,
         customerKind: filters.applied.customerKind,
       });
-      const listPath = `${path}${sent}${query}${pageQuery}`;
+      const listPath = `${path}${query}${pageQuery}`;
       // Keep the current records visible when refreshing the same list.
       setListLoading(loadedListPath.current !== listPath);
       const body = await api<{ contracts: ContractRecord[]; pagination: PageInfo }>(listPath);
@@ -593,7 +592,7 @@ export function ContractsLiveView({
         title="Hợp đồng"
         description={
           mode === "accounting"
-            ? "Hợp đồng vận hành đã gửi sang kế toán."
+            ? "Toàn bộ hợp đồng để đối soát thanh toán, gồm cả hợp đồng chưa gửi sang kế toán."
             : lane === "vn" ? "Hợp đồng tuyến Việt Nam." : "Hợp đồng tuyến Global."
         }
         actions={
@@ -718,7 +717,7 @@ export function ContractsLiveView({
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   {(() => {
-                    const pendingSend = mode !== "accounting" && !row.sentToAccountingAt;
+                    const pendingSend = !row.sentToAccountingAt;
                     const label = pendingSend
                       ? "Chưa gửi"
                       : labelOf(accountingStatusOptions, row.accountingStatus);
@@ -769,7 +768,7 @@ export function ContractsLiveView({
                         icon: <Send />,
                         onClick: () => { void resend(row, "ops"); },
                       }] : []),
-                      ...(canResend ? [{
+                      ...(canResend && (mode !== "accounting" || row.sentToAccountingAt) ? [{
                         key: "resend",
                         label: mode === "accounting" ? "Gửi lại cho Sale và Vận hành" : "Gửi lại cho Kế toán",
                         icon: <Send />,
@@ -1122,7 +1121,7 @@ function ContractDialog({
     await addPaymentImages(paymentIndex, files);
   };
 
-  const defaultTab = canAccounting && !canSale && !canOps
+  const defaultTab = canAccounting && !canSale && !canOps && contract.sentToAccountingAt
     ? "ke-toan"
     : canOps && !canSale
       ? "van-hanh"

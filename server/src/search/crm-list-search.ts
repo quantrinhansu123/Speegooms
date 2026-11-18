@@ -172,7 +172,7 @@ export function contractSearch(view: "sale" | "ops" | "accounting", input: Contr
     ? sql("h.ngay_ky")
     : view === "ops"
       ? sql("(ban_gui_van_hanh->>'signedOn')::date")
-      : sql("(ban_gui_ke_toan->>'signedOn')::date");
+      : trustedSql("coalesce(nullif(ban_gui_ke_toan->>'signedOn', '')::date, h.ngay_ky)");
   const accountingStatus = view === "accounting"
     ? sql("h.trang_thai_ke_toan::text")
     : sql("ban_gui_xac_nhan->>'accountingStatus'");

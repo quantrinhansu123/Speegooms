@@ -214,7 +214,8 @@ export class CrmController {
 
   listContracts = async (req: Request, res: Response) => {
     const view = contractView(req);
-    const sentOnly = req.query.sent === "1" || view === "accounting";
+    // Accounting needs every contract for reconciliation, including older clients sending sent=1.
+    const sentOnly = view !== "accounting" && req.query.sent === "1";
     const result = await this.crm.pageContracts(laneOf(req), sentOnly, view, readContractSearch(req), readPagination(req));
     res.status(200).json({ contracts: result.rows, pagination: result.pagination });
   };
