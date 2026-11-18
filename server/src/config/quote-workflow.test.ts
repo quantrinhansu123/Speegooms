@@ -207,6 +207,7 @@ test("Sale can still hand a filled sourcing order to Sourcing", async () => {
   const service = new CrmService({
     requestQuote: async () => ({ quote, created: true, desk: "sourcing" }),
     findQuote: async () => quote,
+    recordQuoteRequest: async () => quote,
   } as unknown as CrmRepository, {
     notifyQuoteRequested: async (_actor: PublicUser, _lane: string, desk: QuoteDesk) => { desks.push(desk); },
   } as unknown as NotificationService);
@@ -780,7 +781,7 @@ test("FCL handoff validates the shipment form and manual kg can hand off without
   const current = { ...input, id: "quote", code: "BG", customerKind: "LOGISTICS", shippingMode: "SEA", logisticsClass: "FCL",
     orders: [], notes: { ...input.notes, fcl: { to: "", pol: "", pod: "", etd: "", stuffingDate: "", weight: "25 kg", volume: "1 x 40HC", commodity: "Clothes", charges: [], notes: "" } },
   } as unknown as QuoteRecord;
-  const service = new CrmService({ findQuote: async () => current } as unknown as CrmRepository);
+  const service = new CrmService({ findQuote: async () => current, recordQuoteRequest: async () => current } as unknown as CrmRepository);
   const actor = { id: "sale", role: "sale-vn" } as PublicUser;
   assert.equal(await service.handoffLogisticsOrder("vn", "quote", actor), current);
   for (const field of ["commodity", "weight", "volume"] as const) {

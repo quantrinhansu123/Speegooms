@@ -45,7 +45,8 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     customerName: lane === "global" ? "Chin Tran" : "Chin Tran 2", customerKind: "LOGISTICS",
     quoteWorkflow: "COMBINED", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
     orders: [], notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", opsExtra: "", freight: { basis: "shipment", rate: null, total: null, totalManual: false }, logisticsFees: [], deposit: [] },
-    createdAt: lane === "global" ? "2026-11-10T12:00:00Z" : "2026-11-09T12:00:00Z",
+    createdAt: lane === "global" ? "2026-11-09T12:00:00Z" : "2026-11-10T12:00:00Z",
+    requestedAt: lane === "global" ? "2026-11-12T17:30:00Z" : "2026-11-12T12:00:00Z",
   }]));
   const requests = [];
   const heldResponses = [];
@@ -69,7 +70,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
         if (q === "missing") { heldResponses.push(res); return; }
         const rows = (url.searchParams.get("allLanes") === "1" ? Object.values(quotes) : [quotes[lane]])
           .filter(quote => quote.customerName.toLowerCase().includes(q))
-          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+          .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
         res.end(JSON.stringify({ quotes: rows, pagination: { page: 1, pages: 1, total: rows.length, pageSize: 20, summary: {} } }));
       }
     } else if (url.pathname.includes("/assignees")) {
@@ -83,7 +84,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
   let browser;
   try {
     browser = await chromium.launch({ channel: "msedge", headless: true });
-    const page = await browser.newPage();
+    const page = await browser.newPage({ timezoneId: "UTC" });
     await page.clock.install();
     page.on("pageerror", error => console.error(error.message));
     const origin = `http://127.0.0.1:${server.address().port}`;
@@ -92,6 +93,9 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     await expectRows(2);
     assert.equal(await page.getByLabel("Tất cả tuyến").isChecked(), true);
     assert.deepEqual(await page.locator("tbody tr td:first-child").allTextContents(), ["BGL-global", "BGL-vn"]);
+    await page.getByRole("columnheader", { name: "Ngày yêu cầu báo giá" }).waitFor();
+    assert.equal(await page.locator('tr[data-row-id="quote-global"] td').nth(-2).textContent(), "13/11/2026");
+    assert.equal(await page.locator('tr[data-row-id="quote-vn"] td').nth(-2).textContent(), "12/11/2026");
     assert.equal(await page.getByRole("link", { name: "BGL-global" }).getAttribute("href"), "/theo-doi-bao-gia/global/lead-global");
     await page.getByText("Owner global", { exact: true }).waitFor();
     await page.getByText("Owner vn", { exact: true }).waitFor();

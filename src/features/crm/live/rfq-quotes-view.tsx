@@ -82,7 +82,7 @@ function laneName(lane: CrmLane): string {
 function shownDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("vi-VN");
+  return date.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
 function primaryDesk(kind: string | null): RfqQuoteRecord["desk"] | null {
@@ -466,7 +466,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
         onReset={filters.reset} activeCount={filters.activeCount}
-        dateLabel="Từ ngày"
+        dateLabel="Ngày yêu cầu từ"
       >
         <FilterSelect id="rfq-desk" label="Bàn" value={filters.draft.deskFilter} onChange={(value) => filters.set("deskFilter", value)} options={Object.entries(deskLabels)} />
         <FilterSelect id="rfq-status" label="Trạng thái" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
@@ -489,7 +489,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Tổng (VND)</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Lý do không/chưa chốt</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày yêu cầu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
@@ -565,7 +565,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                     )}
                   </div>
                 </td>
-                <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
+                <td className="px-3 py-3">{shownDate(row.requestedAt ?? row.createdAt)}</td>
                 <td className="px-3 py-3">
                   <RowMenu
                     label={`Thao tác ${row.code}`}

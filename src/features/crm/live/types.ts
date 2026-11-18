@@ -169,6 +169,7 @@ export interface QuoteRecord extends CrmHandler {
   requirements: string | null;
   requirementImages: string[];
   createdAt: string;
+  requestedAt?: string;
 }
 
 export interface QuoteSheet {

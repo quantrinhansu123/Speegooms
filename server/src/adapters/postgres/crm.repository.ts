@@ -48,7 +48,7 @@ import type { ListPage, PageRequest } from "@speego/shared";
 import { queryPage, emptyPage } from "../../lib/pagination";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { AppError, InfrastructureError } from "../../lib/errors";
-import { COMBINED_HANDED_OFF_SQL, isLogisticsHandedOff, LOGISTICS_SHEET_UNSEEDED_SQL, mergeHandoffSql } from "./logistics-handoff";
+import { COMBINED_HANDED_OFF_SQL, isLogisticsHandedOff, LOGISTICS_REQUESTED_AT_SQL, QUOTE_REQUESTED_AT_SQL, PRESERVE_REQUEST_TIME_SQL, mergeHandoffSql } from "./logistics-handoff";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -56,7 +56,7 @@ import type {
   QuoteListSearch,
 } from "../../search/crm-list-search";
 import { contractSearch, messageSearch, potentialSearch, quoteSearch } from "../../search/crm-list-search";
-import { sql } from "../../search/sql-expression";
+import { sql, trustedSql } from "../../search/sql-expression";
 import { crmActor } from "../../lib/crm-actor";
 import { preserveQuotePrices } from "../../services/quote-edit-policy";
 import type {
@@ -207,6 +207,8 @@ type QuoteRow = {
   requirements: string | null;
   requirement_images: unknown;
   created_at: Date | string;
+  requested_at?: Date | string;
+  logistics_requested_at?: Date | string;
 };
 
 type TemplateRow = {
@@ -277,7 +279,9 @@ function quoteSelect(
          q.trang_thai_hop_dong::text as contract_status, q.ly_do_khong_chot as non_close_reason,
          q.chi_tiet_don_hang as order_lines, q.ghi_chu as common_notes,
          q.tai_khoan_ngan_hang as bank_account, q.ban_da_gui as sent_copy,
-         ${logisticsColumn} as logistics_quote_id, ${sheetColumns}, q.tao_luc as created_at
+         ${logisticsColumn} as logistics_quote_id, ${sheetColumns}, q.tao_luc as created_at,
+         ${QUOTE_REQUESTED_AT_SQL} as requested_at,
+         ${sheet ? LOGISTICS_REQUESTED_AT_SQL : "q.tao_luc"} as logistics_requested_at
   from ${quote} q
   join ${potential} l on l.id = q.ma_khach_hang_tiem_nang
   left join crm.mau_bao_gia m on m.id = q.ma_mau
@@ -609,6 +613,7 @@ function toQuote(row: QuoteRow): QuoteRecord {
     requirements: row.requirements,
     requirementImages: imageList(row.requirement_images),
     createdAt: stamp(row.created_at),
+    requestedAt: stamp(row.requested_at ?? row.created_at),
   };
 }
 
@@ -645,6 +650,7 @@ function toLogisticsQuote(row: QuoteRow): QuoteRecord {
     sentQuote: sheet.sentQuote,
     logisticsSheet: null,
     sourcingContext: handoffOrder ? { order: handoffOrder, opsNote: base.opsNote, draftChanged } : null,
+    requestedAt: stamp(row.logistics_requested_at ?? row.created_at),
   };
 }
 
@@ -1384,14 +1390,15 @@ export class PostgresCrmRepository implements CrmRepository {
         if (allowedKinds && !(desk === "sourcing" ? allowedKinds.some(kind => kind !== "LOGISTICS") : allowedKinds.includes(shared ? "SOURCING_LOGISTICS" : "LOGISTICS"))) return;
         const compiled = quoteSearch(search,
           sql(shared ? "q.bao_gia_logistics->>'quoteStatus'" : "q.trang_thai_bao_gia::text"),
-          sql(shared ? "q.bao_gia_logistics->>'contractStatus'" : "q.trang_thai_hop_dong::text")).build(values.length + 1);
+          sql(shared ? "q.bao_gia_logistics->>'contractStatus'" : "q.trang_thai_hop_dong::text"),
+          trustedSql(shared && !rfq ? LOGISTICS_REQUESTED_AT_SQL : QUOTE_REQUESTED_AT_SQL)).build(values.length + 1);
         values.push(...compiled.values);
         const kind = desk === "sourcing" ? kindClause(allowedKinds, values.length + 1) : { sql: "", values: [] };
         values.push(...kind.values);
         const condition = shared ? ` and ${COMBINED_HANDED_OFF_SQL}` : desk === "logistics" ? " and l.nhom_khach::text = 'LOGISTICS'" : "";
         const table = desk === "sourcing" || shared ? t.sourcing : t.logistics;
         const source = quoteSelect(table, t.potential, t.message, desk === "sourcing" ? t.logistics : null, desk === "sourcing" || shared);
-        sources.push(`select raw.*, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}) raw`);
+        sources.push(`select raw.*, ${shared && !rfq ? "raw.logistics_requested_at" : "raw.requested_at"} as __requested_at, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}) raw`);
       };
       if (desks.includes("sourcing")) add("sourcing", false);
       if (desks.includes("logistics")) {
@@ -1407,7 +1414,7 @@ export class PostgresCrmRepository implements CrmRepository {
     if (!source) return emptyPage(page);
     values.push(search.mode ?? "");
     const result = await queryPage<QuoteRow & { __lane: CrmLane; __shared: boolean }>({ query: this.query.bind(this) }, source, values, page, {
-      orderBy: "created_at desc, id desc, __lane",
+      orderBy: "__requested_at desc, id desc, __lane",
       where: `($${values.length}::text = '' or (case when shipping_mode = 'AIR' then 'AIR' else logistics_class end) = $${values.length})`,
     });
     return { ...result, rows: result.rows.map(row => ({ ...(row.__shared ? toLogisticsQuote(row) : toQuote(row)), lane: row.__lane })) };
@@ -1415,7 +1422,7 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async pageRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | QuoteDesk, page: PageRequest): Promise<ListPage<RfqQuoteRecord>> {
     const { source, values } = this.quotePageSource([lane], desk ? [desk] : ["sourcing", "logistics"], search, null, true);
-    const result = await queryPage<QuoteRow & { __desk: QuoteDesk }>({ query: this.query.bind(this) }, source, values, page, { orderBy: "created_at desc, id desc" });
+    const result = await queryPage<QuoteRow & { __desk: QuoteDesk }>({ query: this.query.bind(this) }, source, values, page, { orderBy: "__requested_at desc, id desc" });
     return { ...result, rows: result.rows.map(row => ({ ...toQuote(row), desk: row.__desk })) };
   }
 
@@ -1843,35 +1850,35 @@ export class PostgresCrmRepository implements CrmRepository {
     if (allowedKinds && allowedKinds.length === 0) return [];
     const tables = quoteTables[lane];
     const limit = search.unlimited ? "" : " limit 200";
-    const own = quoteSearch(search, sql("q.trang_thai_bao_gia::text"), sql("q.trang_thai_hop_dong::text")).build();
+    const own = quoteSearch(search, sql("q.trang_thai_bao_gia::text"), sql("q.trang_thai_hop_dong::text"), trustedSql(QUOTE_REQUESTED_AT_SQL)).build();
     if (desk === "sourcing") {
       const kindFilter = kindClause(allowedKinds, own.values.length + 1);
       const result = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by q.tao_luc desc${limit}`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by requested_at desc, q.id desc${limit}`,
         [...own.values, ...kindFilter.values],
       );
       return result.rows.map(toQuote);
     }
     const allowOwn = !allowedKinds || allowedKinds.includes("LOGISTICS");
     const allowShared = !allowedKinds || allowedKinds.includes("SOURCING_LOGISTICS");
-    const shared = quoteSearch(search, sql("q.bao_gia_logistics->>'quoteStatus'"), sql("q.bao_gia_logistics->>'contractStatus'")).build();
+    const shared = quoteSearch(search, sql("q.bao_gia_logistics->>'quoteStatus'"), sql("q.bao_gia_logistics->>'contractStatus'"), trustedSql(LOGISTICS_REQUESTED_AT_SQL)).build();
     const noRows = Promise.resolve({ rows: [] as QuoteRow[] });
     const [ownRows, sharedRows] = await Promise.all([
       allowOwn
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by q.tao_luc desc${limit}`,
+            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by requested_at desc, q.id desc${limit}`,
             own.values,
           )
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by q.tao_luc desc${limit}`,
+            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by logistics_requested_at desc, q.id desc${limit}`,
             shared.values,
           )
         : noRows,
     ]);
     return [...ownRows.rows.map(toQuote), ...sharedRows.rows.map(toLogisticsQuote)]
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      .sort((left, right) => (right.requestedAt ?? right.createdAt).localeCompare(left.requestedAt ?? left.createdAt));
   }
 
   async listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]> {
@@ -1889,7 +1896,7 @@ export class PostgresCrmRepository implements CrmRepository {
       ...logistics
         .filter((quote) => !isCombinedSourcing(quote))
         .map((quote) => ({ ...quote, desk: "logistics" as const })),
-    ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    ].sort((left, right) => (right.requestedAt ?? right.createdAt).localeCompare(left.requestedAt ?? left.createdAt));
   }
 
   async reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult> {
@@ -1960,6 +1967,16 @@ export class PostgresCrmRepository implements CrmRepository {
     return { quote, created: (inserted.rowCount ?? 0) > 0, desk };
   }
 
+  async recordQuoteRequest(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {
+    const updated = await this.query(
+      `update ${quoteTables[lane][desk]}
+       set ghi_chu = jsonb_set(ghi_chu, '{handoffAt}', to_jsonb(clock_timestamp()))
+       where id = $1::uuid`,
+      [id],
+    );
+    return updated.rowCount ? this.findQuote(lane, desk, id) : null;
+  }
+
   async requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string) {
     const sourcing = await this.findQuote(lane, "sourcing", sourcingQuoteId);
     if (!sourcing) return "missing" as const;
@@ -1971,9 +1988,7 @@ export class PostgresCrmRepository implements CrmRepository {
     const updated = await this.query(
       `update ${quoteTables[lane].sourcing}
        set bao_gia_logistics = ${mergeHandoffSql("$2")}
-       where id = $1::uuid and (bao_gia_logistics is null
-         or bao_gia_logistics->>'handoffAt' is null
-         or (${LOGISTICS_SHEET_UNSEEDED_SQL}))`,
+       where id = $1::uuid`,
       [sourcingQuoteId, JSON.stringify(handoffSheet)],
     );
     const quote = await this.findQuote(lane, "sourcing", sourcingQuoteId);
@@ -1997,7 +2012,7 @@ export class PostgresCrmRepository implements CrmRepository {
            trang_thai_bao_gia = $4::crm.trang_thai_bao_gia,
            trang_thai_hop_dong = $5::crm.trang_thai_hop_dong_bao_gia,
            chi_tiet_don_hang = $6::jsonb,
-           ghi_chu = $7::jsonb,
+           ghi_chu = ${PRESERVE_REQUEST_TIME_SQL},
            tai_khoan_ngan_hang = $8::jsonb
        where id = $1::uuid`,
       [
@@ -2072,7 +2087,7 @@ export class PostgresCrmRepository implements CrmRepository {
            trang_thai_bao_gia = $4::crm.trang_thai_bao_gia,
            trang_thai_hop_dong = $5::crm.trang_thai_hop_dong_bao_gia,
            chi_tiet_don_hang = $6::jsonb,
-           ghi_chu = $7::jsonb,
+           ghi_chu = ${PRESERVE_REQUEST_TIME_SQL},
            tai_khoan_ngan_hang = $8::jsonb,
            ban_da_gui = $9::jsonb
            ${handoff ? `, bao_gia_logistics = ${mergeHandoffSql("$10")}` : ""}

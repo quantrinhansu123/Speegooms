@@ -27,7 +27,7 @@ function service(assign: () => Promise<{ id: string; name: string } | null>) {
     notifyQuoteAssigned: async (_a: PublicUser, assigneeId: string) => { calls.push(`assigned:${assigneeId}`); },
     notifyQuoteRequested: async () => { calls.push("broadcast"); },
   } as unknown as NotificationService;
-  const crm = { findQuote: async () => quote } as unknown as CrmRepository;
+  const crm = { findQuote: async () => quote, recordQuoteRequest: async () => quote } as unknown as CrmRepository;
   return { crm: new CrmService(crm, notifications, null, { assign, assignees: async () => ({}) }), calls };
 }
 

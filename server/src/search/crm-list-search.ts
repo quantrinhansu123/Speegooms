@@ -108,10 +108,10 @@ export function potentialSearch(input: PotentialListSearch): SearchBuilder {
     .add(new AnyMatchCriterion(sql("l.nhom_khach::text"), input.allowedKinds === null ? undefined : input.allowedKinds));
 }
 
-export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression, contractColumn: SqlExpression): SearchBuilder {
+export function quoteSearch(input: QuoteListSearch, statusColumn: SqlExpression, contractColumn: SqlExpression, dateColumn: SqlExpression = sql("q.tao_luc")): SearchBuilder {
   return new SearchBuilder()
     .add(new TextSearchCriterion(input.q, quoteTextColumns))
-    .add(new DateRangeCriterion(sql("q.tao_luc"), input.from, input.to, "timestamp"))
+    .add(new DateRangeCriterion(dateColumn, input.from, input.to, "timestamp"))
     .add(new ExactMatchCriterion(statusColumn, input.quoteStatus))
     .add(new ExactMatchCriterion(contractColumn, input.contractStatus))
     .add(new ExactMatchCriterion(sql("l.nhom_khach::text"), input.customerKind))

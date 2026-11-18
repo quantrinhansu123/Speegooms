@@ -19,6 +19,13 @@ export const LOGISTICS_HANDED_OFF_SQL = `(
 /** Khách Sourcing kết hợp đã chuyển sang Logistics: dùng trong WHERE cùng bí danh bảng như quoteSelect (l, q). */
 export const COMBINED_HANDED_OFF_SQL = `(l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') and ${LOGISTICS_HANDED_OFF_SQL}`;
 
+/** Ngày yêu cầu theo từng bàn; dữ liệu cũ chưa ghi mốc chuyển dùng ngày tạo làm dự phòng. */
+export const QUOTE_REQUESTED_AT_SQL = `coalesce(nullif(q.ghi_chu->>'handoffAt', '')::timestamptz, q.tao_luc)`;
+export const LOGISTICS_REQUESTED_AT_SQL = `coalesce(nullif(q.bao_gia_logistics->>'handoffAt', '')::timestamptz, nullif(q.ban_da_gui->>'sentAt', '')::timestamptz, q.tao_luc)`;
+
+/** Mốc yêu cầu do server ghi, không thay đổi khi lưu nội dung hoặc giá báo. */
+export const PRESERVE_REQUEST_TIME_SQL = `$7::jsonb || jsonb_strip_nulls(jsonb_build_object('handoffAt', ghi_chu->'handoffAt'))`;
+
 /** Phiếu Logistics còn trống: chưa có đơn hàng và chưa gửi báo giá, nên được bù đơn hàng từ Sourcing. */
 export const LOGISTICS_SHEET_UNSEEDED_SQL = `coalesce(bao_gia_logistics->'orders', '[]'::jsonb) = '[]'::jsonb and bao_gia_logistics->>'sentQuote' is null`;
 
@@ -30,7 +37,7 @@ export function mergeHandoffSql(param: string, seedWhen = "true"): string {
   return `jsonb_set(case when bao_gia_logistics is null then ${param}::jsonb
     when ${seedWhen} and ${LOGISTICS_SHEET_UNSEEDED_SQL}
       then jsonb_set(bao_gia_logistics, '{orders}', ${param}::jsonb->'orders')
-    else bao_gia_logistics end, '{handoffAt}', coalesce(bao_gia_logistics->'handoffAt', ${param}::jsonb->'handoffAt'))`;
+    else bao_gia_logistics end, '{handoffAt}', ${param}::jsonb->'handoffAt')`;
 }
 
 /** Bản TypeScript của LOGISTICS_HANDED_OFF_SQL, dùng khi đã có dữ liệu hàng trong tay. */

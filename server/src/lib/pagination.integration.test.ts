@@ -12,6 +12,10 @@ import { PostgresDataLanhRepository } from "../adapters/postgres/data-lanh.repos
 import { PostgresDeXuatRepository } from "../adapters/postgres/de-xuat.repository";
 import { PostgresKeToanRepository } from "../adapters/postgres/ke-toan.repository";
 import { queryPage } from "./pagination";
+import { QUOTE_REQUESTED_AT_SQL, LOGISTICS_REQUESTED_AT_SQL, PRESERVE_REQUEST_TIME_SQL } from "../adapters/postgres/logistics-handoff";
+import { DateRangeCriterion } from "../search/date-range-criterion";
+import { SearchBuilder } from "../search/search-builder";
+import { sql } from "../search/sql-expression";
 
 test("pagination executes read-only SQL, keeps totals and reaches records beyond the first page", { skip: process.env.SPEEGO_DB_CHECK !== "1" }, async () => {
   config({ path: new URL("../../.env", import.meta.url), quiet: true });
@@ -26,6 +30,32 @@ test("pagination executes read-only SQL, keeps totals and reaches records beyond
   const repoPool = db as unknown as pg.Pool;
   try {
     await client.query("begin read only");
+    // Older drafts requested later belong above newer drafts, across both desks.
+    const requests = `select q.id, q.tao_luc as created_at,
+      case when q.shared then ${LOGISTICS_REQUESTED_AT_SQL} else ${QUOTE_REQUESTED_AT_SQL} end as requested_at
+      from (values
+        ('sale', '2026-11-10T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-13T00:30:00+07:00"}'::jsonb, null::jsonb, null::jsonb, false),
+        ('newer-draft', '2026-11-12T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-12T09:00:00Z"}'::jsonb, null::jsonb, null::jsonb, false),
+        ('sourcing', '2026-11-08T08:00:00Z'::timestamptz, '{}'::jsonb, '{"handoffAt":"2026-11-14T01:00:00Z"}'::jsonb, null::jsonb, true),
+        ('legacy-sent', '2026-11-07T08:00:00Z'::timestamptz, '{}'::jsonb, '{}'::jsonb, '{"sentAt":"2026-11-11T01:00:00Z"}'::jsonb, true),
+        ('legacy', '2026-11-06T08:00:00Z'::timestamptz, '{}'::jsonb, null::jsonb, null::jsonb, false)
+      ) q(id, tao_luc, ghi_chu, bao_gia_logistics, ban_da_gui, shared)`;
+    const order = { orderBy: "requested_at desc, id desc" };
+    const requestFirst = await queryPage<{ id: string; created_at: Date; requested_at: Date }>(db, requests, [], { page: 1, pageSize: 2 }, order);
+    const requestSecond = await queryPage<{ id: string }>(db, requests, [], { page: 2, pageSize: 2 }, order);
+    assert.deepEqual(requestFirst.rows.map(row => row.id), ["sourcing", "sale"]);
+    assert.equal(requestFirst.rows[1].created_at.toISOString(), "2026-11-10T08:00:00.000Z");
+    assert.equal(requestFirst.rows[1].requested_at.toISOString(), "2026-11-12T17:30:00.000Z");
+    assert.deepEqual(requestSecond.rows.map(row => row.id), ["newer-draft", "legacy-sent"]);
+    const range = new SearchBuilder().add(new DateRangeCriterion(sql("requested_at"), "2026-11-13", "2026-11-13", "timestamp")).build();
+    const daily = await queryPage<{ id: string }>(db, requests, range.values, { page: 1, pageSize: 20 }, {
+      ...order, where: `true ${range.sql}`,
+    });
+    assert.deepEqual(daily.rows.map(row => row.id), ["sale"]);
+    assert.equal(daily.pagination.total, 1);
+    const preserved = await db.query(`select ${PRESERVE_REQUEST_TIME_SQL.replace("$7", "$1")} as notes
+      from (select '{"handoffAt":"2026-11-13T03:00:00Z"}'::jsonb as ghi_chu) stored`, ['{"weightNote":"Edited"}']);
+    assert.deepEqual(preserved.rows[0].notes, { handoffAt: "2026-11-13T03:00:00Z", weightNote: "Edited" });
     const source = "select lpad(n::text, 3, '0') as id, n as value from generate_series(1, 45) n";
     const page = { page: 1, pageSize: 20 };
     const first = await queryPage<{ id: string; value: number }>(db, source, [], page, { orderBy: "id" });

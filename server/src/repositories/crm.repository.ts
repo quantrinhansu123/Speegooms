@@ -145,6 +145,7 @@ export interface QuoteRecord extends CrmHandler {
   requirements: string | null;
   requirementImages: string[];
   createdAt: string;
+  requestedAt?: string;
 }
 
 export interface QuoteSheet {
@@ -272,6 +273,7 @@ export interface CrmRepository {
   reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult>;
   deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean>;
   requestQuote(lane: CrmLane, potentialId: string): Promise<QuoteRequestResult>;
+  recordQuoteRequest(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
   requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<LogisticsQuoteRequestResult>;
   findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
   findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null>;

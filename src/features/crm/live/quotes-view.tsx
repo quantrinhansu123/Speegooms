@@ -50,7 +50,7 @@ type DeskQuote = QuoteRecord & { lane: CrmLane };
 function shownDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("vi-VN");
+  return date.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
 export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
@@ -249,7 +249,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
         onReset={() => { filters.reset(); setModeFilter(""); }} activeCount={filters.activeCount + Number(!!modeFilter)}
-        dateLabel="Từ ngày"
+        dateLabel="Ngày yêu cầu từ"
       >
       {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter" className="mb-4 max-w-56">
         <NativeSelect id="logistics-mode-filter" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
@@ -277,7 +277,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Người phụ trách</th>
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày yêu cầu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
           </thead>
@@ -333,7 +333,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                     </td>
                   )}
                   <td className="px-3 py-3 whitespace-nowrap">{assignees[row.id]?.name ?? <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-3 py-3">{shownDate(row.createdAt)}</td>
+                  <td className="px-3 py-3">{shownDate(row.requestedAt ?? row.createdAt)}</td>
                   <td className="px-3 py-3">
                     <RowMenu label={`Thao tác ${row.code}`} items={items} />
                   </td>

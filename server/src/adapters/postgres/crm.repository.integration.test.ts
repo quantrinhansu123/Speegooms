@@ -44,6 +44,7 @@ test("CRM queries match the deployed id primary keys without writing data", { sk
       assert.equal(await planned.requestQuote(lane, id), "missing");
       assert.equal(await planned.reassignRfqQuote(lane, id, id), "missing");
       for (const desk of ["sourcing", "logistics"] as const) {
+        assert.equal(await planned.recordQuoteRequest(lane, desk, id), null);
         assert.ok(Array.isArray(await repository.listQuotes(lane, desk, quoteSearch)));
         assert.ok(Array.isArray(await repository.listQuoteTemplates(desk)));
         assert.equal(await planned.updateQuote(lane, desk, id, quote), "template");

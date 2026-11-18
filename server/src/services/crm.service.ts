@@ -310,8 +310,10 @@ export class CrmService {
     } else if (quote.orders.length === 0 || quote.orders.some((order) => order.lines.length === 0 || order.lines.some((line) => line.packages.length === 0 && !(line.weightKg != null && line.weightKg > 0)))) {
       throw new AppError(400, "RULE", "Nhập đơn hàng và quy cách đóng gói hoặc cân tính cước mỗi dòng trước khi chuyển logistics");
     }
-    await this.notifyQuoteRequest(actor, lane, "logistics", quote, quote.customerKind);
-    return quote;
+    const requested = await this.ready().recordQuoteRequest(lane, "logistics", quoteId);
+    if (!requested) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    await this.notifyQuoteRequest(actor, lane, "logistics", requested, quote.customerKind);
+    return requested;
   }
 
   /** Sale đã nhập mặt hàng tìm hàng và chuyển cho bàn Sourcing lập báo giá. */
@@ -321,8 +323,10 @@ export class CrmService {
     if (quote.customerKind !== "SOURCING") throw new AppError(409, "CONFLICT", "Chỉ khách Tìm hàng mới chuyển cho Sourcing");
     const ready = quote.orders.some((order) => order.lines.some((line) => line.productName?.trim() && line.quantity != null && line.quantity > 0));
     if (!ready) throw new AppError(400, "RULE", "Nhập mặt hàng và số lượng trước khi chuyển Sourcing");
-    await this.notifyQuoteRequest(actor, lane, "sourcing", quote, quote.customerKind);
-    return quote;
+    const requested = await this.ready().recordQuoteRequest(lane, "sourcing", quoteId);
+    if (!requested) throw new AppError(404, "NOT_FOUND", "Không tìm thấy báo giá");
+    await this.notifyQuoteRequest(actor, lane, "sourcing", requested, quote.customerKind);
+    return requested;
   }
 
   async requestLogisticsQuote(
