@@ -31,6 +31,7 @@ import { formatMoney, formatMoneyGrouped, formatMoneyInput, parseMoneyInput } fr
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/role";
 import { ContractDocDialog } from "./contract-doc-dialog";
+import { DirectContractCreateDialog } from "./direct-contract-create-dialog";
 import { useExcelImport } from "./excel-import";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -417,6 +418,7 @@ export function ContractsLiveView({
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
+  const [creating, setCreating] = useState(false);
   const [printing, setPrinting] = useState<{ row: ContractRecord; quote: QuoteRecord } | null>(null);
   const printContract = async (row: ContractRecord) => {
     try {
@@ -581,6 +583,7 @@ export function ContractsLiveView({
         actions={
           <>
             {canPick ? <LaneSwitch lane={lane} onChange={setLane} /> : null}
+            {canSale && <Button type="button" onClick={() => setCreating(true)}><Plus />Tạo hợp đồng trực tiếp</Button>}
             {excel.buttons}
           </>
         }
@@ -660,7 +663,7 @@ export function ContractsLiveView({
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
-                <td className="px-3 py-3 whitespace-nowrap">{row.quoteDesk ? quoteDeskLabels[row.quoteDesk] : "Chưa xác định"}</td>
+                <td className="px-3 py-3 whitespace-nowrap">{row.quoteDesk ? quoteDeskLabels[row.quoteDesk] : row.quoteId ? "Chưa xác định" : "Trực tiếp"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={industryCategoryOptions.find(([value]) => value === row.industry)?.[1]}>{industryCategoryOptions.find(([value]) => value === row.industry)?.[1] || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap"><VndMoney vnd={summary.product} fallback={amounts.product} /></td>
@@ -767,6 +770,17 @@ export function ContractsLiveView({
         </table>
       </TableHScroll>
       <ServerPagination paging={paging} loading={listLoading} />
+      {creating && canSale && <DirectContractCreateDialog
+        lane={lane}
+        onClose={() => setCreating(false)}
+        onCreated={(contract) => {
+          setCreating(false);
+          setNotice(`Đã tạo hợp đồng ${contract.code}`);
+          markSeen(contract);
+          setSelected(contract);
+          void load();
+        }}
+      />}
       {printing && (
         <ContractDocDialog
           code={printing.row.code}
@@ -1128,7 +1142,7 @@ function ContractDialog({
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
               <h3 className="font-medium sm:col-span-2">Thông tin hợp đồng</h3>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Báo giá: </span>{contract.quoteCode || "—"}</p>
-              <p className="sm:col-span-2"><span className="text-muted-foreground">Loại đơn: </span>{contract.quoteDesk ? quoteDeskLabels[contract.quoteDesk] : "Chưa xác định"}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Loại đơn: </span>{contract.quoteDesk ? quoteDeskLabels[contract.quoteDesk] : contract.quoteId ? "Chưa xác định" : "Trực tiếp"}</p>
               <p><span className="text-muted-foreground">Nhân viên bán: </span>{contract.saleName || "—"}</p>
               <p><span className="text-muted-foreground">Loại tiền: </span>{currencies}</p>
               <p className="sm:col-span-2"><span className="text-muted-foreground">Vận chuyển đến: </span>{contract.shipTo || "—"}</p>

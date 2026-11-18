@@ -504,7 +504,7 @@ export const contractShipToOptions = [
 
 export const contractShipToSchema = z.enum(contractShipToOptions);
 
-export const createContractSchema = z.object({
+const createContractFieldsSchema = z.object({
   /** Loại tiền chung cho mọi số tiền của hợp đồng. Hợp đồng cũ mặc định USD */
   currency: quoteCurrencySchema.default("USD"),
   customerName: z.string().trim().min(1, "Nhập tên khách hàng").max(200),
@@ -517,7 +517,9 @@ export const createContractSchema = z.object({
   totalValue: money,
   paidAmount: money,
   signedOn: day,
-}).superRefine((value, ctx) => {
+});
+
+export const createContractSchema = createContractFieldsSchema.superRefine((value, ctx) => {
   if (value.paidAmount > value.totalValue) {
     ctx.addIssue({ code: "custom", message: "Số tiền thanh toán không được lớn hơn tổng giá trị", path: ["paidAmount"] });
   }
@@ -654,6 +656,26 @@ export const contractPaymentLineSchema = z.object({
 /** Tỷ giá quy đổi VND theo từng loại tiền của hợp đồng (mã tiền → số VND cho 1 đơn vị). */
 export const contractVndRatesSchema = z.record(z.string().regex(/^[A-Z]{3}$/), z.number().finite().positive("Tỷ giá quy đổi VND phải lớn hơn 0").max(10_000_000));
 
+/** Hợp đồng trực tiếp: tổng do hệ thống tính, không phụ thuộc báo giá. */
+const directContractMoney = money.multipleOf(0.01, "Số tiền chỉ có tối đa 2 chữ số thập phân");
+export const createDirectContractSchema = createContractFieldsSchema.omit({ totalValue: true }).extend({
+  productValue: directContractMoney,
+  shippingCost: directContractMoney,
+  paidAmount: directContractMoney,
+  industry: industryCategorySchema.nullable().default(null),
+  vndRates: contractVndRatesSchema.default({}),
+}).transform((value) => ({
+  ...value,
+  totalValue: Math.round((value.productValue + value.shippingCost) * 100) / 100,
+})).superRefine((value, ctx) => {
+  if (value.totalValue > 1_000_000_000) {
+    ctx.addIssue({ code: "custom", message: "Tổng giá trị không được vượt 1.000.000.000", path: ["totalValue"] });
+  }
+  if (value.paidAmount > value.totalValue) {
+    ctx.addIssue({ code: "custom", message: "Số tiền thanh toán không được lớn hơn tổng giá trị", path: ["paidAmount"] });
+  }
+});
+
 /** Sale cập nhật các lần thanh toán + ảnh bill theo từng lần; không sửa các cột thương mại khác. */
 export const saleContractPaymentSchema = z.object({
   payments: z.array(contractPaymentLineSchema).max(50, "Tối đa 50 lần thanh toán"),
@@ -704,6 +726,7 @@ export type UpdateQuoteOutcomeInput = z.infer<typeof updateQuoteOutcomeSchema>;
 export type ReassignQuoteInput = z.infer<typeof reassignQuoteSchema>;
 export type QuoteTemplateInput = z.infer<typeof quoteTemplateSchema>;
 export type CreateContractInput = z.infer<typeof createContractSchema>;
+export type CreateDirectContractInput = z.infer<typeof createDirectContractSchema>;
 export type ContractPaymentLineInput = z.infer<typeof contractPaymentLineSchema>;
 export type SaleContractPaymentInput = z.infer<typeof saleContractPaymentSchema>;
 export type OpsContractInput = z.infer<typeof opsContractSchema>;

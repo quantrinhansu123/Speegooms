@@ -220,6 +220,10 @@ export class CrmController {
     res.status(200).json({ contracts: result.rows, pagination: result.pagination });
   };
 
+  createDirectContract = async (req: Request, res: Response) => {
+    res.status(201).json({ contract: await this.crm.createDirectContract(laneOf(req), req.body, actorOf(req)) });
+  };
+
   createContract = async (req: Request, res: Response) => {
     res.status(201).json({ contract: await this.crm.createContract(laneOf(req), one(req.params.id), req.body, req.user) });
   };

@@ -370,11 +370,12 @@ const handoffInput = () => updateQuoteSchema.parse({
   notes: { totalLabel: "", weightNote: "", validityNote: "", deposit: [] }, bank: defaultQuoteBank,
 });
 
-test("sending rejects incomplete package measurements while saving the draft is allowed", async () => {
+test("sending rejects incomplete package measurements without fallback weight while saving the draft is allowed", async () => {
   for (const desk of ["sourcing", "logistics"] as const) {
     for (const missing of ["lengthCm", "widthCm", "heightCm", "actualKg"] as const) {
       const input = handoffInput();
       input.notes.validityDays = 7;
+      input.orders[0].lines[0].weightKg = null;
       input.orders[0].lines[0].packages = [{ count: 10, lengthCm: 242, widthCm: 17, heightCm: 15, actualKg: 30, [missing]: 0 }];
       const current = { ...input, id: "quote", customerKind: desk === "logistics" ? "LOGISTICS" : "SOURCING", quoteWorkflow: "LEGACY" } as QuoteRecord;
       let saved = 0, sent = 0;

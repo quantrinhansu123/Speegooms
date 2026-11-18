@@ -8,6 +8,7 @@ import type {
 import type {
   AccountingContractInput,
   CreateContractInput,
+  CreateDirectContractInput,
   ConvertMessageInput,
   CreateMessageInput,
   CrmLane,
@@ -203,8 +204,8 @@ export interface ContractRecord {
   id: string;
   code: string;
   lane: CrmLane;
-  quoteId: string;
-  quoteCode: string;
+  quoteId: string | null;
+  quoteCode: string | null;
   quoteDesk: QuoteDesk | null;
   customerName: string;
   saleName: string | null;
@@ -284,6 +285,7 @@ export interface CrmRepository {
   deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<"ok" | "missing" | "used">;
   listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]>;
   createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
+  createDirectContract(lane: CrmLane, input: CreateDirectContractInput): Promise<ContractRecord>;
   updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;
   updateAccountingContract(lane: CrmLane, id: string, input: AccountingContractInput): Promise<ContractRecord | "missing" | "pending">;
   updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord | "missing" | "invalid">;

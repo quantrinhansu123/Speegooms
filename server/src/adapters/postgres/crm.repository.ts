@@ -19,6 +19,7 @@ import {
   type QuoteWorkflow,
   type AccountingContractInput,
   type CreateContractInput,
+  type CreateDirectContractInput,
   type ConvertMessageInput,
   type CreateMessageInput,
   type CrmLane,
@@ -805,7 +806,7 @@ type ContractRow = {
   id: string;
   code: string;
   lane: CrmLane;
-  quote_id: string;
+  quote_id: string | null;
   quote_desk: QuoteDesk | null;
   quote_code: string | null;
   customer_name: string;
@@ -1041,7 +1042,7 @@ function toContract(row: ContractRow): ContractRecord {
     lane: row.lane,
     quoteId: row.quote_id,
     quoteDesk: row.quote_desk ?? null,
-    quoteCode: row.quote_code ?? "",
+    quoteCode: row.quote_code ?? null,
     customerName: row.customer_name,
     saleName: row.sale_name,
     shipTo: row.ship_to,
@@ -2180,6 +2181,38 @@ export class PostgresCrmRepository implements CrmRepository {
     return contracts;
   }
 
+  async createDirectContract(lane: CrmLane, input: CreateDirectContractInput): Promise<ContractRecord> {
+    return this.transaction(async () => {
+      const amounts = {
+        product: [{ currency: input.currency, amount: input.productValue }],
+        shipping: [{ currency: input.currency, amount: input.shippingCost }],
+        vndRates: input.vndRates,
+      };
+      const inserted = await this.query<{ id: string }>(
+        `insert into crm.hop_dong (
+          tuyen, ten_khach_hang, nhan_vien_ban, van_chuyen_den, san_pham, so_luong,
+          gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan,
+          ngay_ky, loai_tien, loai_tien_van_chuyen, nganh_hang, khoan_tien
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $12, $13, $14::jsonb)
+        returning id`,
+        [lane, input.customerName.trim(), blank(input.saleName), blank(input.shipTo), blank(input.product), input.quantity,
+          input.productValue, input.shippingCost, input.totalValue, input.paidAmount, input.signedOn || null,
+          input.currency, input.industry, JSON.stringify(amounts)],
+      );
+      const id = inserted.rows[0].id;
+      if (input.paidAmount > 0) {
+        await this.query(
+          `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu, loai_tien)
+           values ($1::uuid, $2, 1, $3)`, [id, input.paidAmount, input.currency],
+        );
+      }
+      await this.query(`update crm.hop_dong set ban_gui_van_hanh = ${commercialSnapshotSql} where id = $1::uuid`, [id]);
+      const contract = await this.findContractById(lane, id, "sale");
+      if (!contract) throw new AppError(500, "INTERNAL_ERROR", "Không đọc được hợp đồng vừa tạo");
+      return contract;
+    });
+  }
+
   async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing"> {
     // Handler checks must roll back the contract too if ownership changes while saving.
     if (crmActor.getStore() && !this.connection.getStore()) return this.transaction(() => this.createContract(lane, quoteId, input));
@@ -2452,7 +2485,7 @@ export class PostgresCrmRepository implements CrmRepository {
     // Hợp đồng cũ chưa lưu tỷ giá VND: lấy theo báo giá gốc để vẫn quy VND được (Sale sửa được ở tab Thanh toán).
     const currencies = [...contract.amounts.product, ...shipping].map((line) => line.currency);
     let vndRates = contract.amounts.vndRates;
-    if (currencies.some((code) => code !== "VND" && !vndRates?.[code])) {
+    if (contract.quoteId && currencies.some((code) => code !== "VND" && !vndRates?.[code])) {
       if (!quotes.has(contract.quoteId)) quotes.set(contract.quoteId, await this.findQuote(lane, "sourcing", contract.quoteId) ?? await this.findQuote(lane, "logistics", contract.quoteId));
       const source = quotes.get(contract.quoteId) ?? null;
       if (source) {
@@ -2461,7 +2494,7 @@ export class PostgresCrmRepository implements CrmRepository {
         vndRates = { ...quoteVndRates(pureLogistics ? null : source, sheet || null), ...(vndRates ?? {}) };
       }
     }
-    if (shipping.some((line) => line.currency !== main && line.converted == null)) {
+    if (contract.quoteId && shipping.some((line) => line.currency !== main && line.converted == null)) {
       if (!quotes.has(contract.quoteId)) quotes.set(contract.quoteId, await this.findQuote(lane, "sourcing", contract.quoteId));
       const converted = convertedShipping(quotes.get(contract.quoteId) ?? null, main);
       if (converted != null && shipping.length === 1) shipping = [{ ...shipping[0], converted }];

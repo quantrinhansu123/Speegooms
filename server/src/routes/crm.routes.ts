@@ -1,6 +1,6 @@
 import { exchangeRate } from "../services/exchange-rate.service";
 import express, { Router } from "express";
-import { accountingContractSchema, convertMessageSchema, createContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updateMessageProcessingSchema, updatePotentialSchema, updateQuoteOutcomeSchema, updateQuoteSchema } from "@speego/shared";
+import { accountingContractSchema, convertMessageSchema, createContractSchema, createDirectContractSchema, createMessageSchema, opsContractSchema, quoteTemplateSchema, reassignQuoteSchema, saleContractPaymentSchema, updateMessageSchema, updateMessageProcessingSchema, updatePotentialSchema, updateQuoteOutcomeSchema, updateQuoteSchema } from "@speego/shared";
 import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission, requirePermission } from "../middlewares/authorize";
 import { validate } from "../middlewares/validate";
@@ -49,6 +49,7 @@ export function crmRoutes(container: AppContainer) {
   router.patch("/quote-templates/:id", requirePermission("quote.ops"), validate({ body: quoteTemplateSchema }), asyncHandler(crm.updateQuoteTemplate));
   router.delete("/quote-templates/:id", requirePermission("quote.ops"), asyncHandler(crm.deleteQuoteTemplate));
   router.get("/contracts", requirePermission("contract.read"), asyncHandler(crm.listContracts));
+  router.post("/contracts", requirePermission("contract.create"), validate({ body: createDirectContractSchema }), asyncHandler(crm.createDirectContract));
   router.post("/quotes/:id/contract", requirePermission("contract.create"), validate({ body: createContractSchema }), asyncHandler(crm.createContract));
   router.patch("/contracts/:id/ops", requirePermission("contract.ops"), validate({ body: opsContractSchema }), asyncHandler(crm.updateOpsContract));
   router.patch("/contracts/:id/accounting", requirePermission("contract.accounting"), validate({ body: accountingContractSchema }), asyncHandler(crm.updateAccountingContract));

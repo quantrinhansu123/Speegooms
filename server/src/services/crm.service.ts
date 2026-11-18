@@ -1,5 +1,5 @@
 import { applyLogisticsDeskSave, preserveQuotePrices, quoteDeskPatch } from "./quote-edit-policy";
-import { contractQuoteMessage, contractQuoteProblems, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePackageIssue, quotePaymentSummary, quoteVndRateError } from "@speego/shared";
+import { contractQuoteMessage, contractQuoteProblems, createDirectContractSchema, isCombinedSourcing, orderShippingChanged, quoteAccessKind, quotePackageIssue, quotePaymentSummary, quoteVndRateError } from "@speego/shared";
 import {
   canAccessQuoteDesk,
   canEditQuoteDesk,
@@ -10,6 +10,7 @@ import {
   type AccountingContractInput,
   type ConvertMessageInput,
   type CreateContractInput,
+  type CreateDirectContractInput,
   type CreateMessageInput,
   type CrmLane,
   type OpsContractInput,
@@ -524,6 +525,17 @@ export class CrmService {
       .filter((quote) => !isCombinedSourcing(quote) || !covered.has(quote.id))
       .map((quote) => ({ ...quote, desk: "logistics" as const }));
     return [...sourcingRows, ...logisticsRows].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async createDirectContract(lane: CrmLane, input: CreateDirectContractInput, actor: PublicUser): Promise<ContractRecord> {
+    if (!can(actor.role, "contract.create")) throw new AppError(403, "FORBIDDEN", "Bạn không có quyền tạo hợp đồng");
+    if ((actor.role === "sale-vn" && lane !== "vn") || ((actor.role === "sale-global" || actor.role === "sale-global-lead") && lane !== "global")) {
+      throw new AppError(403, "FORBIDDEN", "Chỉ tạo hợp đồng trên tuyến của bạn");
+    }
+    const parsed = createDirectContractSchema.parse({ ...input, saleName: actor.name });
+    const result = await this.ready().createDirectContract(lane, parsed);
+    await this.notifications?.notifyContractCreated(actor, lane, result.code, result.id);
+    return result;
   }
 
   async createContract(
