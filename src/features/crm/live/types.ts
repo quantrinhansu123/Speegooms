@@ -77,7 +77,12 @@ export const brandOptions = [
   ["SPEEGO_RETAIL", "SPEEGO RETAIL", "bg-[#dcfce7] text-[#166534]"],
   ["SOURCING", "SOURCING", "bg-[#e0f2fe] text-[#075985]"],
   ["LOGISTICS", "LOGISTICS", "bg-[#ffe4e6] text-[#be123c]"],
+  ["SELF_SOURCED", "Tự tìm", "bg-[#f1f5f9] text-[#334155]"],
 ] as const;
+
+export const leadCreateBrandOptions = brandOptions.filter(([value]) =>
+  value !== "SPEEGO_NAIL" && value !== "SPEEGO_CA" && value !== "SPEEGO_BUSINESS" && value !== "SPEEGO_RETAIL",
+);
 
 export const demandOptions = [
   ["SHIPPING", "Vận chuyển"],

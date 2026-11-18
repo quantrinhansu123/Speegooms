@@ -28,6 +28,7 @@ export const leadBrandSchema = z.enum([
   "SPEEGO_RETAIL",
   "SOURCING",
   "LOGISTICS",
+  "SELF_SOURCED",
 ]);
 export const messageDemandSchema = z.enum(["SHIPPING", "SOURCING"]);
 export const messageClassificationSchema = z.enum(["HOT", "WARM", "COLD", "DEAD"]);

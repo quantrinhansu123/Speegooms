@@ -13,7 +13,7 @@ import { packageMetrics } from "@/services/crm/quote-lines";
 import { MessOrderDialog } from "./quote-editor";
 import { orderSummary } from "./order-summary";
 import { PhoneInput } from "./phone-input";
-import { brandOptions, careChannelOptions, customerTypeOptions, demandOptions, messageClassificationOptions, type MessageRecord } from "./types";
+import { brandOptions, careChannelOptions, customerTypeOptions, demandOptions, leadCreateBrandOptions, messageClassificationOptions, type MessageRecord } from "./types";
 
 export const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp", "Nhật", "Hàn", "Singapore", "Thái Lan"];
 
@@ -229,7 +229,7 @@ export function MessFormDialog({
               <Field label="Nguồn" htmlFor="lead-brand" error={fieldErrors?.["lead-brand"]} required={lead} hint={lead ? undefined : "Khách tiềm năng chuyển từ mess dùng nguồn này"}>
                 <NativeSelect id="lead-brand" value={draft.brand} onChange={(event) => update({ brand: event.target.value })}>
                   <option value="">Chưa chọn</option>
-                  {brandOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  {(lead ? leadCreateBrandOptions : brandOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </NativeSelect>
               </Field>
               <Field label="Phân loại" htmlFor="mess-class" error={fieldErrors?.["mess-class"]}>
