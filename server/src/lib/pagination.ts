@@ -38,7 +38,8 @@ export async function queryPage<T extends pg.QueryResultRow>(
     from paging p left join lateral (
       select *, true as __present from filtered order by __position
       limit $${start + 1} offset ((p.page - 1) * $${start + 1})
-    ) data on true`, [...values, request.page, request.pageSize, request.focusId ?? null]);
+    ) data on true
+    order by data.__position`, [...values, request.page, request.pageSize, request.focusId ?? null]);
   const first = result.rows[0];
   if (!first) return emptyPage(request);
   return {

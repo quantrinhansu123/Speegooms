@@ -24,7 +24,9 @@ export function QuotationsView() {
   const [status, setStatus] = useState<QuoteStatus | "">("");
   const customerName = new Map(all.customers.map((c) => [c.customerId, c.name]));
 
-  const filtered = data.quotations.filter((q) => (!status || q.status === status) && matchesQuery(query, q.quoteId, q.rfqId, q.messId, customerName.get(q.customerId)));
+  const filtered = data.quotations
+    .filter((q) => (!status || q.status === status) && matchesQuery(query, q.quoteId, q.rfqId, q.messId, customerName.get(q.customerId)))
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
   const listTools = useListTools(filtered, { filename: "speego-quotations.csv", name: (r) => r.rfqId, date: (r) => r.createdAt, dateLabel: "Ngày tạo", columns: [{ label: "Mã", value: (r) => r.quoteId }, { label: "Tên / nội dung", value: (r) => r.rfqId }, { label: "Ngày tạo", value: (r) => r.createdAt }, { label: "currency", value: (r) => r.currency }, { label: "status", value: (r) => r.status }] });
   const paging = usePagination(listTools.rows, 20, listTools.resetKey);
 
