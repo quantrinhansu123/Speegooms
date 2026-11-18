@@ -44,11 +44,15 @@ test("HRM opens directly from one menu entry and preserves the HCNS role boundar
   }
 });
 
-test("Only admin sees system and executive menus or opens their restricted pages", () => {
+test("KPI managers see Settings; executive menus remain admin-only", () => {
   for (const role of Object.keys(roleConfig) as Role[]) {
     const groups = navigationForRole(role).map((group) => group.label);
-    for (const label of ["Hệ thống", "Điều hành"]) assert.equal(groups.includes(label), role === "admin", `${role}: ${label}`);
-    for (const path of ["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"]) {
+    const settingsAllowed = ["admin", "ban-gd", "marketing-lead"].includes(role);
+    assert.equal(groups.includes("Hệ thống"), settingsAllowed, role);
+    assert.equal(groups.includes("Điều hành"), role === "admin", role);
+    assert.equal(navigationForRole(role).flatMap(group => group.items).some(item => item.href === "/cai-dat"), settingsAllowed, role);
+    for (const suffix of ["", "/example"]) assert.equal(canAccess(role, "/cai-dat" + suffix), settingsAllowed, role);
+    for (const path of ["/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"]) {
       for (const suffix of ["", "/example"]) assert.equal(canAccess(role, path + suffix), role === "admin", `${role}: ${path + suffix}`);
     }
     assert.equal(canAccess(role, "/dashboard"), true, role);

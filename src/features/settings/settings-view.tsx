@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { canManageKpis } from "@speego/shared";
 import { LogOut, RotateCcw } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineAlert } from "@/components/shared/form-fields";
@@ -18,6 +19,7 @@ import { resetCrm } from "@/features/crm/store";
 import { resetFulfillment } from "@/features/fulfillment/store";
 import { resetOps } from "@/features/operations/store";
 import { DataLanhRecipients } from "./data-lanh-recipients";
+import { KpiSettings } from "./kpi-settings";
 
 const initials = (name: string) => name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
 
@@ -48,7 +50,8 @@ export function SettingsView() {
   });
 
   return <>
-    <PageHeader title="Cài đặt" description="Thông tin tài khoản, phạm vi truy cập theo vai trò và dữ liệu demo." />
+    <PageHeader title="Cài đặt" description="Thông tin tài khoản, cấu hình KPI theo phòng ban và phạm vi truy cập theo vai trò." />
+    {canManageKpis(user.role) && <div className="mb-6"><KpiSettings /></div>}
     <div className="grid gap-6 xl:grid-cols-2">
       <SectionCard title="Tài khoản">
         <div className="mb-4 flex items-center gap-4">

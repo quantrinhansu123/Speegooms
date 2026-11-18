@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { MarketingController } from "../controllers/marketing.controller";
+import { KpiController } from "../controllers/kpi.controller";
+import { PostgresKpiRepository } from "../adapters/postgres/kpi.repository";
 import type { RequestHandler } from "express";
 import type { Env } from "../config/env";
 import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudinary/upload";
@@ -41,6 +43,7 @@ import { UserAdminService } from "../services/user-admin.service";
  */
 export interface AppContainer {
   marketingController: MarketingController;
+  kpiController: KpiController;
   env: Env;
   authController: AuthController;
   healthController: HealthController;
@@ -80,6 +83,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
 
   return {
     marketingController: new MarketingController(pool),
+    kpiController: new KpiController(pool ? new PostgresKpiRepository(pool) : null),
     env,
     authController: new AuthController(auth, cookies),
     healthController: new HealthController(new HealthService(repositories.users)),

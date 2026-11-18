@@ -80,6 +80,7 @@ const files = [
   "053_sale_global_lead.sql",
   "069_marketing.sql",
   "070_marketing_assignment_roles.sql",
+  "071_department_kpis.sql",
 ];
 
 await client.connect();

@@ -1,5 +1,6 @@
 import { Router, type Express } from "express";
 import { marketingRoutes } from "./marketing.routes";
+import { kpiRoutes } from "./kpi.routes";
 import type { AppContainer } from "../container";
 import { authRoutes } from "./auth.routes";
 import { crmRoutes } from "./crm.routes";
@@ -18,6 +19,7 @@ export function registerRoutes(app: Express, container: AppContainer) {
   const api = Router();
   api.use(container.csrf.protect);
   api.use("/marketing", marketingRoutes(container));
+  api.use("/settings/kpis", kpiRoutes(container));
   api.use("/health", healthRoutes(container.healthController));
   api.use("/security", securityRoutes(container.securityController));
   api.use("/auth", authRoutes(container));

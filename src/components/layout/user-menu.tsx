@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logout } from "@/lib/api";
-import { roleConfig } from "@/config/roles";
+import { canAccess, roleConfig } from "@/config/roles";
 import type { CurrentUser } from "@/types/user";
 
 const initials = (name: string) =>
@@ -57,7 +57,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
         <DropdownMenuItem onClick={() => router.push("/tai-khoan")}>
           <KeyRound /> Đổi mật khẩu
         </DropdownMenuItem>
-        {user.role === "admin" && <DropdownMenuItem onClick={() => router.push("/cai-dat")}>
+        {canAccess(user.role, "/cai-dat") && <DropdownMenuItem onClick={() => router.push("/cai-dat")}>
           <Settings /> Cài đặt
         </DropdownMenuItem>}
         <DropdownMenuSeparator />

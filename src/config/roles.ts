@@ -1,4 +1,5 @@
 import { navigation } from "@/config/navigation";
+import { canManageKpis } from "@speego/shared";
 import type { NavGroup } from "@/types/navigation";
 import type { Department, Role } from "@/types/role";
 
@@ -117,7 +118,8 @@ const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
 
 export function canAccess(role: Role, href: string): boolean {
   if (href === "/tai-khoan") return true;
-  if (["/cai-dat", "/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
+  if (href === "/cai-dat" || href.startsWith("/cai-dat/")) return canManageKpis(role);
+  if (["/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
   if (TRACKING_HREF.test(href)) {
     if (role === "sale-global-lead") return /^\/theo-doi-bao-gia\/global(\/|$)/.test(href);
     return role === "admin" || role === "ban-gd" || role === "sale-vn" || role === "sale-global" || role === "van-hanh" || role === "sourcing" || role === "logistics";
@@ -129,7 +131,7 @@ export function canAccess(role: Role, href: string): boolean {
 /** Menu sidebar đã lọc theo vai trò (cả mục con); bỏ mục/nhóm rỗng. */
 export function navigationForRole(role: Role): NavGroup[] {
   return navigation
-    .filter((g) => role === "admin" || !g.items.some((item) => item.href === "/cai-dat" || item.href === "/reports"))
+    .filter((g) => role === "admin" || !g.items.some((item) => item.href === "/reports"))
     .map((g) => ({
       ...g,
       items: g.items
