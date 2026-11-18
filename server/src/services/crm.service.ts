@@ -575,11 +575,6 @@ export class CrmService {
     return result;
   }
 
-  async deleteContract(lane: CrmLane, id: string): Promise<void> {
-    const result = await this.ready().deleteContract(lane, id);
-    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
-  }
-
   private ready(): CrmRepository {
     if (!this.crm) throw new AppError(503, "UNAVAILABLE", "CRM cần kết nối Postgres");
     return this.crm;

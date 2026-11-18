@@ -74,7 +74,7 @@ test("pagination executes read-only SQL, keeps totals and reaches records beyond
     await accounting.pagePayments({ ...common, status: "", payeeKind: "", purpose: "" }, page);
     await accounting.pagePayroll({ ...common, department: "" }, page);
     await accounting.pageExpenses({ ...common, department: "", status: "" }, page);
-    await accounting.pageLedger({ ...common, kind: "", category: "" }, page);
+    await accounting.pageLedger({ ...common, kind: "", category: "", dateField: "", counterparty: "" }, page);
     await accounting.pageStatements(page);
     await accounting.pageStatements(page, "00000000-0000-4000-8000-000000000000");
     const marketingReady = (await client.query("select to_regclass('app.marketing_tasks') as name")).rows[0]?.name;

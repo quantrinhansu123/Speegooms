@@ -94,6 +94,13 @@ export class PostgresLedgerRepository {
     } catch (cause) { databaseError(cause); }
   }
 
+  async listLedgerCounterparties(): Promise<string[]> {
+    try {
+      const result = await this.pool.query<{ name: string }>(`select distinct doi_tuong as name from ke_toan.so_thu_chi where doi_tuong <> '' order by 1`);
+      return result.rows.map(row => row.name);
+    } catch (cause) { databaseError(cause); }
+  }
+
   async createReceivingAccount(name: string): Promise<string> {
     try {
       await this.pool.query(`insert into ke_toan.tai_khoan_nhan (ten) values ($1) on conflict (ten) do nothing`, [name]);

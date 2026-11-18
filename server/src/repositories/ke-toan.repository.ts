@@ -107,6 +107,7 @@ export interface KeToanRepository {
   pagePayroll(search: PayrollListSearch, page: PageRequest): Promise<ListPage<PayrollRecord>>;
   pageExpenses(search: ExpenseListSearch, page: PageRequest): Promise<ListPage<InternalExpenseRecord>>;
   listReceivingAccounts(): Promise<string[]>;
+  listLedgerCounterparties(): Promise<string[]>;
   createReceivingAccount(name: string): Promise<string>;
   listLedger(): Promise<LedgerRecord[]>;
   listStatements(): Promise<StatementRecord[]>;

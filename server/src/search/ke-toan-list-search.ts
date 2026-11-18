@@ -20,14 +20,18 @@ export interface ExpenseListSearch extends ListSearch {
   status: string;
 }
 
-export interface LedgerListSearch extends ListSearch { kind: string; category: string }
+export interface LedgerListSearch extends ListSearch { kind: string; category: string; dateField: string; counterparty: string }
 
 export function ledgerSearch(input: LedgerListSearch): SearchBuilder {
   return new SearchBuilder()
     .add(new TextSearchCriterion(input.q, [sql("l.doi_tuong"), sql("l.ma_don_hang"), sql("h.ten_khach_hang"), sql("l.ma_tham_chieu"), sql("l.tai_khoan_nhan")]))
-    .add(new DateRangeCriterion(sql("l.ngay"), input.from, input.to, "date"))
+    .add(new DateRangeCriterion(sql(input.dateField === "transaction" ? "l.ngay_giao_dich" : "l.ngay"), input.from, input.to, "date"))
     .add(new ExactMatchCriterion(sql("l.loai::text"), input.kind))
-    .add(new ExactMatchCriterion(sql("l.khoan_muc::text"), input.category));
+    .add(new ExactMatchCriterion(sql("l.khoan_muc::text"), input.category))
+    .add({ apply: (query) => { // nhiều đối tượng, ngăn cách bằng "|"
+      const names = input.counterparty.split("|").map((name) => name.trim().toLowerCase()).filter(Boolean);
+      if (names.length) query.where(`lower(l.doi_tuong) = any(${query.param(names)}::text[])`);
+    } });
 }
 
 /** Tìm theo mã, đơn hàng, người nhận, mã tham chiếu, tên khách và nội dung thanh toán. */

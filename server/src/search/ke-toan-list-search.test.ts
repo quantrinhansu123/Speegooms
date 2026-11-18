@@ -7,7 +7,7 @@ import {
   payrollNet,
 } from "@speego/shared";
 import { can } from "../config/permissions";
-import { expenseSearch, paymentSearch, payrollSearch } from "./ke-toan-list-search";
+import { expenseSearch, ledgerSearch, paymentSearch, payrollSearch } from "./ke-toan-list-search";
 
 const emptyPayment = { q: "", from: "", to: "", status: "", payeeKind: "", purpose: "" };
 
@@ -89,4 +89,17 @@ test("quyền kế toán: Kế toán và Vận hành nhập đề nghị, chỉ 
   assert.equal(can("van-hanh", "payroll.read"), false);
   assert.equal(can("ke-toan", "expense.write"), true);
   assert.equal(can("sale-vn", "expense.read"), false);
+});
+
+test("sổ thu chi: lọc theo ngày giao dịch và đối tượng khớp chính xác", () => {
+  const base = { q: "", from: "2026-11-01", to: "2026-11-30", kind: "", category: "", dateField: "", counterparty: "" };
+  assert.match(ledgerSearch(base).build().sql, /l\.ngay >= /);
+  const tx = ledgerSearch({ ...base, dateField: "transaction", counterparty: "Lưu Hương" }).build();
+  assert.match(tx.sql, /l\.ngay_giao_dich >= /);
+  assert.match(tx.sql, /lower\(l\.doi_tuong\) = /);
+  assert.deepEqual(tx.values.at(-1), ["lưu hương"]);
+  const many = ledgerSearch({ ...base, counterparty: "Lưu Hương| An " }).build();
+  assert.match(many.sql, /lower\(l\.doi_tuong\) = any\(\$\d+::text\[\]\)/);
+  assert.deepEqual(many.values.at(-1), ["lưu hương", "an"]);
+  assert.doesNotMatch(ledgerSearch({ ...base, dateField: "x; drop" }).build().sql, /ngay_giao_dich|drop/);
 });

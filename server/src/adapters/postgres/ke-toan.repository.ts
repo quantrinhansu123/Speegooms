@@ -205,6 +205,7 @@ export class PostgresKeToanRepository implements KeToanRepository {
     return { ...result, rows: result.rows.map(toExpense) };
   }
 
+  listLedgerCounterparties(): Promise<string[]> { return this.ledger.listLedgerCounterparties(); }
   listReceivingAccounts(): Promise<string[]> { return this.ledger.listReceivingAccounts(); }
   createReceivingAccount(name: string): Promise<string> { return this.ledger.createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.ledger.listLedger(); }

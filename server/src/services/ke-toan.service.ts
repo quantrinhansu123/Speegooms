@@ -23,6 +23,7 @@ export class KeToanService {
   pagePayroll(search: PayrollListSearch, page: PageRequest) { return this.repository().pagePayroll(search, page); }
   pageExpenses(search: ExpenseListSearch, page: PageRequest) { return this.repository().pageExpenses(search, page); }
 
+  listLedgerCounterparties(): Promise<string[]> { return this.repository().listLedgerCounterparties(); }
   listReceivingAccounts(): Promise<string[]> { return this.repository().listReceivingAccounts(); }
   createReceivingAccount(name: string): Promise<string> { return this.repository().createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.repository().listLedger(); }

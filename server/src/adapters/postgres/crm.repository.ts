@@ -2434,28 +2434,6 @@ export class PostgresCrmRepository implements CrmRepository {
     return "pending" as const;
   }
 
-  async deleteContract(lane: CrmLane, id: string) {
-    const current = await this.findContractById(lane, id, "sale");
-    if (!current) return "missing" as const;
-    const tables = quoteTables[lane];
-    await this.query(
-      `update ${tables.sourcing} set
-         trang_thai_hop_dong = 'CHUA_TAO'::crm.trang_thai_hop_dong_bao_gia,
-         bao_gia_logistics = case
-           when bao_gia_logistics is null then null
-           else jsonb_set(bao_gia_logistics, '{contractStatus}', '"CHUA_TAO"')
-         end
-       where id = $1::uuid`,
-      [current.quoteId],
-    );
-    await this.query(
-      `update ${tables.logistics} set trang_thai_hop_dong = 'CHUA_TAO'::crm.trang_thai_hop_dong_bao_gia where id = $1::uuid`,
-      [current.quoteId],
-    );
-    const removed = await this.query(`delete from crm.hop_dong where id = $1::uuid and tuyen = $2`, [id, lane]);
-    return removed.rowCount ? "ok" as const : "missing" as const;
-  }
-
   private async findContract(lane: CrmLane, quoteId: string, view: ContractView): Promise<ContractRecord | null> {
     const result = await this.query<ContractRow>(
       `${contractSelect(lane)} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid`,

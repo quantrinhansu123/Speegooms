@@ -13,6 +13,10 @@ function actorName(req: Request): string {
 export class KeToanController {
   constructor(private readonly keToan: KeToanService) {}
 
+  listLedgerCounterparties = async (_req: Request, res: Response) => {
+    res.status(200).json({ counterparties: await this.keToan.listLedgerCounterparties() });
+  };
+
   listReceivingAccounts = async (_req: Request, res: Response) => {
     res.status(200).json({ accounts: await this.keToan.listReceivingAccounts() });
   };

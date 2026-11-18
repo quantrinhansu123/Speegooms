@@ -13,6 +13,7 @@ import {
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { MoneyInput } from "@/components/shared/money-input";
+import { MultiCombobox } from "@/components/shared/multi-combobox";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -210,12 +211,13 @@ function EntryDialog({
 export function LedgerLiveView() {
   const user = useSession();
   const canWrite = canPerform(user.role, "ledger.write");
-  const filters = useAppliedSearch({ q: "", from: "", to: "", kind: "", category: "" });
+  const filters = useAppliedSearch({ q: "", from: "", to: "", kind: "", category: "", dateField: "", counterparty: "" });
   const [reconciling, setReconciling] = useState<LedgerEntry | null>(null);
   const ledger = useListData<LedgerEntry>("/api/ke-toan/ledger", "entries", filters.applied, "Không tải được sổ thu chi", true);
   const statements = useListData<Statement>("/api/ke-toan/statements", "statements", {}, "Không tải được sao kê", true);
   const candidateStatements = useListData<Statement>("/api/ke-toan/statements", "statements", { candidateFor: reconciling?.id ?? "" }, "Không tải được sao kê phù hợp", true, Boolean(reconciling));
   const [orders, setOrders] = useState<Order[]>([]);
+  const counterparties = useListData<string>("/api/ke-toan/ledger-counterparties", "counterparties", {}, "Không tải được danh sách đối tượng");
   const accounts = useListData<string>("/api/ke-toan/receiving-accounts", "accounts", {}, "Không tải được tài khoản nhận");
   const [incomeCurrency, setIncomeCurrency] = useState("USD");
   const [mode, setMode] = useState<Mode | null>(null);
@@ -230,7 +232,7 @@ export function LedgerLiveView() {
       .then((body) => setOrders(body.orders))
       .catch((cause) => setError(cause instanceof ApiError ? cause.message : "Không tải được đơn hàng"));
   }, []);
-  const reload = () => { ledger.reload(); statements.reload(); accounts.reload(); };
+  const reload = () => { ledger.reload(); statements.reload(); accounts.reload(); counterparties.reload(); };
   const rows = ledger.rows;
   const thu = Number(ledger.paging.summary.thu ?? 0);
   const chi = Number(ledger.paging.summary.chi ?? 0);
@@ -267,7 +269,7 @@ export function LedgerLiveView() {
     {(error || ledger.error || statements.error || accounts.error) && <InlineAlert className="mb-4">{error || ledger.error || statements.error || accounts.error}</InlineAlert>}
     <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Tổng thu</p><p className="text-xl font-semibold">{formatMoney(thu, "VND")}</p></div>
-      <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Tổng chi</p><p className="text-xl font-semibold">{formatMoney(chi, "VND")}</p></div>
+      <div className="rounded-lg border p-4"><p className="text-sm text-muted-foreground">Tổng chi</p><p className="text-xl font-semibold">{formatMoney(chi, "VND")}</p><p className="text-xs text-muted-foreground">Còn lại (thu − chi): {formatMoney(thu - chi, "VND")}</p></div>
       <div className="rounded-lg border p-4">
         <label htmlFor="ledger-income-currency" className="block text-sm text-muted-foreground">Tổng thu ngoại tệ</label>
         <div className="flex flex-wrap items-start justify-between gap-x-2">
@@ -280,7 +282,23 @@ export function LedgerLiveView() {
     </div>
     <ListSearchBar q={filters.draft.q} from={filters.draft.from} to={filters.draft.to}
       onQ={(v) => filters.set("q", v)} onFrom={(v) => filters.set("from", v)} onTo={(v) => filters.set("to", v)}
-      onSearch={filters.search} onReset={filters.reset} activeCount={filters.activeCount} dateLabel="Ngày ghi sổ" searchPlaceholder="Tìm người nộp/nhận, mã đơn, tên khách, tài khoản nhận…">
+      onSearch={filters.search} onReset={filters.reset} activeCount={filters.activeCount} dateLabel={filters.draft.dateField === "transaction" ? "Ngày giao dịch" : "Ngày ghi sổ"} searchPlaceholder="Tìm người nộp/nhận, mã đơn, tên khách, tài khoản nhận…">
+      <Field label="Lọc theo ngày" htmlFor="ledger-date-field">
+        <NativeSelect id="ledger-date-field" value={filters.draft.dateField} onChange={(event) => filters.set("dateField", event.target.value)}>
+          <option value="">Ngày ghi sổ</option><option value="transaction">Ngày giao dịch</option>
+        </NativeSelect>
+      </Field>
+      <Field label="Tháng" htmlFor="ledger-month">
+        <Input id="ledger-month" type="month" title="Tự điền Từ ngày – Đến ngày theo tháng" value={filters.draft.from.slice(0, 7) === filters.draft.to.slice(0, 7) ? filters.draft.from.slice(0, 7) : ""} onChange={(event) => {
+          const [y, m] = event.target.value.split("-").map(Number);
+          filters.set("from", y ? `${event.target.value}-01` : "");
+          filters.set("to", y ? `${event.target.value}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}` : "");
+        }} />
+      </Field>
+      <Field label="Đối tượng" htmlFor="ledger-counterparty-filter">
+        <MultiCombobox id="ledger-counterparty-filter" options={counterparties.rows} placeholder="Tất cả đối tượng" searchPlaceholder="Tìm đối tượng…"
+          value={filters.draft.counterparty ? filters.draft.counterparty.split("|") : []} onChange={(names) => filters.set("counterparty", names.join("|"))} />
+      </Field>
       <FilterSelect id="ledger-kind-filter" label="Loại" value={filters.draft.kind} onChange={(v) => filters.set("kind", v)} options={[["THU", "Thu"], ["CHI", "Chi"]]} />
       <FilterSelect id="ledger-category-filter" label="Khoản mục" value={filters.draft.category} onChange={(v) => filters.set("category", v)} options={ledgerCategories.map((v) => [v, ledgerCategoryLabels[v]])} />
     </ListSearchBar>

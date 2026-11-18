@@ -35,7 +35,6 @@ export const permissions = {
   "contract.create": ["admin", "sale-vn", "sale-global", "sale-global-lead"],
   "contract.ops": ["admin", "van-hanh", "sourcing"],
   "contract.accounting": ["admin", "ke-toan"],
-  "contract.delete": ["ke-toan"],
   "contract.resend": ["admin", "sale-vn", "sale-global", "sale-global-lead", "van-hanh", "sourcing", "ke-toan"],
   /** Kế toán: nhập (Vận hành hoặc Kế toán), duyệt và chi tách người. */
   "payment.read": ["admin", "ban-gd", "van-hanh", "ke-toan"],

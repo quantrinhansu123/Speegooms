@@ -4,9 +4,8 @@ import type { PageInfo } from "@speego/shared";
 import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, FileText, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Plus, Send } from "lucide-react";
 import { accountingContractSchema, contractPaymentFlags, contractVndSummary, defaultQuoteBank, industryCategoryOptions, quoteNotesSchema, quoteOrderSchema, receivedLineInMain, vndRateOf, opsContractSchema, opsStatusOptions, paymentsInMain, quoteCurrencies, remainderAfterPayments, saleContractPaymentSchema, sumByCurrency, totalsInMain, type ContractAmounts, type CrmLane, type IndustryCategory, type MoneyAmount, type QuoteCurrency } from "@speego/shared";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -412,14 +411,12 @@ export function ContractsLiveView({
   const canAccounting = mode === "accounting" && accountingRoles.includes(user.role);
   const canSale = mode === "sale" && saleRoles.includes(user.role);
   const canResend = canSale || canOps || canAccounting;
-  const canDelete = mode === "accounting" && user.role === "ke-toan";
   const loadVersion = useRef(0);
   const loadedListPath = useRef<string | null>(null);
   const [rows, setRows] = useState<ContractRecord[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
-  const [removing, setRemoving] = useState<ContractRecord | null>(null);
   const [printing, setPrinting] = useState<{ row: ContractRecord; quote: QuoteRecord } | null>(null);
   const printContract = async (row: ContractRecord) => {
     try {
@@ -569,20 +566,6 @@ export function ContractsLiveView({
       await load();
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "Không gửi lại được hợp đồng");
-    }
-  };
-
-  const remove = async () => {
-    if (!removing) return;
-    const target = removing;
-    setRemoving(null);
-    try {
-      await api(crmPath(`/api/crm/contracts/${target.id}`, lane), { method: "DELETE" });
-      setSelected((current) => current?.id === target.id ? null : current);
-      setNotice(`Đã xóa hợp đồng ${target.code}.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không xóa được hợp đồng");
     }
   };
 
@@ -774,13 +757,6 @@ export function ContractsLiveView({
                         icon: <Send />,
                         onClick: () => { void resend(row); },
                       }] : []),
-                      ...(canDelete ? [{
-                        key: "delete",
-                        label: "Xóa",
-                        icon: <Trash2 />,
-                        destructive: true,
-                        onClick: () => setRemoving(row),
-                      }] : []),
                     ]}
                   />
                 </td>
@@ -799,15 +775,6 @@ export function ContractsLiveView({
           onClose={() => setPrinting(null)}
         />
       )}
-      <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => { if (!open) setRemoving(null); }}
-        destructive
-        title="Xóa hợp đồng?"
-        description={removing ? `${removing.code} sẽ bị xóa. Báo giá ${removing.quoteCode || ""} trở lại trạng thái chưa tạo hợp đồng.` : ""}
-        confirmLabel="Xóa"
-        onConfirm={() => { void remove(); }}
-      />
       <Dialog open={billPreview !== null} onOpenChange={(open) => { if (!open) setBillPreview(null); }}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>

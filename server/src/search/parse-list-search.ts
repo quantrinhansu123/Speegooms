@@ -103,7 +103,8 @@ export function readPayrollSearch(req: Request): PayrollListSearch {
 }
 
 export function readLedgerSearch(req: Request): LedgerListSearch {
-  return { ...readListSearch(req), kind: oneOf(req, "kind", ["THU", "CHI"]), category: oneOf(req, "category", ledgerCategories) };
+  return { ...readListSearch(req), kind: oneOf(req, "kind", ["THU", "CHI"]), category: oneOf(req, "category", ledgerCategories),
+    dateField: oneOf(req, "dateField", ["transaction"]), counterparty: queryText(req, "counterparty").trim().slice(0, 4000) };
 }
 
 export function readExpenseSearch(req: Request): ExpenseListSearch {
