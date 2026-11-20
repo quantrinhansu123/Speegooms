@@ -61,7 +61,7 @@ export function draftQuoteSheetInput(
 export function quoteOutputProblem(row: RfqQuoteRecord): string | null {
   if (!row.sentQuote) return "Chưa gửi báo giá. Hãy kiểm tra bản nháp và gửi báo giá trước khi In/PDF/Excel.";
   if (!["DA_CO_BAO_GIA", "DA_CO_BAO_GIA_LAI"].includes(row.quoteStatus)) return "Báo giá đang chờ xác nhận hoặc báo giá lại. Hãy gửi lại trước khi In/PDF/Excel.";
-  const issue = quotePackageIssue(row.sentQuote.order);
+  const issue = quotePackageIssue(row.sentQuote.order, row.customerKind);
   if (issue) return issue;
   if (row.desk !== "sourcing") return null;
   const logistics = row.logisticsSheet;

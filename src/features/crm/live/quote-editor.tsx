@@ -2457,7 +2457,7 @@ export function QuoteEditor({
     const priced = orders.length > 0 ? orders : quote.sourcingContext ? [{ ...quote.sourcingContext.order, selected: true }] : orders;
     const ready = priced.some((order) => order.selected) ? priced : priced.map((order, index) => ({ ...order, selected: index === 0 }));
     const packageIssue = ready.find((order) => order.selected);
-    const issue = packageIssue ? quotePackageIssue(packageIssue) : null;
+    const issue = packageIssue ? quotePackageIssue(packageIssue, quote.customerKind) : null;
     if (issue) { setFormError(issue); return; }
     const data = payloadFor(ready);
     if (data) setSendInput(data);

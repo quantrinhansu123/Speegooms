@@ -18,8 +18,9 @@ export function quoteShipmentMatches(left: QuoteOrder, right: QuoteOrder): boole
   return JSON.stringify(shipment(left)) === JSON.stringify(shipment(right));
 }
 
-/** Cho phép lưu nháp thiếu số đo; trước khi gửi phải hoàn tất các nhóm kiện đã khai. */
-export function quotePackageIssue(order: QuoteOrder): string | null {
+/** Cho phép lưu nháp thiếu số đo; trước khi gửi phải hoàn tất các nhóm kiện đã khai. KH thuần Logistics: số đo không phải bên báo giá nhập, chỉ cần cước. */
+export function quotePackageIssue(order: QuoteOrder, customerKind?: string | null): string | null {
+  if (customerKind === "LOGISTICS") return null;
   for (const [index, line] of order.lines.entries()) {
     for (const [packageIndex, pkg] of line.packages.entries()) {
       const label = `${line.productName || `Dòng ${index + 1}`}, kiện ${packageIndex + 1}`;

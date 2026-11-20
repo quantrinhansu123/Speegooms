@@ -388,8 +388,10 @@ test("sending rejects incomplete package measurements without fallback weight wh
       } as unknown as CrmRepository);
       await service.updateQuote("global", desk, "quote", input, { contentOnly: false, role: "admin" });
       assert.equal(saved, 1);
-      await assert.rejects(service.sendQuote("global", desk, "quote", input, { id: "admin", role: "admin" } as PublicUser), /lớn hơn 0/);
-      assert.equal(sent, 0);
+      const send = service.sendQuote("global", desk, "quote", input, { id: "admin", role: "admin" } as PublicUser);
+      // Khách thuần Logistics không phải nhập số đo; chỉ Sourcing bị chặn.
+      if (desk === "sourcing") { await assert.rejects(send, /lớn hơn 0/); assert.equal(sent, 0); }
+      else { await send; assert.equal(sent, 1); }
     }
   }
 });

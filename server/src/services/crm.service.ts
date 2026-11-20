@@ -404,7 +404,7 @@ export class CrmService {
       orders = orders.map((order, index) => ({ ...order, selected: index === 0 }));
     }
     const packageIssue = orders.find((order) => order.selected);
-    const issue = packageIssue ? quotePackageIssue(packageIssue) : null;
+    const issue = packageIssue ? quotePackageIssue(packageIssue, current.customerKind) : null;
     if (issue) throw new AppError(400, "RULE", issue);
     const missingPackaging = desk === "sourcing" && isCombinedSourcing(current) && packageIssue ? quoteMissingPackagingIssue(packageIssue) : null;
     if (missingPackaging) throw new AppError(400, "RULE", missingPackaging);

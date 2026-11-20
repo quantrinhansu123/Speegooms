@@ -204,3 +204,9 @@ test("combined Sourcing quote cannot be sent while a product line has no packagi
   assert.match(quoteMissingPackagingIssue(order([])) ?? "", /Máy trị liệu: nhập quy cách đóng gói/);
   assert.equal(quoteMissingPackagingIssue(order([{ count: 1, lengthCm: 10, widthCm: 10, heightCm: 10, actualKg: 1 }])), null);
 });
+
+test("pure Logistics customer quote can be sent without package dimensions", () => {
+  const order = quoteOrderSchema.parse({ id: "00000000-0000-4000-8000-000000000001", name: "G", selected: true, currency: "USD", lines: [{ stt: "1", productName: "Mặt nạ", quantity: 1, spec: "", note: "", weightKg: null, pricePerSet: 0, lineTotal: 0, packages: [{ count: 1, lengthCm: 0, widthCm: 0, heightCm: 0, actualKg: 0 }] }] });
+  assert.match(quotePackageIssue(order) ?? "", /nhập đủ số kiện/);
+  assert.equal(quotePackageIssue(order, "LOGISTICS"), null);
+});
