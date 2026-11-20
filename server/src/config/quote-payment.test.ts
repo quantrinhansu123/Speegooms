@@ -17,6 +17,18 @@ const draft = () => updateQuoteSchema.parse({
   bank: { custom: true, title: "", bankName: "Ngân hàng thử nghiệm", accountName: "Tài khoản thử nghiệm", accountNumber: "0123456789", routingNumber: "" },
 });
 
+test("negative logistics fee (discount) reduces the total instead of invalidating it", () => {
+  const input = draft();
+  input.notes.logisticsFees = [
+    { label: "Phí", labelEn: "Fee", value: "20", currency: "AUD" },
+    { label: "Giảm giá khách cũ", labelEn: "Discount", value: "-5,5", currency: "AUD" },
+    { label: "Giảm 1.000", labelEn: "Discount", value: "-1.000", currency: "AUD" },
+  ];
+  const total = quoteVndAmount(input, "logistics");
+  assert.equal(total.gaps, undefined);
+  assert.equal(total.amount, 100 + 20 - 5.5 - 1000);
+});
+
 test("VND conversion is required for foreign-currency drafts on both desks", () => {
   const input = draft();
   for (const desk of ["sourcing", "logistics"] as const) {

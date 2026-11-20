@@ -29,14 +29,17 @@ export function fclTotals(charges: FclQuote["charges"]) {
 }
 
 export function quoteMoneyValue(text: string): number | null {
-  const value = text.trim().replace(/\s*(?:[A-Z]{3}|₫|đ|\$)\s*$/i, "").replace(/\s/g, "");
+  const signed = text.trim().replace(/\s*(?:[A-Z]{3}|₫|đ|\$)\s*$/i, "").replace(/\s/g, "");
+  // Dấu trừ đầu chuỗi = khoản giảm giá (vd phụ phí giảm cho khách cũ).
+  const negative = signed.startsWith("-");
+  const value = negative ? signed.slice(1) : signed;
   if (!/^[\d.,]+$/.test(value)) return null;
   let normalized = value;
   if (value.includes(",")) normalized = value.lastIndexOf(".") > value.lastIndexOf(",")
     ? value.replace(/,/g, "") : value.replace(/\./g, "").replace(",", ".");
   else if (/^\d{1,3}(\.\d{3})+$/.test(value)) normalized = value.replace(/\./g, "");
   const amount = Number(normalized);
-  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+  return Number.isFinite(amount) ? (negative ? -amount : amount) : null;
 }
 
 function orderCurrencyOf(order: { currency: string } | undefined): string {
