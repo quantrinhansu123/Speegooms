@@ -126,10 +126,16 @@ export class CrmService {
     return this.ready().pagePotentials(lane, { ...search, allowedKinds }, page);
   }
 
-  async pageQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, page: PageRequest, role: Role, allLanes = false) {
+  async pageQuotes(lane: CrmLane, desk: QuoteDesk, search: QuoteListSearch, page: PageRequest, role: Role, allLanes = false, assigneeId = "") {
     this.assertDeskView(role, desk);
     if (allLanes && (role !== "admin" || desk !== "logistics")) throw new AppError(403, "FORBIDDEN", "Không có quyền xem tất cả tuyến");
-    const quoteIds = await this.assignedQuoteIds(lane);
+    let quoteIds = await this.assignedQuoteIds(lane);
+    if (assigneeId) {
+      if (!this.assignment) throw new AppError(503, "UNAVAILABLE", "Chia đơn cần kết nối Postgres");
+      const byLane = await Promise.all((allLanes ? ["vn", "global"] as const : [lane]).map((item) => this.assignment!.assignees(item, desk)));
+      const mine = byLane.flatMap((assignees) => Object.keys(assignees).filter((id) => assignees[id].id === assigneeId));
+      quoteIds = quoteIds ? mine.filter((id) => quoteIds!.includes(id)) : mine;
+    }
     if (quoteIds?.length === 0) return emptyPage<QuoteRecord & { lane: CrmLane }>(page);
     return this.ready().pageQuotes(allLanes ? ["vn", "global"] : [lane], desk, { ...search, quoteIds }, page, visibleKindsForDesk(role, desk));
   }

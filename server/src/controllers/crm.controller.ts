@@ -130,7 +130,7 @@ export class CrmController {
   };
 
   listQuotes = async (req: Request, res: Response) => {
-    const result = await this.crm.pageQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), readPagination(req), roleOf(req), req.query.allLanes === "1");
+    const result = await this.crm.pageQuotes(laneOf(req), deskOf(req), readQuoteSearch(req), readPagination(req), roleOf(req), req.query.allLanes === "1", typeof req.query.assignee === "string" ? req.query.assignee : "");
     res.status(200).json({ quotes: result.rows, pagination: result.pagination });
   };
 

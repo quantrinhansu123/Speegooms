@@ -7,7 +7,7 @@ import { quoteMarkupPercent, canViewQuoteOriginalPrice, logisticsQuoteFinancials
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileText, Pencil, Trash2 } from "lucide-react";
-import { canEditQuoteDesk, quoteTemplateSchema, type CrmLane, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
+import { canEditQuoteDesk, quoteTemplateSchema, type AssignmentMember, type CrmLane, type QuoteDesk, type UpdateQuoteInput } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -84,7 +84,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
   const [output, setOutput] = useState<{ action: QuoteOutputAction; row: QuoteRecord } | null>(null);
   const [quoteError, setQuoteError] = useState<string>();
   const [modeFilter, setModeFilter] = useState("");
-  const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "" });
+  const [members, setMembers] = useState<AssignmentMember[]>([]);
+  const filters = useAppliedSearch({ q: "", from: "", to: "", quoteStatus: "", contractStatus: "", customerKind: "", assignee: "" });
   const paging = useServerPagination(lane + JSON.stringify(filters.applied) + selectedLane + desk + modeFilter, "quote");
   const { query: pageQuery, receive: receivePage } = paging;
   const highlightId = useFocusRow(rows, lane, canPick, setLane, { refTypes: ["quote"] });
@@ -102,6 +103,7 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
       quoteStatus: filters.applied.quoteStatus,
       contractStatus: filters.applied.contractStatus,
       customerKind: filters.applied.customerKind,
+      assignee: filters.applied.assignee,
       mode: desk === "logistics" ? modeFilter : "",
       allLanes: selectedLane === "all" ? "1" : "",
     });
@@ -129,6 +131,9 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     loadQuotes();
   }, [loadQuotes]);
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
+  useEffect(() => {
+    api<{ members: AssignmentMember[] }>(`/api/chia-don/${desk}/members`).then((body) => setMembers(body.members)).catch(() => undefined); // chỉ để dựng bộ lọc
+  }, [desk]);
 
   useNotificationRefresh(loadQuotes);
   usePolling(loadQuotes);
@@ -251,13 +256,14 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         onReset={() => { filters.reset(); setModeFilter(""); }} activeCount={filters.activeCount + Number(!!modeFilter)}
         dateLabel="Ngày yêu cầu từ"
       >
-      {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter" className="mb-4 max-w-56">
+      {desk === "logistics" && <Field label="Tuyến Logistics" htmlFor="logistics-mode-filter">
         <NativeSelect id="logistics-mode-filter" value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}>
           <option value="">Tất cả</option><option value="AIR">Đường bay</option><option value="LCL">Đường biển LCL</option><option value="FCL">Đường biển FCL</option>
         </NativeSelect>
       </Field>}
         <FilterSelect id={`${desk}-quote-status`} label="Trạng thái báo giá" value={filters.draft.quoteStatus} onChange={(value) => filters.set("quoteStatus", value)} options={quoteStatusOptions} />
         <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
+        <FilterSelect id={`${desk}-quote-assignee`} label="Người phụ trách" value={filters.draft.assignee} onChange={(value) => filters.set("assignee", value)} options={members.map((member) => [member.id, member.name] as const)} />
       </ListSearchBar>
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1250px] text-sm">

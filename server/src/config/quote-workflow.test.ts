@@ -1189,3 +1189,16 @@ test("missing VND rate names the quote field that still needs a rate", () => {
   assert.equal(quoteVndAmount({ orders: [order], notes }, "sourcing").rateGap, "Đơn hàng, ô Quy đổi VND: 1 USD =");
   assert.equal(quoteVndAmount({ orders: [{ ...order, currency: "VND", rate: 25_000 }], notes }, "logistics").rateGap, "Chi phí vận chuyển, ô Quy đổi VND: 1 AUD =");
 });
+
+test("quote list can be filtered by assignee across lanes", async () => {
+  let seen: readonly string[] | undefined;
+  const service = new CrmService({
+    pageQuotes: async (_lanes: unknown, _desk: unknown, search: { quoteIds?: readonly string[] }) => { seen = search.quoteIds; return { rows: [], pagination: {} }; },
+  } as unknown as CrmRepository, null, null, {
+    assignees: async (lane: string) => lane === "vn" ? { q1: { id: "a", name: "A" }, q2: { id: "b", name: "B" } } : { q3: { id: "a", name: "A" } },
+  } as never);
+  await service.pageQuotes("vn", "logistics", {} as never, {} as never, "admin", true, "a");
+  assert.deepEqual(seen, ["q1", "q3"]);
+  await service.pageQuotes("vn", "logistics", {} as never, {} as never, "admin", false, "a");
+  assert.deepEqual(seen, ["q1"]);
+});
