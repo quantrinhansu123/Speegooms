@@ -32,6 +32,7 @@ export const implementedRoutes: readonly string[] = [
   "/crm/bao-gia",
   "/crm/hop-dong",
   "/van-hanh",
+  "/van-hanh/bao-cao",
   "/van-hanh/sourcing-bao-gia",
   "/van-hanh/logistics-bao-gia",
   "/van-hanh/nha-cung-cap",
