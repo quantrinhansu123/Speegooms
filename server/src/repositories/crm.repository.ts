@@ -289,6 +289,7 @@ export interface CrmRepository {
   updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "missing" | "duplicate">;
   deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<"ok" | "missing" | "used">;
   listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]>;
+  findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null>;
   createContract(lane: CrmLane, quoteId: string, input: CreateContractInput, source?: "DATA_LAKE"): Promise<ContractRecord | "missing">;
   createDirectContract(lane: CrmLane, input: CreateDirectContractInput): Promise<ContractRecord>;
   updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;

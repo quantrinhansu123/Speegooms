@@ -5,7 +5,9 @@ import type pg from "pg";
 import { accountingContractSchema } from "@speego/shared";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { CrmController } from "../controllers/crm.controller";
-import type { CrmService } from "../services/crm.service";
+import type { NotificationDraft, NotificationRepository } from "../repositories/notification.repository";
+import { CrmService } from "../services/crm.service";
+import { NotificationService } from "../services/notification.service";
 import { contractSearch } from "../search/crm-list-search";
 
 const search = { q: "", from: "", to: "", opsStatus: "", accountingStatus: "", customerKind: "" };
@@ -122,5 +124,46 @@ test("viewing unsent contracts does not enable accounting confirmation before ha
     const input = accountingContractSchema.parse({ accountingStatus: "DA_HOAN_THANH_COC", confirmations: [{ amount: 300, currency: "VND", note: "", images: [] }] });
     assert.equal(await repo.updateAccountingContract(lane, "old-contract", input), "pending");
     assert.equal(statements.every(sql => sql.trimStart().startsWith("select")), true);
+  }
+});
+
+test("accounting can send an unsent contract to Operations for review without writing a handoff or confirmation", async () => {
+  for (const lane of ["vn", "global"] as const) {
+    const id = "12345678-1234-1234-1234-123456789abc";
+    const reads: unknown[][] = [];
+    const repo = new PostgresCrmRepository({ query: async (sql: string, values: unknown[]) => {
+      assert.match(sql.trimStart(), /^select\b/);
+      reads.push(values);
+      return { rows: values[1] === id ? [{ ...rawContract(lane), id, confirmed_amount: null, accounting_status: null, confirmations: [] }] : [] };
+    } } as unknown as pg.Pool);
+    const drafts: NotificationDraft[] = [];
+    const notifications = new NotificationService({
+      listUserIdsByRoles: async (roles) => {
+        assert.deepEqual(roles, ["van-hanh"]);
+        return ["ops-user"];
+      },
+      createMany: async (recipients, draft) => {
+        assert.deepEqual(recipients, ["ops-user"]);
+        drafts.push(draft);
+        return recipients.length;
+      },
+    } as NotificationRepository);
+    const controller = new CrmController(new CrmService(repo, notifications));
+    let body: { contract: { sentToAccountingAt: string | null; accountingStatus: string | null } } | undefined;
+    const response = { status: () => response, json: (value: typeof body) => { body = value; } } as unknown as Response;
+    const request = (role: string, contractId = id) => ({
+      user: { id: "actor", name: "Người gửi", role }, params: { id: contractId }, query: { lane, to: "ops-review" },
+    }) as unknown as Request;
+
+    await controller.resendContract(request("ke-toan"), response);
+    assert.deepEqual(reads, [[lane, id]]);
+    assert.equal(body?.contract.sentToAccountingAt, null);
+    assert.equal(body?.contract.accountingStatus, null);
+    assert.equal(drafts[0]?.href, `/van-hanh/don-hang?id=${id}&lane=${lane}`);
+    assert.match(drafts[0]?.body ?? "", /rà soát hợp đồng HD-OLD/);
+    await controller.resendContract(request("admin"), response);
+    await assert.rejects(controller.resendContract(request("sourcing"), response), /Không gửi lại hợp đồng cho bên này/);
+    await assert.rejects(controller.resendContract(request("ke-toan", "12345678-1234-1234-1234-123456789abd"), response), /Không tìm thấy hợp đồng/);
+    assert.equal(drafts.length, 2);
   }
 });

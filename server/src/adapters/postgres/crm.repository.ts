@@ -2602,7 +2602,7 @@ export class PostgresCrmRepository implements CrmRepository {
     return { ...contract, amounts, totalValue, balance: Math.round((totalValue - contract.paidAmount) * 100) / 100 };
   }
 
-  private async findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null> {
+  async findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null> {
     const values = [lane, id];
     const ownership = contractSaleScope(quoteTables[lane], values);
     const result = await this.query<ContractRow>(

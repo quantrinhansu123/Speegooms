@@ -589,11 +589,14 @@ export class CrmService {
   async resendContract(
     lane: CrmLane,
     id: string,
-    target: "ops" | "accounting" | "parties",
+    target: "ops" | "accounting" | "parties" | "ops-review",
     actor?: PublicUser,
   ): Promise<ContractRecord> {
-    const result = await this.ready().resendContract(lane, id, target);
-    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
+    const repo = this.ready();
+    const result = target === "ops-review"
+      ? await repo.findContractById(lane, id, "accounting")
+      : await repo.resendContract(lane, id, target);
+    if (!result || result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
     if (result === "pending") throw new AppError(409, "CONFLICT", "Vận hành chưa gửi hợp đồng sang kế toán");
     if (actor) await this.notifications?.notifyContractResent(actor, lane, target, result.code, result.id);
     return result;

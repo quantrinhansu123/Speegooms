@@ -193,18 +193,21 @@ export class NotificationService {
   async notifyContractResent(
     actor: PublicUser,
     lane: CrmLane,
-    target: "ops" | "accounting" | "parties",
+    target: "ops" | "accounting" | "parties" | "ops-review",
     contractCode: string,
     contractId: string,
   ): Promise<void> {
-    if (target === "ops") {
+    if (target === "ops" || target === "ops-review") {
+      const review = target === "ops-review";
       await this.notifyRoles({
-        roles: ["van-hanh", "admin"],
+        roles: review ? ["van-hanh"] : ["van-hanh", "admin"],
         excludeUserId: actor.id,
         draft: {
           type: "contract.resend.ops",
-          title: "Hợp đồng gửi Vận hành",
-          body: `${actor.name} gửi lại hợp đồng ${contractCode} cho Vận hành (${laneLabel(lane)}).`,
+          title: review ? "Kế toán yêu cầu rà soát hợp đồng" : "Hợp đồng gửi Vận hành",
+          body: review
+            ? `${actor.name} đề nghị Vận hành rà soát hợp đồng ${contractCode} (${laneLabel(lane)}).`
+            : `${actor.name} gửi lại hợp đồng ${contractCode} cho Vận hành (${laneLabel(lane)}).`,
           href: recordHref("/van-hanh/don-hang", contractId, lane),
           lane,
           refType: "contract",

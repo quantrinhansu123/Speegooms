@@ -884,6 +884,7 @@ function ContractDialog({
   const [accountingStatus, setAccountingStatus] = useState(contract.accountingStatus ?? "");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+  const [opsReviewSent, setOpsReviewSent] = useState(false);
   const savedAmounts = enteredAmounts(contract);
   /** Tỷ giá quy đổi VND cho từng loại tiền ngoại tệ của hợp đồng (Sale sửa được). */
   const contractCurrencies = [...new Set([...savedAmounts.product, ...savedAmounts.shipping].map((line) => line.currency))].filter((code) => code !== "VND");
@@ -1061,6 +1062,19 @@ function ContractDialog({
     }
   };
 
+  const requestOpsReview = async () => {
+    setPending(true);
+    setError(undefined);
+    try {
+      await api(`${crmPath(`/api/crm/contracts/${contract.id}/resend`, contract.lane)}&to=ops-review`, { method: "POST" });
+      setOpsReviewSent(true);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : "Không gửi lại được hợp đồng cho Vận hành");
+    } finally {
+      setPending(false);
+    }
+  };
+
   const addConfirmationImages = async (confirmationIndex: number, files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     setError(undefined);
@@ -1126,9 +1140,12 @@ function ContractDialog({
           <DialogTitle>{contract.code} · {contract.customerName}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Lưu chỉ giữ thông tin ở bên đang sửa. Gửi lại mới chuyển thông tin sang bên nhận, và gửi kèm trạng thái. Trạng thái vận hành cập nhật cho các bên ngay khi lưu.
+          {canAccounting && !contract.sentToAccountingAt
+            ? "Vận hành chưa gửi hợp đồng sang Kế toán. Bạn có thể gửi hợp đồng cho Vận hành rà soát."
+            : "Lưu chỉ giữ thông tin ở bên đang sửa. Gửi lại mới chuyển thông tin sang bên nhận, và gửi kèm trạng thái. Trạng thái vận hành cập nhật cho các bên ngay khi lưu."}
         </p>
         {error && <InlineAlert>{error}</InlineAlert>}
+        {opsReviewSent && <InlineAlert tone="success">Đã gửi hợp đồng cho Vận hành rà soát.</InlineAlert>}
         <Tabs defaultValue={defaultTab} className="min-h-0 flex-1 overflow-hidden">
           <TabsList className="h-auto min-h-0 w-full shrink-0 flex-wrap items-center justify-start gap-1.5 rounded-xl border border-foreground/10 bg-muted p-1.5 group-data-horizontal/tabs:h-auto">
             {([
@@ -1545,6 +1562,11 @@ function ContractDialog({
           </TabsContent>
         </Tabs>
         <DialogFooter>
+          {canAccounting && !contract.sentToAccountingAt && (
+            <Button type="button" disabled={pending || opsReviewSent} onClick={() => { void requestOpsReview(); }}>
+              <Send /> Gửi lại cho Vận hành
+            </Button>
+          )}
           <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Đóng</Button>
         </DialogFooter>
       </DialogContent>

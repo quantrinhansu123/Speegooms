@@ -284,10 +284,11 @@ function contractView(req: Request): ContractView {
   throw new AppError(403, "FORBIDDEN", "Không xem hợp đồng ở bên này");
 }
 
-function resendTarget(req: Request): "ops" | "accounting" | "parties" {
+function resendTarget(req: Request) {
   const raw = req.query.to;
   const value = Array.isArray(raw) ? raw[0] : raw;
   const role = req.user?.role;
+  if (value === "ops-review" && role && can(role, "contract.accounting")) return "ops-review";
   if (value === "ops" && (role === "admin" || role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead"))) return "ops";
   if (value === "accounting" && (role === "admin" || role === "sale-vn" || (role === "sale-global" || role === "sale-global-lead") || role === "van-hanh" || role === "sourcing")) return "accounting";
   if (value === "parties" && role === "ke-toan") return "parties";
