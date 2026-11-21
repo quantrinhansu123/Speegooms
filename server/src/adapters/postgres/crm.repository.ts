@@ -1413,9 +1413,17 @@ export class PostgresCrmRepository implements CrmRepository {
     const { source, values } = this.quotePageSource(lanes, [desk], search, allowedKinds);
     if (!source) return emptyPage(page);
     values.push(search.mode ?? "");
-    const result = await queryPage<QuoteRow & { __lane: CrmLane; __shared: boolean }>({ query: this.query.bind(this) }, source, values, page, {
+    const reportSource = `select *, case when __shared then coalesce(logistics_sheet->>'quoteStatus', 'CHUA_CO_BAO_GIA') else quote_status end as report_status
+      from (${source}) quotes where ($${values.length}::text = '' or (case when shipping_mode = 'AIR' then 'AIR' else logistics_class end) = $${values.length})`;
+    const result = await queryPage<QuoteRow & { __lane: CrmLane; __shared: boolean }>({ query: this.query.bind(this) }, reportSource, values, page, {
       orderBy: "__requested_at desc, id desc, __lane",
-      where: `($${values.length}::text = '' or (case when shipping_mode = 'AIR' then 'AIR' else logistics_class end) = $${values.length})`,
+      summary: `jsonb_build_object('requests', count(*),
+        'returned', count(*) filter (where report_status in ('DA_CO_BAO_GIA', 'DA_CO_BAO_GIA_LAI')),
+        'unanswered', count(*) filter (where report_status in ('CHUA_CO_BAO_GIA', 'CHUA_CO_BAO_GIA_LAI')),
+        'closing', count(*) filter (where potential = 'CLOSING'),
+        'deposited', count(*) filter (where potential = 'DEPOSITED'),
+        'rejected', count(*) filter (where potential = 'NOT_ORDERED'),
+        'potential', count(*) filter (where potential = 'POTENTIAL'))`,
     });
     return { ...result, rows: result.rows.map(row => ({ ...(row.__shared ? toLogisticsQuote(row) : toQuote(row)), lane: row.__lane })) };
   }

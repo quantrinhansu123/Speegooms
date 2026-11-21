@@ -85,6 +85,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
     modules: [
       "/dashboard",
       "/van-hanh/sourcing-bao-gia",
+      "/van-hanh/bao-cao",
       "/van-hanh/don-hang",
       "/van-hanh/nha-cung-cap",
       "/van-hanh/po",
@@ -101,6 +102,7 @@ export const roleConfig: Record<Role, RoleConfig> = {
     modules: [
       "/dashboard",
       "/van-hanh/sourcing-bao-gia",
+      "/van-hanh/bao-cao",
       "/van-hanh/logistics-bao-gia",
       "/sale-viet-nam/tiem-nang",
       "/sale-global/tiem-nang",

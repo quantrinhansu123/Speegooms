@@ -11,6 +11,7 @@ import { canEditQuoteDesk, quoteTemplateSchema, type AssignmentMember, type CrmL
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
+import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,7 @@ function shownDate(value: string): string {
   return date.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
-export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
+export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; report?: boolean }) {
   const user = useSession();
   const { lane, canPick, setLane } = useCrmLane();
   const canViewAllLanes = user.role === "admin" && desk === "logistics";
@@ -213,12 +214,12 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
     setOutput({ action, row: source });
   };
   const showFinancials = desk === "logistics" && canViewQuoteOriginalPrice(user.role);
-  const columnCount = 13 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
+  const columnCount = 15 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
 
   return (
     <>
       <PageHeader
-        title={titles[desk]}
+        title={report ? `Báo cáo Vận hành · ${desk === "sourcing" ? "Sourcing" : "Logistics"}` : titles[desk]}
         description={
           desk === "sourcing"
             ? "Sale điền ảnh/quy cách; mua hàng bổ sung chi tiết xưởng; vận hành báo giá. Sau khi gửi đơn hàng → chuyển Logistics."
@@ -265,6 +266,12 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
         <FilterSelect id={`${desk}-quote-contract`} label="Hợp đồng" value={filters.draft.contractStatus} onChange={(value) => filters.set("contractStatus", value)} options={contractStatusOptions} />
         <FilterSelect id={`${desk}-quote-assignee`} label="Người phụ trách" value={filters.draft.assignee} onChange={(value) => filters.set("assignee", value)} options={members.map((member) => [member.id, member.name] as const)} />
       </ListSearchBar>
+      {report && <>
+        <p className="mb-4 text-sm text-muted-foreground">Thống kê theo ngày yêu cầu và nhân viên phụ trách trong bộ lọc. Trạng thái chốt do Sale cập nhật; số liệu tính trên tất cả trang.</p>
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[["requests", "Yêu cầu báo giá"], ["returned", "Báo giá đã trả cho Sale"], ["unanswered", "Yêu cầu chưa được đáp ứng"], ["closing", "Đang chốt"], ["deposited", "Đã cọc"], ["rejected", "Khách không đồng ý / Không đặt"], ["potential", "Tiềm năng"]].map(([key, label]) => <StatCard key={key} label={label} value={listLoading ? "…" : String(paging.summary[key] ?? 0)} />)}
+        </div>
+      </>}
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1250px] text-sm">
           <thead>
@@ -279,6 +286,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mẫu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ghi chú VH</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái báo giá</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Trạng thái chốt</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Lý do không/chưa chốt</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
@@ -322,6 +331,8 @@ export function QuoteDeskView({ desk }: { desk: QuoteDesk }) {
                   <td className="px-3 py-3">{row.templateName || "—"}</td>
                   <td className="max-w-56 truncate px-3 py-3" title={row.opsNote ?? undefined}>{row.opsNote || "—"}</td>
                   <td className="px-3 py-3"><QuoteStatusBadge value={row.quoteStatus} /></td>
+                  <td className="whitespace-nowrap px-3 py-3">{({ POTENTIAL: "Tiềm năng", CLOSING: "Đang chốt", DEPOSITED: "Đã cọc", NOT_ORDERED: "Khách không đồng ý / Không đặt" } as Record<string, string>)[row.potential ?? ""] ?? "—"}</td>
+                  <td className="min-w-56 max-w-80 whitespace-pre-wrap break-words px-3 py-3">{row.nonCloseReason || "—"}</td>
                   <td className="px-3 py-3">
                     {desk === "sourcing" && isCombinedSourcing(row) ? (
                       <div className="grid gap-1">
