@@ -2,6 +2,7 @@ import type { CrmLane } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
 import { crmActor } from "../../lib/crm-actor";
+import { dataLakeSource, dataLakeTimestamp } from "../../lib/datalake-date";
 import type { PlannedMessage, PlannedPotential } from "../../services/crm-import-sheets";
 
 const tables = {
@@ -33,7 +34,7 @@ export type StoredQuoteLink = {
 export class PostgresCrmImportStore {
   constructor(private readonly pool: pg.Pool) {}
 
-  async saveMessage(row: PlannedMessage, creatorId?: string): Promise<"created" | "updated"> {
+  async saveMessage(row: PlannedMessage, creatorId?: string, source?: "DATA_LAKE"): Promise<"created" | "updated"> {
     const table = tables[row.lane].message;
     const found = await this.query<{ id: string }>(
       `select id::text as id from ${table} where ma_tham_chieu_ngoai = $1 limit 1`,
@@ -65,7 +66,7 @@ export class PostgresCrmImportStore {
            nhu_cau = $5::text::crm.message_demand,
            loai_khach_hang = $6::text::crm.customer_type,
            ghi_chu = $7,
-           nhan_luc = coalesce($8::timestamptz, nhan_luc),
+           nhan_luc = case when du_lieu_nhap_cu is null then coalesce($8::timestamptz, nhan_luc) else nhan_luc end,
            thi_truong = $9,
            phan_loai = $10::text::crm.message_classification,
            nhan_vien_ban = $11,
@@ -79,17 +80,19 @@ export class PostgresCrmImportStore {
     await this.query(
       `insert into ${table} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
-         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, ma_tham_chieu_ngoai, nguoi_tao_id
+         nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, ma_tham_chieu_ngoai, nguoi_tao_id,
+         tao_luc, du_lieu_nhap_cu
        ) values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
-         coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15
+         coalesce($16::timestamptz, $8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15,
+         coalesce($16::timestamptz, now()), $17::jsonb || jsonb_build_object('receivedAt', $8::timestamptz)
        )`,
-      [...params, creatorId ?? null],
+      [...params, creatorId ?? null, source ? dataLakeTimestamp : null, source ? dataLakeSource : null],
     );
     return "created";
   }
 
-  async savePotential(row: PlannedPotential): Promise<"created" | "updated" | "no-mess" | "taken" | "no-contact"> {
+  async savePotential(row: PlannedPotential, source?: "DATA_LAKE"): Promise<"created" | "updated" | "no-mess" | "taken" | "no-contact"> {
     const table = tables[row.lane];
     return this.transaction(async (client) => {
       const message = await client.query<{ id: string; name: string | null; phone: string | null; email: string | null; source: string; goods: string | null }>(
@@ -167,11 +170,12 @@ export class PostgresCrmImportStore {
         `insert into ${table.potential} (
            nguon, ho_ten, ten_cong_ty, so_dien_thoai, thu_dien_tu, san_pham_quan_tam, ghi_chu_so_luong, dia_chi,
            ghi_chu_ban_hang, tiem_nang, trang_thai, ma_tin_nhan, nhom_khach, kenh_cham_soc, quy_cach_dong_goi,
-           trong_luong_kg, dia_chi_gui, dia_chi_nhan, yeu_cau_khach, ma_ngoai, luong_bao_gia, kich_thuoc_kien_hang
+           trong_luong_kg, dia_chi_gui, dia_chi_nhan, yeu_cau_khach, ma_ngoai, luong_bao_gia, kich_thuoc_kien_hang,
+           tao_luc, du_lieu_nhap_cu
          ) values (
            $1::crm.lead_source, $2, $3, $4, $5, $6, $7, $8,
            $9, $10::crm.potential_status, 'NEW', $11::uuid, $12::text::crm.customer_kind, $13, $14,
-           $15, $16, $17, $18, $19, $20, $21
+           $15, $16, $17, $18, $19, $20, $21, coalesce($22::timestamptz, now()), $23::jsonb
          )`,
         [
           mess.source,
@@ -195,6 +199,8 @@ export class PostgresCrmImportStore {
           row.externalRef,
           row.kind === "LOGISTICS" || row.kind === "BOTH" || row.kind == null ? "COMBINED" : "LEGACY",
           row.packageDimensions || null,
+          source ? dataLakeTimestamp : null,
+          source ? dataLakeSource : null,
         ],
       );
       await client.query(`update ${table.message} set trang_thai = 'CONVERTED' where id = $1::uuid and trang_thai <> 'CONVERTED'`, [mess.id]);

@@ -226,6 +226,7 @@ export interface ContractRecord {
   payments: ContractPaymentLine[];
   balance: number;
   signedOn: string | null;
+  dataLakeDate?: string | null;
   opsStatus: string;
   tracking: string;
   note1: string;
@@ -274,7 +275,7 @@ export interface CrmRepository {
   listRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | "sourcing" | "logistics"): Promise<RfqQuoteRecord[]>;
   reassignRfqQuote(lane: CrmLane, id: string, potentialId: string): Promise<ReassignQuoteResult>;
   deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean>;
-  requestQuote(lane: CrmLane, potentialId: string): Promise<QuoteRequestResult>;
+  requestQuote(lane: CrmLane, potentialId: string, source?: "DATA_LAKE"): Promise<QuoteRequestResult>;
   recordQuoteRequest(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
   requestLogisticsQuote(lane: CrmLane, sourcingQuoteId: string): Promise<LogisticsQuoteRequestResult>;
   findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null>;
@@ -288,7 +289,7 @@ export interface CrmRepository {
   updateQuoteTemplate(desk: QuoteDesk, id: string, input: QuoteTemplateInput): Promise<QuoteTemplateRecord | "missing" | "duplicate">;
   deleteQuoteTemplate(desk: QuoteDesk, id: string): Promise<"ok" | "missing" | "used">;
   listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]>;
-  createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing">;
+  createContract(lane: CrmLane, quoteId: string, input: CreateContractInput, source?: "DATA_LAKE"): Promise<ContractRecord | "missing">;
   createDirectContract(lane: CrmLane, input: CreateDirectContractInput): Promise<ContractRecord>;
   updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;
   updateAccountingContract(lane: CrmLane, id: string, input: AccountingContractInput): Promise<ContractRecord | "missing" | "pending">;

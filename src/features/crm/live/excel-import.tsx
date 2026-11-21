@@ -40,6 +40,7 @@ export function useExcelImport({
   onDone: () => void;
 }): { buttons: ReactNode; banner: ReactNode } {
   const input = useRef<HTMLInputElement>(null);
+  const importDataLake = useRef(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
   const [tone, setTone] = useState<"success" | "warning" | "danger">("success");
@@ -73,8 +74,9 @@ export function useExcelImport({
     if (!file) return;
     setPending(true);
     setMessage(undefined);
+    const target = importDataLake.current ? `${uploadPath}${uploadPath.includes("?") ? "&" : "?"}source=data-lake` : uploadPath;
     void file.arrayBuffer()
-      .then((body) => api<ImportResult>(uploadPath, {
+      .then((body) => api<ImportResult>(target, {
         method: "POST",
         body,
         headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
@@ -98,11 +100,19 @@ export function useExcelImport({
       });
   };
 
+  const chooseFile = (fromDataLake: boolean) => {
+    importDataLake.current = fromDataLake;
+    input.current?.click();
+  };
+
   return {
     buttons: (
       <>
         <Button type="button" variant="outline" disabled={pending} onClick={download}><FileDown /> Tải mẫu</Button>
-        <Button type="button" variant="outline" disabled={pending} onClick={() => input.current?.click()}><FileUp /> Import Excel</Button>
+        <Button type="button" variant="outline" disabled={pending} onClick={() => chooseFile(false)}><FileUp /> Import Excel</Button>
+        {kind !== "data-lanh" && (
+          <Button type="button" variant="outline" disabled={pending} onClick={() => chooseFile(true)}><FileUp /> Nhập dữ liệu cũ từ data-lake</Button>
+        )}
         <input
           ref={input}
           type="file"

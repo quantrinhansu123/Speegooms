@@ -257,7 +257,11 @@ export class CrmController {
     const kind = importKindOf(req.params.kind);
     assertImport(req, kind);
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new AppError(400, "VALIDATION_ERROR", "Chọn file Excel");
-    res.status(200).json(await this.crm.importWorkbook(kind, req.body, importLanes(req), actorOf(req).id));
+    const creatorId = actorOf(req).id;
+    const result = req.query?.source === "data-lake"
+      ? await this.crm.importWorkbook(kind, req.body, importLanes(req), creatorId, "DATA_LAKE")
+      : await this.crm.importWorkbook(kind, req.body, importLanes(req), creatorId);
+    res.status(200).json(result);
   };
 }
 

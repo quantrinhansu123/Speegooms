@@ -5,6 +5,9 @@ import { ExactMatchCriterion } from "./exact-match-criterion";
 import { SearchBuilder } from "./search-builder";
 import { sql, trustedSql, type SqlExpression } from "./sql-expression";
 import { TextSearchCriterion } from "./text-search-criterion";
+import { dataLakeDate } from "../lib/datalake-date";
+
+export const CONTRACT_DATA_LAKE_DATE_SQL = `case when h.du_lieu_nhap_cu->>'source' = 'DATA_LAKE' then date '${dataLakeDate}' end`;
 
 export interface MessageListSearch extends ListSearch {
   status: string;
@@ -172,16 +175,16 @@ const contractTextColumns = [
 
 export function contractSearch(view: "sale" | "ops" | "accounting", input: ContractListSearch): SearchBuilder {
   const signedOn = view === "sale"
-    ? sql("h.ngay_ky")
+    ? "h.ngay_ky"
     : view === "ops"
-      ? sql("(ban_gui_van_hanh->>'signedOn')::date")
-      : trustedSql("coalesce(nullif(ban_gui_ke_toan->>'signedOn', '')::date, h.ngay_ky)");
+      ? "(ban_gui_van_hanh->>'signedOn')::date"
+      : "coalesce(nullif(ban_gui_ke_toan->>'signedOn', '')::date, h.ngay_ky)";
   const accountingStatus = view === "accounting"
     ? sql("h.trang_thai_ke_toan::text")
     : sql("ban_gui_xac_nhan->>'accountingStatus'");
   return new SearchBuilder()
     .add(new TextSearchCriterion(input.q, contractTextColumns))
-    .add(new DateRangeCriterion(signedOn, input.from, input.to, "date"))
+    .add(new DateRangeCriterion(trustedSql(`coalesce(${CONTRACT_DATA_LAKE_DATE_SQL}, ${signedOn})`), input.from, input.to, "date"))
     .add(new ExactMatchCriterion(sql("h.trang_thai_van_hanh"), input.opsStatus))
     .add(new ExactMatchCriterion(accountingStatus, input.accountingStatus))
     .add(new AnyMatchCriterion(sql("h.ma_bao_gia"), input.quoteIds, "uuid"));

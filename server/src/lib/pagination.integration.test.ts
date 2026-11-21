@@ -34,12 +34,14 @@ test("pagination executes read-only SQL, keeps totals and reaches records beyond
     const requests = `select q.id, q.tao_luc as created_at,
       case when q.shared then ${LOGISTICS_REQUESTED_AT_SQL} else ${QUOTE_REQUESTED_AT_SQL} end as requested_at
       from (values
-        ('sale', '2026-11-10T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-13T00:30:00+07:00"}'::jsonb, null::jsonb, null::jsonb, false),
-        ('newer-draft', '2026-11-12T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-12T09:00:00Z"}'::jsonb, null::jsonb, null::jsonb, false),
-        ('sourcing', '2026-11-08T08:00:00Z'::timestamptz, '{}'::jsonb, '{"handoffAt":"2026-11-14T01:00:00Z"}'::jsonb, null::jsonb, true),
-        ('legacy-sent', '2026-11-07T08:00:00Z'::timestamptz, '{}'::jsonb, '{}'::jsonb, '{"sentAt":"2026-11-11T01:00:00Z"}'::jsonb, true),
-        ('legacy', '2026-11-06T08:00:00Z'::timestamptz, '{}'::jsonb, null::jsonb, null::jsonb, false)
-      ) q(id, tao_luc, ghi_chu, bao_gia_logistics, ban_da_gui, shared)`;
+        ('sale', '2026-11-10T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-13T00:30:00+07:00"}'::jsonb, null::jsonb, null::jsonb, false, null::jsonb),
+        ('newer-draft', '2026-11-12T08:00:00Z'::timestamptz, '{"handoffAt":"2026-11-12T09:00:00Z"}'::jsonb, null::jsonb, null::jsonb, false, null::jsonb),
+        ('sourcing', '2026-11-08T08:00:00Z'::timestamptz, '{}'::jsonb, '{"handoffAt":"2026-11-14T01:00:00Z"}'::jsonb, null::jsonb, true, null::jsonb),
+        ('legacy-sent', '2026-11-07T08:00:00Z'::timestamptz, '{}'::jsonb, '{}'::jsonb, '{"sentAt":"2026-11-11T01:00:00Z"}'::jsonb, true, null::jsonb),
+        ('legacy', '2026-11-06T08:00:00Z'::timestamptz, '{}'::jsonb, null::jsonb, null::jsonb, false, null::jsonb),
+        ('data-lake-logistics', '2026-10-31T12:00:00+07'::timestamptz, '{}'::jsonb, '{"handoffAt":"2026-11-21T01:00:00Z"}'::jsonb, null::jsonb, true, '{"source":"DATA_LAKE"}'::jsonb),
+        ('data-lake-sourcing', '2026-10-31T12:00:00+07'::timestamptz, '{"handoffAt":"2026-11-21T01:00:00Z"}'::jsonb, null::jsonb, null::jsonb, false, '{"source":"DATA_LAKE"}'::jsonb)
+      ) q(id, tao_luc, ghi_chu, bao_gia_logistics, ban_da_gui, shared, du_lieu_nhap_cu)`;
     const order = { orderBy: "requested_at desc, id desc" };
     const requestFirst = await queryPage<{ id: string; created_at: Date; requested_at: Date }>(db, requests, [], { page: 1, pageSize: 2 }, order);
     const requestSecond = await queryPage<{ id: string }>(db, requests, [], { page: 2, pageSize: 2 }, order);
@@ -53,6 +55,11 @@ test("pagination executes read-only SQL, keeps totals and reaches records beyond
     });
     assert.deepEqual(daily.rows.map(row => row.id), ["sale"]);
     assert.equal(daily.pagination.total, 1);
+    const oldRange = new SearchBuilder().add(new DateRangeCriterion(sql("requested_at"), "2026-10-31", "2026-10-31", "timestamp")).build();
+    const historical = await queryPage<{ id: string }>(db, requests, oldRange.values, { page: 1, pageSize: 20 }, {
+      ...order, where: `true ${oldRange.sql}`,
+    });
+    assert.deepEqual(historical.rows.map(row => row.id), ["data-lake-sourcing", "data-lake-logistics"]);
     const preserved = await db.query(`select ${PRESERVE_REQUEST_TIME_SQL.replace("$7", "$1")} as notes
       from (select '{"handoffAt":"2026-11-13T03:00:00Z"}'::jsonb as ghi_chu) stored`, ['{"weightNote":"Edited"}']);
     assert.deepEqual(preserved.rows[0].notes, { handoffAt: "2026-11-13T03:00:00Z", weightNote: "Edited" });

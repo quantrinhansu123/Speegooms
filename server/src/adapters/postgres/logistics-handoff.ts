@@ -20,8 +20,10 @@ export const LOGISTICS_HANDED_OFF_SQL = `(
 export const COMBINED_HANDED_OFF_SQL = `(l.nhom_khach::text = 'SOURCING' and l.luong_bao_gia = 'COMBINED') and ${LOGISTICS_HANDED_OFF_SQL}`;
 
 /** Ngày yêu cầu theo từng bàn; dữ liệu cũ chưa ghi mốc chuyển dùng ngày tạo làm dự phòng. */
-export const QUOTE_REQUESTED_AT_SQL = `coalesce(nullif(q.ghi_chu->>'handoffAt', '')::timestamptz, q.tao_luc)`;
-export const LOGISTICS_REQUESTED_AT_SQL = `coalesce(nullif(q.bao_gia_logistics->>'handoffAt', '')::timestamptz, nullif(q.ban_da_gui->>'sentAt', '')::timestamptz, q.tao_luc)`;
+export const QUOTE_REQUESTED_AT_SQL = `case when q.du_lieu_nhap_cu->>'source' = 'DATA_LAKE' then q.tao_luc
+  else coalesce(nullif(q.ghi_chu->>'handoffAt', '')::timestamptz, q.tao_luc) end`;
+export const LOGISTICS_REQUESTED_AT_SQL = `case when q.du_lieu_nhap_cu->>'source' = 'DATA_LAKE' then q.tao_luc
+  else coalesce(nullif(q.bao_gia_logistics->>'handoffAt', '')::timestamptz, nullif(q.ban_da_gui->>'sentAt', '')::timestamptz, q.tao_luc) end`;
 
 /** Mốc yêu cầu do server ghi, không thay đổi khi lưu nội dung hoặc giá báo. */
 export const PRESERVE_REQUEST_TIME_SQL = `$7::jsonb || jsonb_strip_nulls(jsonb_build_object('handoffAt', ghi_chu->'handoffAt'))`;

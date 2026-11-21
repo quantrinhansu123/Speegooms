@@ -37,21 +37,21 @@ export class CrmImportService {
     return buildTemplate(kind);
   }
 
-  async importWorkbook(kind: ImportKind, buffer: Buffer, scope: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
+  async importWorkbook(kind: ImportKind, buffer: Buffer, scope: readonly CrmLane[], creatorId?: string, source?: "DATA_LAKE"): Promise<ImportResult> {
     if (scope.length === 0) throw new AppError(400, "VALIDATION_ERROR", "Chọn tuyến Việt Nam hoặc Global");
     const book = await this.workbook(buffer);
-    if (kind === "messages") return this.writeMessages(book, scope, creatorId);
-    if (kind === "potentials") return this.writePotentials(book, scope);
-    if (kind === "quotes") return this.writeQuotes(book, scope);
-    return this.writeContracts(book, scope);
+    if (kind === "messages") return this.writeMessages(book, scope, creatorId, source);
+    if (kind === "potentials") return this.writePotentials(book, scope, source);
+    if (kind === "quotes") return this.writeQuotes(book, scope, source);
+    return this.writeContracts(book, scope, source);
   }
 
-  private async writeMessages(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
+  private async writeMessages(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], creatorId?: string, source?: "DATA_LAKE"): Promise<ImportResult> {
     const plan = this.planned(() => planMessages(book, scope));
     const result = tally(plan);
     for (const row of plan.rows) {
       try {
-        const saved = await this.store.saveMessage(row, creatorId);
+        const saved = await this.store.saveMessage(row, creatorId, source);
         result[saved] += 1;
       } catch (error) {
         addError(result, { sheet: row.sheet, row: row.row, message: explain(error) });
@@ -60,12 +60,12 @@ export class CrmImportService {
     return result;
   }
 
-  private async writePotentials(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[]): Promise<ImportResult> {
+  private async writePotentials(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], source?: "DATA_LAKE"): Promise<ImportResult> {
     const plan = this.planned(() => planPotentials(book, scope));
     const result = tally(plan);
     for (const row of plan.rows) {
       try {
-        const saved = await this.store.savePotential(row);
+        const saved = await this.store.savePotential(row, source);
         if (saved === "created" || saved === "updated") result[saved] += 1;
         else if (saved === "no-mess") addError(result, { sheet: row.sheet, row: row.row, message: `Chưa có mess ${row.messRef}. Hãy import Mess trước.` });
         else if (saved === "taken") addError(result, { sheet: row.sheet, row: row.row, message: "Mess này đã gắn với một khách tiềm năng khác" });
@@ -77,12 +77,12 @@ export class CrmImportService {
     return result;
   }
 
-  private async writeQuotes(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[]): Promise<ImportResult> {
+  private async writeQuotes(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], source?: "DATA_LAKE"): Promise<ImportResult> {
     const plan = this.planned(() => planQuotes(book, scope));
     const result = tally(plan);
     for (const row of plan.rows) {
       try {
-        const saved = await this.writeQuote(row);
+        const saved = await this.writeQuote(row, source);
         if (saved === "skipped") result.skipped += 1;
         else result[saved] += 1;
       } catch (error) {
@@ -92,14 +92,14 @@ export class CrmImportService {
     return result;
   }
 
-  private async writeQuote(row: PlannedQuote): Promise<"created" | "updated" | "skipped"> {
+  private async writeQuote(row: PlannedQuote, source?: "DATA_LAKE"): Promise<"created" | "updated" | "skipped"> {
     const found = await this.store.findPotential(row.lane, row.externalRef);
     if (!found) throw new AppError(400, "RULE", "Chưa có khách tiềm năng cho RFQ này. Hãy import Khách tiềm năng trước.");
     const combined = row.kind === "BOTH" || (row.productPrice != null && row.freight != null);
     const kind = row.kind === "LOGISTICS" ? "LOGISTICS" : "SOURCING";
     const ensured = await this.store.ensureKind(row.lane, found.id, found.kind === "SOURCING" || found.kind === "LOGISTICS" ? null : kind, combined);
     if (!ensured?.kind) throw new AppError(400, "RULE", "Chưa có loại khách SOURCING hoặc LOGISTICS");
-    const requested = await this.crm.requestQuote(row.lane, found.id);
+    const requested = await this.crm.requestQuote(row.lane, found.id, source);
     if (requested === "missing") throw new AppError(400, "RULE", "Không tìm thấy khách tiềm năng");
     if (requested === "kind") throw new AppError(400, "RULE", "Chưa có loại khách SOURCING hoặc LOGISTICS");
     let wrote = false;
@@ -136,12 +136,12 @@ export class CrmImportService {
     if (saved === "template") throw new AppError(400, "RULE", "Mẫu báo giá không hợp lệ");
   }
 
-  private async writeContracts(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[]): Promise<ImportResult> {
+  private async writeContracts(book: Awaited<ReturnType<typeof readWorkbook>>, scope: readonly CrmLane[], source?: "DATA_LAKE"): Promise<ImportResult> {
     const plan = this.planned(() => planContracts(book, scope));
     const result = tally(plan);
     for (const row of plan.rows) {
       try {
-        const saved = await this.writeContract(row);
+        const saved = await this.writeContract(row, source);
         result[saved] += 1;
       } catch (error) {
         addError(result, { sheet: row.sheet, row: row.row, message: explain(error) });
@@ -150,7 +150,7 @@ export class CrmImportService {
     return result;
   }
 
-  private async writeContract(row: PlannedContract): Promise<"created" | "updated"> {
+  private async writeContract(row: PlannedContract, source?: "DATA_LAKE"): Promise<"created" | "updated"> {
     const link = await this.store.findQuoteLink(row.lane, row.rfqRef);
     if (!link) throw new AppError(400, "RULE", "Chưa có báo giá cho RFQ này. Hãy import Báo giá trước.");
     const input = createContractSchema.parse({
@@ -168,7 +168,7 @@ export class CrmImportService {
     });
     const state = await this.store.contractState(row.lane, link.quoteId);
     if (!state) {
-      const created = await this.crm.createContract(row.lane, link.quoteId, { ...input, paidAmount: 0 });
+      const created = await this.crm.createContract(row.lane, link.quoteId, { ...input, paidAmount: 0 }, source);
       if (created === "missing") throw new AppError(400, "RULE", "Không tạo được hợp đồng từ báo giá");
       await this.store.updateContract(created.id, row.lane, { ...row, paidAmount: input.paidAmount, replacePaid: true });
       return "created";

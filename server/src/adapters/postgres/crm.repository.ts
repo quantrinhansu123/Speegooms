@@ -55,7 +55,8 @@ import type {
   PotentialListSearch,
   QuoteListSearch,
 } from "../../search/crm-list-search";
-import { contractSearch, messageSearch, potentialSearch, quoteSearch } from "../../search/crm-list-search";
+import { CONTRACT_DATA_LAKE_DATE_SQL, contractSearch, messageSearch, potentialSearch, quoteSearch } from "../../search/crm-list-search";
+import { dataLakeSource, dataLakeTimestamp } from "../../lib/datalake-date";
 import { sql, trustedSql } from "../../search/sql-expression";
 import { crmActor } from "../../lib/crm-actor";
 import { preserveQuotePrices } from "../../services/quote-edit-policy";
@@ -853,6 +854,7 @@ type ContractRow = {
   balance: string | number;
   payments: unknown;
   signed_on: Date | string | null;
+  data_lake_date?: string | null;
   ops_status: string | null;
   tracking: string | null;
   note_1: string | null;
@@ -971,7 +973,8 @@ function contractSelect(lane: CrmLane, includeContacts = false): string {
          h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
          h.tong_gia_tri as total_value, h.so_tien_thanh_toan as paid_amount, h.so_tien_con_lai as balance,
          coalesce(pays.payments, '[]'::jsonb) as payments,
-         h.ngay_ky::text as signed_on, h.trang_thai_van_hanh as ops_status, h.tracking,
+         h.ngay_ky::text as signed_on, (${CONTRACT_DATA_LAKE_DATE_SQL})::text as data_lake_date,
+         h.trang_thai_van_hanh as ops_status, h.tracking,
          h.ghi_chu_1 as note_1, h.ghi_chu_2 as note_2,
          h.ngay_nhap_kho_tq::text as china_warehouse_on, h.ngay_xuat_container::text as container_on,
          h.ngay_cap_cang::text as arrival_on, h.ngay_giao_du_kien::text as delivery_on,
@@ -983,6 +986,7 @@ function contractSelect(lane: CrmLane, includeContacts = false): string {
          h.ban_gui_van_hanh as sent_ops_body, h.ban_gui_ke_toan as sent_accounting_body,
          h.ban_gui_xac_nhan as sent_parties_body, h.tao_luc as created_at, h.cap_nhat_luc as updated_at
   from crm.hop_dong h
+  ${contactJoins}
   left join lateral (
     select jsonb_agg(b.duong_dan order by b.thu_tu) as images
     from crm.hop_dong_anh_bill b
@@ -1107,6 +1111,7 @@ function toContract(row: ContractRow): ContractRecord {
         : [],
     balance: moneyValue(row.balance),
     signedOn: dayText(row.signed_on),
+    dataLakeDate: row.data_lake_date ?? null,
     opsStatus: row.ops_status ?? "",
     tracking: row.tracking ?? "",
     note1: row.note_1 ?? "",
@@ -1990,7 +1995,7 @@ export class PostgresCrmRepository implements CrmRepository {
     return false;
   }
 
-  async requestQuote(lane: CrmLane, potentialId: string) {
+  async requestQuote(lane: CrmLane, potentialId: string, source?: "DATA_LAKE") {
     const tables = quoteTables[lane];
     const found = await this.query<{ customer_kind: string | null; quote_workflow: QuoteWorkflow }>(
       `select nhom_khach::text as customer_kind, luong_bao_gia as quote_workflow
@@ -2003,10 +2008,10 @@ export class PostgresCrmRepository implements CrmRepository {
     if (kind !== "SOURCING" && kind !== "LOGISTICS") return "kind" as const;
     const desk: QuoteDesk = kind === "LOGISTICS" ? "logistics" : "sourcing";
     const inserted = await this.query(
-      `insert into ${tables[desk]} (ma_khach_hang_tiem_nang)
-       values ($1::uuid)
+      `insert into ${tables[desk]} (ma_khach_hang_tiem_nang, tao_luc, du_lieu_nhap_cu)
+       values ($1::uuid, coalesce($2::timestamptz, now()), $3::jsonb)
        on conflict (ma_khach_hang_tiem_nang) do nothing`,
-      [potentialId],
+      [potentialId, source ? dataLakeTimestamp : null, source ? dataLakeSource : null],
     );
     // Khách Sourcing kết hợp: báo giá chỉ nằm ở bàn Sourcing. Phiếu Logistics tạo khi Sourcing chuyển sang.
     const quote = await this.findQuoteByPotential(lane, desk, potentialId);
@@ -2285,9 +2290,9 @@ export class PostgresCrmRepository implements CrmRepository {
     });
   }
 
-  async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput): Promise<ContractRecord | "missing"> {
+  async createContract(lane: CrmLane, quoteId: string, input: CreateContractInput, importSource?: "DATA_LAKE"): Promise<ContractRecord | "missing"> {
     // Handler checks must roll back the contract too if ownership changes while saving.
-    if (crmActor.getStore() && !this.connection.getStore()) return this.transaction(() => this.createContract(lane, quoteId, input));
+    if (crmActor.getStore() && !this.connection.getStore()) return this.transaction(() => this.createContract(lane, quoteId, input, importSource));
     const tables = quoteTables[lane];
     const found = await this.query<{ code: string }>(
       `select ma_hien_thi as code from ${tables.sourcing} where id = $1::uuid
@@ -2341,9 +2346,10 @@ export class PostgresCrmRepository implements CrmRepository {
       `insert into crm.hop_dong (
          tuyen, ma_bao_gia, ma_bao_gia_hien_thi, ten_khach_hang, nhan_vien_ban, van_chuyen_den,
          san_pham, so_luong, gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan, ngay_ky, loai_tien, nganh_hang,
-         loai_tien_van_chuyen, khoan_tien
+         loai_tien_van_chuyen, khoan_tien, tao_luc, du_lieu_nhap_cu
        ) values (
-         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $15, $16, $17::jsonb
+         $1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::date, $14, $15, $16, $17::jsonb,
+         coalesce($18::timestamptz, now()), $19::jsonb
        ) on conflict (tuyen, ma_bao_gia) do nothing`,
       [
         lane,
@@ -2363,6 +2369,8 @@ export class PostgresCrmRepository implements CrmRepository {
         industry,
         shippingCurrency,
         JSON.stringify(amounts),
+        importSource ? dataLakeTimestamp : null,
+        importSource ? { ...dataLakeSource, signedOn: input.signedOn || null } : null,
       ],
     );
     if (input.paidAmount > 0) {

@@ -83,6 +83,7 @@ const files = [
   "071_department_kpis.sql",
   "072_marketing_kpi_settings.sql",
   "073_lead_brand_self_sourced.sql",
+  "074_dau_moc_du_lieu_cu.sql",
 ];
 
 await client.connect();

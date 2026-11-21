@@ -80,6 +80,7 @@ export type ContractRecord = {
   payments: ContractPaymentLine[];
   balance: number;
   signedOn: string | null;
+  dataLakeDate?: string | null;
   opsStatus: string;
   tracking: string;
   note1: string;
@@ -603,7 +604,7 @@ export function ContractsLiveView({
         onTo={(value) => filters.set("to", value)}
         onSearch={filters.search}
         onReset={filters.reset} activeCount={filters.activeCount}
-        dateLabel="Từ ngày ký"
+        dateLabel="Từ ngày ký / ngày dữ liệu cũ"
         searchPlaceholder="Tìm mọi trường: mã, khách, sản phẩm, trạng thái, tracking, ghi chú…"
       >
         <FilterSelect id="contract-ops-status" label="Trạng thái vận hành" value={filters.draft.opsStatus} onChange={(value) => filters.set("opsStatus", value)} options={opsStatusFilterOptions} />
@@ -614,6 +615,7 @@ export function ContractsLiveView({
           <thead>
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
+              <th className="px-3 py-2 font-medium whitespace-nowrap">Ngày ký / ngày dữ liệu cũ</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
               <CrmContactHeaders />
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
@@ -638,7 +640,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {shown.length === 0 && (
-              <tr><td colSpan={20 + crmContactColumns.length} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={21 + crmContactColumns.length} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {shown.map((row) => {
               const { amounts, paidLines, summary } = rowVnd(row);
@@ -664,6 +666,9 @@ export function ContractsLiveView({
                 )}
               >
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {shownDate(row.dataLakeDate ?? row.signedOn)}{row.dataLakeDate ? " · Data-lake" : ""}
+                </td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
                 <CrmContactCells contacts={row.contacts ?? { sale: row.saleName, sourcing: null, operations: null }} />
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>

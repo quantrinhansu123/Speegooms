@@ -107,8 +107,8 @@ export class CrmService {
     return this.importer().template(kind);
   }
 
-  importWorkbook(kind: ImportKind, file: Buffer, lanes: readonly CrmLane[], creatorId?: string): Promise<ImportResult> {
-    return this.importer().importWorkbook(kind, file, lanes, creatorId);
+  importWorkbook(kind: ImportKind, file: Buffer, lanes: readonly CrmLane[], creatorId?: string, source?: "DATA_LAKE"): Promise<ImportResult> {
+    return this.importer().importWorkbook(kind, file, lanes, creatorId, source);
   }
 
   /** Mess chỉ người tạo xem được; Admin và trưởng Sale Global xem tất cả trong tuyến được phép. Không truyền actor = nội bộ, không lọc. */
