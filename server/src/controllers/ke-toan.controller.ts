@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { AppError } from "../lib/errors";
 import { readPagination } from "../lib/pagination";
-import { readExpenseSearch, readPaymentSearch, readPayrollSearch, readLedgerSearch } from "../search/parse-list-search";
+import { readExpenseSearch, readPaymentSearch, readPayrollSearch, readLedgerSearch, readLedgerOrderQuery, readLedgerReportGroup } from "../search/parse-list-search";
 import type { KeToanService } from "../services/ke-toan.service";
 
 function actorName(req: Request): string {
@@ -27,14 +27,19 @@ export class KeToanController {
     const result = await this.keToan.pageLedger(readLedgerSearch(req), readPagination(req));
     res.status(200).json({ entries: result.rows, pagination: result.pagination });
   };
+  listLedgerReport = async (req: Request, res: Response) => {
+    const result = await this.keToan.pageLedgerReport(readLedgerSearch(req), readLedgerReportGroup(req), readPagination(req));
+    res.status(200).json({ report: result.rows, pagination: result.pagination });
+  };
   listStatements = async (req: Request, res: Response) => {
     const candidateFor = req.query.candidateFor;
     if (candidateFor !== undefined && (typeof candidateFor !== "string" || !/^[0-9a-f-]{36}$/i.test(candidateFor))) throw new AppError(400, "VALIDATION_ERROR", "Khoản thu chi không hợp lệ");
     const result = await this.keToan.pageStatements(readPagination(req), candidateFor);
     res.status(200).json({ statements: result.rows, pagination: result.pagination });
   };
-  listLedgerOrders = async (_req: Request, res: Response) => {
-    res.status(200).json({ orders: await this.keToan.listLedgerOrders() });
+  listLedgerOrders = async (req: Request, res: Response) => {
+    const result = await this.keToan.pageLedgerOrders(readLedgerOrderQuery(req), readPagination(req));
+    res.status(200).json({ orders: result.rows, pagination: result.pagination });
   };
   createStatement = async (req: Request, res: Response) => {
     res.status(201).json({ statement: await this.keToan.createStatement(req.body) });

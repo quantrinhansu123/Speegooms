@@ -210,9 +210,10 @@ export class PostgresKeToanRepository implements KeToanRepository {
   createReceivingAccount(name: string): Promise<string> { return this.ledger.createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.ledger.listLedger(); }
   pageLedger(search: LedgerListSearch, page: PageRequest) { return this.ledger.pageLedger(search, page); }
+  pageLedgerReport(...args: Parameters<PostgresLedgerRepository["pageLedgerReport"]>) { return this.ledger.pageLedgerReport(...args); }
   pageStatements(page: PageRequest, candidateFor?: string) { return this.ledger.pageStatements(page, candidateFor); }
   listStatements(): Promise<StatementRecord[]> { return this.ledger.listStatements(); }
-  listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.ledger.listLedgerOrders(); }
+  pageLedgerOrders(query: string, page: PageRequest) { return this.ledger.pageLedgerOrders(query, page); }
   createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.ledger.createStatement(input); }
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.ledger.createLedger(input); }
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.ledger.reconcileLedger(id, statementId); }

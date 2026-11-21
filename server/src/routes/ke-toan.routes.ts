@@ -13,6 +13,7 @@ export function keToanRoutes(container: AppContainer) {
   router.get("/receiving-accounts", requirePermission("ledger.read"), asyncHandler(keToan.listReceivingAccounts));
   router.post("/receiving-accounts", requirePermission("ledger.write"), validate({ body: createReceivingAccountSchema }), asyncHandler(keToan.createReceivingAccount));
   router.get("/ledger", requirePermission("ledger.read"), asyncHandler(keToan.listLedger));
+  router.get("/ledger-report", requirePermission("ledger.read"), asyncHandler(keToan.listLedgerReport));
   router.post("/ledger", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.createLedger));
   router.patch("/ledger/:id", requirePermission("ledger.write"), validate({ body: createLedgerEntrySchema }), asyncHandler(keToan.updateLedger));
   router.delete("/ledger/:id", requirePermission("ledger.write"), asyncHandler(keToan.deleteLedger));

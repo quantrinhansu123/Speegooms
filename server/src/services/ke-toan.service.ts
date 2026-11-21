@@ -1,6 +1,6 @@
 import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import { AppError } from "../lib/errors";
-import type { PageRequest } from "@speego/shared";
+import type { LedgerReportGroup, PageRequest } from "@speego/shared";
 import type {
   InternalExpenseRecord,
   LedgerRecord,
@@ -19,6 +19,7 @@ export class KeToanService {
 
   pagePayments(search: PaymentListSearch, page: PageRequest) { return this.repository().pagePayments(search, page); }
   pageLedger(search: LedgerListSearch, page: PageRequest) { return this.repository().pageLedger(search, page); }
+  pageLedgerReport(search: LedgerListSearch, group: LedgerReportGroup, page: PageRequest) { return this.repository().pageLedgerReport(search, group, page); }
   pageStatements(page: PageRequest, candidateFor?: string) { return this.repository().pageStatements(page, candidateFor); }
   pagePayroll(search: PayrollListSearch, page: PageRequest) { return this.repository().pagePayroll(search, page); }
   pageExpenses(search: ExpenseListSearch, page: PageRequest) { return this.repository().pageExpenses(search, page); }
@@ -28,7 +29,7 @@ export class KeToanService {
   createReceivingAccount(name: string): Promise<string> { return this.repository().createReceivingAccount(name); }
   listLedger(): Promise<LedgerRecord[]> { return this.repository().listLedger(); }
   listStatements(): Promise<StatementRecord[]> { return this.repository().listStatements(); }
-  listLedgerOrders(): Promise<{ code: string; customerName: string }[]> { return this.repository().listLedgerOrders(); }
+  pageLedgerOrders(query: string, page: PageRequest) { return this.repository().pageLedgerOrders(query, page); }
   createStatement(input: CreateStatementInput): Promise<StatementRecord> { return this.repository().createStatement(input); }
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord> { return this.repository().createLedger(input); }
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord> { return this.repository().reconcileLedger(id, statementId); }

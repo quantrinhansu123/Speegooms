@@ -85,6 +85,7 @@ const files = [
   "073_lead_brand_self_sourced.sql",
   "074_dau_moc_du_lieu_cu.sql",
   "075_hop_dong_nguoi_tao.sql",
+  "076_thu_chi_noi_bo.sql",
 ];
 
 await client.connect();

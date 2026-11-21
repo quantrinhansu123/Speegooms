@@ -1,6 +1,8 @@
 import type { CreateInternalExpenseInput, CreateLedgerEntryInput, CreatePaymentRequestInput, CreatePayrollInput, CreateStatementInput } from "@speego/shared";
 import type { ExpenseListSearch, PaymentListSearch, PayrollListSearch, LedgerListSearch } from "../search/ke-toan-list-search";
-import type { ListPage, PageRequest } from "@speego/shared";
+import type { LedgerReportGroup, LedgerReportRow, ListPage, PageRequest } from "@speego/shared";
+
+export interface LedgerOrderOption { id: string; code: string; customerName: string }
 
 export interface PaymentRequestRecord {
   id: string;
@@ -75,6 +77,9 @@ export interface LedgerRecord {
   reference: string | null;
   receivingAccount: string | null;
   transactionDate: string | null;
+  department: string | null;
+  item: string | null;
+  content: string | null;
   reconciled: boolean;
   statementId: string | null;
 }
@@ -102,6 +107,7 @@ export type CreatePaymentResult =
 
 export interface KeToanRepository {
   pageLedger(search: LedgerListSearch, page: PageRequest): Promise<ListPage<LedgerRecord>>;
+  pageLedgerReport(search: LedgerListSearch, group: LedgerReportGroup, page: PageRequest): Promise<ListPage<LedgerReportRow>>;
   pageStatements(page: PageRequest, candidateFor?: string): Promise<ListPage<StatementRecord>>;
   pagePayments(search: PaymentListSearch, page: PageRequest): Promise<ListPage<PaymentRequestRecord>>;
   pagePayroll(search: PayrollListSearch, page: PageRequest): Promise<ListPage<PayrollRecord>>;
@@ -111,7 +117,7 @@ export interface KeToanRepository {
   createReceivingAccount(name: string): Promise<string>;
   listLedger(): Promise<LedgerRecord[]>;
   listStatements(): Promise<StatementRecord[]>;
-  listLedgerOrders(): Promise<{ code: string; customerName: string }[]>;
+  pageLedgerOrders(query: string, page: PageRequest): Promise<ListPage<LedgerOrderOption>>;
   createStatement(input: CreateStatementInput): Promise<StatementRecord>;
   createLedger(input: CreateLedgerEntryInput): Promise<LedgerRecord>;
   reconcileLedger(id: string, statementId: string): Promise<LedgerRecord>;

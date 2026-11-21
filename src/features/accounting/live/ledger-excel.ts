@@ -15,6 +15,7 @@ const columns = [
 ] as const;
 const optionalColumns = [
   ["receivingAccount", "Tài khoản nhận", 45], ["transactionDate", "Ngày giao dịch", 18],
+  ["department", "Phòng ban", 22], ["item", "Hạng mục nội bộ", 28], ["content", "Nội dung nội bộ", 40],
 ] as const;
 
 export async function buildLedgerWorkbook(entries: ExcelLedgerEntry[] = []) {
@@ -25,14 +26,14 @@ export async function buildLedgerWorkbook(entries: ExcelLedgerEntry[] = []) {
     columns[0], columns[1], optionalColumns[1], ...columns.slice(2),
     ["amountVnd", "Thành tiền VND", 22] as const,
     ["reconciled", "Đối soát", 22] as const,
-    optionalColumns[0],
+    optionalColumns[0], ...optionalColumns.slice(2),
   ].map(([key, header, width]) => ({ key, header, width }));
   for (const entry of entries) sheet.addRow({ ...entry,
     kind: entry.kind === "THU" ? "Thu" : "Chi", category: ledgerCategoryLabels[entry.category],
     amountVnd: ledgerAmountVnd(entry), reconciled: entry.reconciled ? "Đã đối soát" : "Chờ đối soát" });
   sheet.getRow(1).font = { bold: true };
   sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = "A1:N1";
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } };
   sheet.getColumn("amount").numFmt = "#,##0.00";
   sheet.getColumn("exchangeRate").numFmt = "#,##0.######";
   sheet.getColumn("amountVnd").numFmt = "#,##0.00";
@@ -47,6 +48,7 @@ export async function buildLedgerWorkbook(entries: ExcelLedgerEntry[] = []) {
     "Ngày là ngày ghi sổ. Ngày giao dịch là ngày thực tế, nhập riêng (YYYY-MM-DD hoặc ô ngày Excel); có thể để trống.",
     "Tài khoản nhận: nhập ngân hàng, số tài khoản và chủ tài khoản. Dùng đúng tên đã lưu; tên mới được thêm vào danh sách dùng chung khi xác nhận import.",
     "File cũ thiếu cột Tài khoản nhận hoặc Ngày giao dịch vẫn nhập được và giữ nguyên trường đó khi cập nhật. Có cột nhưng ô trống sẽ xóa giá trị trường đó.",
+    "Dòng Thu nội bộ hoặc Chi nội bộ cần Phòng ban, Hạng mục nội bộ và Nội dung nội bộ. Để trống Đơn hàng của các dòng này.",
     "Thành tiền VND và Đối soát chỉ để xem. Không nhập trạng thái đối soát từ Excel; dòng đã đối soát không được sửa.",
     `Mỗi lần nhập tối đa ${ledgerExcelLimit} dòng, file .xlsx tối đa 10 MB. Kiểm tra bản xem trước rồi xác nhận nhập.`,
     "Dòng lỗi không được lưu; các dòng khác vẫn được lưu. Chỉ sửa và nhập lại các dòng lỗi để tránh thêm trùng dòng mới.",
@@ -102,7 +104,8 @@ export async function readLedgerWorkbook(buffer: ArrayBuffer) {
       optionalPositions.forEach((col, position) => {
         if (col === undefined) return;
         const value = row.getCell(col).value;
-        extra[optionalColumns[position][0]] = value instanceof Date ? value.toISOString().slice(0, 10) : text(value) || null;
+        const key = optionalColumns[position][0];
+        extra[key] = key === "transactionDate" && value instanceof Date ? value.toISOString().slice(0, 10) : text(value) || null;
       });
       const parsed = createLedgerEntrySchema.safeParse({
         ...extra,

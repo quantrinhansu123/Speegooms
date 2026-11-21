@@ -32,8 +32,8 @@ try {
   await page.route("http://payroll.test/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
-    if (pathname === "/") return route.fulfill({ contentType: "text/html", body: '<div id="root"></div><script src="/app.js"></script>' });
-    if (pathname === "/app.js") return route.fulfill({ contentType: "text/javascript", body: bundle.outputFiles[0].text });
+    if (pathname === "/") return route.fulfill({ contentType: "text/html; charset=utf-8", body: '<div id="root"></div><script src="/app.js"></script>' });
+    if (pathname === "/app.js") return route.fulfill({ contentType: "text/javascript; charset=utf-8", body: bundle.outputFiles[0].text });
     if (pathname.endsWith("/payroll-employees")) {
       return route.fulfill({ json: mode === "error" ? { error: { message: "Lỗi tải nhân viên" } } : { employees: mode === "empty" ? [] : employees }, status: mode === "error" ? 503 : 200 });
     }
@@ -49,9 +49,14 @@ try {
     await page.getByRole("button", { name: "Nhập mới", exact: true }).click();
     await page.locator("#pr-employee:not(:disabled)").waitFor();
   };
-  const save = () => page.getByRole("dialog").getByRole("button", { name: "Nhập mới", exact: true });
+  const save = () => page.getByRole("dialog").getByRole("button", { name: "Lưu dòng lương", exact: true });
   await open();
   assert.equal(await save().isDisabled(), true);
+  await page.fill("#pr-employee-query", "nguyen an");
+  assert.deepEqual(await page.locator("#pr-employee option").evaluateAll(options => options.map(option => option.value)), ["", "NV01"]);
+  await page.fill("#pr-employee-query", "nv02");
+  assert.deepEqual(await page.locator("#pr-employee option").evaluateAll(options => options.map(option => option.value)), ["", "NV02"]);
+  await page.fill("#pr-employee-query", "");
   for (const employee of employees) {
     await page.selectOption("#pr-employee", employee.code);
     assert.equal(await page.inputValue("#pr-code"), employee.code);

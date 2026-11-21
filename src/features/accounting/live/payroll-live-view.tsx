@@ -21,8 +21,10 @@ import { FilterSelect, ListSearchBar, useAppliedSearch } from "@/features/crm/li
 import { TableHScroll } from "@/features/crm/live/table-h-scroll";
 import { ApiError, api } from "@/lib/api";
 import { formatDate, formatNumber, formatVnd, formatVndCompact } from "@/lib/format";
+import { matchesQuery } from "@/lib/text";
 import type { StatusTone } from "@/types/status";
 import { useListData } from "./list-query";
+import { InternalLedgerSection } from "./internal-ledger-section";
 
 type PayrollRecord = {
   id: string;
@@ -73,7 +75,10 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [employeeError, setEmployeeError] = useState<string>();
   const [employeeCode, setEmployeeCode] = useState("");
+  const [employeeQuery, setEmployeeQuery] = useState("");
   const employee = employees.find((item) => item.code === employeeCode);
+  const matchingEmployees = employees.filter((item) => matchesQuery(employeeQuery, item.name, item.code));
+  const employeeOptions = employee && !matchingEmployees.includes(employee) ? [employee, ...matchingEmployees] : matchingEmployees;
   const [baseSalary, setBaseSalary] = useState<number | null>(null);
   const [allowance, setAllowance] = useState<number | null>(0);
   const [insurance, setInsurance] = useState<number | null>(0);
@@ -95,13 +100,17 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
       setError("Vui lòng chọn nhân viên");
       return;
     }
+    if (baseSalary == null) {
+      setError("Nhập lương cơ bản");
+      return;
+    }
     const parsed = createPayrollSchema.safeParse({
       period,
       employeeCode,
       fullName: employee.name,
       department: employee.department,
       position: employee.position,
-      baseSalary: baseSalary ?? 0,
+      baseSalary,
       allowance: allowance ?? 0,
       insuranceDeduction: insurance ?? 0,
     });
@@ -128,10 +137,14 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
           <DialogDescription>Một dòng lương của một nhân sự trong một kỳ. Thực nhận = lương cơ bản + phụ cấp − khấu trừ bảo hiểm.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Tìm nhân viên" htmlFor="pr-employee-query" className="sm:col-span-2">
+            <Input id="pr-employee-query" placeholder="Nhập tên hoặc mã nhân viên…" value={employeeQuery}
+              disabled={loadingEmployees || saving || Boolean(employeeError)} onChange={(event) => setEmployeeQuery(event.target.value)} />
+          </Field>
           <Field label="Nhân viên" htmlFor="pr-employee" required className="sm:col-span-2">
             <NativeSelect id="pr-employee" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value); setError(undefined); }} disabled={loadingEmployees || saving}>
-              <option value="">{loadingEmployees ? "Đang tải…" : employeeError ? "Không tải được danh sách nhân viên" : employees.length === 0 ? "Chưa có nhân viên" : "Chọn nhân viên"}</option>
-              {employees.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
+              <option value="">{loadingEmployees ? "Đang tải…" : employeeError ? "Không tải được danh sách nhân viên" : employees.length === 0 ? "Chưa có nhân viên" : matchingEmployees.length === 0 ? "Không có nhân viên phù hợp" : "Chọn nhân viên"}</option>
+              {employeeOptions.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
             </NativeSelect>
           </Field>
           <Field label="Kỳ lương" htmlFor="pr-period" required>
@@ -164,7 +177,7 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
         {error && <InlineAlert>{error}</InlineAlert>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}><X /> Hủy</Button>
-          <Button onClick={submit} disabled={saving || loadingEmployees || !employee}><Save aria-hidden /> {saving ? "Đang lưu…" : "Nhập mới"}</Button>
+          <Button onClick={submit} disabled={saving || loadingEmployees || !employee}><Save aria-hidden /> {saving ? "Đang lưu…" : "Lưu dòng lương"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -405,14 +418,16 @@ export function PayrollLiveView() {
   const user = useSession();
   return (
     <>
-      <PageHeader title="Lương & chi phí nội bộ" description="Bảng lương theo nhân sự và chi phí nội bộ theo phòng ban. Chỉ ghi nhận số liệu, chưa kết nối hệ thống chi trả." />
+      <PageHeader title="Lương & chi phí nội bộ" description="Bảng lương theo nhân sự, chi phí theo phòng ban và thu chi nội bộ thực tế." />
       <Tabs defaultValue="payroll">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto flex-wrap justify-start">
           <TabsTrigger value="payroll">Bảng lương nhân sự</TabsTrigger>
           <TabsTrigger value="expenses">Chi phí nội bộ</TabsTrigger>
+          <TabsTrigger value="internal-ledger">Thu chi nội bộ</TabsTrigger>
         </TabsList>
         <TabsContent value="payroll"><PayrollSection canWrite={canPerform(user.role, "payroll.write")} /></TabsContent>
         <TabsContent value="expenses"><ExpenseSection canWrite={canPerform(user.role, "expense.write")} /></TabsContent>
+        <TabsContent value="internal-ledger"><InternalLedgerSection canWrite={canPerform(user.role, "ledger.write")} /></TabsContent>
       </Tabs>
     </>
   );

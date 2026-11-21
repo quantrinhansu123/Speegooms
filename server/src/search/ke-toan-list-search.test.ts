@@ -105,6 +105,20 @@ test("sổ thu chi: lọc theo ngày giao dịch và đối tượng khớp chí
   assert.doesNotMatch(ledgerSearch({ ...base, dateField: "x; drop" }).build().sql, /ngay_giao_dich|drop/);
 });
 
+test("sổ thu chi: lọc tài khoản, khoản nội bộ và dòng chi tiết báo cáo", () => {
+  const base = { q: "", from: "", to: "", kind: "", category: "", dateField: "transaction", counterparty: "" };
+  const account = ledgerSearch({ ...base, receivingAccount: "name:Ngân hàng A", reportMonth: "2026-11", customerKey: "vn:lead:test" }).build();
+  assert.match(account.sql, /l\.tai_khoan_nhan = \$1/);
+  assert.match(account.sql, /l\.ngay_giao_dich < \$2::date \+ interval '1 month'/);
+  assert.match(account.sql, /customer\.key = \$3/);
+  assert.deepEqual(account.values, ["Ngân hàng A", "2026-11-01", "vn:lead:test"]);
+  const missing = ledgerSearch({ ...base, receivingAccount: "missing", internal: true, reportMonth: "missing" }).build();
+  assert.match(missing.sql, /l\.tai_khoan_nhan is null/);
+  assert.match(missing.sql, /THU_NOI_BO.*CHI_NOI_BO/);
+  assert.match(missing.sql, /l\.ngay_giao_dich is null/);
+  assert.deepEqual(missing.values, []);
+});
+
 test("mess: lọc nhân viên sale khớp mọi dạng tên của cùng một người", () => {
   const base = { q: "", from: "", to: "", status: "", classification: "", demand: "", customerType: "", market: "", saleName: "" };
   assert.doesNotMatch(messageSearch(base).build().sql, /nhan_vien_ban/);

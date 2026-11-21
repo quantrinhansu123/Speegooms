@@ -4,6 +4,7 @@ import {
   expenseStatuses,
   leadSourceSchema,
   ledgerCategories,
+  ledgerReportGroups,
   listSearchSchema,
   messageClassificationSchema,
   messageProcessingOptions,
@@ -16,6 +17,7 @@ import {
   quoteStatusSchema,
   contractQuoteStatusSchema,
   type ListSearch,
+  type LedgerReportGroup,
 } from "@speego/shared";
 import type { Request } from "express";
 import { AppError } from "../lib/errors";
@@ -103,8 +105,22 @@ export function readPayrollSearch(req: Request): PayrollListSearch {
 }
 
 export function readLedgerSearch(req: Request): LedgerListSearch {
+  const reportMonth = queryText(req, "reportMonth").trim();
+  if (reportMonth && reportMonth !== "missing" && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(reportMonth)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Tháng báo cáo không hợp lệ");
+  }
   return { ...readListSearch(req), kind: oneOf(req, "kind", ["THU", "CHI"]), category: oneOf(req, "category", ledgerCategories),
-    dateField: oneOf(req, "dateField", ["transaction"]), counterparty: queryText(req, "counterparty").trim().slice(0, 4000) };
+    dateField: oneOf(req, "dateField", ["transaction"]), counterparty: queryText(req, "counterparty").trim().slice(0, 4000),
+    receivingAccount: queryText(req, "receivingAccount").trim().slice(0, 205), internal: oneOf(req, "scope", ["internal"]) === "internal",
+    reportMonth, customerKey: queryText(req, "customerKey").trim() };
+}
+
+export function readLedgerReportGroup(req: Request): LedgerReportGroup {
+  return (oneOf(req, "group", ledgerReportGroups) || "month") as LedgerReportGroup;
+}
+
+export function readLedgerOrderQuery(req: Request): string {
+  return readListSearch(req).q;
 }
 
 export function readExpenseSearch(req: Request): ExpenseListSearch {

@@ -1,20 +1,31 @@
 import { ledgerMatchesStatement } from "@speego/shared";
 import type pg from "pg";
-import type { ListPage, PageRequest } from "@speego/shared";
+import type { LedgerReportGroup, LedgerReportRow, ListPage, PageRequest } from "@speego/shared";
 import { queryPage } from "../../lib/pagination";
-import { ledgerSearch, type LedgerListSearch } from "../../search/ke-toan-list-search";
+import { ledgerDateColumn, ledgerSearch, type LedgerListSearch } from "../../search/ke-toan-list-search";
 import type { CreateLedgerEntryInput, CreateStatementInput } from "@speego/shared";
 import { AppError, InfrastructureError } from "../../lib/errors";
-import type { LedgerRecord, StatementRecord } from "../../repositories/ke-toan.repository";
+import type { LedgerOrderOption, LedgerRecord, StatementRecord } from "../../repositories/ke-toan.repository";
 
-const ledgerSelect = `select l.id::text, l.ngay::text as date, l.loai::text as kind,
+const ledgerColumns = `select l.id::text, l.ngay::text as date, l.loai::text as kind,
   l.khoan_muc::text as category, l.doi_tuong as counterparty,
   l.ma_don_hang as order_code, l.so_tien::text as amount,
   l.tai_khoan_nhan as receiving_account, l.ngay_giao_dich::text as transaction_date,
   l.ma_tham_chieu as reference, l.da_doi_soat as reconciled,
   l.ma_sao_ke::text as statement_id, l.tien_te as currency, l.ty_gia::text as exchange_rate,
-  l.so_tien_vnd::text as amount_vnd, h.ten_khach_hang as customer_name
-  from ke_toan.so_thu_chi l left join crm.hop_dong h on h.ma_hien_thi = l.ma_don_hang`;
+  l.so_tien_vnd::text as amount_vnd, h.ten_khach_hang as customer_name,
+  l.phong_ban as department, l.hang_muc_noi_bo as item, l.noi_dung_noi_bo as content`;
+const ledgerFrom = `from ke_toan.so_thu_chi l left join crm.hop_dong h on h.ma_hien_thi = l.ma_don_hang`;
+const ledgerSelect = `${ledgerColumns} ${ledgerFrom}`;
+const ledgerCustomerJoin = `
+  left join crm.bao_gia_sourcing_viet_nam sv on h.tuyen = 'vn' and sv.id = h.ma_bao_gia
+  left join crm.bao_gia_logistics_viet_nam lv on h.tuyen = 'vn' and lv.id = h.ma_bao_gia
+  left join crm.bao_gia_sourcing_global sg on h.tuyen = 'global' and sg.id = h.ma_bao_gia
+  left join crm.bao_gia_logistics_global lg on h.tuyen = 'global' and lg.id = h.ma_bao_gia
+  cross join lateral (select case when h.id is null then 'unassigned' else coalesce(
+    h.tuyen || ':lead:' || coalesce(sv.ma_khach_hang_tiem_nang, lv.ma_khach_hang_tiem_nang,
+      sg.ma_khach_hang_tiem_nang, lg.ma_khach_hang_tiem_nang)::text,
+    h.tuyen || ':name:' || lower(btrim(h.ten_khach_hang))) end as key) customer`;
 const statementSelect = `select s.id::text, s.ngay::text as date, s.loai::text as kind,
   s.so_tien::text as amount, s.doi_tuong as counterparty,
   s.noi_dung as description, s.ma_don_hang as order_code,
@@ -30,6 +41,7 @@ type LedgerRow = CurrencyRow & {
   counterparty: string; order_code: string | null; amount: string;
   receiving_account: string | null; transaction_date: string | null;
   reference: string | null; reconciled: boolean; statement_id: string | null;
+  department: string | null; item: string | null; content: string | null;
 };
 type StatementRow = CurrencyRow & {
   id: string; date: string; kind: "THU" | "CHI"; amount: string;
@@ -40,6 +52,7 @@ const toLedger = (row: LedgerRow): LedgerRecord => ({
   counterparty: row.counterparty, orderCode: row.order_code, amount: Number(row.amount),
   currency: row.currency, exchangeRate: Number(row.exchange_rate), amountVnd: Number(row.amount_vnd), customerName: row.customer_name,
   receivingAccount: row.receiving_account, transactionDate: row.transaction_date,
+  department: row.department, item: row.item, content: row.content,
   reference: row.reference, reconciled: row.reconciled, statementId: row.statement_id,
 });
 const toStatement = (row: StatementRow): StatementRecord => ({
@@ -64,7 +77,8 @@ export class PostgresLedgerRepository {
 
   async pageLedger(search: LedgerListSearch, page: PageRequest): Promise<ListPage<LedgerRecord>> {
     const compiled = ledgerSearch(search).build();
-    const result = await queryPage<LedgerRow>(this.pool, `${ledgerSelect} where true ${compiled.sql}`, compiled.values, page, {
+    const source = `${ledgerSelect} ${search.customerKey ? ledgerCustomerJoin : ""} where true ${compiled.sql}`;
+    const result = await queryPage<LedgerRow>(this.pool, source, compiled.values, page, {
       orderBy: "date desc, id desc",
       summary: `jsonb_build_object('thu', coalesce(sum(amount_vnd::numeric) filter (where kind = 'THU'), 0),
         'chi', coalesce(sum(amount_vnd::numeric) filter (where kind = 'CHI'), 0),
@@ -75,9 +89,32 @@ export class PostgresLedgerRepository {
     return { ...result, rows: result.rows.map(toLedger) };
   }
 
+  async pageLedgerReport(search: LedgerListSearch, group: LedgerReportGroup, page: PageRequest): Promise<ListPage<LedgerReportRow>> {
+    const compiled = ledgerSearch(search).build();
+    const byMonth = group !== "customer";
+    const byCustomer = group !== "month";
+    const month = byMonth ? `to_char(${ledgerDateColumn(search.dateField)}, 'YYYY-MM')` : "null::text";
+    const customerKey = byCustomer ? "customer.key" : "null::text";
+    const withCustomer = byCustomer || Boolean(search.customerKey);
+    return queryPage<LedgerReportRow>(this.pool, `
+      select jsonb_build_array(month, customer_key)::text as id, month, customer_key as "customerKey",
+        max(customer_name) as "customerName", sum(income)::text as income, sum(expense)::text as expense,
+        (sum(income) - sum(expense))::text as balance, count(*)::int as "entryCount"
+      from (
+        select ${month} as month, ${customerKey} as customer_key,
+          ${byCustomer ? "h.ten_khach_hang" : "null::text"} as customer_name,
+          case when l.loai = 'THU' then l.so_tien_vnd else 0 end as income,
+          case when l.loai = 'CHI' then l.so_tien_vnd else 0 end as expense
+        ${ledgerFrom} ${withCustomer ? ledgerCustomerJoin : ""} where true ${compiled.sql}
+      ) entries group by month, customer_key`, compiled.values, page, {
+      orderBy: 'month desc nulls last, "customerName" asc nulls last, id',
+    });
+  }
+
   async pageStatements(page: PageRequest, candidateFor?: string): Promise<ListPage<StatementRecord>> {
     const result = await queryPage<StatementRow>(this.pool, `${statementSelect} ${candidateFor ? `where l.id is null and exists (
         select 1 from ke_toan.so_thu_chi target where target.id = $1::uuid and target.loai = s.loai
+          and (target.phong_ban is null or (s.ma_don_hang is null and s.ma_de_nghi is null))
           and (target.ma_don_hang is null or s.ma_don_hang is null or target.ma_don_hang = s.ma_don_hang)
           and (case when s.tien_te = 'VND' then target.so_tien_vnd = s.so_tien
             else target.tien_te = s.tien_te and target.so_tien = s.so_tien end)
@@ -122,14 +159,16 @@ export class PostgresLedgerRepository {
     } catch (cause) { databaseError(cause); }
   }
 
-  async listLedgerOrders(): Promise<{ code: string; customerName: string }[]> {
-    try {
-      const result = await this.pool.query<{ code: string; customer_name: string }>(
-        `select ma_hien_thi as code, ten_khach_hang as customer_name
-         from crm.hop_dong order by tao_luc desc limit 500`,
-      );
-      return result.rows.map((row) => ({ code: row.code, customerName: row.customer_name }));
-    } catch (cause) { databaseError(cause); }
+  async pageLedgerOrders(query: string, page: PageRequest): Promise<ListPage<LedgerOrderOption>> {
+    const text = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/đ/g, "d");
+    const fold = (column: "ma_hien_thi" | "ten_khach_hang") =>
+      `lower(translate(regexp_replace(normalize(${column}, NFD) collate "C", U&'[\\0300-\\036F]', '', 'g'), 'đĐ', 'dD'))`;
+    return queryPage<LedgerOrderOption>(this.pool,
+      `select id::text, ma_hien_thi as code, ten_khach_hang as "customerName", tao_luc,
+        ${text ? `${fold("ma_hien_thi")} = $1` : "false"} as exact_code
+       from crm.hop_dong ${text ? `where strpos(${fold("ma_hien_thi")}, $1) > 0 or strpos(${fold("ten_khach_hang")}, $1) > 0` : ""}`,
+      text ? [text] : [], page,
+      { orderBy: "exact_code desc, tao_luc desc, id desc" });
   }
 
   async createStatement(input: CreateStatementInput): Promise<StatementRecord> {
@@ -156,6 +195,9 @@ export class PostgresLedgerRepository {
     );
     const row = found.rows[0];
     if (!row) throw new AppError(404, "NOT_FOUND", "Không tìm thấy dòng sao kê");
+    if (ledger.department && (row.order_code || row.payment_id)) {
+      throw new AppError(409, "RULE", "Khoản nội bộ chỉ đối soát với sao kê chưa gắn hợp đồng hoặc đề nghị thanh toán");
+    }
     if (!ledgerMatchesStatement(ledger, { kind: row.kind, currency: row.currency, amount: Number(row.amount), orderCode: row.order_code })) {
       throw new AppError(409, "RULE", "Sao kê không khớp loại, loại tiền, số tiền hoặc đơn hàng");
     }
@@ -189,12 +231,13 @@ export class PostgresLedgerRepository {
       const inserted = await client.query<{ id: string }>(
         `insert into ke_toan.so_thu_chi
           (ngay, loai, khoan_muc, doi_tuong, ma_don_hang, so_tien, ma_tham_chieu,
-           da_doi_soat, ma_de_nghi, ma_sao_ke, tien_te, ty_gia, tai_khoan_nhan, ngay_giao_dich)
+           da_doi_soat, ma_de_nghi, ma_sao_ke, tien_te, ty_gia, tai_khoan_nhan, ngay_giao_dich,
+           phong_ban, hang_muc_noi_bo, noi_dung_noi_bo)
          values ($1::date, $2::ke_toan.loai_thu_chi, $3::ke_toan.khoan_muc_thu_chi,
-           $4, $5, $6, $7, false, null, null, $8, $9, $10, $11::date) returning id::text`,
+           $4, $5, $6, $7, false, null, null, $8, $9, $10, $11::date, $12, $13, $14) returning id::text`,
         [input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
           input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate,
-          input.receivingAccount ?? null, input.transactionDate ?? null],
+          input.receivingAccount ?? null, input.transactionDate ?? null, input.department ?? null, input.item ?? null, input.content ?? null],
       );
       const created = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [inserted.rows[0]?.id]);
       return toLedger(created.rows[0]);
@@ -222,12 +265,14 @@ export class PostgresLedgerRepository {
          set ngay = $2::date, loai = $3::ke_toan.loai_thu_chi, khoan_muc = $4::ke_toan.khoan_muc_thu_chi,
              doi_tuong = $5, ma_don_hang = $6, so_tien = $7, ma_tham_chieu = $8, tien_te = $9, ty_gia = $10,
              tai_khoan_nhan = case when $13::boolean then $11 else tai_khoan_nhan end,
-             ngay_giao_dich = case when $14::boolean then $12::date else ngay_giao_dich end, cap_nhat_luc = now()
+             ngay_giao_dich = case when $14::boolean then $12::date else ngay_giao_dich end,
+             phong_ban = $15, hang_muc_noi_bo = $16, noi_dung_noi_bo = $17, cap_nhat_luc = now()
          where id = $1::uuid`,
         [id, input.date, input.kind, input.category, input.counterparty, input.orderCode ?? null,
           input.amount, input.reference || null, input.currency, input.currency === "VND" ? 1 : input.exchangeRate,
           input.receivingAccount ?? null, input.transactionDate ?? null,
-          input.receivingAccount !== undefined, input.transactionDate !== undefined],
+          input.receivingAccount !== undefined, input.transactionDate !== undefined,
+          input.department ?? null, input.item ?? null, input.content ?? null],
       );
       const updated = await client.query<LedgerRow>(`${ledgerSelect} where l.id = $1::uuid`, [id]);
       return toLedger(updated.rows[0]);

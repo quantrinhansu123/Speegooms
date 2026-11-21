@@ -66,6 +66,19 @@ test("new optional Excel columns reject duplicate headers and formula accounts",
   assert.match((await read(workbook)).errors[0], /công thức/);
 });
 
+test("internal ledger entries roundtrip with department, item and content", async () => {
+  const internal = { ...entry, category: "CHI_NOI_BO", department: "ke-toan", item: "Lương", content: "Chi lương kỳ 11" } as const;
+  const workbook = await buildLedgerWorkbook([internal]);
+  const result = await read(workbook);
+  assert.deepEqual(result.errors, []);
+  assert.ok(unchangedLedgerRow(result.rows[0].input, internal));
+  assert.equal(result.rows[0].input.department, "ke-toan");
+  assert.equal(result.rows[0].input.item, "Lương");
+  assert.equal(result.rows[0].input.content, "Chi lương kỳ 11");
+  workbook.getWorksheet("Thu chi")!.getCell("Q2").value = null;
+  assert.match((await read(workbook)).errors[0], /Nhập nội dung/);
+});
+
 test("template accepts new rows, Excel dates and VND defaults", async () => {
   const workbook = await buildLedgerWorkbook();
   const sheet = workbook.getWorksheet("Thu chi")!;

@@ -2,13 +2,17 @@ import { z } from "zod";
 import { quoteCurrencySchema } from "./crm";
 
 export const ledgerKinds = ["THU", "CHI"] as const;
-export const ledgerCategories = ["COC_KHACH", "THU_KHACH", "CHI_XUONG", "CHI_VAN_CHUYEN", "CHI_KHAC"] as const;
+export const internalLedgerCategories = ["THU_NOI_BO", "CHI_NOI_BO"] as const;
+export const ledgerCategories = ["COC_KHACH", "THU_KHACH", "CHI_XUONG", "CHI_VAN_CHUYEN", "CHI_KHAC", ...internalLedgerCategories] as const;
+export const isInternalLedgerCategory = (category: string) => internalLedgerCategories.some((value) => value === category);
 export const ledgerCategoryLabels: Record<(typeof ledgerCategories)[number], string> = {
   COC_KHACH: "Cọc khách",
   THU_KHACH: "Thu thanh toán khách",
   CHI_XUONG: "Chi xưởng",
   CHI_VAN_CHUYEN: "Chi vận chuyển",
   CHI_KHAC: "Chi khác",
+  THU_NOI_BO: "Thu nội bộ",
+  CHI_NOI_BO: "Chi nội bộ",
 };
 const ledgerMoney = z.number().finite().positive("Số tiền phải lớn hơn 0")
   .max(9_999_999_999_999)
@@ -77,14 +81,37 @@ export const createLedgerEntrySchema = z.object({
   reference: z.string().trim().max(120).optional(),
   receivingAccount: receivingAccountNameSchema.nullable().optional(),
   transactionDate: ledgerDay.nullable().optional(),
+  department: z.string().trim().min(1).max(120).nullable().optional(),
+  item: z.string().trim().min(1).max(120).nullable().optional(),
+  content: z.string().trim().min(1).max(500).nullable().optional(),
 }).superRefine((value, ctx) => {
   validateCurrency(value, ctx);
-  const income = value.kind === "THU";
-  if (income !== (value.category === "COC_KHACH" || value.category === "THU_KHACH")) {
+  if (value.kind !== (value.category.startsWith("CHI_") ? "CHI" : "THU")) {
     ctx.addIssue({ code: "custom", path: ["category"], message: "Khoản mục không khớp loại thu/chi" });
+  }
+  if (isInternalLedgerCategory(value.category)) {
+    if (value.orderCode) ctx.addIssue({ code: "custom", path: ["orderCode"], message: "Khoản nội bộ không gắn hợp đồng" });
+    if (!value.department) ctx.addIssue({ code: "custom", path: ["department"], message: "Chọn phòng ban" });
+    if (!value.item) ctx.addIssue({ code: "custom", path: ["item"], message: "Nhập hạng mục nội bộ" });
+    if (!value.content) ctx.addIssue({ code: "custom", path: ["content"], message: "Nhập nội dung" });
+  } else if (value.department || value.item || value.content) {
+    ctx.addIssue({ code: "custom", path: ["category"], message: "Phòng ban, hạng mục nội bộ và nội dung chỉ dùng cho khoản nội bộ" });
   }
 });
 export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
+
+export const ledgerReportGroups = ["month", "customer", "month-customer"] as const;
+export type LedgerReportGroup = typeof ledgerReportGroups[number];
+export type LedgerReportRow = {
+  id: string;
+  month: string | null;
+  customerKey: string | null;
+  customerName: string | null;
+  income: string;
+  expense: string;
+  balance: string;
+  entryCount: number;
+};
 
 export const reconcileLedgerEntrySchema = z.object({ statementId: z.string().uuid() });
 export type ReconcileLedgerEntryInput = z.infer<typeof reconcileLedgerEntrySchema>;
