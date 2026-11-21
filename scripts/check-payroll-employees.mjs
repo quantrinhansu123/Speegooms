@@ -22,6 +22,7 @@ const bundle = await build({
 const browser = await chromium.launch({ channel: "msedge" });
 try {
   const page = await browser.newPage();
+  page.setDefaultTimeout(8_000);
   page.on("pageerror", (error) => console.error(error));
   const employees = [
     { code: "NV01", name: "Nguyễn An", department: "ke-toan", position: "Kế toán viên" },
@@ -32,7 +33,8 @@ try {
   await page.route("http://payroll.test/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
-    if (pathname === "/") return route.fulfill({ contentType: "text/html; charset=utf-8", body: '<div id="root"></div><script src="/app.js"></script>' });
+    if (pathname === "/") return route.fulfill({ contentType: "text/html; charset=utf-8", body:
+      '<style>[data-slot=dialog-content]{position:fixed;inset:5% auto auto 20%;width:60%;max-height:90vh;overflow:auto;background:white;z-index:10;padding:12px}[data-side]{z-index:50;background:white}</style><div id="root"></div><script src="/app.js"></script>' });
     if (pathname === "/app.js") return route.fulfill({ contentType: "text/javascript; charset=utf-8", body: bundle.outputFiles[0].text });
     if (pathname.endsWith("/payroll-employees")) {
       return route.fulfill({ json: mode === "error" ? { error: { message: "Lỗi tải nhân viên" } } : { employees: mode === "empty" ? [] : employees }, status: mode === "error" ? 503 : 200 });
@@ -47,27 +49,41 @@ try {
   const open = async () => {
     await page.goto("http://payroll.test/");
     await page.getByRole("button", { name: "Nhập mới", exact: true }).click();
-    await page.locator("#pr-employee:not(:disabled)").waitFor();
   };
-  const save = () => page.getByRole("dialog").getByRole("button", { name: "Lưu dòng lương", exact: true });
-  await open();
-  assert.equal(await save().isDisabled(), true);
-  await page.fill("#pr-employee-query", "nguyen an");
-  assert.deepEqual(await page.locator("#pr-employee option").evaluateAll(options => options.map(option => option.value)), ["", "NV01"]);
-  await page.fill("#pr-employee-query", "nv02");
-  assert.deepEqual(await page.locator("#pr-employee option").evaluateAll(options => options.map(option => option.value)), ["", "NV02"]);
-  await page.fill("#pr-employee-query", "");
-  for (const employee of employees) {
-    await page.selectOption("#pr-employee", employee.code);
+  const employeeField = page.locator("#pr-employee");
+  const options = page.getByRole("option");
+  const save = () => page.locator("[data-slot=dialog-content]").getByRole("button", { name: "Lưu dòng lương", exact: true, includeHidden: true });
+  const verifySelection = async (employee) => {
+    assert.equal(await employeeField.inputValue(), `${employee.name} · ${employee.code}`);
     assert.equal(await page.inputValue("#pr-code"), employee.code);
     assert.equal(await page.inputValue("#pr-name"), employee.name);
     assert.equal(await page.inputValue("#pr-dept"), employee.department === "ke-toan" ? "Kế toán" : "HCNS");
     assert.equal(await page.inputValue("#pr-position"), employee.position);
-  }
-  await page.selectOption("#pr-employee", "");
+  };
+  await open();
+  await page.getByRole("combobox", { name: "Nhân viên", exact: true }).waitFor();
+  assert.equal(await save().isDisabled(), true);
+  await employeeField.fill("nguyen an");
+  await options.first().waitFor();
+  assert.deepEqual(await options.allTextContents(), ["Nguyễn An · NV01"]);
+  await options.first().click();
+  await verifySelection(employees[0]);
+  await employeeField.fill("nv02");
+  await options.first().waitFor();
+  assert.deepEqual(await options.allTextContents(), ["Trần Bình · NV02"]);
+  assert.equal(await save().isDisabled(), true);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "pr-employee");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await verifySelection(employees[1]);
+  await page.getByRole("button", { name: "Bỏ chọn nhân viên" }).click();
   for (const id of ["pr-code", "pr-name", "pr-dept", "pr-position"]) assert.equal(await page.inputValue(`#${id}`), "");
   assert.equal(await save().isDisabled(), true);
-  await page.selectOption("#pr-employee", "NV02");
+  await employeeField.fill("not found");
+  await page.getByText("Không có nhân viên phù hợp.", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Mở danh sách nhân viên" }).click();
+  await page.getByRole("option", { name: "Trần Bình · NV02", exact: true }).click();
   await page.fill("#pr-base", "10000000");
   await save().press("Enter");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
@@ -78,13 +94,14 @@ try {
   assert.equal(submitted.baseSalary, 10000000);
   mode = "empty";
   await open();
-  assert.equal(await page.locator("#pr-employee").textContent(), "Chưa có nhân viên");
+  await page.getByPlaceholder("Chưa có nhân viên", { exact: true }).waitFor();
+  assert.equal(await employeeField.isDisabled(), true);
   assert.equal(await save().isDisabled(), true);
   mode = "error";
   await open();
   await page.getByRole("alert").filter({ hasText: "Lỗi tải nhân viên" }).waitFor();
   assert.equal(await save().isDisabled(), true);
-  console.log("PASS: employee selection, switching, clearing, submit, empty list and load failure");
+  console.log("PASS: employee search by name and code, keyboard selection, clearing, submit, empty list and load failure");
 } finally {
   await browser.close();
 }

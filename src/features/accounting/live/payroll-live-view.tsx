@@ -3,7 +3,8 @@
 import { ServerPagination } from "@/components/shared/server-pagination";
 
 import { useEffect, useState } from "react";
-import { Banknote, Hourglass, Plus, Receipt, Save, Users, X } from "lucide-react";
+import { Combobox } from "@base-ui/react/combobox";
+import { Banknote, ChevronDown, Hourglass, Plus, Receipt, Save, Users, X } from "lucide-react";
 import { createInternalExpenseSchema, createPayrollSchema, expenseStatusLabels, payrollNet } from "@speego/shared";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { MoneyInput } from "@/components/shared/money-input";
@@ -41,6 +42,7 @@ type PayrollRecord = {
 };
 
 type EmployeeOption = { code: string; name: string; department: string; position: string };
+const employeeLabel = (employee: EmployeeOption) => `${employee.name} · ${employee.code}`;
 
 type ExpenseRecord = {
   id: string;
@@ -74,11 +76,8 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [employeeError, setEmployeeError] = useState<string>();
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [employeeQuery, setEmployeeQuery] = useState("");
-  const employee = employees.find((item) => item.code === employeeCode);
-  const matchingEmployees = employees.filter((item) => matchesQuery(employeeQuery, item.name, item.code));
-  const employeeOptions = employee && !matchingEmployees.includes(employee) ? [employee, ...matchingEmployees] : matchingEmployees;
+  const [employee, setEmployee] = useState<EmployeeOption | null>(null);
+  const [employeeInput, setEmployeeInput] = useState("");
   const [baseSalary, setBaseSalary] = useState<number | null>(null);
   const [allowance, setAllowance] = useState<number | null>(0);
   const [insurance, setInsurance] = useState<number | null>(0);
@@ -106,7 +105,7 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
     }
     const parsed = createPayrollSchema.safeParse({
       period,
-      employeeCode,
+      employeeCode: employee.code,
       fullName: employee.name,
       department: employee.department,
       position: employee.position,
@@ -137,15 +136,39 @@ function CreatePayrollDialog({ onClose, onCreated }: { onClose: () => void; onCr
           <DialogDescription>Một dòng lương của một nhân sự trong một kỳ. Thực nhận = lương cơ bản + phụ cấp − khấu trừ bảo hiểm.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tìm nhân viên" htmlFor="pr-employee-query" className="sm:col-span-2">
-            <Input id="pr-employee-query" placeholder="Nhập tên hoặc mã nhân viên…" value={employeeQuery}
-              disabled={loadingEmployees || saving || Boolean(employeeError)} onChange={(event) => setEmployeeQuery(event.target.value)} />
-          </Field>
           <Field label="Nhân viên" htmlFor="pr-employee" required className="sm:col-span-2">
-            <NativeSelect id="pr-employee" value={employeeCode} onChange={(event) => { setEmployeeCode(event.target.value); setError(undefined); }} disabled={loadingEmployees || saving}>
-              <option value="">{loadingEmployees ? "Đang tải…" : employeeError ? "Không tải được danh sách nhân viên" : employees.length === 0 ? "Chưa có nhân viên" : matchingEmployees.length === 0 ? "Không có nhân viên phù hợp" : "Chọn nhân viên"}</option>
-              {employeeOptions.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-            </NativeSelect>
+            <Combobox.Root items={employees} value={employee} inputValue={employeeInput} disabled={loadingEmployees || saving || employees.length === 0}
+              itemToStringLabel={employeeLabel} isItemEqualToValue={(a, b) => a.code === b.code}
+              filter={(item, query) => matchesQuery(query, item.name, item.code)}
+              onValueChange={(item) => { setEmployee(item); setError(undefined); }}
+              onInputValueChange={(value, details) => {
+                setEmployeeInput(value);
+                if (details.reason === "input-change") {
+                  setEmployee(null);
+                  setError(undefined);
+                }
+              }}>
+              <Combobox.InputGroup className="relative">
+                <Combobox.Input id="pr-employee" aria-required="true" render={<Input className="pr-16" />}
+                  placeholder={loadingEmployees ? "Đang tải nhân viên…" : employeeError ? "Không tải được danh sách nhân viên" : employees.length === 0 ? "Chưa có nhân viên" : "Tìm tên hoặc mã nhân viên…"} />
+                <div className="absolute inset-y-0 right-1 flex items-center">
+                  <Combobox.Clear aria-label="Bỏ chọn nhân viên" className="rounded p-1.5 hover:bg-muted"><X className="size-4" aria-hidden /></Combobox.Clear>
+                  <Combobox.Trigger aria-label="Mở danh sách nhân viên" className="rounded p-1.5 hover:bg-muted"><ChevronDown className="size-4" aria-hidden /></Combobox.Trigger>
+                </div>
+              </Combobox.InputGroup>
+              <Combobox.Portal>
+                <Combobox.Positioner sideOffset={4} className="z-[60]">
+                  <Combobox.Popup className="w-[var(--anchor-width)] rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-md">
+                    <Combobox.Empty className="px-3 py-2 text-muted-foreground">Không có nhân viên phù hợp.</Combobox.Empty>
+                    <Combobox.List className="max-h-60 overflow-y-auto overscroll-contain">
+                      {(item: EmployeeOption) => <Combobox.Item key={item.code} value={item} className="cursor-default break-words rounded px-3 py-2 outline-none data-highlighted:bg-muted data-selected:font-semibold">
+                        {employeeLabel(item)}
+                      </Combobox.Item>}
+                    </Combobox.List>
+                  </Combobox.Popup>
+                </Combobox.Positioner>
+              </Combobox.Portal>
+            </Combobox.Root>
           </Field>
           <Field label="Kỳ lương" htmlFor="pr-period" required>
             <Input id="pr-period" type="month" value={period} onChange={(event) => setPeriod(event.target.value)} />
