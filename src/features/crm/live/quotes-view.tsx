@@ -11,7 +11,6 @@ import { canEditQuoteDesk, quoteTemplateSchema, type AssignmentMember, type CrmL
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
-import { StatCard } from "@/components/shared/stat-card";
 import { CrmContactCells, CrmContactHeaders, crmContactColumns } from "../components/crm-contact-columns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,6 +47,16 @@ const titles: Record<QuoteDesk, string> = {
 };
 
 type DeskQuote = QuoteRecord & { lane: CrmLane };
+
+const reportMetrics = [
+  ["requests", "Yêu cầu báo giá"],
+  ["returned", "Báo giá đã trả cho Sale"],
+  ["unanswered", "Yêu cầu chưa được đáp ứng"],
+  ["closing", "Đang chốt"],
+  ["deposited", "Đã cọc"],
+  ["rejected", "Khách không đồng ý / Không đặt"],
+  ["potential", "Tiềm năng"],
+] as const;
 
 function shownDate(value: string): string {
   const date = new Date(value);
@@ -214,7 +223,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
   return (
     <>
       <PageHeader
-        title={report ? `Báo cáo Vận hành · ${desk === "sourcing" ? "Sourcing" : "Logistics"}` : titles[desk]}
+        title={report ? "Báo cáo Vận hành" : titles[desk]}
         description={
           desk === "sourcing"
             ? "Sale điền ảnh/quy cách; mua hàng bổ sung chi tiết xưởng; vận hành báo giá. Sau khi gửi đơn hàng → chuyển Logistics."
@@ -262,10 +271,15 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
         <FilterSelect id={`${desk}-quote-assignee`} label="Người phụ trách" value={filters.draft.assignee} onChange={(value) => filters.set("assignee", value)} options={members.map((member) => [member.id, member.name] as const)} />
       </ListSearchBar>
       {report && <>
-        <p className="mb-4 text-sm text-muted-foreground">Thống kê theo ngày yêu cầu và nhân viên phụ trách trong bộ lọc. Trạng thái chốt do Sale cập nhật; số liệu tính trên tất cả trang.</p>
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {[["requests", "Yêu cầu báo giá"], ["returned", "Báo giá đã trả cho Sale"], ["unanswered", "Yêu cầu chưa được đáp ứng"], ["closing", "Đang chốt"], ["deposited", "Đã cọc"], ["rejected", "Khách không đồng ý / Không đặt"], ["potential", "Tiềm năng"]].map(([key, label]) => <StatCard key={key} label={label} value={listLoading ? "…" : String(paging.summary[key] ?? 0)} />)}
-        </div>
+        <p className="mb-2 text-xs text-muted-foreground">Số liệu Logistics theo bộ lọc, tính trên tất cả trang. Trạng thái chốt do Sale cập nhật.</p>
+        <dl className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 2xl:grid-cols-7">
+          {reportMetrics.map(([key, label]) => (
+            <div key={key} className="flex flex-col justify-between gap-1 rounded-md border bg-card px-2.5 py-1.5">
+              <dt className="text-xs leading-tight text-muted-foreground">{label}</dt>
+              <dd className="text-lg leading-tight font-semibold tabular-nums">{listLoading || error ? "—" : String(paging.summary[key] ?? 0)}</dd>
+            </div>
+          ))}
+        </dl>
       </>}
       <TableHScroll stickyIdentity>
         <table className="w-full min-w-[1250px] text-sm">

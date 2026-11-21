@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { OperationsReport } from "@/features/operations/operations-report";
+import { QuoteDeskView } from "@/features/crm/live/quotes-view";
 
 export const metadata: Metadata = { title: "Báo cáo Vận hành" };
 export const instant = false;
 
 export default function Page() {
-  return <OperationsReport />;
+  return <QuoteDeskView desk="logistics" report />;
 }

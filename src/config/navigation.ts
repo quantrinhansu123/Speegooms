@@ -94,7 +94,6 @@ export const navigation: NavGroup[] = [
         icon: Compass,
         children: [
           { title: "Sourcing – Báo giá", href: "/van-hanh/sourcing-bao-gia" },
-          { title: "Báo cáo Vận hành", href: "/van-hanh/bao-cao" },
           { title: "Hợp đồng", href: "/van-hanh/don-hang" },
           { title: "Nguồn hàng-xưởng", href: "/van-hanh/nha-cung-cap" },
           { title: "Đơn mua xưởng", href: "/van-hanh/po" },
