@@ -1,6 +1,7 @@
 import type { Role } from "@speego/shared";
 import type pg from "pg";
 import { InfrastructureError } from "../../lib/errors";
+import { contractOwnerSql, crmTables, leadOwnerSql, quoteOwnerSql } from "./crm-sale-scope";
 import type {
   NotificationDraft,
   NotificationRecord,
@@ -46,6 +47,24 @@ function toRecord(row: NotificationRow): NotificationRecord {
   };
 }
 
+function crmNotificationOwnerSql(tables: typeof crmTables[keyof typeof crmTables]): string {
+  const reference = "(case when n.tham_chieu_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then n.tham_chieu_id::uuid end)";
+  return `case n.tham_chieu_loai
+    when 'quote' then ${quoteOwnerSql(tables, reference, true)}
+    when 'potential' then (select ${leadOwnerSql("l")} from ${tables.potential} l where l.id = ${reference} and l.xoa_luc is null)
+    when 'contract' then (select ${contractOwnerSql(tables, "h")} from crm.hop_dong h where h.id = ${reference} and h.tuyen = n.tuyen)
+  end`;
+}
+
+const visibleNotification = `case when n.tham_chieu_loai in ('quote', 'potential', 'contract') then
+  case (select vai_tro from public.nguoi_dung where ma_nguoi_dung = n.nguoi_nhan_id)
+    when 'sale-vn' then n.tuyen = 'vn' and n.nguoi_nhan_id = (${crmNotificationOwnerSql(crmTables.vn)})
+    when 'sale-global' then n.tuyen = 'global' and n.nguoi_nhan_id = (${crmNotificationOwnerSql(crmTables.global)})
+    else true
+  end
+  else true
+end`;
+
 export class PostgresNotificationRepository implements NotificationRepository {
   constructor(private readonly pool: pg.Pool) {}
 
@@ -55,8 +74,8 @@ export class PostgresNotificationRepository implements NotificationRepository {
               loai as type, tieu_de as title, noi_dung as body, duong_dan as href,
               tuyen as lane, tham_chieu_loai as ref_type, tham_chieu_id as ref_id,
               da_xem as read, xem_luc as read_at, tao_luc as created_at
-       from app.thong_bao
-       where nguoi_nhan_id = $1
+       from app.thong_bao n
+       where nguoi_nhan_id = $1 and (${visibleNotification})
        order by tao_luc desc
        limit $2`,
       [userId, Math.min(Math.max(limit, 1), 100)],
@@ -66,7 +85,7 @@ export class PostgresNotificationRepository implements NotificationRepository {
 
   async unreadCount(userId: string): Promise<number> {
     const result = await this.query<{ count: string }>(
-      `select count(*)::text as count from app.thong_bao where nguoi_nhan_id = $1 and da_xem = false`,
+      `select count(*)::text as count from app.thong_bao n where nguoi_nhan_id = $1 and da_xem = false and (${visibleNotification})`,
       [userId],
     );
     return Number(result.rows[0]?.count ?? 0);
@@ -74,9 +93,9 @@ export class PostgresNotificationRepository implements NotificationRepository {
 
   async markRead(userId: string, id: string): Promise<boolean> {
     const result = await this.query<{ id: string }>(
-      `update app.thong_bao
+      `update app.thong_bao n
        set da_xem = true, xem_luc = coalesce(xem_luc, now())
-       where id = $1::uuid and nguoi_nhan_id = $2
+       where id = $1::uuid and nguoi_nhan_id = $2 and (${visibleNotification})
        returning id::text as id`,
       [id, userId],
     );
@@ -86,9 +105,9 @@ export class PostgresNotificationRepository implements NotificationRepository {
   async markAllRead(userId: string): Promise<number> {
     const result = await this.query<{ count: string }>(
       `with updated as (
-         update app.thong_bao
+         update app.thong_bao n
          set da_xem = true, xem_luc = coalesce(xem_luc, now())
-         where nguoi_nhan_id = $1 and da_xem = false
+         where nguoi_nhan_id = $1 and da_xem = false and (${visibleNotification})
          returning 1
        )
        select count(*)::text as count from updated`,

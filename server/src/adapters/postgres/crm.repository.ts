@@ -59,6 +59,7 @@ import { CONTRACT_DATA_LAKE_DATE_SQL, contractSearch, messageSearch, potentialSe
 import { dataLakeSource, dataLakeTimestamp } from "../../lib/datalake-date";
 import { sql, trustedSql } from "../../search/sql-expression";
 import { crmActor } from "../../lib/crm-actor";
+import { contractSaleScope, crmTables as quoteTables, leadOwnerSql, leadSaleScope, quoteSaleScope, saleOwnerId } from "./crm-sale-scope";
 import { preserveQuotePrices } from "../../services/quote-edit-policy";
 import type {
   ContractRecord,
@@ -140,26 +141,6 @@ type PotentialRow = {
   convert_reason: string | null;
   created_at: Date | string;
 };
-
-const laneTables = {
-  vn: { message: "crm.tin_nhan_viet_nam", potential: "crm.khach_hang_tiem_nang_viet_nam" },
-  global: { message: "crm.tin_nhan_global", potential: "crm.khach_hang_tiem_nang_global" },
-} as const;
-
-const quoteTables = {
-  vn: {
-    message: "crm.tin_nhan_viet_nam",
-    potential: "crm.khach_hang_tiem_nang_viet_nam",
-    sourcing: "crm.bao_gia_sourcing_viet_nam",
-    logistics: "crm.bao_gia_logistics_viet_nam",
-  },
-  global: {
-    message: "crm.tin_nhan_global",
-    potential: "crm.khach_hang_tiem_nang_global",
-    sourcing: "crm.bao_gia_sourcing_global",
-    logistics: "crm.bao_gia_logistics_global",
-  },
-} as const;
 
 type QuoteRow = {
   contacts?: QuoteRecord["contacts"];
@@ -696,6 +677,7 @@ function toTemplate(row: TemplateRow): QuoteTemplateRecord {
 
 function messageSelect(lane: CrmLane): string {
   const { message, potential, sourcing, logistics } = quoteTables[lane];
+  const hideQuote = saleOwnerId() ? `when ${leadOwnerSql("l")} is distinct from m.nguoi_tao_id then null` : "";
   return `
   select m.id::text as id, m.ma_hien_thi as mess_code, m.nguon::text as source,
          l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
@@ -705,7 +687,7 @@ function messageSelect(lane: CrmLane): string {
          m.thi_truong as market, m.phan_loai::text as classification,
          m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
          m.thong_tin_don_hang as order_info, m.thuong_hieu::text as brand,
-         case when l.nhom_khach = 'LOGISTICS' and l.phan_loai_logistics is distinct from 'FCL'
+         case ${hideQuote} when l.nhom_khach = 'LOGISTICS' and l.phan_loai_logistics is distinct from 'FCL'
            then lq.chi_tiet_don_hang when l.nhom_khach = 'SOURCING' then sq.chi_tiet_don_hang end as order_lines,
          m.nhan_luc as received_at, m.tao_luc as created_at,
          l.id::text as lead_id, l.ma_tiem_nang as lead_code
@@ -1416,8 +1398,9 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async pagePotentials(lane: CrmLane, search: PotentialListSearch, page: PageRequest): Promise<ListPage<PotentialRecord>> {
     const compiled = potentialSearch(search).build();
+    const ownership = leadSaleScope(compiled.values);
     const result = await queryPage<PotentialRow>({ query: this.query.bind(this) },
-      `${potentialSelect(lane)} ${compiled.sql}`, compiled.values, page, { orderBy: "created_at desc, id desc" });
+      `${potentialSelect(lane)} ${compiled.sql}${ownership}`, compiled.values, page, { orderBy: "created_at desc, id desc" });
     return { ...result, rows: await this.withPotentialStatuses(lane, result.rows.map(toPotential)) };
   }
 
@@ -1435,11 +1418,12 @@ export class PostgresCrmRepository implements CrmRepository {
         values.push(...compiled.values);
         const kind = desk === "sourcing" ? kindClause(allowedKinds, values.length + 1) : { sql: "", values: [] };
         values.push(...kind.values);
+        const ownership = leadSaleScope(values);
         const condition = shared ? ` and ${COMBINED_HANDED_OFF_SQL}` : desk === "logistics" ? " and l.nhom_khach::text = 'LOGISTICS'" : "";
         const fromSourcing = desk === "sourcing" || shared;
         const source = quoteSelect(fromSourcing ? t.sourcing : t.logistics, t.potential, t.message,
           fromSourcing ? t.logistics : null, fromSourcing, { lane, shared });
-        sources.push(`select raw.*, ${shared && !rfq ? "raw.logistics_requested_at" : "raw.requested_at"} as __requested_at, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}) raw`);
+        sources.push(`select raw.*, ${shared && !rfq ? "raw.logistics_requested_at" : "raw.requested_at"} as __requested_at, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}${ownership}) raw`);
       };
       if (desks.includes("sourcing")) add("sourcing", false);
       if (desks.includes("logistics")) {
@@ -1477,9 +1461,11 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest): Promise<ListPage<ContractRecord>> {
     const compiled = contractSearch(view, search).build(3);
-    const values = [lane, sentOnly, ...compiled.values, search.customerKind ?? ""];
+    const values = [lane, sentOnly, ...compiled.values];
+    const ownership = contractSaleScope(quoteTables[lane], values);
+    values.push(search.customerKind ?? "");
     const result = await queryPage<ContractRow>({ query: this.query.bind(this) },
-      `${contractSelect(lane, true)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null) ${compiled.sql}`,
+      `${contractSelect(lane, true)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null) ${compiled.sql}${ownership}`,
       values, page, { orderBy: "created_at desc, id desc", where: `($${values.length}::text = '' or upper(quote_desk) = $${values.length})` });
     const quotes = new Map<string, QuoteRecord | null>();
     return { ...result, rows: await Promise.all(result.rows.map(row => {
@@ -1494,11 +1480,13 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async potentialHistory(lane: CrmLane, id: string, allowedKinds: readonly string[] | null = null) {
     const filter = kindClause(allowedKinds, 3);
+    const values = [lane, id, ...filter.values];
+    const ownership = leadSaleScope(values);
     return (await this.query<import("@speego/shared").CrmActivity>(`select id::text, ten_nguoi_thao_tac as "actorName", hanh_dong as action, loai as entity,
       ten_nguoi_cu as "previousHandlerName", ten_nguoi_moi as "handlerName", to_char(tao_luc at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "createdAt"
       from crm.lich_su_xu_ly where tuyen = $1 and khach_id = $2::uuid
-      and exists (select 1 from ${laneTables[lane].potential} l where l.id = $2::uuid and l.xoa_luc is null ${filter.sql})
-      order by tao_luc desc, id desc limit 100`, [lane, id, ...filter.values])).rows;
+      and exists (select 1 from ${quoteTables[lane].potential} l where l.id = $2::uuid and l.xoa_luc is null ${filter.sql}${ownership})
+      order by tao_luc desc, id desc limit 100`, values)).rows;
   }
 
   async listMessages(lane: CrmLane, search: MessageListSearch): Promise<MessageRecord[]> {
@@ -1511,14 +1499,14 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async messageCreator(lane: CrmLane, id: string): Promise<string | null | "missing"> {
-    const { message: messageTable } = laneTables[lane];
+    const { message: messageTable } = quoteTables[lane];
     const result = await this.query<{ creator: string | null }>(`select nguoi_tao_id as creator from ${messageTable} where id = $1::uuid`, [id]);
     const row = result.rows[0];
     return row ? row.creator : "missing";
   }
 
   async createMessage(lane: CrmLane, input: CreateMessageInput, creatorId?: string): Promise<MessageRecord> {
-    const { message: messageTable } = laneTables[lane];
+    const { message: messageTable } = quoteTables[lane];
     const inserted = await this.query<{ id: string }>(
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
@@ -1560,13 +1548,13 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async updateMessageProcessing(lane: CrmLane, id: string, status: MessageRecord["processingStatus"]): Promise<MessageRecord | null> {
-    const result = await this.query(`update ${laneTables[lane].message} set trang_thai_xu_ly = $2 where id = $1::uuid returning id`, [id, status]);
+    const result = await this.query(`update ${quoteTables[lane].message} set trang_thai_xu_ly = $2 where id = $1::uuid returning id`, [id, status]);
     return result.rows[0] ? this.findMessage(lane, id) : null;
   }
 
   async updateMessage(lane: CrmLane, id: string, input: UpdateMessageInput): Promise<MessageRecord | null> {
     if (!this.connection.getStore()) return this.transaction(() => this.updateMessage(lane, id, input));
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const { message: messageTable, potential: potentialTable } = quoteTables[lane];
     const updated = await this.query<{ id: string }>(
       `update ${messageTable} set
          ten_khach_hang_tho = $2,
@@ -1654,7 +1642,7 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async deleteMessage(lane: CrmLane, id: string): Promise<"ok" | "missing" | "linked"> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const { message: messageTable, potential: potentialTable } = quoteTables[lane];
     return this.transaction(async (client) => {
       const found = await client.query(`select id from ${messageTable} where id = $1::uuid`, [id]);
       if (!found.rowCount) return "missing";
@@ -1666,7 +1654,7 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async convertMessage(lane: CrmLane, id: string, input: ConvertMessageInput): Promise<{ message: MessageRecord; potential: PotentialRecord } | "missing" | "lost"> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const { message: messageTable, potential: potentialTable } = quoteTables[lane];
     return this.transaction(async (client) => {
       const locked = await client.query<{ status: string; source: string; customer_name_raw: string | null; phone: string | null; email: string | null; goods: string | null; demand: string | null; customer_type: string | null; note: string | null; brand: string | null }>(
         `select trang_thai::text as status, nguon::text as source, ten_khach_hang_tho as customer_name_raw, thuong_hieu::text as brand,
@@ -1755,8 +1743,9 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async listPotentials(lane: CrmLane, search: PotentialListSearch): Promise<PotentialRecord[]> {
     const compiled = potentialSearch(search).build();
+    const ownership = leadSaleScope(compiled.values);
     const result = await this.query<PotentialRow>(
-      `${potentialSelect(lane)} ${compiled.sql} order by l.tao_luc desc limit 200`,
+      `${potentialSelect(lane)} ${compiled.sql}${ownership} order by l.tao_luc desc limit 200`,
       compiled.values,
     );
     const potentials = result.rows.map(toPotential);
@@ -1795,7 +1784,8 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async updatePotential(lane: CrmLane, id: string, input: UpdatePotentialInput): Promise<PotentialRecord | null> {
-    const { potential: potentialTable } = laneTables[lane];
+    const { potential: potentialTable } = quoteTables[lane];
+    const ownerId = saleOwnerId();
     const updated = await this.query<{ id: string }>(
       `update ${potentialTable} set
          ho_ten = $2,
@@ -1824,6 +1814,7 @@ export class PostgresCrmRepository implements CrmRepository {
          phuong_thuc_van_chuyen = coalesce($25, phuong_thuc_van_chuyen),
          nguoi_xu_ly_id = coalesce($26, nguoi_xu_ly_id)
        where id = $1::uuid and xoa_luc is null and tiem_nang is not null
+         and ($27::text is null or coalesce(nguoi_xu_ly_id, nguoi_tao_id) = $27)
        returning id::text as id`,
       [
         id,
@@ -1852,6 +1843,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.packageDimensions ?? null,
         input.shippingMode ?? null,
         input.handlerId ?? null,
+        ownerId ?? null,
       ],
     );
     if (!updated.rows[0]) return null;
@@ -1861,20 +1853,21 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   async deletePotential(lane: CrmLane, id: string): Promise<boolean> {
-    const { message: messageTable, potential: potentialTable } = laneTables[lane];
+    const { message: messageTable, potential: potentialTable } = quoteTables[lane];
     return this.transaction(async (client) => {
       const removed = await client.query<{ mess_id: string | null }>(
         `with old as (
            select id, ma_tin_nhan
            from ${potentialTable}
            where id = $1::uuid and xoa_luc is null and tiem_nang is not null
+             and ($2::text is null or coalesce(nguoi_xu_ly_id, nguoi_tao_id) = $2)
          )
          update ${potentialTable} l
          set xoa_luc = now(), ma_tin_nhan = null
          from old
          where l.id = old.id
          returning old.ma_tin_nhan::text as mess_id`,
-        [id],
+        [id, saleOwnerId() ?? null],
       );
       const messId = removed.rows[0]?.mess_id;
       if (!removed.rowCount) return false;
@@ -1903,10 +1896,11 @@ export class PostgresCrmRepository implements CrmRepository {
     const tables = quoteTables[lane];
     const limit = search.unlimited ? "" : " limit 200";
     const own = quoteSearch(search, sql("q.trang_thai_bao_gia::text"), sql("q.trang_thai_hop_dong::text"), trustedSql(QUOTE_REQUESTED_AT_SQL)).build();
+    const ownScope = leadSaleScope(own.values);
     if (desk === "sourcing") {
       const kindFilter = kindClause(allowedKinds, own.values.length + 1);
       const result = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${kindFilter.sql} order by requested_at desc, q.id desc${limit}`,
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${own.sql}${ownScope}${kindFilter.sql} order by requested_at desc, q.id desc${limit}`,
         [...own.values, ...kindFilter.values],
       );
       return result.rows.map(toQuote);
@@ -1914,17 +1908,18 @@ export class PostgresCrmRepository implements CrmRepository {
     const allowOwn = !allowedKinds || allowedKinds.includes("LOGISTICS");
     const allowShared = !allowedKinds || allowedKinds.includes("SOURCING_LOGISTICS");
     const shared = quoteSearch(search, sql("q.bao_gia_logistics->>'quoteStatus'"), sql("q.bao_gia_logistics->>'contractStatus'"), trustedSql(LOGISTICS_REQUESTED_AT_SQL)).build();
+    const sharedScope = leadSaleScope(shared.values);
     const noRows = Promise.resolve({ rows: [] as QuoteRow[] });
     const [ownRows, sharedRows] = await Promise.all([
       allowOwn
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql} and l.nhom_khach::text = 'LOGISTICS' order by requested_at desc, q.id desc${limit}`,
+            `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${own.sql}${ownScope} and l.nhom_khach::text = 'LOGISTICS' order by requested_at desc, q.id desc${limit}`,
             own.values,
           )
         : noRows,
       allowShared
         ? this.query<QuoteRow>(
-            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql} and ${COMBINED_HANDED_OFF_SQL} order by logistics_requested_at desc, q.id desc${limit}`,
+            `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${shared.sql}${sharedScope} and ${COMBINED_HANDED_OFF_SQL} order by logistics_requested_at desc, q.id desc${limit}`,
             shared.values,
           )
         : noRows,
@@ -1957,11 +1952,13 @@ export class PostgresCrmRepository implements CrmRepository {
     const current = sourcing ?? await this.findQuote(lane, "logistics", id);
     if (!current) return "missing";
     const desk: QuoteDesk = sourcing ? "sourcing" : "logistics";
+    const values = [potentialId];
+    const ownership = leadSaleScope(values);
     const found = await this.query<{ customer_kind: string | null; quote_workflow: QuoteWorkflow }>(
       `select nhom_khach::text as customer_kind, luong_bao_gia as quote_workflow
-       from ${tables.potential}
-       where id = $1::uuid and xoa_luc is null`,
-      [potentialId],
+       from ${tables.potential} l
+       where id = $1::uuid and xoa_luc is null${ownership}`,
+      values,
     );
     if (!found.rowCount) return "missing";
     const allowed = desksForKind(quoteAccessKind({ customerKind: found.rows[0].customer_kind, quoteWorkflow: found.rows[0].quote_workflow }));
@@ -1988,8 +1985,10 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async deleteRfqQuote(lane: CrmLane, id: string): Promise<boolean> {
     const tables = quoteTables[lane];
+    const values = [id];
+    const ownership = quoteSaleScope(tables, values);
     for (const desk of ["sourcing", "logistics"] as const) {
-      const removed = await this.query(`delete from ${tables[desk]} where id = $1::uuid`, [id]);
+      const removed = await this.query(`delete from ${tables[desk]} q where id = $1::uuid${ownership}`, values);
       if (removed.rowCount) return true;
     }
     return false;
@@ -1997,11 +1996,13 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async requestQuote(lane: CrmLane, potentialId: string, source?: "DATA_LAKE") {
     const tables = quoteTables[lane];
+    const values = [potentialId];
+    const ownership = leadSaleScope(values);
     const found = await this.query<{ customer_kind: string | null; quote_workflow: QuoteWorkflow }>(
       `select nhom_khach::text as customer_kind, luong_bao_gia as quote_workflow
-       from ${tables.potential}
-       where id = $1::uuid and xoa_luc is null`,
-      [potentialId],
+       from ${tables.potential} l
+       where id = $1::uuid and xoa_luc is null${ownership}`,
+      values,
     );
     if (!found.rowCount) return "missing" as const;
     const kind = found.rows[0]?.customer_kind;
@@ -2088,17 +2089,22 @@ export class PostgresCrmRepository implements CrmRepository {
     id: string,
     input: UpdateQuoteOutcomeInput,
   ): Promise<QuoteRecord | "missing" | "locked"> {
-    const table = quoteTables[lane][desk];
+    const tables = quoteTables[lane];
+    const table = tables[desk];
+    const values = [id, blank(input.nonCloseReason)];
+    const ownership = quoteSaleScope(tables, values);
     const updated = await this.query(
-      `update ${table}
+      `update ${table} q
        set ly_do_khong_chot = $2
-       where id = $1::uuid and trang_thai_hop_dong = 'CHUA_TAO'::crm.trang_thai_hop_dong_bao_gia`,
-      [id, blank(input.nonCloseReason)],
+       where id = $1::uuid and trang_thai_hop_dong = 'CHUA_TAO'::crm.trang_thai_hop_dong_bao_gia${ownership}`,
+      values,
     );
     if (!updated.rowCount) {
+      const lookup = [id];
+      const lookupScope = quoteSaleScope(tables, lookup);
       const current = await this.query(
-        `select 1 from ${table} where id = $1::uuid`,
-        [id],
+        `select 1 from ${table} q where id = $1::uuid${lookupScope}`,
+        lookup,
       );
       return current.rowCount ? "locked" : "missing";
     }
@@ -2246,11 +2252,13 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async listContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch): Promise<ContractRecord[]> {
     const compiled = contractSearch(view, search).build(3);
+    const values = [lane, sentOnly, ...compiled.values];
+    const ownership = contractSaleScope(quoteTables[lane], values);
     const result = await this.query<ContractRow>(
       `${contractSelect(lane)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null)
-       ${compiled.sql}
+       ${compiled.sql}${ownership}
        order by h.tao_luc desc limit 200`,
-      [lane, sentOnly, ...compiled.values],
+      values,
     );
     const quotes = new Map<string, QuoteRecord | null>();
     const contracts: ContractRecord[] = [];
@@ -2269,12 +2277,12 @@ export class PostgresCrmRepository implements CrmRepository {
         `insert into crm.hop_dong (
           tuyen, ten_khach_hang, nhan_vien_ban, van_chuyen_den, san_pham, so_luong,
           gia_tri_san_pham, chi_phi_van_chuyen, tong_gia_tri, so_tien_thanh_toan,
-          ngay_ky, loai_tien, loai_tien_van_chuyen, nganh_hang, khoan_tien
-        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $12, $13, $14::jsonb)
+          ngay_ky, loai_tien, loai_tien_van_chuyen, nganh_hang, khoan_tien, nguoi_tao_id
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $12, $13, $14::jsonb, $15)
         returning id`,
         [lane, input.customerName.trim(), blank(input.saleName), blank(input.shipTo), blank(input.product), input.quantity,
           input.productValue, input.shippingCost, input.totalValue, input.paidAmount, input.signedOn || null,
-          input.currency, input.industry, JSON.stringify(amounts)],
+          input.currency, input.industry, JSON.stringify(amounts), crmActor.getStore()?.id ?? null],
       );
       const id = inserted.rows[0].id;
       if (input.paidAmount > 0) {
@@ -2319,6 +2327,7 @@ export class PostgresCrmRepository implements CrmRepository {
     );
     const industry = category.rows[0]?.industry ?? null;
     const source = await this.findQuote(lane, "sourcing", quoteId) ?? await this.findQuote(lane, "logistics", quoteId);
+    if (!source && saleOwnerId()) return "missing";
     const pureLogistics = source?.customerKind === "LOGISTICS";
     const order = source?.sentQuote?.order ?? source?.orders.find((item) => item.selected) ?? source?.orders[0];
     const product = pureLogistics ? [] : productAmounts(order);
@@ -2479,7 +2488,8 @@ export class PostgresCrmRepository implements CrmRepository {
     return (await this.findContractById(lane, id, "accounting")) ?? "missing";
   }
 
-  async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput) {
+  async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord | "missing" | "invalid"> {
+    if (!this.connection.getStore() && saleOwnerId()) return this.transaction(() => this.updateCommercialContract(lane, id, input));
     const current = await this.findContractById(lane, id, "sale");
     if (!current) return "missing" as const;
     // Tỷ giá VND của hợp đồng: Sale có thể bổ sung/sửa; VND luôn bằng 1 nên không lưu.
@@ -2500,11 +2510,13 @@ export class PostgresCrmRepository implements CrmRepository {
     const paidGroups = sumByCurrency([paymentsInMain(payments, amounts, current.currency)]);
     if (paidGroups.some((group) => group.amount > (totals.find((item) => item.currency === group.currency)?.amount ?? 0) + 0.01)) return "invalid" as const;
     const paidAmount = paidGroups.find((group) => group.currency === current.currency)?.amount ?? 0;
+    const values = [id, lane, paidAmount, JSON.stringify(vndRates)];
+    const ownership = contractSaleScope(quoteTables[lane], values);
     const updated = await this.query(
-      `update crm.hop_dong set so_tien_thanh_toan = $3,
+      `update crm.hop_dong h set so_tien_thanh_toan = $3,
          khoan_tien = coalesce(khoan_tien, '{}'::jsonb) || jsonb_build_object('vndRates', $4::jsonb)
-       where id = $1::uuid and tuyen = $2`,
-      [id, lane, paidAmount, JSON.stringify(vndRates)],
+       where id = $1::uuid and tuyen = $2${ownership}`,
+      values,
     );
     if (!updated.rowCount) return "missing" as const;
     await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
@@ -2536,10 +2548,12 @@ export class PostgresCrmRepository implements CrmRepository {
         ? `gui_ke_toan_luc = now(), ban_gui_ke_toan = (${opsSnapshotSql}) || ${commercialSnapshotSql}`
         : `gui_xac_nhan_luc = now(), ban_gui_xac_nhan = ${accountingSnapshotSql}`;
     const pendingGuard = target === "parties" ? "and gui_ke_toan_luc is not null" : "";
+    const values = [id, lane];
+    const ownership = contractSaleScope(quoteTables[lane], values);
     const updated = await this.query(
-      `update crm.hop_dong set ${assignment}
-       where id = $1::uuid and tuyen = $2 ${pendingGuard}`,
-      [id, lane],
+      `update crm.hop_dong h set ${assignment}
+       where id = $1::uuid and tuyen = $2 ${pendingGuard}${ownership}`,
+      values,
     );
     if (updated.rowCount) return (await this.findContractById(lane, id, view)) ?? "missing";
     const current = await this.findContractById(lane, id, view);
@@ -2548,9 +2562,11 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   private async findContract(lane: CrmLane, quoteId: string, view: ContractView): Promise<ContractRecord | null> {
+    const values = [lane, quoteId];
+    const ownership = contractSaleScope(quoteTables[lane], values);
     const result = await this.query<ContractRow>(
-      `${contractSelect(lane)} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid`,
-      [lane, quoteId],
+      `${contractSelect(lane)} where h.tuyen = $1 and h.ma_bao_gia = $2::uuid${ownership}`,
+      values,
     );
     return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;
   }
@@ -2587,51 +2603,42 @@ export class PostgresCrmRepository implements CrmRepository {
   }
 
   private async findContractById(lane: CrmLane, id: string, view: ContractView): Promise<ContractRecord | null> {
+    const values = [lane, id];
+    const ownership = contractSaleScope(quoteTables[lane], values);
     const result = await this.query<ContractRow>(
-      `${contractSelect(lane)} where h.tuyen = $1 and h.id = $2::uuid`,
-      [lane, id],
+      `${contractSelect(lane)} where h.tuyen = $1 and h.id = $2::uuid${ownership}`,
+      values,
     );
     return result.rows[0] ? this.withMainTotal(lane, projectContract(result.rows[0], view)) : null;
   }
 
   async findQuote(lane: CrmLane, desk: QuoteDesk, id: string): Promise<QuoteRecord | null> {
-    const tables = quoteTables[lane];
-    if (desk === "logistics") {
-      const own = await this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} and q.id = $1::uuid`,
-        [id],
-      );
-      if (own.rows[0]) return toQuote(own.rows[0]);
-      const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.id = $1::uuid and ${COMBINED_HANDED_OFF_SQL}`,
-        [id],
-      );
-      return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
-    }
-    const result = await this.query<QuoteRow>(
-      `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} and q.id = $1::uuid`,
-      [id],
-    );
-    return result.rows[0] ? toQuote(result.rows[0]) : null;
+    return this.findQuoteBy(lane, desk, "id", id);
   }
 
   async findQuoteByPotential(lane: CrmLane, desk: QuoteDesk, potentialId: string): Promise<QuoteRecord | null> {
+    return this.findQuoteBy(lane, desk, "ma_khach_hang_tiem_nang", potentialId);
+  }
+
+  private async findQuoteBy(lane: CrmLane, desk: QuoteDesk, column: "id" | "ma_khach_hang_tiem_nang", id: string): Promise<QuoteRecord | null> {
     const tables = quoteTables[lane];
+    const values = [id];
+    const filter = `and q.${column} = $1::uuid${leadSaleScope(values)}`;
     if (desk === "logistics") {
       const own = await this.query<QuoteRow>(
-        `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
-        [potentialId],
+        `${quoteSelect(tables.logistics, tables.potential, tables.message, null, false)} ${filter}`,
+        values,
       );
       if (own.rows[0]) return toQuote(own.rows[0]);
       const shared = await this.query<QuoteRow>(
-        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} and q.ma_khach_hang_tiem_nang = $1::uuid and ${COMBINED_HANDED_OFF_SQL}`,
-        [potentialId],
+        `${quoteSelect(tables.sourcing, tables.potential, tables.message, null, true)} ${filter} and ${COMBINED_HANDED_OFF_SQL}`,
+        values,
       );
       return shared.rows[0] ? toLogisticsQuote(shared.rows[0]) : null;
     }
     const result = await this.query<QuoteRow>(
-      `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} and q.ma_khach_hang_tiem_nang = $1::uuid`,
-      [potentialId],
+      `${quoteSelect(tables.sourcing, tables.potential, tables.message, tables.logistics, true)} ${filter}`,
+      values,
     );
     return result.rows[0] ? toQuote(result.rows[0]) : null;
   }

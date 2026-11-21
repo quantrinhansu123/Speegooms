@@ -2,23 +2,9 @@ import type { CrmLane } from "@speego/shared";
 import type pg from "pg";
 import { AppError } from "../../lib/errors";
 import { crmActor } from "../../lib/crm-actor";
+import { contractSaleScope, crmTables as tables, leadSaleScope, quoteSaleScope, saleOwnerId } from "./crm-sale-scope";
 import { dataLakeSource, dataLakeTimestamp } from "../../lib/datalake-date";
 import type { PlannedMessage, PlannedPotential } from "../../services/crm-import-sheets";
-
-const tables = {
-  vn: {
-    message: "crm.tin_nhan_viet_nam",
-    potential: "crm.khach_hang_tiem_nang_viet_nam",
-    sourcing: "crm.bao_gia_sourcing_viet_nam",
-    logistics: "crm.bao_gia_logistics_viet_nam",
-  },
-  global: {
-    message: "crm.tin_nhan_global",
-    potential: "crm.khach_hang_tiem_nang_global",
-    sourcing: "crm.bao_gia_sourcing_global",
-    logistics: "crm.bao_gia_logistics_global",
-  },
-} as const;
 
 export type StoredPotential = {
   id: string;
@@ -97,8 +83,8 @@ export class PostgresCrmImportStore {
     return this.transaction(async (client) => {
       const message = await client.query<{ id: string; name: string | null; phone: string | null; email: string | null; source: string; goods: string | null }>(
         `select id::text as id, ten_khach_hang_tho as name, so_dien_thoai as phone, thu_dien_tu as email, nguon::text as source, hang_hoa as goods
-         from ${table.message} where ma_tham_chieu_ngoai = $1 limit 1`,
-        [row.messRef],
+         from ${table.message} where ma_tham_chieu_ngoai = $1 and ($2::text is null or nguoi_tao_id = $2) limit 1`,
+        [row.messRef, saleOwnerId() ?? null],
       );
       const mess = message.rows[0];
       if (!mess) return "no-mess";
@@ -140,8 +126,10 @@ export class PostgresCrmImportStore {
         workflow,
       ];
       if (current) {
-        await client.query(
-          `update ${table.potential} set
+        const values = [current.id, ...params, row.packageDimensions || null];
+        const ownership = leadSaleScope(values);
+        const updated = await client.query(
+          `update ${table.potential} l set
              ho_ten = $2,
              ten_cong_ty = coalesce($3, ten_cong_ty),
              so_dien_thoai = $4,
@@ -161,10 +149,10 @@ export class PostgresCrmImportStore {
              yeu_cau_khach = coalesce($17, yeu_cau_khach),
              ma_ngoai = $18,
              luong_bao_gia = case when $11::text = 'SOURCING' and $19 = 'LEGACY' then 'LEGACY' else luong_bao_gia end
-           where id = $1::uuid`,
-          [current.id, ...params, row.packageDimensions || null],
+           where id = $1::uuid${ownership}`,
+          values,
         );
-        return "updated";
+        return updated.rowCount ? "updated" : "taken";
       }
       await client.query(
         `insert into ${table.potential} (
@@ -209,58 +197,66 @@ export class PostgresCrmImportStore {
   }
 
   async findPotential(lane: CrmLane, externalRef: string): Promise<StoredPotential | null> {
+    const values = [externalRef];
+    const ownership = leadSaleScope(values);
     const result = await this.query<{ id: string; kind: string | null; workflow: string }>(
       `select id::text as id, nhom_khach::text as kind, luong_bao_gia as workflow
-       from ${tables[lane].potential}
-       where ma_ngoai = $1 and xoa_luc is null
+       from ${tables[lane].potential} l
+       where ma_ngoai = $1 and xoa_luc is null${ownership}
        limit 1`,
-      [externalRef],
+      values,
     );
     const row = result.rows[0];
     return row ? { id: row.id, kind: row.kind, workflow: row.workflow } : null;
   }
 
   async ensureKind(lane: CrmLane, id: string, kind: "SOURCING" | "LOGISTICS" | null, combined: boolean): Promise<StoredPotential | null> {
+    const values = [id, kind, combined];
+    const ownership = leadSaleScope(values);
     const result = await this.query<{ id: string; kind: string | null; workflow: string }>(
-      `update ${tables[lane].potential} set
+      `update ${tables[lane].potential} l set
          nhom_khach = coalesce(nhom_khach, $2::text::crm.customer_kind),
          luong_bao_gia = case
            when $3::boolean and coalesce(nhom_khach, $2::text::crm.customer_kind)::text = 'SOURCING' then 'COMBINED'
            when nhom_khach is null and $2::text = 'SOURCING' and not $3::boolean then 'LEGACY'
            else luong_bao_gia
          end
-       where id = $1::uuid and xoa_luc is null
+       where id = $1::uuid and xoa_luc is null${ownership}
        returning id::text as id, nhom_khach::text as kind, luong_bao_gia as workflow`,
-      [id, kind, combined],
+      values,
     );
     const row = result.rows[0];
     return row ? { id: row.id, kind: row.kind, workflow: row.workflow } : null;
   }
 
   async replaceLogisticsOrders(lane: CrmLane, quoteId: string, sheet: unknown, orders: unknown, status: string): Promise<boolean> {
+    const values = [quoteId, JSON.stringify(sheet), JSON.stringify(orders), status];
+    const ownership = quoteSaleScope(tables[lane], values);
     const updated = await this.query(
-      `update ${tables[lane].sourcing}
+      `update ${tables[lane].sourcing} q
        set bao_gia_logistics = jsonb_set(
          jsonb_set(coalesce(bao_gia_logistics, $2::jsonb), '{orders}', $3::jsonb, true),
          '{quoteStatus}', to_jsonb($4::text), true
        )
        where id = $1::uuid
-         and (bao_gia_logistics is null or bao_gia_logistics->>'sentQuote' is null)`,
-      [quoteId, JSON.stringify(sheet), JSON.stringify(orders), status],
+         and (bao_gia_logistics is null or bao_gia_logistics->>'sentQuote' is null)${ownership}`,
+      values,
     );
     return (updated.rowCount ?? 0) > 0;
   }
 
   async findQuoteLink(lane: CrmLane, externalRef: string): Promise<StoredQuoteLink | null> {
     const table = tables[lane];
+    const values = [externalRef];
+    const ownership = leadSaleScope(values, "p");
     const result = await this.query<{ sourcing_id: string | null; logistics_id: string | null; kind: string | null }>(
       `select s.id::text as sourcing_id, l.id::text as logistics_id, p.nhom_khach::text as kind
        from ${table.potential} p
        left join ${table.sourcing} s on s.ma_khach_hang_tiem_nang = p.id
        left join ${table.logistics} l on l.ma_khach_hang_tiem_nang = p.id
-       where p.ma_ngoai = $1 and p.xoa_luc is null
+       where p.ma_ngoai = $1 and p.xoa_luc is null${ownership}
        limit 1`,
-      [externalRef],
+      values,
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -271,6 +267,8 @@ export class PostgresCrmImportStore {
   }
 
   async contractState(lane: CrmLane, quoteId: string): Promise<{ id: string; paid: number; total: number; locked: boolean } | null> {
+    const values = [lane, quoteId];
+    const ownership = contractSaleScope(tables[lane], values);
     const result = await this.query<{ id: string; paid: string; total: string; locked: boolean }>(
       `select h.id::text as id, h.so_tien_thanh_toan as paid, h.tong_gia_tri as total,
               exists (
@@ -280,9 +278,9 @@ export class PostgresCrmImportStore {
                 select 1 from crm.hop_dong_anh_bill b where b.ma_hop_dong = h.id
               ) as locked
        from crm.hop_dong h
-       where h.tuyen = $1 and h.ma_bao_gia = $2::uuid
+       where h.tuyen = $1 and h.ma_bao_gia = $2::uuid${ownership}
        limit 1`,
-      [lane, quoteId],
+      values,
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -303,8 +301,13 @@ export class PostgresCrmImportStore {
     tracking: string;
     replacePaid: boolean;
   }): Promise<void> {
-    await this.query(
-      `update crm.hop_dong set
+    const values = [id, lane, input.customerName, input.saleName || null, input.product || null, input.quantity,
+      input.productValue, input.shippingCost, input.totalValue, input.replacePaid, input.paidAmount,
+      input.signedOn || null, input.currency, input.tracking];
+    const ownership = contractSaleScope(tables[lane], values);
+    await this.transaction(async (client) => {
+      const updated = await client.query(
+      `update crm.hop_dong h set
          ten_khach_hang = $3,
          nhan_vien_ban = $4,
          san_pham = $5,
@@ -316,32 +319,19 @@ export class PostgresCrmImportStore {
          ngay_ky = $12::date,
          loai_tien = $13,
          tracking = coalesce(nullif($14, ''), tracking)
-       where id = $1::uuid and tuyen = $2`,
-      [
-        id,
-        lane,
-        input.customerName,
-        input.saleName || null,
-        input.product || null,
-        input.quantity,
-        input.productValue,
-        input.shippingCost,
-        input.totalValue,
-        input.replacePaid,
-        input.paidAmount,
-        input.signedOn || null,
-        input.currency,
-        input.tracking,
-      ],
-    );
-    if (!input.replacePaid) return;
-    await this.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
-    if (input.paidAmount > 0) {
-      await this.query(
-        `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu, loai_tien) values ($1::uuid, $2, 1, $3)`,
-        [id, input.paidAmount, input.currency],
+       where id = $1::uuid and tuyen = $2${ownership}`,
+        values,
       );
-    }
+      if (!updated.rowCount) throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
+      if (!input.replacePaid) return;
+      await client.query(`delete from crm.hop_dong_dong_thanh_toan where ma_hop_dong = $1::uuid`, [id]);
+      if (input.paidAmount > 0) {
+        await client.query(
+          `insert into crm.hop_dong_dong_thanh_toan (ma_hop_dong, so_tien, thu_tu, loai_tien) values ($1::uuid, $2, 1, $3)`,
+          [id, input.paidAmount, input.currency],
+        );
+      }
+    });
   }
 
   private async query<T extends pg.QueryResultRow>(sql: string, params: readonly unknown[] = []): Promise<pg.QueryResult<T>> {

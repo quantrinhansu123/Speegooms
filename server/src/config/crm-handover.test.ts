@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import pg from "pg";
-import { canHandleCrm, convertMessageSchema, createMessageSchema, quoteOrderSchema, updateMessageSchema, updatePotentialSchema, type PublicUser } from "@speego/shared";
+import { canHandleCrm, convertMessageSchema, createDirectContractSchema, createMessageSchema, quoteOrderSchema, updateMessageSchema, updatePotentialSchema, type PublicUser } from "@speego/shared";
 import { PostgresCrmRepository } from "../adapters/postgres/crm.repository";
 import { crmActor } from "../lib/crm-actor";
 import { createApp } from "../app";
@@ -69,15 +69,18 @@ test("Postgres handover enforces ownership and preserves the real processor hist
   const a = user("Sale A", "sale-global");
   const b = user("Sale B", "sale-global");
   const wrongLane = user("Sale VN", "sale-vn");
+  const vnPeer = user("Sale VN B", "sale-vn");
   const admin = user("Admin", "admin");
+  const manager = user("Truong Sale", "sale-global-lead");
   const messages: string[] = [];
   const potentials: string[] = [];
+  const contracts: string[] = [];
   const input = (name: string, handlerId?: string) => updatePotentialSchema.parse({ fullName: name, companyName: "", phone: "0900000000", email: "", productInterest: "Hàng mẫu", quantityNote: "", address: "US", saleNote: "Đã tư vấn", potential: "POTENTIAL", customerKind: "SOURCING", handlerId });
   const as = <T>(actor: PublicUser, action: () => Promise<T>) => crmActor.run(actor, action);
   try {
     const password = "local-fixture-only-123";
     const hash = await new ScryptPasswordHasher().hash(password);
-    for (const actor of [a, b, wrongLane, admin]) await pool.query(`insert into public.nguoi_dung(ma_nguoi_dung, thu_dien_tu, ho_ten, vai_tro, phong_ban, chuc_danh, mat_khau_bam) values($1,$2,$3,$4,'Test','Test',$5)`, [actor.id, actor.email, actor.name, actor.role, hash]);
+    for (const actor of [a, b, wrongLane, vnPeer, admin, manager]) await pool.query(`insert into public.nguoi_dung(ma_nguoi_dung, thu_dien_tu, ho_ten, vai_tro, phong_ban, chuc_danh, mat_khau_bam) values($1,$2,$3,$4,'Test','Test',$5)`, [actor.id, actor.email, actor.name, actor.role, hash]);
     const message = await as(a, () => repo.createMessage("global", createMessageSchema.parse({ customerName: "Khách bàn giao", phone: "0900000000", email: "", goods: "Hàng mẫu", demand: "SOURCING", note: "Tư vấn", market: "US", saleName: a.name, painPoint: "Cần tìm nguồn", linkMess: "", brand: "SPEEGO_US" }), a.id));
     messages.push(message.id);
     const converted = await as(a, () => repo.convertMessage("global", message.id, convertMessageSchema.parse({ phone: "0900000000", customerType: "INDIVIDUAL", careChannel: "FACEBOOK", productInterest: "Hàng mẫu", address: "US", saleNote: "Đã bàn giao", requirements: "Tìm hàng", handlerId: b.id })));
@@ -91,7 +94,7 @@ test("Postgres handover enforces ownership and preserves the real processor hist
     assert.equal(handoverEvent.handlerName, b.name);
     assert.ok(history.some(item => item.entity === "message" && item.actorName === a.name));
     await assert.rejects(as(a, () => repo.updateMessage("global", message.id, updateMessageSchema.parse({ customerName: "Không được sửa nguồn", phone: "0900000000", email: "", goods: "Hàng mẫu", demand: "SOURCING", note: "", market: "US", saleName: a.name, painPoint: "", linkMess: "", brand: "SPEEGO_US" }))), { status: 403 });
-    await assert.rejects(as(a, () => repo.updatePotential("global", leadId, input("Không được sửa", a.id))), { status: 403 });
+    assert.equal(await as(a, () => repo.updatePotential("global", leadId, input("Không được sửa", a.id))), null);
     assert.equal((await repo.potentialHistory("global", leadId)).length, history.length);
     await as(b, () => repo.updatePotential("global", leadId, input("Sale B đã xử lý")));
     const quote = await as(b, () => repo.requestQuote("global", leadId));
@@ -100,10 +103,19 @@ test("Postgres handover enforces ownership and preserves the real processor hist
     const afterCreate = (await repo.potentialHistory("global", leadId)).length;
     await as(b, () => repo.requestQuote("global", leadId));
     assert.equal((await repo.potentialHistory("global", leadId)).length, afterCreate, "opening an existing quote must not invent a create event");
-    await assert.rejects(as(a, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Không được sửa" })), { status: 403 });
+    assert.equal(await as(a, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Không được sửa" })), "missing");
     await as(b, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Khách đang cân nhắc" }));
     assert.ok((await repo.potentialHistory("global", leadId)).some(item => item.entity === "quote" && item.actorName === b.name));
     await assert.rejects(as(b, () => repo.updatePotential("global", leadId, input("Sai tuyến", wrongLane.id))), { status: 400 });
+    const { rows: [linked] } = await pool.query<{ id: string }>(`insert into crm.hop_dong(tuyen, ma_bao_gia, ten_khach_hang, san_pham) values ('global', $1, $2, $2) returning id`, [quote.quote.id, token]);
+    contracts.push(linked.id);
+    const draft = createDirectContractSchema.parse({ customerName: token, saleName: b.name, currency: "VND", productValue: 100, shippingCost: 0, paidAmount: 0, shipTo: "", product: "", quantity: 1, signedOn: "" });
+    const direct = await as(a, () => repo.createDirectContract("global", draft));
+    const vnDirect = await as(wrongLane, () => repo.createDirectContract("vn", draft));
+    const unknownOwner = await repo.createDirectContract("global", draft);
+    contracts.push(direct.id, vnDirect.id, unknownOwner.id);
+    await pool.query(`insert into app.thong_bao (nguoi_nhan_id, loai, tieu_de, tuyen, tham_chieu_loai, tham_chieu_id)
+      values ($1, 'quote.send', 'Báo giá', 'global', 'quote', $3), ($2, 'quote.send', 'Báo giá', 'global', 'quote', $3)`, [a.id, b.id, quote.quote.id]);
 
     const env = loadEnv({ NODE_ENV: "test", DB_PROVIDER: "postgres", DATABASE_URL: url.toString(), DATABASE_SSL: "false", CORS_ORIGINS: "http://localhost:3000" });
     const container = await createContainer(env);
@@ -122,14 +134,61 @@ test("Postgres handover enforces ownership and preserves the real processor hist
       };
       const headersA = await login(a);
       const headersB = await login(b);
+      const headersManager = await login(manager);
+      const headersVn = await login(wrongLane);
+      const headersVnPeer = await login(vnPeer);
       const path = `${origin}/api/crm/potentials/${leadId}?lane=global`;
-      assert.equal((await fetch(path, { method: "PATCH", headers: headersA, body: JSON.stringify(input("Không được sửa")) })).status, 403);
+      assert.equal((await fetch(path, { method: "PATCH", headers: headersA, body: JSON.stringify(input("Không được sửa")) })).status, 404);
       assert.equal((await fetch(path, { method: "PATCH", headers: headersB, body: JSON.stringify(input("B xử lý qua API")) })).status, 200);
       assert.equal((await repo.potentialHistory("global", leadId))[0].actorName, b.name, "request identity must reach the database audit");
       const historyRead = await fetch(`${origin}/api/crm/potentials/${leadId}/history?lane=global`, { headers: headersA });
       assert.equal(historyRead.status, 200);
-      assert.ok(((await historyRead.json()) as { history: unknown[] }).history.length > 0);
+      assert.deepEqual((await historyRead.json()).history, []);
+      const list = async (resource: string, query: string, headers: typeof headersA, key = resource) => {
+        const response = await fetch(`${origin}/api/crm/${resource}?lane=global&${query}`, { headers });
+        assert.equal(response.status, 200);
+        const body = await response.json();
+        assert.equal(body.pagination.total, body[key].length);
+        return body[key].map((row: { id: string }) => row.id).sort();
+      };
+      const potentialQuery = `q=${converted.potential.leadCode}&focusId=${leadId}`;
+      const rfqQuery = `q=${quote.quote.code}&focusId=${quote.quote.id}`;
+      assert.deepEqual(await list("potentials", potentialQuery, headersA), []);
+      assert.deepEqual(await list("potentials", potentialQuery, headersB), [leadId]);
+      assert.deepEqual(await list("rfq-quotes", rfqQuery, headersA, "quotes"), []);
+      assert.deepEqual(await list("rfq-quotes", rfqQuery, headersB, "quotes"), [quote.quote.id]);
+      assert.deepEqual(await list("contracts", `q=${token}`, headersA), [direct.id]);
+      assert.deepEqual(await list("contracts", `q=${token}`, headersB), [linked.id]);
+      assert.deepEqual(await list("contracts", `q=${token}`, headersManager), [direct.id, linked.id, unknownOwner.id].sort());
+      const notifications = async (headers: typeof headersA) => {
+        const response = await fetch(`${origin}/api/notifications`, { headers });
+        assert.equal(response.status, 200);
+        return (await response.json()).notifications as { refId: string }[];
+      };
+      assert.ok(!(await notifications(headersA)).some(row => row.refId === quote.quote.id));
+      assert.ok((await notifications(headersB)).some(row => row.refId === quote.quote.id));
+      const tracking = (headers: typeof headersA) => fetch(`${origin}/api/crm/potentials/${leadId}/tracking?lane=global`, { headers }).then(response => response.json());
+      assert.deepEqual(await tracking(headersA), { potential: null, quotes: [], contracts: [] });
+      assert.equal((await tracking(headersB)).contracts[0].id, linked.id);
+      const source = `${origin}/api/crm/quotes/${quote.quote.id}/contract-source?lane=global`;
+      assert.equal((await fetch(source, { headers: headersA })).status, 404);
+      assert.equal((await fetch(source, { headers: headersB })).status, 200);
+      assert.equal((await fetch(`${origin}/api/crm/contracts/${linked.id}/resend?lane=global&to=ops`, { method: "POST", headers: headersA })).status, 404);
+      const updatePayment = (id: string, headers: typeof headersA) => fetch(`${origin}/api/crm/contracts/${id}/commercial?lane=global`, {
+        method: "PATCH", headers, body: JSON.stringify({ payments: [] }),
+      });
+      assert.equal((await updatePayment(linked.id, headersA)).status, 404);
+      assert.equal((await updatePayment(direct.id, headersA)).status, 200);
+      const vnList = await fetch(`${origin}/api/crm/contracts?lane=vn&q=${token}`, { headers: headersVn });
+      assert.equal(vnList.status, 200);
+      assert.deepEqual((await vnList.json()).contracts.map((row: { id: string }) => row.id), [vnDirect.id]);
+      const vnPeerList = await fetch(`${origin}/api/crm/contracts?lane=vn&q=${token}`, { headers: headersVnPeer });
+      assert.equal(vnPeerList.status, 200);
+      assert.deepEqual((await vnPeerList.json()).contracts, []);
+      assert.equal((await fetch(`${origin}/api/crm/contracts?lane=vn&q=${token}`, { headers: headersA })).status, 403);
       assert.equal((await fetch(path, { method: "PATCH", headers: headersB, body: JSON.stringify(input("B bàn giao lại A", a.id)) })).status, 200);
+      assert.deepEqual(await list("contracts", `q=${token}`, headersA), [direct.id, linked.id].sort());
+      assert.deepEqual(await list("contracts", `q=${token}`, headersB), []);
       const notice = await pool.query("select 1 from app.thong_bao where nguoi_nhan_id = $1 and loai = 'crm.handover'", [a.id]);
       assert.ok(notice.rowCount);
     } finally {
@@ -137,17 +196,18 @@ test("Postgres handover enforces ownership and preserves the real processor hist
       await container.close();
     }
     await as(admin, () => repo.updatePotential("global", leadId, input("Admin bàn giao lại", a.id)));
-    await assert.rejects(as(b, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Đã mất quyền" })), { status: 403 });
+    assert.equal(await as(b, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Đã mất quyền" })), "missing");
     await as(a, () => repo.updateQuoteOutcome("global", "sourcing", quote.quote.id, { nonCloseReason: "Người nhận mới xử lý" }));
     await pool.query("update public.nguoi_dung set ho_ten = 'Tên mới' where ma_nguoi_dung = $1", [a.id]);
     assert.ok((await repo.potentialHistory("global", leadId)).some(item => item.action === "handover" && item.actorName === "Sale A"));
     const creator = await pool.query("select nguoi_tao_id from crm.khach_hang_tiem_nang_global where id = $1", [leadId]);
     assert.equal(creator.rows[0].nguoi_tao_id, a.id);
   } finally {
+    await pool.query("delete from crm.hop_dong where id = any($1::uuid[])", [contracts]);
     for (const id of potentials) await repo.deletePotential("global", id);
     for (const id of messages) await repo.deleteMessage("global", id);
     await pool.query("delete from crm.lich_su_xu_ly where khach_id = any($1::uuid[])", [potentials]);
-    await pool.query("delete from public.nguoi_dung where ma_nguoi_dung = any($1::text[])", [[a.id, b.id, wrongLane.id, admin.id]]);
+    await pool.query("delete from public.nguoi_dung where ma_nguoi_dung = any($1::text[])", [[a.id, b.id, wrongLane.id, vnPeer.id, admin.id, manager.id]]);
     await pool.end();
   }
 });
