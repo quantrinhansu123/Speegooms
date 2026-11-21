@@ -44,6 +44,7 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     id: `quote-${lane}`, code: `BGL-${lane}`, potentialId: `lead-${lane}`, leadCode: `LD-${lane}`,
     customerName: lane === "global" ? "Chin Tran" : "Chin Tran 2", customerKind: "LOGISTICS",
     quoteWorkflow: "COMBINED", quoteStatus: "CHUA_CO_BAO_GIA", contractStatus: "CHUA_TAO",
+    contacts: { sale: `Sale ${lane}`, sourcing: lane === "global" ? "Sourcing Global" : null, operations: `Owner ${lane}` },
     orders: [], notes: { totalLabel: "", shippingLabel: "", weightNote: "", validityNote: "", opsExtra: "", freight: { basis: "shipment", rate: null, total: null, totalManual: false }, logisticsFees: [], deposit: [] },
     createdAt: lane === "global" ? "2026-11-09T12:00:00Z" : "2026-11-10T12:00:00Z",
     requestedAt: lane === "global" ? "2026-11-12T17:30:00Z" : "2026-11-12T12:00:00Z",
@@ -73,9 +74,8 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
           .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
         res.end(JSON.stringify({ quotes: rows, pagination: { page: 1, pages: 1, total: rows.length, pageSize: 20, summary: {} } }));
       }
-    } else if (url.pathname.includes("/assignees")) {
-      res.end(JSON.stringify({ assignees: { [`quote-${lane}`]: { id: lane, name: `Owner ${lane}` } } }));
-    } else if (url.pathname === "/api/crm/quote-templates") res.end('{"templates":[]}');
+    } else if (url.pathname.endsWith("/members")) res.end('{"members":[]}');
+    else if (url.pathname === "/api/crm/quote-templates") res.end('{"templates":[]}');
     else if (url.pathname === "/api/security/csrf") res.end('{"token":"test"}');
     else if (url.pathname.endsWith("/send")) res.end(JSON.stringify({ quote: quotes[lane] }));
     else res.end("{}");
@@ -99,6 +99,11 @@ test("admin sees and searches both Logistics lanes, and edits each quote on its 
     assert.equal(await page.getByRole("link", { name: "BGL-global" }).getAttribute("href"), "/theo-doi-bao-gia/global/lead-global");
     await page.getByText("Owner global", { exact: true }).waitFor();
     await page.getByText("Owner vn", { exact: true }).waitFor();
+    for (const name of ["Sale phụ trách", "Sourcing phụ trách", "Vận hành phụ trách"]) {
+      await page.getByRole("columnheader", { name, exact: true }).waitFor();
+    }
+    await page.locator('tr[data-row-id="quote-global"]').getByText("Sourcing Global", { exact: true }).waitFor();
+    await page.locator('tr[data-row-id="quote-vn"]').getByText("Sale vn", { exact: true }).waitFor();
 
     // Background refreshes must keep the existing row DOM mounted, even if
     // the response is slow or fails. Polling, notifications and tab returns

@@ -161,6 +161,7 @@ const quoteTables = {
 } as const;
 
 type QuoteRow = {
+  contacts?: QuoteRecord["contacts"];
   handler_id: string | null; handler_name: string | null;
   id: string;
   code: string;
@@ -240,14 +241,21 @@ function kindClause(
   };
 }
 
+function quoteAssigneeName(lane: CrmLane, desk: QuoteDesk, quoteId: string): string {
+  return `(select u.ho_ten from crm.chia_don a
+    join public.nguoi_dung u on u.ma_nguoi_dung = a.nguoi_nhan_id
+    where a.tuyen = '${lane}' and a.ban = '${desk}' and a.bao_gia_id = ${quoteId})`;
+}
+
 function quoteSelect(
   quote: string,
   potential: string,
   message: string,
   logistics: string | null,
   sheet: boolean,
+  list?: { lane: CrmLane; shared: boolean },
 ): string {
-  const logisticsColumn = logistics ? "lq.id::text" : "null";
+  const logisticsColumn = logistics && !list?.shared ? "lq.id::text" : "null";
   const logisticsJoin = logistics
     ? `left join ${logistics} lq on lq.ma_khach_hang_tiem_nang = q.ma_khach_hang_tiem_nang`
     : "";
@@ -257,9 +265,18 @@ function quoteSelect(
   const sheetJoin = sheet
     ? "left join crm.mau_bao_gia lm on lm.id = nullif(q.bao_gia_logistics->>'templateId', '')::uuid"
     : "";
+  const handlerName = "(select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id)";
+  // Shared Logistics assignments use the Sourcing quote ID. Older quotes can have a separate Logistics row.
+  const contacts = list ? `jsonb_build_object(
+    'sale', coalesce(${handlerName}, nullif(btrim(msg.nhan_vien_ban), '')),
+    'sourcing', ${sheet ? quoteAssigneeName(list.lane, "sourcing", "q.id") : "null"},
+    'operations', ${logistics
+      ? `coalesce(${quoteAssigneeName(list.lane, "logistics", "q.id")}, ${quoteAssigneeName(list.lane, "logistics", "lq.id")})`
+      : quoteAssigneeName(list.lane, "logistics", "q.id")}
+  ) as contacts,` : "";
   return `
   select q.id::text as id, q.ma_hien_thi as code,
-         l.nguoi_xu_ly_id as handler_id, (select ho_ten from public.nguoi_dung where ma_nguoi_dung = l.nguoi_xu_ly_id) as handler_name,
+         l.nguoi_xu_ly_id as handler_id, ${handlerName} as handler_name, ${contacts}
          q.ma_khach_hang_tiem_nang::text as potential_id, l.ma_tiem_nang as lead_code,
          l.ho_ten as customer_name, l.ten_cong_ty as company_name, l.dia_chi as address,
          l.so_dien_thoai as phone, l.thu_dien_tu as email, l.nhom_khach::text as customer_kind, l.luong_bao_gia as quote_workflow,
@@ -813,6 +830,7 @@ function vndRateMap(value: unknown): Record<string, number> | null {
 
 
 type ContractRow = {
+  contacts?: ContractRecord["contacts"];
   id: string;
   code: string;
   lane: CrmLane;
@@ -921,8 +939,25 @@ const accountingSnapshotSql = `jsonb_build_object(
   'deliveryOn', ban_gui_ke_toan->>'deliveryOn'
 )`;
 
-function contractSelect(lane: CrmLane): string {
+function contractSelect(lane: CrmLane, includeContacts = false): string {
   const tables = quoteTables[lane];
+  const contacts = includeContacts ? `jsonb_build_object(
+    'sale', coalesce(sale.ho_ten, nullif(btrim(h.nhan_vien_ban), ''), nullif(btrim(msg.nhan_vien_ban), '')),
+    'sourcing', ${quoteAssigneeName(lane, "sourcing", "coalesce(source_sourcing.id, related_sourcing.id)")},
+    'operations', coalesce(
+      ${quoteAssigneeName(lane, "logistics", "coalesce(source_sourcing.id, related_sourcing.id)")},
+      ${quoteAssigneeName(lane, "logistics", "coalesce(source_logistics.id, related_logistics.id)")}
+    )
+  ) as contacts,` : "";
+  const contactJoins = includeContacts ? `
+  left join ${tables.sourcing} source_sourcing on source_sourcing.id = h.ma_bao_gia
+  left join ${tables.logistics} source_logistics on source_logistics.id = h.ma_bao_gia
+  left join ${tables.potential} lead on lead.id = coalesce(source_sourcing.ma_khach_hang_tiem_nang, source_logistics.ma_khach_hang_tiem_nang)
+  left join public.nguoi_dung sale on sale.ma_nguoi_dung = lead.nguoi_xu_ly_id
+  left join ${tables.message} msg on msg.id = lead.ma_tin_nhan
+  left join ${tables.sourcing} related_sourcing on related_sourcing.ma_khach_hang_tiem_nang = source_logistics.ma_khach_hang_tiem_nang
+  left join ${tables.logistics} related_logistics on related_logistics.ma_khach_hang_tiem_nang = source_sourcing.ma_khach_hang_tiem_nang
+  ` : "";
   return `
   select h.id::text as id, h.ma_hien_thi as code, h.tuyen as lane,
          h.ma_bao_gia::text as quote_id, h.ma_bao_gia_hien_thi as quote_code,
@@ -930,7 +965,7 @@ function contractSelect(lane: CrmLane): string {
            when exists(select 1 from ${tables.sourcing} q where q.id = h.ma_bao_gia) then 'sourcing'
            when exists(select 1 from ${tables.logistics} q where q.id = h.ma_bao_gia) then 'logistics'
          end as quote_desk,
-         h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name,
+         h.ten_khach_hang as customer_name, h.nhan_vien_ban as sale_name, ${contacts}
          h.van_chuyen_den as ship_to, h.san_pham as product, h.nganh_hang as industry, h.so_luong as quantity,
          h.loai_tien as currency, h.loai_tien_van_chuyen as shipping_currency, h.khoan_tien as amounts_body,
          h.gia_tri_san_pham as product_value, h.chi_phi_van_chuyen as shipping_cost,
@@ -1396,8 +1431,9 @@ export class PostgresCrmRepository implements CrmRepository {
         const kind = desk === "sourcing" ? kindClause(allowedKinds, values.length + 1) : { sql: "", values: [] };
         values.push(...kind.values);
         const condition = shared ? ` and ${COMBINED_HANDED_OFF_SQL}` : desk === "logistics" ? " and l.nhom_khach::text = 'LOGISTICS'" : "";
-        const table = desk === "sourcing" || shared ? t.sourcing : t.logistics;
-        const source = quoteSelect(table, t.potential, t.message, desk === "sourcing" ? t.logistics : null, desk === "sourcing" || shared);
+        const fromSourcing = desk === "sourcing" || shared;
+        const source = quoteSelect(fromSourcing ? t.sourcing : t.logistics, t.potential, t.message,
+          fromSourcing ? t.logistics : null, fromSourcing, { lane, shared });
         sources.push(`select raw.*, ${shared && !rfq ? "raw.logistics_requested_at" : "raw.requested_at"} as __requested_at, '${lane}'::text as __lane, '${rfq && shared ? "sourcing" : desk}'::text as __desk, ${shared && !rfq} as __shared from (${source} ${compiled.sql}${kind.sql}${condition}) raw`);
       };
       if (desks.includes("sourcing")) add("sourcing", false);
@@ -1425,23 +1461,26 @@ export class PostgresCrmRepository implements CrmRepository {
         'rejected', count(*) filter (where potential = 'NOT_ORDERED'),
         'potential', count(*) filter (where potential = 'POTENTIAL'))`,
     });
-    return { ...result, rows: result.rows.map(row => ({ ...(row.__shared ? toLogisticsQuote(row) : toQuote(row)), lane: row.__lane })) };
+    return { ...result, rows: result.rows.map(row => ({ ...(row.__shared ? toLogisticsQuote(row) : toQuote(row)), lane: row.__lane, contacts: row.contacts })) };
   }
 
   async pageRfqQuotes(lane: CrmLane, search: QuoteListSearch, desk: "" | QuoteDesk, page: PageRequest): Promise<ListPage<RfqQuoteRecord>> {
     const { source, values } = this.quotePageSource([lane], desk ? [desk] : ["sourcing", "logistics"], search, null, true);
     const result = await queryPage<QuoteRow & { __desk: QuoteDesk }>({ query: this.query.bind(this) }, source, values, page, { orderBy: "__requested_at desc, id desc" });
-    return { ...result, rows: result.rows.map(row => ({ ...toQuote(row), desk: row.__desk })) };
+    return { ...result, rows: result.rows.map(row => ({ ...toQuote(row), desk: row.__desk, contacts: row.contacts })) };
   }
 
   async pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest): Promise<ListPage<ContractRecord>> {
     const compiled = contractSearch(view, search).build(3);
     const values = [lane, sentOnly, ...compiled.values, search.customerKind ?? ""];
     const result = await queryPage<ContractRow>({ query: this.query.bind(this) },
-      `${contractSelect(lane)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null) ${compiled.sql}`,
+      `${contractSelect(lane, true)} where h.tuyen = $1 and ($2::boolean = false or h.gui_ke_toan_luc is not null) ${compiled.sql}`,
       values, page, { orderBy: "created_at desc, id desc", where: `($${values.length}::text = '' or upper(quote_desk) = $${values.length})` });
     const quotes = new Map<string, QuoteRecord | null>();
-    return { ...result, rows: await Promise.all(result.rows.map(row => this.withMainTotal(lane, projectContract(row, view), quotes))) };
+    return { ...result, rows: await Promise.all(result.rows.map(row => {
+      const contract = projectContract(row, view);
+      return this.withMainTotal(lane, row.contacts ? { ...contract, contacts: row.contacts } : contract, quotes);
+    })) };
   }
 
   async listSales(lane: CrmLane) {

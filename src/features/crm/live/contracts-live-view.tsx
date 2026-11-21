@@ -1,6 +1,7 @@
 "use client";
 
-import type { PageInfo } from "@speego/shared";
+import type { CrmContacts, PageInfo } from "@speego/shared";
+import { CrmContactCells, CrmContactHeaders, crmContactColumns } from "../components/crm-contact-columns";
 import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -57,6 +58,7 @@ export type ContractConfirmationLine = {
 };
 
 export type ContractRecord = {
+  contacts?: CrmContacts;
   id: string;
   code: string;
   lane: CrmLane;
@@ -613,6 +615,7 @@ export function ContractsLiveView({
             <tr className="border-b text-left text-muted-foreground">
               <th className="px-3 py-2 font-medium whitespace-nowrap">Mã</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Khách</th>
+              <CrmContactHeaders />
               <th className="px-3 py-2 font-medium whitespace-nowrap">Báo giá</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Loại đơn</th>
               <th className="px-3 py-2 font-medium whitespace-nowrap">Sản phẩm</th>
@@ -635,7 +638,7 @@ export function ContractsLiveView({
           </thead>
           <tbody>
             {shown.length === 0 && (
-              <tr><td colSpan={20} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
+              <tr><td colSpan={20 + crmContactColumns.length} className="px-3 py-8 text-center text-muted-foreground">{listLoading ? "Đang tải…" : filters.active ? "Không có kết quả." : "Chưa có hợp đồng."}</td></tr>
             )}
             {shown.map((row) => {
               const { amounts, paidLines, summary } = rowVnd(row);
@@ -662,6 +665,7 @@ export function ContractsLiveView({
               >
                 <td className="px-3 py-3 font-medium whitespace-nowrap">{row.code}</td>
                 <td className="px-3 py-3 whitespace-nowrap" title={row.customerName}>{row.customerName}</td>
+                <CrmContactCells contacts={row.contacts ?? { sale: row.saleName, sourcing: null, operations: null }} />
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteCode || "—"}</td>
                 <td className="px-3 py-3 whitespace-nowrap">{row.quoteDesk ? quoteDeskLabels[row.quoteDesk] : row.quoteId ? "Chưa xác định" : "Trực tiếp"}</td>
                 <td className="max-w-48 truncate px-3 py-3" title={row.product ?? undefined}>{row.product || "—"}</td>

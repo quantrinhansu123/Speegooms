@@ -17,12 +17,14 @@ import { quoteTotals } from "@/services/crm/rules";
 import type { Quotation, QuoteStatus } from "@/types/crm";
 import { useCrm, usePagination } from "../hooks";
 import { QuoteBadge } from "./meta-badges";
+import { crmContactColumns } from "./crm-contact-columns";
 
 export function QuotationsView() {
   const { data, all } = useCrm();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<QuoteStatus | "">("");
   const customerName = new Map(all.customers.map((c) => [c.customerId, c.name]));
+  const staffNames = new Map(all.staff.map((member) => [member.id, member.name]));
 
   const filtered = data.quotations
     .filter((q) => (!status || q.status === status) && matchesQuery(query, q.quoteId, q.rfqId, q.messId, customerName.get(q.customerId)))
@@ -33,6 +35,9 @@ export function QuotationsView() {
   const columns: Column<Quotation>[] = [
     { key: "id", header: "Báo giá", cell: (q) => <Link href={`/crm/bao-gia/${q.quoteId}`} className="font-mono text-xs font-medium text-primary hover:underline">{q.quoteId}</Link> },
     { key: "customer", header: "Khách hàng", cell: (q) => <span className="font-medium">{customerName.get(q.customerId) ?? q.customerId}</span> },
+    ...crmContactColumns.map(({ key, label }): Column<Quotation> => ({
+      key, header: label, cell: (q) => key === "sale" ? staffNames.get(q.ownerId) || "—" : "—",
+    })),
     { key: "rfq", header: "rfq_id", cell: (q) => <Link href={`/crm/rfq/${q.rfqId}`} className="font-mono text-xs text-muted-foreground hover:underline">{q.rfqId}</Link>, className: "hidden lg:table-cell" },
     { key: "total", header: "Tổng", align: "right", cell: (q) => formatMoney(quoteTotals(q).total, q.currency) },
     { key: "status", header: "Trạng thái", cell: (q) => <QuoteBadge value={q.status} /> },

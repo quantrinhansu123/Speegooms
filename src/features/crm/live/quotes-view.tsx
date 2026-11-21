@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { CrmContactCells, CrmContactHeaders, crmContactColumns } from "../components/crm-contact-columns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -69,8 +70,6 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
   const [rows, setRows] = useState<DeskQuote[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
-  /** quoteId → người được chia đơn (chia xoay vòng giữa nhân sự Vận hành). */
-  const [assignees, setAssignees] = useState<Record<string, { id: string; name: string }>>({});
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -108,7 +107,6 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
       mode: desk === "logistics" ? modeFilter : "",
       allLanes: selectedLane === "all" ? "1" : "",
     });
-    const lanes: CrmLane[] = selectedLane === "all" ? ["vn", "global"] : [selectedLane];
     const path = `${crmPath(`/api/crm/quotes?desk=${desk}`, selectedLane === "all" ? "vn" : selectedLane)}${query}${pageQuery}`;
     // Keep the current records visible when refreshing the same list.
     setListLoading(loadedListPath.current !== path);
@@ -116,9 +114,6 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
       .then((body) => { if (version === loadVersion.current) { loadedListPath.current = path; setRows(body.quotes); receivePage(body.pagination); } })
       .catch((err: unknown) => { if (version === loadVersion.current) setError(err instanceof ApiError ? err.message : "Không tải được báo giá"); })
       .finally(() => { if (version === loadVersion.current) setListLoading(false); });
-    Promise.all(lanes.map((quoteLane) => api<{ assignees: Record<string, { id: string; name: string }> }>(`/api/chia-don/${desk}/assignees?lane=${quoteLane}`)))
-      .then((bodies) => { if (version === loadVersion.current) setAssignees(Object.assign({}, ...bodies.map((body) => body.assignees))); })
-      .catch(() => undefined); // cột người phụ trách chỉ là thông tin thêm, lỗi thì để trống
   }, [desk, filters.applied, selectedLane, modeFilter, pageQuery, receivePage]);
 
   const loadTemplates = useCallback(() => {
@@ -214,7 +209,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
     setOutput({ action, row: source });
   };
   const showFinancials = desk === "logistics" && canViewQuoteOriginalPrice(user.role);
-  const columnCount = 15 + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
+  const columnCount = 14 + crmContactColumns.length + (canViewAllLanes ? 1 : 0) + (showFinancials ? 4 : 0);
 
   return (
     <>
@@ -279,6 +274,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
               {canViewAllLanes && <th className="whitespace-nowrap px-3 py-2 font-medium">Thị trường</th>}
+              <CrmContactHeaders />
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               {desk === "logistics" && <th className="whitespace-nowrap px-3 py-2 font-medium">Tuyến</th>}
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
@@ -291,7 +287,6 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hiệu lực</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hợp đồng</th>
               {desk === "sourcing" && <th className="whitespace-nowrap px-3 py-2 font-medium">Logistics</th>}
-              <th className="whitespace-nowrap px-3 py-2 font-medium">Người phụ trách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngày yêu cầu báo giá</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Thao tác</th>
             </tr>
@@ -323,6 +318,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
                     <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                   </td>
                   {canViewAllLanes && <td className="whitespace-nowrap px-3 py-3">{row.lane === "vn" ? "Việt Nam" : "Global"}</td>}
+                  <CrmContactCells contacts={row.contacts} />
                   <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                   {desk === "logistics" && <td className="px-3 py-3 whitespace-nowrap">{row.shippingMode === "AIR" ? "Đường bay" : row.logisticsClass === "FCL" ? "Đường biển FCL" : row.logisticsClass === "LCL" ? "Đường biển LCL" : "—"}</td>}
                   <td className="max-w-48 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
@@ -349,7 +345,6 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
                         : <span className="text-muted-foreground">—</span>}
                     </td>
                   )}
-                  <td className="px-3 py-3 whitespace-nowrap">{assignees[row.id]?.name ?? <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-3 py-3">{shownDate(row.requestedAt ?? row.createdAt)}</td>
                   <td className="px-3 py-3">
                     <RowMenu label={`Thao tác ${row.code}`} items={items} />

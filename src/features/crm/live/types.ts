@@ -1,4 +1,4 @@
-import type { CrmHandler, IndustryCategory, QuoteWorkflow } from "@speego/shared";
+import type { CrmContacts, CrmHandler, IndustryCategory, QuoteWorkflow } from "@speego/shared";
 import type { QuoteBank, QuoteDesk, QuoteNotes, QuoteOrder, SentQuote } from "@speego/shared";
 
 export interface MessageRecord extends CrmHandler {
@@ -124,6 +124,7 @@ export interface RfqQuoteRecord extends QuoteRecord {
 }
 
 export interface QuoteRecord extends CrmHandler {
+  contacts?: CrmContacts;
   id: string;
   code: string;
   potentialId: string;

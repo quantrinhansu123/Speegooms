@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useListData } from "@/features/accounting/live/list-query";
 
 import type { PageInfo } from "@speego/shared";
+import { CrmContactCells, CrmContactHeaders, crmContactColumns } from "../components/crm-contact-columns";
 import { ServerPagination, useServerPagination } from "@/components/shared/server-pagination";
 
 import { quoteVndAmount } from "@speego/shared";
@@ -478,6 +479,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             <tr className="border-b text-left text-muted-foreground">
               <th className="whitespace-nowrap px-3 py-2 font-medium">Mã</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Khách</th>
+              <CrmContactHeaders />
               <th className="whitespace-nowrap px-3 py-2 font-medium">Loại khách</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Hàng hóa</th>
               <th className="whitespace-nowrap px-3 py-2 font-medium">Ngành hàng</th>
@@ -494,9 +496,9 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
             </tr>
           </thead>
           <tbody>
-            {listLoading && <tr><td colSpan={15} role="status" className="px-3 py-8 text-center text-muted-foreground">Đang tải…</td></tr>}
+            {listLoading && <tr><td colSpan={15 + crmContactColumns.length} role="status" className="px-3 py-8 text-center text-muted-foreground">Đang tải…</td></tr>}
             {!listLoading && rows.length === 0 && (
-              <tr><td colSpan={15} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
+              <tr><td colSpan={15 + crmContactColumns.length} className="px-3 py-8 text-center text-muted-foreground">{filters.active ? "Không có kết quả." : `Chưa có báo giá trên tuyến ${laneName(lane)}.`}</td></tr>
             )}
             {(listLoading ? [] : rowsWithTotals).map(({ row, sourcingTotal, logisticsTotal }) => {
               const canHandleRow = canHandleCrm(user, row);
@@ -514,6 +516,7 @@ export function RfqQuotesView({ lane: fixedLane }: { lane?: CrmLane }) {
                   <p>{row.customerName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{row.leadCode}</p>
                 </td>
+                <CrmContactCells contacts={row.contacts} />
                 <td className="px-3 py-3"><CustomerKindBadge value={row.customerKind} /></td>
                 <td className="max-w-56 truncate px-3 py-3" title={row.goods ?? undefined}>{row.goods || "—"}</td>
                 <td className="max-w-56 truncate px-3 py-3" title={labelOf(industryCategoryOptions, row.industry)}>{labelOf(industryCategoryOptions, row.industry)}</td>

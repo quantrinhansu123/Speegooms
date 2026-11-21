@@ -96,6 +96,16 @@ test("sent contracts keep the commercial and shipping snapshot together with cur
   }
 });
 
+test("all contract lists show the current contacts even if the sent snapshot has a different Sale", async () => {
+  const contacts = { sale: "Sale hiện tại", sourcing: "Sourcing hiện tại", operations: "Vận hành hiện tại" };
+  const raw = { ...rawContract("vn", { saleName: "Sale cũ" }), contacts, __present: true, __total: 1, __page: 1, __summary: {} };
+  const repo = new PostgresCrmRepository({ query: async () => ({ rows: [raw] }) } as unknown as pg.Pool);
+  for (const view of ["sale", "ops", "accounting"] as const) {
+    const page = await repo.pageContracts("vn", false, view, search, { page: 1, pageSize: 20 });
+    assert.deepEqual(page.rows[0].contacts, contacts);
+  }
+});
+
 test("accounting date filters fall back to the contract signing date without a sent snapshot", () => {
   const compiled = contractSearch("accounting", { ...search, from: "2026-10-01", to: "2026-10-31" }).build();
   assert.match(compiled.sql, /coalesce\(nullif\(ban_gui_ke_toan->>'signedOn', ''\)::date, h.ngay_ky\)/);

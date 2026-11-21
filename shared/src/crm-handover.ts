@@ -5,6 +5,12 @@ export interface CrmHandler {
   handlerName?: string | null;
 }
 
+export interface CrmContacts {
+  sale: string | null;
+  sourcing: string | null;
+  operations: string | null;
+}
+
 export function canHandleCrm(user: { id: string; role: Role }, record: CrmHandler): boolean {
   return !record.handlerId || record.handlerId === user.id || ["admin", "van-hanh", "sourcing", "logistics"].includes(user.role);
 }

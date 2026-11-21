@@ -1,4 +1,4 @@
-import type { CrmHandler, QuoteWorkflow, ListPage, PageRequest } from "@speego/shared";
+import type { CrmContacts, CrmHandler, QuoteWorkflow, ListPage, PageRequest } from "@speego/shared";
 import type {
   ContractListSearch,
   MessageListSearch,
@@ -100,6 +100,7 @@ export interface PotentialRecord extends CrmHandler {
 }
 
 export interface QuoteRecord extends CrmHandler {
+  contacts?: CrmContacts;
   id: string;
   code: string;
   potentialId: string;
@@ -202,6 +203,7 @@ export interface ContractConfirmationLine {
 }
 
 export interface ContractRecord {
+  contacts?: CrmContacts;
   id: string;
   code: string;
   lane: CrmLane;
