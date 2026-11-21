@@ -243,3 +243,4 @@ export {
 export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";
 export * from "./marketing";
 export * from "./kpi";
+export * from "./sales-report";

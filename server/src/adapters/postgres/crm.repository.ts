@@ -785,7 +785,7 @@ function convertedShipping(source: QuoteRecord | null, currency: string): number
 }
 
 /** Khoản đã lưu theo loại tiền. Hợp đồng cũ chỉ có một loại tiền cho cả sản phẩm và cước. */
-function amountsFromRow(row: ContractRow): ContractRecord["amounts"] {
+export function amountsFromRow(row: Pick<ContractRow, "amounts_body" | "currency" | "shipping_currency" | "product_value" | "shipping_cost">): ContractRecord["amounts"] {
   const body = row.amounts_body && typeof row.amounts_body === "object" && !Array.isArray(row.amounts_body)
     ? row.amounts_body as { product?: unknown; shipping?: unknown }
     : null;

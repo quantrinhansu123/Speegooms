@@ -20,6 +20,7 @@ export const implementedRoutes: readonly string[] = [
   "/sale-global/hop-dong",
   "/sale-global/sale-my",
   "/sale-global/data-lanh",
+  "/bao-cao-sale",
   "/cai-dat",
   "/tai-khoan",
   "/reports",

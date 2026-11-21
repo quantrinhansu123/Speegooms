@@ -1,4 +1,5 @@
 import { Router, type Express } from "express";
+import { asyncHandler } from "../lib/async-handler";
 import { marketingRoutes } from "./marketing.routes";
 import { kpiRoutes } from "./kpi.routes";
 import type { AppContainer } from "../container";
@@ -20,6 +21,7 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use(container.csrf.protect);
   api.use("/marketing", marketingRoutes(container));
   api.use("/settings/kpis", kpiRoutes(container));
+  api.get("/sales-report", container.authenticate, asyncHandler(container.salesReportController.read));
   api.use("/health", healthRoutes(container.healthController));
   api.use("/security", securityRoutes(container.securityController));
   api.use("/auth", authRoutes(container));

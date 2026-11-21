@@ -88,6 +88,7 @@ export const navigation: NavGroup[] = [
           { title: "Data khách hàng", href: "/sale-global/data-lanh" },
         ],
       },
+      { title: "Báo cáo Sale", href: "/bao-cao-sale", icon: ChartNoAxesCombined },
       {
         title: "Sourcing",
         href: "/van-hanh/sourcing-bao-gia",
