@@ -76,12 +76,15 @@ export function quoteOutputProblem(row: RfqQuoteRecord): string | null {
 /** Chỉ xuất bản đã gửi; không ghép hàng đang sửa với cước đã gửi của phiên bản khác. */
 export function printableRfqQuote(row: RfqQuoteRecord): RfqQuoteRecord | null {
   if (quoteOutputProblem(row) || !row.sentQuote) return null;
+  // Báo giá thuần Logistics: bản in theo đúng báo giá hiện tại (như xem trước), không phải ảnh chụp lúc gửi.
+  // Sourcing gộp vẫn in bản đã gửi vì giá Logistics đã chốt phải khớp hàng hóa.
+  const live = row.desk !== "sourcing" ? orderForQuotePdf(row.orders) : undefined;
   const source = {
     ...row,
     issuedOn: new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(row.createdAt || row.sentQuote.sentAt)),
-    orders: [{ ...row.sentQuote.order, selected: true }],
-    notes: row.sentQuote.notes,
-    bank: row.sentQuote.bank,
+    orders: [{ ...(live ?? row.sentQuote.order), selected: true }],
+    notes: live ? row.notes : row.sentQuote.notes,
+    bank: live ? row.bank : row.sentQuote.bank,
   };
   return quoteWithLogisticsCosts(source, row.desk === "sourcing" ? row.logisticsSheet?.sentQuote : null, source.orders[0]);
 }

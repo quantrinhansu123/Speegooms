@@ -96,13 +96,16 @@ const numberText = {
   en: new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }),
 } as const;
 
+/** Kiện chưa có số đo thì không in "0*0*0 cm". */
+const dims = (p: PackageSpec) => (p.lengthCm > 0 && p.widthCm > 0 && p.heightCm > 0 ? `${p.lengthCm}*${p.widthCm}*${p.heightCm} cm` : "");
+
 const packageText = {
   vi: {
-    pack: (i: number, p: PackageSpec) => `Kiện ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, thực tế ${numberText.vi.format(p.actualKg)} kg`,
+    pack: (i: number, p: PackageSpec) => `Kiện ${i}: ${dims(p)}${p.count > 1 ? ` x ${p.count}` : ""}, thực tế ${numberText.vi.format(p.actualKg)} kg`.replace(": ,", ":"),
     total: (count: number, cbm: number, kg: number) => `Tổng ${count} kiện = ${numberText.vi.format(cbm)} cbm, cân tính cước ${numberText.vi.format(kg)} kg`,
   },
   en: {
-    pack: (i: number, p: PackageSpec) => `Package ${i}: ${p.lengthCm}*${p.widthCm}*${p.heightCm} cm${p.count > 1 ? ` x ${p.count}` : ""}, actual ${numberText.en.format(p.actualKg)} kg`,
+    pack: (i: number, p: PackageSpec) => `Package ${i}: ${dims(p)}${p.count > 1 ? ` x ${p.count}` : ""}, actual ${numberText.en.format(p.actualKg)} kg`.replace(": ,", ":"),
     total: (count: number, cbm: number, kg: number) => `Total ${count} package${count === 1 ? "" : "s"} = ${numberText.en.format(cbm)} cbm, chargeable weight ${numberText.en.format(kg)} kg`,
   },
 } as const;
