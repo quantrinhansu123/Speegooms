@@ -5,6 +5,7 @@ import type pg from "pg";
 import { roleSchema, saleTargetMetrics, type Role } from "@speego/shared";
 import { PostgresTargetsRepository } from "../adapters/postgres/targets.repository";
 import { TargetsController } from "../controllers/targets.controller";
+import { MarketingController } from "../controllers/marketing.controller";
 
 type Call = { sql: string; values?: unknown[] };
 
@@ -118,4 +119,71 @@ test("a failure in the middle rolls the whole save back", async () => {
   const controller = new TargetsController(new PostgresTargetsRepository(pool));
   await assert.rejects(controller.write(req("admin", write([{ userId: "u1", code: "SALE_REVENUE_VND", value: 1 }])), response().res), /boom/);
   assert.deepEqual(calls, ["begin", "insert", "rollback"]);
+});
+
+const kpiTypes = [
+  { id: "956415bc-a231-4a37-8f3a-1c8e04a7e003", kind: "ads", name: "KPI_1_A_MKT - Số mess", unit: "mess", direction: "at-least", active: true },
+  { id: "956415bc-a231-4a37-8f3a-1c8e04a7e004", kind: "ads", name: "KPI_2_A_MKT - CP/Mess TT", unit: "VND/mess", direction: "at-most", active: true },
+  { id: "956415bc-a231-4a37-8f3a-1c8e04a7e099", kind: "ads", name: "KPI đã ngừng", unit: "x", direction: "at-least", active: false },
+];
+
+function marketingPool(extra: { results?: unknown[]; targets?: unknown[] } = {}) {
+  const calls: Call[] = [];
+  const query = async (sql: string, values?: unknown[]) => {
+    calls.push({ sql, values });
+    if (/marketing_kpi_settings/.test(sql)) return { rows: [{ types: kpiTypes }] };
+    if (/from public\.nguoi_dung/.test(sql)) return { rows: [{ id: "m1", name: "Hạnh" }] };
+    if (/from app\.kpi_targets/.test(sql)) return { rows: extra.targets ?? [] };
+    if (/from app\.marketing_tasks/.test(sql)) return { rows: extra.results ?? [] };
+    return { rows: [] };
+  };
+  return { pool: { query, connect: async () => ({ query, release: () => undefined }) } as unknown as pg.Pool, calls };
+}
+
+test("Marketing targets use the same KPI types as Giao việc (active only, with direction)", async () => {
+  const { pool } = marketingPool();
+  const grid = await new PostgresTargetsRepository(pool).grid("marketing", "month", "2026-11-01");
+  assert.deepEqual(grid.metrics.map((metric) => [metric.code, metric.direction]), [
+    ["956415bc-a231-4a37-8f3a-1c8e04a7e003", "at-least"],
+    ["956415bc-a231-4a37-8f3a-1c8e04a7e004", "at-most"],
+  ]);
+  // Lưu theo mã uuid của loại KPI; mã KPI đã ngừng bị từ chối.
+  const controller = new TargetsController(new PostgresTargetsRepository(pool));
+  await controller.write(req("marketing-lead", { body: { department: "marketing", period: "month", start: "2026-11-01", rows: [{ userId: "m1", code: kpiTypes[0]!.id, value: 250 }] } }), response().res);
+  await assert.rejects(controller.write(req("marketing-lead", { body: { department: "marketing", period: "month", start: "2026-11-01", rows: [{ userId: "m1", code: kpiTypes[2]!.id, value: 1 }] } }), response().res), { status: 400 });
+});
+
+test("Marketing target report returns targets next to accepted results for the period", async () => {
+  const { pool, calls } = marketingPool({
+    targets: [{ user_id: "m1", code: kpiTypes[0]!.id, value: 250 }],
+    results: [{ user_id: "m1", code: kpiTypes[0]!.id, actual: 180, tasks: 3 }],
+  });
+  const controller = new MarketingController(pool);
+  const out = response();
+  await controller.targetReport(req("marketing-lead", { query: { period: "week", start: "2026-11-22" } }), out.res);
+  const body = out.body() as { start: string; end: string; targets: Record<string, Record<string, number>>; results: Record<string, Record<string, { actual: number; tasks: number }>>; metrics: { code: string; direction: string }[] };
+  assert.equal(body.start, "2026-11-22");
+  assert.equal(body.end, "2026-11-29");
+  assert.deepEqual(body.targets, { m1: { [kpiTypes[0]!.id]: 250 } });
+  assert.deepEqual(body.results, { m1: { [kpiTypes[0]!.id]: { actual: 180, tasks: 3 } } });
+  assert.equal(body.metrics.find((metric) => metric.code === kpiTypes[1]!.id)?.direction, "at-most");
+  // Chỉ lấy việc đã nghiệm thu Đạt, không Hủy, theo ngày hoàn thành/deadline trong [start, end).
+  const resultSql = calls.find((call) => /from app\.marketing_tasks/.test(call.sql))!;
+  assert.match(resultSql.sql, /acceptance' = 'Đạt'/);
+  assert.match(resultSql.sql, /status' <> 'Hủy'/);
+  assert.deepEqual(resultSql.values, ["2026-11-22", "2026-11-29"]);
+  assert.deepEqual(calls.find((call) => /from app\.kpi_targets/.test(call.sql))!.values, ["week", "2026-11-22"]);
+});
+
+test("Marketing target report is limited to the Marketing team and valid periods", async () => {
+  for (const role of roleSchema.options) {
+    const controller = new MarketingController(marketingPool().pool);
+    const allowed = ["marketing", "marketing-content", "marketing-lead", "admin", "ban-gd"].includes(role);
+    const call = controller.targetReport(req(role, { query: { period: "month", start: "2026-11-01" } }), response().res);
+    if (allowed) await call; else await assert.rejects(call, { status: 403 }, role);
+  }
+  const controller = new MarketingController(marketingPool().pool);
+  await assert.rejects(controller.targetReport(req("admin", { query: { period: "week", start: "2026-11-23" } }), response().res), { status: 400 });
+  await assert.rejects(controller.targetReport(req("admin", { query: { period: "year", start: "2026-11-01" } }), response().res), { status: 400 });
+  await assert.rejects(controller.targetReport(req(undefined, { query: { period: "month", start: "2026-11-01" } }), response().res), { status: 403 });
 });

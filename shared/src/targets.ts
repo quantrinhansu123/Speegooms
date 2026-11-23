@@ -12,7 +12,11 @@ export const targetPeriods = ["month", "week"] as const;
 export type TargetPeriod = typeof targetPeriods[number];
 export const targetPeriodLabels: Record<TargetPeriod, string> = { month: "Mục tiêu tháng được giao", week: "Mục tiêu tuần" };
 
-export type TargetMetric = { code: string; name: string; unit: string; kind: "count" | "rate" | "money" };
+export type TargetMetric = {
+  code: string; name: string; unit: string; kind: "count" | "rate" | "money";
+  /** Chỉ KPI Marketing: "at-most" là trần (chi phí/mess…), kết quả càng thấp càng tốt. */
+  direction?: "at-least" | "at-most";
+};
 
 /** Chỉ tiêu Sale cố định; Marketing lấy từ danh mục KPI Marketing đang sử dụng. */
 export const saleTargetMetrics: readonly TargetMetric[] = [
@@ -92,3 +96,13 @@ export function weekShareOfMonth(weekStart: string, monthTargetFor: (monthStart:
 }
 
 export const targetTemplateSheets = { month: "Tháng", week: "Tuần" } as const;
+
+/**
+ * % hoàn thành so với mục tiêu. KPI tối thiểu: kết quả / mục tiêu. KPI tối đa (chi phí): mục tiêu / kết quả,
+ * kết quả 0 thì đạt trọn (100%). Chưa có mục tiêu hoặc mục tiêu 0 thì trả null.
+ */
+export function targetCompletion(actual: number, target: number | undefined, direction: "at-least" | "at-most" = "at-least"): number | null {
+  if (target === undefined || !(target > 0)) return null;
+  if (direction === "at-most") return actual > 0 ? target / actual * 100 : 100;
+  return actual / target * 100;
+}

@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import type pg from "pg";
 import { z } from "zod";
+import { salesReportPeriods, targetQuerySchema, targetRoles } from "@speego/shared";
 import { marketingTaskSchema, marketingReportSchema, marketingKpiSettingsSchema, marketingKinds, canonicalPostUrl, marketingTeamRoles, isMarketingLeader, canOrderMarketing, type MarketingKpiSettings, type MarketingMember, type MarketingTask, type MarketingReport } from "@speego/shared";
 import { AppError } from "../lib/errors";
 import { queryPage, readPagination } from "../lib/pagination";
@@ -94,6 +95,38 @@ export class MarketingController {
     const drillFilter = f.groupBy === "kpi" ? "data->>'status' <> 'Hủy' and exists(select 1 from jsonb_array_elements(coalesce(data->'kpis','[]')) k where k->>'id' = $7)" : `${group} = $7`;
     const result = await queryPage<{ id: string; data: MarketingTask }>(this.db(), `${source} and ($7 = '' or ${drillFilter})`, values, page, { orderBy: "updated_at desc, id", summary });
     res.json({ ...common, tasks: result.rows.map(row => row.data), reports: [], groups: [], pagination: result.pagination });
+  };
+  /**
+   * Mục tiêu tháng/tuần đã giao theo người so với kết quả đã nghiệm thu trong kỳ.
+   * Kết quả: việc không Hủy, nghiệm thu Đạt, tính theo ngày hoàn thành (chưa có thì theo deadline).
+   * KPI tối thiểu cộng dồn, KPI tối đa lấy trung bình, giống bảng Tổng hợp KPI.
+   */
+  targetReport = async (req: Request, res: Response) => {
+    this.actor(req);
+    const query = targetQuerySchema.safeParse({ ...req.query, department: "marketing" });
+    if (!query.success) throw new AppError(400, "INVALID", query.error.issues[0]!.message);
+    const { period, start } = query.data;
+    const { end } = salesReportPeriods(period, start).current;
+    const [members, settings, targets, results] = await Promise.all([
+      this.db().query<{ id: string; name: string }>("select ma_nguoi_dung as id, ho_ten as name from public.nguoi_dung where vai_tro = any($1::text[]) order by ho_ten, ma_nguoi_dung", [targetRoles.marketing]),
+      this.db().query<{ types: { id: string; name: string; unit: string; direction?: string; active?: boolean }[] }>("select types from app.marketing_kpi_settings where id = true"),
+      this.db().query<{ user_id: string; code: string; value: number }>("select user_id, code, value::float8 as value from app.kpi_targets where department = 'marketing' and period = $1 and start_date = $2::date", [period, start]),
+      this.db().query<{ user_id: string; code: string; actual: number; tasks: number }>(
+        `select data->>'assigneeId' as user_id, k->>'id' as code,
+           (case when min(k->>'direction') = 'at-most' then avg((k->>'actual')::numeric) else sum((k->>'actual')::numeric) end)::float8 as actual,
+           count(*)::int as tasks
+         from app.marketing_tasks cross join lateral jsonb_array_elements(coalesce(data->'kpis', '[]'::jsonb)) k
+         where data->>'status' <> 'Hủy' and data->>'acceptance' = 'Đạt' and k->>'actual' is not null and coalesce(data->>'assigneeId', '') <> ''
+           and coalesce(nullif(data->>'completedOn', ''), data->>'deadline') >= $1 and coalesce(nullif(data->>'completedOn', ''), data->>'deadline') < $2
+         group by data->>'assigneeId', k->>'id'`, [start, end]),
+    ]);
+    const targetMap: Record<string, Record<string, number>> = {};
+    for (const row of targets.rows) (targetMap[row.user_id] ??= {})[row.code] = row.value;
+    const resultMap: Record<string, Record<string, { actual: number; tasks: number }>> = {};
+    for (const row of results.rows) (resultMap[row.user_id] ??= {})[row.code] = { actual: row.actual, tasks: row.tasks };
+    const metrics = (settings.rows[0]?.types ?? []).map((type) => ({ code: type.id, name: type.name, unit: type.unit, direction: type.direction === "at-most" ? "at-most" : "at-least", active: type.active !== false }));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ period, start, end, members: members.rows, metrics, targets: targetMap, results: resultMap });
   };
   settings = async (req: Request, res: Response) => {
     this.actor(req);

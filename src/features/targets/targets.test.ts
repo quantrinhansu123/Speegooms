@@ -3,9 +3,10 @@ import test from "node:test";
 import * as XLSX from "xlsx";
 import {
   cumulativeProcessingCounts, isTargetPeriodStart, manageableTargetDepartments, roleSchema, saleTargetMetrics, setTargetsSchema,
-  targetQuerySchema, weekShareOfMonth, type SalesPerformanceReport, type TargetMember,
+  targetCompletion, targetQuerySchema, weekShareOfMonth, type SalesPerformanceReport, type TargetMember,
 } from "@speego/shared";
 import { performanceRows } from "@/features/reports/sales-report-metrics";
+import { targetReportRows, type TargetReportData } from "@/features/marketing/target-report-model";
 import { buildTargetTemplate, parseTargetSheet, parseTargetWorkbook } from "./targets-excel";
 
 const members: TargetMember[] = [{ id: "u1", name: "An" }, { id: "u2", name: "Bình" }];
@@ -128,4 +129,44 @@ test("cumulative Mess levels: tư vấn = L1+L2, L3 = L1+L2+L3, and so on", () =
   assert.equal(sum.L6, 15);
   assert.equal(sum.L8, 16);
   assert.equal("L0" in sum, false);
+});
+
+test("completion: minimum KPIs divide result by target, maximum KPIs (costs) divide target by result", () => {
+  assert.equal(targetCompletion(180, 250), 72);
+  assert.equal(targetCompletion(300, 250), 120);
+  assert.equal(targetCompletion(0, 250), 0);
+  assert.equal(targetCompletion(140_000, 140_000, "at-most"), 100);
+  assert.equal(targetCompletion(280_000, 140_000, "at-most"), 50);
+  assert.equal(targetCompletion(0, 140_000, "at-most"), 100); // chi phí 0: đạt trọn
+  assert.equal(targetCompletion(10, undefined), null);        // chưa giao mục tiêu
+  assert.equal(targetCompletion(10, 0), null);                // mục tiêu 0 không chia
+});
+
+test("Marketing report rows: per person, only KPIs with a target or a result; group row for 2+ people", () => {
+  const metric = (code: string, direction: "at-least" | "at-most") => ({ code, name: code, unit: "x", direction, active: true });
+  const report: TargetReportData = {
+    members: [{ id: "a", name: "An" }, { id: "b", name: "Bình" }, { id: "c", name: "Chi" }],
+    metrics: [metric("MESS", "at-least"), metric("COST", "at-most"), metric("SEO", "at-least")],
+    targets: { a: { MESS: 250, COST: 140_000 }, b: { MESS: 150, COST: 100_000 } },
+    results: { a: { MESS: { actual: 200, tasks: 2 }, COST: { actual: 160_000, tasks: 2 } }, b: { MESS: { actual: 90, tasks: 1 } }, c: { SEO: { actual: 7, tasks: 1 } } },
+  };
+  // Một người: chỉ KPI có mục tiêu hoặc kết quả, không có dòng nhóm.
+  const one = targetReportRows(report, ["a"]);
+  assert.deepEqual(one.map((row) => row.key), ["a|MESS", "a|COST"]);
+  assert.equal(one[0]!.completion, 80);                     // 200/250
+  assert.equal(Math.round(one[1]!.completion!), 88);        // tối đa: 140000/160000
+  // Tất cả: Chi chỉ có kết quả, không có mục tiêu -> không có %.
+  const all = targetReportRows(report, null);
+  const chi = all.find((row) => row.key === "c|SEO")!;
+  assert.equal(chi.target, undefined);
+  assert.equal(chi.completion, null);
+  // Nhóm 2 người (An, Bình): KPI tối thiểu cộng, KPI tối đa trung bình trên người có số.
+  const group = targetReportRows(report, ["a", "b"]).filter((row) => row.member === "Tổng nhóm");
+  const mess = group.find((row) => row.metric.code === "MESS")!;
+  assert.deepEqual([mess.target, mess.actual, mess.tasks], [400, 290, 3]);
+  assert.equal(mess.completion, 72.5);
+  const cost = group.find((row) => row.metric.code === "COST")!;
+  assert.deepEqual([cost.target, cost.actual], [120_000, 160_000]); // trung bình mục tiêu; kết quả chỉ An có
+  assert.equal(group.some((row) => row.metric.code === "SEO"), false);
+  assert.equal(targetReportRows(report, ["a"]).some((row) => row.member === "Tổng nhóm"), false);
 });

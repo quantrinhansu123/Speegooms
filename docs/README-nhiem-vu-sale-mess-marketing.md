@@ -127,6 +127,7 @@ Hiện Marketing nhập mục tiêu trên từng bài.
 - **Giao mục tiêu**: menu `Giao mục tiêu` (`/giao-muc-tieu`) và mục `Mục tiêu theo người` trong Cài đặt. Quyền: Admin, Ban GĐ (cả 3 nhóm), Trưởng Sale Global (Sale Global), Leader Marketing (Marketing). Báo cáo Sale ưu tiên mục tiêu giao riêng từng người; người chưa được giao thì dùng KPI phòng chia đều như trước.
 - **Mess L cộng dồn**: nút lọc trên màn Mess và báo cáo xử lý khách hàng đều cộng dồn.
 - **Khách tự tìm**: nút `Tạo khách tiềm năng` luôn đặt nguồn `Tự tìm`.
-- **Chưa làm**: màn gán tay Sale cho bản ghi datalake không xác định được người; nối mục tiêu kỳ vào bảng Tổng hợp KPI Marketing (hiện Marketing quản trị mục tiêu ở màn Giao mục tiêu).
+- **Marketing**: mục tiêu giao theo đúng các loại KPI của Giao việc (`app.marketing_kpi_settings`, migration `080` nới mã chỉ tiêu). Trang `Tổng hợp KPI` có khối "Mục tiêu so với kết quả" (tháng/tuần): mục tiêu giao riêng từng người so với kết quả đã nghiệm thu Đạt trong kỳ; KPI tối đa lấy trung bình, % = mục tiêu / kết quả. Chọn 1 người hoặc nhóm nhiều người như báo cáo Sale; từ 2 người có dòng "Tổng nhóm" (KPI tối thiểu cộng, KPI tối đa lấy trung bình). Mục tiêu nhập từng bài vẫn giữ nguyên.
+- **Chưa làm**: màn gán tay Sale cho bản ghi datalake không xác định được người.
 
 Kiểm tra: `pnpm check:targets`, `pnpm --filter @speego/server exec tsx --test src/config/targets.test.ts`.

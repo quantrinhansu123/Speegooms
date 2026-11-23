@@ -4,6 +4,7 @@ import { asyncHandler } from "../lib/async-handler";
 export function marketingRoutes(c: AppContainer) {
   const r = Router(); r.use(c.authenticate);
   r.get("/", asyncHandler(c.marketingController.list));
+  r.get("/target-report", asyncHandler(c.marketingController.targetReport));
   r.get("/settings", asyncHandler(c.marketingController.settings));
   r.put("/settings", asyncHandler(c.marketingController.saveSettings));
   r.get("/tasks/:id", asyncHandler(c.marketingController.task));

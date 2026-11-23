@@ -4,13 +4,14 @@ import type pg from "pg";
 export class PostgresTargetsRepository {
   constructor(private readonly pool: pg.Pool) {}
 
-  /** Chỉ tiêu có thể giao: Sale cố định, Marketing theo danh mục KPI đang sử dụng. */
+  /** Chỉ tiêu có thể giao: Sale cố định, Marketing theo loại KPI giao việc đang sử dụng (cùng loại với Tổng hợp KPI). */
   async metrics(department: TargetDepartment): Promise<TargetMetric[]> {
     if (department !== "marketing") return [...saleTargetMetrics];
-    const result = await this.pool.query<{ code: string; name: string; unit: string }>(
-      `select code, name, unit from app.kpi_definitions where department = 'marketing' and active order by team, code`,
+    const result = await this.pool.query<{ types: { id: string; name: string; unit: string; direction?: "at-least" | "at-most"; active?: boolean }[] }>(
+      `select types from app.marketing_kpi_settings where id = true`,
     );
-    return result.rows.map((row) => ({ ...row, kind: "count" as const }));
+    return (result.rows[0]?.types ?? []).filter((type) => type.active !== false)
+      .map((type) => ({ code: type.id, name: type.name, unit: type.unit, kind: "count" as const, direction: type.direction ?? "at-least" }));
   }
 
   async members(department: TargetDepartment): Promise<TargetMember[]> {

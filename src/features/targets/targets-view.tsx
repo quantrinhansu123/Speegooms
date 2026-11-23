@@ -35,7 +35,8 @@ export function TargetsEditor({ departments, fixedDepartment }: { departments: r
   const [month, setMonth] = useState(today.slice(0, 7));
   const [week, setWeek] = useState(() => salesReportPeriods("week", today).current.start);
   const start = period === "month" ? `${month}-01` : week;
-  const [grid, setGrid] = useState<TargetGrid | null>(null);
+  // Dữ liệu gắn với khoá truy vấn: đổi kỳ/nhóm thì tự coi là đang tải, không cần xoá state trong effect.
+  const [loaded, setLoaded] = useState<{ key: string; grid: TargetGrid } | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -43,13 +44,14 @@ export function TargetsEditor({ departments, fixedDepartment }: { departments: r
   const [revision, setRevision] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const query = `department=${department}&period=${period}&start=${start}`;
+  const grid = loaded?.key === query ? loaded.grid : null;
+  const setGrid = (next: TargetGrid) => setLoaded({ key: query, grid: next });
 
   useEffect(() => {
     if (period === "month" && !/^\d{4}-\d{2}$/.test(month)) return;
     const controller = new AbortController();
-    setGrid(null);
     api<TargetGrid>(`/api/targets?${query}`, { signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) { setGrid(data); setEdits({}); setError(undefined); } })
+      .then((data) => { if (!controller.signal.aborted) { setLoaded({ key: query, grid: data }); setEdits({}); setError(undefined); } })
       .catch((cause: unknown) => { if (!controller.signal.aborted) setError(fail(cause)); });
     return () => controller.abort();
   }, [query, revision, period, month]);
