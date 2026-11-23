@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChartNoAxesCombined, Download, RefreshCw, Save, Split, Upload } from "lucide-react";
+import { Download, RefreshCw, Save, Split, Upload } from "lucide-react";
 import {
   salesReportPeriods, salesReportToday, shiftSalesDay, targetDepartmentLabels, targetPeriodLabels, weekShareOfMonth,
   type TargetDepartment, type TargetGrid, type TargetPeriod,
@@ -194,11 +193,10 @@ export function TargetsEditor({ departments, fixedDepartment }: { departments: r
 }
 
 /** Trang Giao mục tiêu: nhóm Sale (Sale VN/Global) và Marketing tùy quyền. */
-export function TargetsView({ departments, showReportLink = false }: { departments: readonly TargetDepartment[]; showReportLink?: boolean }) {
+export function TargetsView({ departments }: { departments: readonly TargetDepartment[] }) {
   return (
     <>
-      <PageHeader title="Giao mục tiêu" description="Giao mục tiêu tháng, tuần cho từng người. Báo cáo Sale lấy mục tiêu từ đây."
-        actions={showReportLink && <Button nativeButton={false} variant="outline" render={<Link href="/bao-cao-sale" />}><ChartNoAxesCombined aria-hidden /> Xem Báo cáo Sale</Button>} />
+      <PageHeader title="Giao mục tiêu" description="Giao mục tiêu tháng, tuần cho từng người. Báo cáo Sale lấy mục tiêu từ đây." />
       <SectionCard title="Mục tiêu theo người" bodyClassName="min-w-0">
         {departments.length === 0
           ? <p className="py-5 text-sm text-muted-foreground">Bạn không có quyền giao mục tiêu.</p>
