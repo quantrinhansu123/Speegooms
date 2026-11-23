@@ -907,7 +907,8 @@ function ContractDialog({
   const confirmedLines = confirmations.map((line) => ({ amount: numberValue(line.amount) ?? 0, currency: line.currency, exchangeRate: rateValue(line.exchangeRate) }));
   const confirmedValue = sumByCurrency([paymentsInMain(confirmedLines, amounts, contract.currency)])
     .find((line) => line.currency === contract.currency)?.amount ?? 0;
-  const balanceValue = Math.max(0, contract.totalValue - paidValue);
+  // Âm = khách trả dư.
+  const balanceValue = contract.totalValue - paidValue;
   const amountTotals = totalsInMain(amounts, contract.currency);
   const currencies = amountTotals.map((item) => item.currency).join(", ") || contract.currency;
   const vnd = contractVndSummary(amounts, paidLines, contract.currency);
@@ -974,11 +975,6 @@ function ContractDialog({
       && (contract.payments[index]?.amount !== line.amount || contract.payments[index]?.currency !== line.currency));
     if (missingRate) {
       setError(`Nhập tỷ giá (${rateLabel(contract.currency, missingRate.currency)}) cho khoản thanh toán bằng ${missingRate.currency}`);
-      return;
-    }
-    const over = sumByCurrency([paymentsInMain(parsed.data.payments, amounts, contract.currency)]).find((group) => group.amount > (amountTotals.find((item) => item.currency === group.currency)?.amount ?? 0) + 0.01);
-    if (over) {
-      setError(`Tổng đã thanh toán (${over.currency}) lớn hơn tổng giá trị hợp đồng`);
       return;
     }
     setPending(true);

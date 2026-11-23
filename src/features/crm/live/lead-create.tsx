@@ -16,7 +16,7 @@ const marketOptions = marketPresets.map((market) => [market, market] as const);
 
 /**
  * Nút "Tạo khách tiềm năng": nhập form y như Tạo mess (không có Link mess, nguồn lưu là "Khác") rồi tự chuyển
- * mess đó thành khách tiềm năng cùng thông tin đơn hàng bắt buộc. Loại khách theo Nhu cầu: Tìm hàng là Sourcing,
+ * mess đó thành khách tiềm năng cùng thông tin đơn hàng bắt buộc. Nguồn luôn là "Tự tìm" (khách tự tìm, tính vào mục tiêu và báo cáo Sale). Loại khách theo Nhu cầu: Tìm hàng là Sourcing,
  * Vận chuyển là thuần Logistics, đúng như khi bấm Chuyển ở Mess.
  * Chỉ hiện cho vai trò được chuyển mess (admin, sale-vn, sale-global).
  */
@@ -45,7 +45,7 @@ export function LeadCreate({
     setFieldErrors({});
     setError(undefined);
     setNotice(undefined);
-    setDraft({ ...emptyDraft, receivedOn: todayInput(), saleName: user.name });
+    setDraft({ ...emptyDraft, receivedOn: todayInput(), saleName: user.name, brand: "SELF_SOURCED" });
   };
 
   const save = async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { canManageKpis } from "@speego/shared";
+import { canManageKpis, manageableTargetDepartments } from "@speego/shared";
 import { LogOut, RotateCcw } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineAlert } from "@/components/shared/form-fields";
@@ -20,6 +20,7 @@ import { resetFulfillment } from "@/features/fulfillment/store";
 import { resetOps } from "@/features/operations/store";
 import { DataLanhRecipients } from "./data-lanh-recipients";
 import { KpiSettings } from "./kpi-settings";
+import { TargetsEditor } from "@/features/targets/targets-view";
 import { MarketingKpiSettingsView } from "./marketing-kpi-settings";
 
 const initials = (name: string) => name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
@@ -53,6 +54,11 @@ export function SettingsView() {
   return <>
     <PageHeader title="Cài đặt" description="Thông tin tài khoản, cấu hình KPI theo phòng ban và phạm vi truy cập theo vai trò." />
     {canManageKpis(user.role) && <div className="mb-6"><KpiSettings /></div>}
+    {manageableTargetDepartments(user.role).length > 0 && canManageKpis(user.role) && (
+      <SectionCard title="Mục tiêu theo người" description="Cấu hình mục tiêu tháng, tuần cho từng người. Cũng có thể giao tại menu Giao mục tiêu." className="mb-6" bodyClassName="min-w-0">
+        <TargetsEditor departments={manageableTargetDepartments(user.role)} />
+      </SectionCard>
+    )}
     <div className="grid gap-6 xl:grid-cols-2">
       <SectionCard title="Tài khoản">
         <div className="mb-4 flex items-center gap-4">

@@ -4,6 +4,8 @@ import { KpiController } from "../controllers/kpi.controller";
 import { PostgresKpiRepository } from "../adapters/postgres/kpi.repository";
 import { PostgresSalesReportRepository } from "../adapters/postgres/sales-report.repository";
 import { SalesReportController } from "../controllers/sales-report.controller";
+import { PostgresTargetsRepository } from "../adapters/postgres/targets.repository";
+import { TargetsController } from "../controllers/targets.controller";
 import type { RequestHandler } from "express";
 import type { Env } from "../config/env";
 import { cloudinaryConfigFromParts, ensureCloudinary } from "../adapters/cloudinary/upload";
@@ -47,6 +49,7 @@ export interface AppContainer {
   marketingController: MarketingController;
   kpiController: KpiController;
   salesReportController: SalesReportController;
+  targetsController: TargetsController;
   env: Env;
   authController: AuthController;
   healthController: HealthController;
@@ -73,6 +76,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   const csrf = createCsrfGuard(env);
   const pool = env.DB_PROVIDER === "postgres" ? getPostgresPool(env) : null;
   const kpis = pool ? new PostgresKpiRepository(pool) : null;
+  const targets = pool ? new PostgresTargetsRepository(pool) : null;
   const crm = pool ? new PostgresCrmRepository(pool) : null;
   const assignment = pool ? new PostgresAssignmentRepository(pool) : null;
   const notifications = pool ? new PostgresNotificationRepository(pool) : null;
@@ -88,7 +92,8 @@ export async function createContainer(env: Env): Promise<AppContainer> {
   return {
     marketingController: new MarketingController(pool),
     kpiController: new KpiController(kpis),
-    salesReportController: new SalesReportController(pool ? new PostgresSalesReportRepository(pool) : null, kpis),
+    salesReportController: new SalesReportController(pool ? new PostgresSalesReportRepository(pool) : null, kpis, targets),
+    targetsController: new TargetsController(targets),
     env,
     authController: new AuthController(auth, cookies),
     healthController: new HealthController(new HealthService(repositories.users)),

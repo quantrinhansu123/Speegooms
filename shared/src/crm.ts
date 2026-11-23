@@ -15,6 +15,17 @@ export const messageProcessingOptions = [
   ["L8", "L8 đã được chăm sóc sau bán"],
 ] as const;
 
+/** Số Mess cộng dồn: Ln = L1 + … + Ln (L2 = "Tư vấn" = L1 + L2). L0 (mới nhận) không tính. */
+export function cumulativeProcessingCounts(counts: Partial<Record<MessageProcessingStatus, number>>) {
+  const result: Partial<Record<MessageProcessingStatus, number>> = {};
+  let sum = 0;
+  for (const [code] of messageProcessingOptions.slice(1)) {
+    sum += counts[code] ?? 0;
+    result[code] = sum;
+  }
+  return result;
+}
+
 export const crmLaneSchema = z.enum(["vn", "global"]);
 export type CrmLane = z.infer<typeof crmLaneSchema>;
 
@@ -519,11 +530,8 @@ const createContractFieldsSchema = z.object({
   signedOn: day,
 });
 
-export const createContractSchema = createContractFieldsSchema.superRefine((value, ctx) => {
-  if (value.paidAmount > value.totalValue) {
-    ctx.addIssue({ code: "custom", message: "Số tiền thanh toán không được lớn hơn tổng giá trị", path: ["paidAmount"] });
-  }
-});
+// Cho phép thanh toán lớn hơn tổng giá trị hợp đồng (khách trả dư).
+export const createContractSchema = createContractFieldsSchema;
 
 export const opsStatusOptions = [
   "Hợp đồng",
@@ -671,9 +679,6 @@ export const createDirectContractSchema = createContractFieldsSchema.omit({ tota
   if (value.totalValue > 1_000_000_000) {
     ctx.addIssue({ code: "custom", message: "Tổng giá trị không được vượt 1.000.000.000", path: ["totalValue"] });
   }
-  if (value.paidAmount > value.totalValue) {
-    ctx.addIssue({ code: "custom", message: "Số tiền thanh toán không được lớn hơn tổng giá trị", path: ["paidAmount"] });
-  }
 });
 
 /** Sale cập nhật các lần thanh toán + ảnh bill theo từng lần; không sửa các cột thương mại khác. */
@@ -701,8 +706,7 @@ export const accountingContractSchema = z.object({
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
 export type ConvertMessageInput = z.infer<typeof convertMessageSchema>;
-export type UpdatePotentialInput = z.infer<typeof updatePotentialSchema>;
-export type QuoteDesk = z.infer<typeof quoteDeskSchema>;
+export type UpdatePotentialInput = z.infer<typeof updatePotentialSchema>;export type QuoteDesk = z.infer<typeof quoteDeskSchema>;
 export type QuoteLine = z.infer<typeof quoteLineSchema>;
 export type QuoteOrder = z.infer<typeof quoteOrderSchema>;
 export type QuoteNotes = z.infer<typeof quoteNotesSchema>;

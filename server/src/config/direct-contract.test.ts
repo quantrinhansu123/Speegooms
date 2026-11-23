@@ -28,10 +28,12 @@ test("direct contract derives its total, validates payments and needs no quote",
   assert.equal(parsed.industry, null);
   for (const patch of [
     { customerName: "   " }, { productValue: -1 }, { shippingCost: -1 }, { quantity: -1 },
-    { paidAmount: 121, totalValue: 999 }, { productValue: 1_000_000_000, shippingCost: 1 },
+    { productValue: 1_000_000_000, shippingCost: 1 },
     { currency: "invalid" }, { vndRates: { USD: 0 } }, { productValue: 0.005 }, { paidAmount: 0.005 },
   ]) assert.equal(createDirectContractSchema.safeParse({ ...draft, ...patch }).success, false, JSON.stringify(patch));
   assert.equal(createDirectContractSchema.parse({ ...draft, productValue: 0.1, shippingCost: 0.2, paidAmount: 0.3 }).totalValue, 0.3);
+  // Khách được trả dư: thanh toán lớn hơn tổng giá trị vẫn hợp lệ.
+  assert.equal(createDirectContractSchema.safeParse({ ...draft, paidAmount: 121 }).success, true);
 });
 
 test("POST /contracts creates without a quote, enforces permissions and the Sale lane", async () => {
@@ -83,11 +85,11 @@ test("POST /contracts creates without a quote, enforces permissions and the Sale
     assert.equal((await post("vn")).status, 401);
     currentRole = "sale-vn";
     assert.equal((await post("global")).status, 403);
-    assert.equal((await post("vn", { ...draft, paidAmount: 121 })).status, 422);
+    assert.equal((await post("vn", { ...draft, paidAmount: 121 })).status, 201);
     assert.equal((await post("vn", { ...draft, customerName: "" })).status, 422);
     currentRole = "sale-global";
     assert.equal((await post("vn")).status, 403);
-    assert.equal(saved.length, 5);
+    assert.equal(saved.length, 6);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

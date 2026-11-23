@@ -11,8 +11,8 @@ export {
   createContractSchema,
   createDirectContractSchema,
   convertMessageSchema,
-  createMessageSchema,
-  crmLaneSchema,
+  createMessageSchema,  crmLaneSchema,
+  cumulativeProcessingCounts,
   customerKindSchema,
   customerTypeSchema,
   leadBrandSchema,
@@ -244,3 +244,4 @@ export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type
 export * from "./marketing";
 export * from "./kpi";
 export * from "./sales-report";
+export * from "./targets";

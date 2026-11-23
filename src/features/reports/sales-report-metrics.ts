@@ -43,8 +43,12 @@ export function performanceRows(report: SalesPerformanceReport, members: SalesRe
   return {
     missingRates: current.missingRates + previous.missingRates,
     rows: salesMetrics.map((metric) => {
-      const targets = members.flatMap(({ department }) => {
-        const definition = report.definitions.find((def) => def.department === department && def.code === salesReportMetricCodes[metric.key]);
+      const code = salesReportMetricCodes[metric.key];
+      const targets = members.flatMap(({ id, department }) => {
+        // Mục tiêu giao riêng từng người được ưu tiên; chưa giao thì lấy KPI phòng chia theo số Sale và số ngày.
+        const personal = report.targets?.[id]?.[code];
+        if (personal !== undefined) return [personal];
+        const definition = report.definitions.find((def) => def.department === department && def.code === code);
         if (!definition || definition.target === null) return [];
         if (metric.kind === "rate") return [definition.target];
         return [definition.target * targetDays(period, definition.period) / report.headcounts[department]];

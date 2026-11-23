@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Users } from "lucide-react";
 import {
-  canManageKpis, messageProcessingOptions, salesReportMetricCodes, salesReportPeriods, salesReportToday, shiftSalesDay,
+  canManageKpis, cumulativeProcessingCounts, messageProcessingOptions, salesReportMetricCodes, salesReportPeriods, salesReportToday, shiftSalesDay,
   type SalesPerformanceReport, type SalesProcessingCounts, type SalesProcessingReport, type SalesReportMember,
 } from "@speego/shared";
 import { InlineAlert, NativeSelect } from "@/components/shared/form-fields";
@@ -134,10 +134,10 @@ function ProcessingTable({ report, members }: { report: SalesProcessingReport; m
   const combined: SalesProcessingCounts = {};
   for (const [code] of messageProcessingOptions) combined[code] = people.reduce((sum, person) => sum + (person.counts[code] ?? 0), 0);
   const groups = people.length > 1 ? [{ id: null, name: "Tổng nhóm", counts: combined }, ...people] : people;
-  const columns = groups.map((group) => ({ ...group, total: Object.values(group.counts).reduce((a, b) => a + b, 0) }));
+  const columns = groups.map((group) => ({ ...group, total: Object.values(group.counts).reduce((a, b) => a + b, 0), sum: cumulativeProcessingCounts(group.counts) }));
   return (
     <>
-      <p className="text-sm text-muted-foreground">Theo trạng thái Mess hiện tại. Tỷ lệ mỗi mức tính trên toàn bộ Mess của từng Sale, gồm cả L0.</p>
+      <p className="text-sm text-muted-foreground">Theo trạng thái Mess hiện tại. Số lượng tính cộng dồn: L2 (tư vấn) = L1+L2, L3 = L1+L2+L3, các mức sau tương tự. Tỷ lệ tính trên toàn bộ Mess của từng Sale, gồm cả L0.</p>
       <div className="rounded-lg border">
         <Table>
           <TableHeader className="bg-muted/50">
@@ -150,9 +150,9 @@ function ProcessingTable({ report, members }: { report: SalesProcessingReport; m
           <TableBody>
             {messageProcessingOptions.slice(1).map(([code, label]) => <TableRow key={code}>
               <TableHead scope="row" className="sticky left-0 z-10 bg-card px-4 font-medium">{label}</TableHead>
-              {columns.map(({ id, counts, total }) => <Fragment key={id ?? "group"}>
-                <TableCell className={`${tableNumber} border-l`}>{formatValue(counts[code] ?? 0)}</TableCell>
-                <TableCell className={tableNumber}>{formatValue(percentOf(counts[code] ?? 0, total), "%")}</TableCell>
+              {columns.map(({ id, total, sum }) => <Fragment key={id ?? "group"}>
+                <TableCell className={`${tableNumber} border-l`}>{formatValue(sum[code] ?? 0)}</TableCell>
+                <TableCell className={tableNumber}>{formatValue(percentOf(sum[code] ?? 0, total), "%")}</TableCell>
               </Fragment>)}
             </TableRow>)}
             <TableRow className="bg-muted/40 font-semibold">

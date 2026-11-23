@@ -15,6 +15,7 @@ import {
   ChartNoAxesCombined,
   BookOpen,
   Stamp,
+  Target,
 } from "lucide-react";
 import type { NavGroup } from "@/types/navigation";
 
@@ -89,6 +90,7 @@ export const navigation: NavGroup[] = [
         ],
       },
       { title: "Báo cáo Sale", href: "/bao-cao-sale", icon: ChartNoAxesCombined },
+      { title: "Giao mục tiêu", href: "/giao-muc-tieu", icon: Target },
       {
         title: "Sourcing",
         href: "/van-hanh/sourcing-bao-gia",

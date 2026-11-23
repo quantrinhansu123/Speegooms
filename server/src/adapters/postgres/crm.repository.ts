@@ -1380,7 +1380,9 @@ export class PostgresCrmRepository implements CrmRepository {
     const result = await queryPage<MessageRow>({ query: this.query.bind(this) },
       `${messageSelect(lane)} where true ${compiled.sql}`, params, page, {
         orderBy: "created_at desc, id desc",
-        where: `${saleFilter} and ($${params.length - 1}::text = '' or processing_status = $${params.length - 1})`,
+        // Lọc theo mức L cộng dồn: chọn Ln lấy L1…Ln (tư vấn = L1+L2, L3 = L1+L2+L3, …). L0 chỉ lấy đúng L0.
+        where: `${saleFilter} and ($${params.length - 1}::text = '' or processing_status = $${params.length - 1}
+          or (processing_status ~ '^L[1-8]$' and substr(processing_status, 2)::int <= case when $${params.length - 1}::text ~ '^L[1-8]$' then substr($${params.length - 1}::text, 2)::int else 0 end))`,
         summary: `jsonb_build_object(
           'statusCounts', (select coalesce(jsonb_object_agg(processing_status, n), '{}'::jsonb) from
             (select processing_status, count(*)::int as n from records where processing_status is not null and ${saleFilter} group by processing_status) c)

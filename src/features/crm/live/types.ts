@@ -80,9 +80,8 @@ export const brandOptions = [
   ["SELF_SOURCED", "Tự tìm", "bg-[#f1f5f9] text-[#334155]"],
 ] as const;
 
-export const leadCreateBrandOptions = brandOptions.filter(([value]) =>
-  value !== "SPEEGO_NAIL" && value !== "SPEEGO_CA" && value !== "SPEEGO_BUSINESS" && value !== "SPEEGO_RETAIL",
-);
+/** Tạo thẳng khách tiềm năng (không từ Mess) luôn là khách tự tìm. */
+export const leadCreateBrandOptions = brandOptions.filter(([value]) => value === "SELF_SOURCED");
 
 export const demandOptions = [
   ["SHIPPING", "Vận chuyển"],

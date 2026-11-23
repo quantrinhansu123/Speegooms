@@ -22,6 +22,9 @@ export function registerRoutes(app: Express, container: AppContainer) {
   api.use("/marketing", marketingRoutes(container));
   api.use("/settings/kpis", kpiRoutes(container));
   api.get("/sales-report", container.authenticate, asyncHandler(container.salesReportController.read));
+  api.get("/targets/scope", container.authenticate, asyncHandler(container.targetsController.scope));
+  api.get("/targets", container.authenticate, asyncHandler(container.targetsController.read));
+  api.put("/targets", container.authenticate, asyncHandler(container.targetsController.write));
   api.use("/health", healthRoutes(container.healthController));
   api.use("/security", securityRoutes(container.securityController));
   api.use("/auth", authRoutes(container));

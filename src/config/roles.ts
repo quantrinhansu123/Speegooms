@@ -1,5 +1,5 @@
 import { navigation } from "@/config/navigation";
-import { canManageKpis, canViewSalesReport } from "@speego/shared";
+import { canManageKpis, canViewSalesReport, manageableTargetDepartments } from "@speego/shared";
 import type { NavGroup } from "@/types/navigation";
 import type { Department, Role } from "@/types/role";
 
@@ -120,6 +120,7 @@ const TRACKING_HREF = /^\/theo-doi-bao-gia\/(vn|global)(\/|$)/;
 export function canAccess(role: Role, href: string): boolean {
   if (href === "/tai-khoan") return true;
   if (href === "/bao-cao-sale") return canViewSalesReport(role);
+  if (href === "/giao-muc-tieu") return manageableTargetDepartments(role).length > 0;
   if (href === "/cai-dat" || href.startsWith("/cai-dat/")) return canManageKpis(role);
   if (["/reports", "/demo-guide", "/coa", "/khach-hang-dieu-phoi"].some((path) => href === path || href.startsWith(`${path}/`))) return role === "admin";
   if (TRACKING_HREF.test(href)) {

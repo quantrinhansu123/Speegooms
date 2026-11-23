@@ -21,6 +21,7 @@ export const implementedRoutes: readonly string[] = [
   "/sale-global/sale-my",
   "/sale-global/data-lanh",
   "/bao-cao-sale",
+  "/giao-muc-tieu",
   "/cai-dat",
   "/tai-khoan",
   "/reports",

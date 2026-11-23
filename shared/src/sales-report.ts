@@ -53,5 +53,7 @@ export type SalesPerformanceReport = {
   headcounts: Record<SalesReportDepartment, number>;
   definitions: KpiDefinition[];
   rows: { id: string; current: SalesMetrics; previous: SalesMetrics }[];
+  /** Mục tiêu giao riêng từng người trong kỳ đang xem: userId → mã chỉ tiêu → số. */
+  targets?: Record<string, Record<string, number>>;
 };
 export type SalesProcessingReport = { members: SalesReportMember[]; counts: Record<string, SalesProcessingCounts> };

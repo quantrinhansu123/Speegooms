@@ -5,7 +5,7 @@ import { ServerPagination, useServerPagination } from "@/components/shared/serve
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { canHandleCrm, messageProcessingOptions, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
+import { canHandleCrm, cumulativeProcessingCounts, messageProcessingOptions, createMessageSchema, industryCategoryOptions, updateMessageSchema, type CrmLane } from "@speego/shared";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -56,7 +56,9 @@ export function MessView({ lane: fixedLane }: { lane?: CrmLane }) {
   const paging = useServerPagination(lane + JSON.stringify(filters.applied) + processingFilter, "");
   const { query: pageQuery, receive: receivePage } = paging;
   const shown = listLoading ? [] : rows;
-  const statusCounts = (paging.summary.statusCounts ?? {}) as Record<string, number>;
+  const rawCounts = (paging.summary.statusCounts ?? {}) as Record<string, number>;
+  // L cộng dồn: tư vấn (L2) = L1+L2, L3 = L1+L2+L3, … Tất cả và L0 giữ nguyên.
+  const statusCounts: Record<string, number> = { ...rawCounts, ...cumulativeProcessingCounts(rawCounts) };
   const saleOptions = saleFilterOptions((paging.summary.staff ?? []) as string[], (paging.summary.sales ?? []) as string[], (paging.summary.otherStaff ?? []) as string[]);
   // Chọn nhiều người: giá trị lọc là mọi dạng tên của những người đã chọn, ngăn cách bằng "|".
   const pickedNames = new Set(filters.draft.saleName.split("|").map((name) => name.trim().toLowerCase()).filter(Boolean));

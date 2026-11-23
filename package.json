@@ -18,6 +18,7 @@
     "check:reports": "node --experimental-strip-types --no-warnings src/services/reports/rules.check.ts",
     "check:marketing": "tsx --test src/features/marketing/marketing.test.ts && pnpm --filter @speego/server exec tsx --test src/controllers/marketing.controller.test.ts",
     "check:kpi": "tsx --test src/components/layout/sidebar-nav.test.tsx && pnpm --filter @speego/server exec tsx --test src/controllers/kpi.controller.test.ts",
+    "check:targets": "tsx --test src/features/targets/targets.test.ts",
     "check:flow": "node scripts/check-flow.mjs",
     "check:ui": "node scripts/check-ui.mjs",
     "check": "pnpm check:crm && pnpm check:ops && pnpm check:fulfillment && pnpm check:accounting && pnpm check:backoffice && pnpm check:metrics && pnpm check:reports && pnpm check:flow && pnpm check:ui",
