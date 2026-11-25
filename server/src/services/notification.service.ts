@@ -72,6 +72,20 @@ export class NotificationService {
     });
   }
 
+  async notifyQuoteTransferred(actor: PublicUser, assigneeId: string, lane: CrmLane, desk: QuoteDesk, quoteId: string, quoteCode?: string | null): Promise<void> {
+    if (!this.notifications || assigneeId === actor.id) return;
+    await this.notifications.createMany([assigneeId], {
+      type: "quote.request",
+      title: "Báo giá được chuyển cho bạn",
+      body: `${actor.name} đã chuyển báo giá ${quoteCode ?? ""} (${desk}, ${laneLabel(lane)}) cho bạn phụ trách.`,
+      href: recordHref(deskPath(desk), quoteId, lane),
+      lane,
+      refType: "quote",
+      refId: quoteId,
+      actorId: actor.id,
+    });
+  }
+
   async notifyQuoteRequested(
     actor: PublicUser,
     lane: CrmLane,

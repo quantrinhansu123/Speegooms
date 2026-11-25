@@ -46,6 +46,29 @@ export class PostgresAssignmentRepository {
     return Object.fromEntries(r.rows.map((row) => [row.quote_id, { id: row.id, name: row.name }]));
   }
 
+  /** Mã hiển thị của báo giá (bảng Sourcing hoặc Logistics của tuyến), null nếu không thấy. */
+  async quoteCode(lane: CrmLane, quoteId: string): Promise<string | null> {
+    const suffix = lane === "vn" ? "viet_nam" : "global";
+    const r = await this.pool.query<{ code: string }>(
+      `select ma_hien_thi as code from crm.bao_gia_sourcing_${suffix} where id = $1::uuid
+       union all select ma_hien_thi from crm.bao_gia_logistics_${suffix} where id = $1::uuid limit 1`,
+      [quoteId],
+    );
+    return r.rows[0]?.code ?? null;
+  }
+
+  /** Chuyển báo giá sang nhân viên khác cùng bàn. Null nếu người nhận không thuộc danh sách chia đơn của bàn. */
+  async transfer(lane: CrmLane, desk: AssignmentDesk, quoteId: string, userId: string): Promise<{ id: string; name: string } | null> {
+    const target = (await this.members(desk)).find((m) => m.id === userId);
+    if (!target) return null;
+    await this.pool.query(
+      `insert into crm.chia_don (tuyen, ban, bao_gia_id, nguoi_nhan_id, phan_cong_luc) values ($1, $2, $3::uuid, $4, clock_timestamp())
+       on conflict (tuyen, ban, bao_gia_id) do update set nguoi_nhan_id = excluded.nguoi_nhan_id`,
+      [lane, desk, quoteId, userId],
+    );
+    return { id: target.id, name: target.name };
+  }
+
   /**
    * Chia báo giá cho người kế tiếp theo vòng tròn (đã chia rồi thì trả lại đúng người đó). Null nếu mọi người đang off
    * hoặc bàn chưa có danh sách nhận; khi đó chưa ghi gì để lần sau chia lại.

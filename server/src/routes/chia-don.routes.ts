@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { setAssignmentOffSchema } from "@speego/shared";
+import { setAssignmentOffSchema, transferQuoteSchema } from "@speego/shared";
 import type { AppContainer } from "../container";
 import { asyncHandler } from "../lib/async-handler";
 import { requireAnyPermission } from "../middlewares/authorize";
@@ -14,5 +14,6 @@ export function chiaDonRoutes(container: AppContainer) {
   router.get("/:desk/assignees", readers, asyncHandler(c.assignees));
   // Quyền chỉnh người khác kiểm tra trong controller (mỗi người luôn tự chỉnh được của mình).
   router.put("/:desk/members/:userId", requireAnyPermission(["quote.read"]), validate({ body: setAssignmentOffSchema }), asyncHandler(c.setOff));
+  router.put("/:desk/quotes/:quoteId/assignee", requireAnyPermission(["quote.read"]), validate({ body: transferQuoteSchema }), asyncHandler(c.transfer));
   return router;
 }

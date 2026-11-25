@@ -105,7 +105,7 @@ export async function createContainer(env: Env): Promise<AppContainer> {
       crm && pool ? new CrmImportService(crm, new PostgresCrmImportStore(pool)) : null,
       assignment,
     )),
-    assignmentController: new AssignmentController(assignment),
+    assignmentController: new AssignmentController(assignment, notificationService),
     dataLanhController: new DataLanhController(pool ? new PostgresDataLanhRepository(pool) : null, notificationService),
     deXuatController: new DeXuatController(pool ? new PostgresDeXuatRepository(pool) : null, notificationService),
     keToanController: new KeToanController(new KeToanService(pool ? new PostgresKeToanRepository(pool) : null)),

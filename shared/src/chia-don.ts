@@ -6,6 +6,8 @@ export type AssignmentDesk = z.infer<typeof assignmentDeskSchema>;
 
 export const setAssignmentOffSchema = z.object({ off: z.boolean() });
 
+export const transferQuoteSchema = z.object({ lane: z.enum(["vn", "global"]), userId: z.string().min(1).max(64) });
+
 export interface AssignmentMember {
   id: string;
   name: string;

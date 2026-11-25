@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AssignmentDesk, AssignmentMember } from "@speego/shared";
-import { InlineAlert } from "@/components/shared/form-fields";
+import type { AssignmentDesk, AssignmentMember, CrmLane } from "@speego/shared";
+import { Field, InlineAlert, NativeSelect } from "@/components/shared/form-fields";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSession } from "@/features/auth/session-provider";
 import { ApiError, api } from "@/lib/api";
 
@@ -76,6 +76,44 @@ export function AssignmentDialog({ desk, onClose, onChanged }: { desk: Assignmen
             );
           })}
         </ul>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Chuyển một báo giá sang nhân viên khác trong danh sách nhân sự của bàn. */
+export function TransferQuoteDialog({ desk, lane, quoteId, code, members, onClose, onDone }: { desk: AssignmentDesk; lane: CrmLane; quoteId: string; code: string; members: AssignmentMember[]; onClose: () => void; onDone: (name: string) => void }) {
+  const [userId, setUserId] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  const submit = () => {
+    setBusy(true);
+    setError(undefined);
+    api<{ assignee: { name: string } }>(`/api/chia-don/${desk}/quotes/${quoteId}/assignee`, { method: "PUT", body: JSON.stringify({ lane, userId }) })
+      .then((body) => { onDone(body.assignee.name); onClose(); })
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Không chuyển được báo giá"))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Chuyển báo giá {code}</DialogTitle>
+          <DialogDescription>Chọn nhân viên trong team sẽ phụ trách báo giá này; người nhận sẽ có thông báo.</DialogDescription>
+        </DialogHeader>
+        {error && <InlineAlert>{error}</InlineAlert>}
+        <Field label="Người nhận" htmlFor="transfer-user">
+          <NativeSelect id="transfer-user" value={userId} onChange={(event) => setUserId(event.target.value)}>
+            <option value="">Chọn nhân viên</option>
+            {members.map((m) => <option key={m.id} value={m.id}>{m.name}{m.off ? " (đang off)" : ""}</option>)}
+          </NativeSelect>
+        </Field>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+          <Button type="button" disabled={!userId || busy} onClick={submit}>Chuyển</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

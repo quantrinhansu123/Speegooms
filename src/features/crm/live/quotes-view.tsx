@@ -23,7 +23,7 @@ import { FOCUS_ROW_CLASS, useFocusRow } from "@/features/notifications/use-focus
 import { ApiError, api } from "@/lib/api";
 import { formatMoneyGrouped } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { AssignmentDialog } from "./assignment-dialog";
+import { AssignmentDialog, TransferQuoteDialog } from "./assignment-dialog";
 import { QuoteEditor } from "./quote-editor";
 import { crmPath, LaneSwitch, useCrmLane } from "./lane";
 import { CustomerKindTabs, dateRangeError, FilterSelect, ListSearchBar, searchParams, useAppliedSearch } from "./list-search-bar";
@@ -80,6 +80,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
   const [listLoading, setListLoading] = useState(true);
   const [templates, setTemplates] = useState<QuoteTemplateRecord[]>([]);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [transferring, setTransferring] = useState<DeskQuote | null>(null);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -317,6 +318,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
                 { key: "pdf", label: "Tải PDF", icon: <Download />, onClick: () => askOutput("pdf", row) },
                 { key: "excel", label: "Tải Excel", icon: <Download />, onClick: () => askOutput("excel", row) },
               ];
+              if (canOps) items.push({ key: "transfer", label: "Chuyển người phụ trách", onClick: () => setTransferring(row) });
               return (
                 <tr
                   key={`${row.lane}-${row.id}`}
@@ -371,6 +373,7 @@ export function QuoteDeskView({ desk, report = false }: { desk: QuoteDesk; repor
       </TableHScroll>
       <ServerPagination paging={paging} loading={listLoading} />
 
+      {transferring && <TransferQuoteDialog desk={desk} lane={transferring.lane} quoteId={transferring.id} code={transferring.code} members={members} onClose={() => setTransferring(null)} onDone={(name) => { setNotice(`Đã chuyển báo giá ${transferring.code} cho ${name}`); loadQuotes(); }} />}
       {assignmentOpen && <AssignmentDialog desk={desk} onClose={() => setAssignmentOpen(false)} onChanged={loadQuotes} />}
 
       {editing && (

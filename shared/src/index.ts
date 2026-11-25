@@ -240,7 +240,7 @@ export {
   type ProposalVerdict,
   type SaveProposalTemplateInput,
 } from "./de-xuat";
-export { assignmentDeskSchema, setAssignmentOffSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";
+export { assignmentDeskSchema, setAssignmentOffSchema, transferQuoteSchema, type AssignmentDesk, type AssignmentMember } from "./chia-don";
 export * from "./marketing";
 export * from "./kpi";
 export * from "./sales-report";

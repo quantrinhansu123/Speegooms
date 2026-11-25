@@ -3,9 +3,10 @@ import { assignmentDeskSchema, canAccessQuoteDesk } from "@speego/shared";
 import type { PostgresAssignmentRepository } from "../adapters/postgres/chia-don.repository";
 import { can } from "../config/permissions";
 import { AppError } from "../lib/errors";
+import type { NotificationService } from "../services/notification.service";
 
 export class AssignmentController {
-  constructor(private readonly repo: PostgresAssignmentRepository | null) {}
+  constructor(private readonly repo: PostgresAssignmentRepository | null, private readonly notifications: NotificationService | null = null) {}
 
   private ready(): PostgresAssignmentRepository {
     if (!this.repo) throw new AppError(503, "UNAVAILABLE", "Chia đơn cần kết nối Postgres");
@@ -36,6 +37,25 @@ export class AssignmentController {
       assignees = Object.fromEntries(Object.entries(assignees).filter(([id]) => own[id]?.id === actor.id));
     }
     res.status(200).json({ assignees });
+  };
+
+  /** Admin / Vận hành chuyển bất kỳ đơn nào; người đang phụ trách chuyển được đơn của mình. */
+  transfer = async (req: Request, res: Response) => {
+    const actor = req.user;
+    if (!actor) throw new AppError(401, "UNAUTHENTICATED", "Chưa đăng nhập");
+    const raw = req.params.quoteId;
+    const quoteId = Array.isArray(raw) ? raw[0] : raw;
+    const { lane, userId } = req.body as { lane: "vn" | "global"; userId: string };
+    const desk = this.desk(req);
+    const repo = this.ready();
+    if (!can(actor.role, "quote.assign")) {
+      const current = (await repo.assignees(lane, desk))[quoteId];
+      if (current?.id !== actor.id) throw new AppError(403, "FORBIDDEN", "Chỉ người đang phụ trách hoặc Vận hành mới được chuyển báo giá");
+    }
+    const assignee = await repo.transfer(lane, desk, quoteId, userId);
+    if (!assignee) throw new AppError(422, "INVALID_ASSIGNEE", "Người nhận không thuộc danh sách nhân sự của bàn này");
+    await this.notifications?.notifyQuoteTransferred(actor, assignee.id, lane, desk, quoteId, await repo.quoteCode(lane, quoteId).catch(() => null)).catch(() => undefined);
+    res.status(200).json({ assignee });
   };
 
   /** Admin / Trưởng nhóm Vận hành chỉnh cho bất kỳ ai; mỗi người luôn tự bật/tắt off của mình. */
