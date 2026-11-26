@@ -13,6 +13,7 @@ export {
   convertMessageSchema,
   createMessageSchema,  crmLaneSchema,
   cumulativeProcessingCounts,
+  processingRollup,
   customerKindSchema,
   customerTypeSchema,
   leadBrandSchema,

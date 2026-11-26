@@ -15,13 +15,26 @@ export const messageProcessingOptions = [
   ["L8", "L8 đã được chăm sóc sau bán"],
 ] as const;
 
-/** Số Mess cộng dồn: Ln = L1 + … + Ln (L2 = "Tư vấn" = L1 + L2). L0 (mới nhận) không tính. */
+/**
+ * Mức L cộng dồn: Ln gồm các mess đang ở những mức trong danh sách này.
+ * L0 giữ nguyên (chỉ đúng L0, không nằm trong bảng). L5 bỏ qua L6 (Lost); L6 chỉ đúng L6.
+ */
+export const processingRollup: Partial<Record<MessageProcessingStatus, readonly MessageProcessingStatus[]>> = {
+  L1: ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"],
+  L2: ["L2", "L3", "L4", "L5", "L6", "L7", "L8"],
+  L3: ["L3", "L4", "L5", "L6", "L7", "L8"],
+  L4: ["L4", "L5", "L6", "L7", "L8"],
+  L5: ["L5", "L7", "L8"],
+  L6: ["L6"],
+  L7: ["L7", "L8"],
+  L8: ["L8"],
+};
+
+/** Số Mess cộng dồn theo `processingRollup`. L0 (mới nhận) không tính. */
 export function cumulativeProcessingCounts(counts: Partial<Record<MessageProcessingStatus, number>>) {
   const result: Partial<Record<MessageProcessingStatus, number>> = {};
-  let sum = 0;
-  for (const [code] of messageProcessingOptions.slice(1)) {
-    sum += counts[code] ?? 0;
-    result[code] = sum;
+  for (const [code, members] of Object.entries(processingRollup) as [MessageProcessingStatus, readonly MessageProcessingStatus[]][]) {
+    result[code] = members.reduce((sum, member) => sum + (counts[member] ?? 0), 0);
   }
   return result;
 }

@@ -119,16 +119,19 @@ test("personal targets drive the Sale report; people without one fall back to th
   assert.equal(row([sale("u1")], "closeRate").target, null);
 });
 
-test("cumulative Mess levels: tư vấn = L1+L2, L3 = L1+L2+L3, and so on", () => {
-  const sum = cumulativeProcessingCounts({ L0: 99, L1: 5, L2: 3, L3: 2, L4: 1, L6: 4, L8: 1 });
-  assert.equal(sum.L1, 5);
-  assert.equal(sum.L2, 8);
-  assert.equal(sum.L3, 10);
-  assert.equal(sum.L4, 11);
-  assert.equal(sum.L5, 11);
-  assert.equal(sum.L6, 15);
-  assert.equal(sum.L8, 16);
+test("cumulative Mess levels roll up from the higher levels: L1..L4 include L6, L5 skips it, L6 stays alone", () => {
+  // L1=1 … L8=8 để mỗi mức đóng góp một giá trị riêng; L0 không tính.
+  const sum = cumulativeProcessingCounts({ L0: 99, L1: 1, L2: 2, L3: 3, L4: 4, L5: 5, L6: 6, L7: 7, L8: 8 });
+  assert.equal(sum.L1, 36);
+  assert.equal(sum.L2, 35);
+  assert.equal(sum.L3, 33);
+  assert.equal(sum.L4, 30);
+  assert.equal(sum.L5, 20);
+  assert.equal(sum.L6, 6);
+  assert.equal(sum.L7, 15);
+  assert.equal(sum.L8, 8);
   assert.equal("L0" in sum, false);
+  assert.deepEqual(cumulativeProcessingCounts({}), { L1: 0, L2: 0, L3: 0, L4: 0, L5: 0, L6: 0, L7: 0, L8: 0 });
 });
 
 test("completion: minimum KPIs divide result by target, maximum KPIs (costs) divide target by result", () => {

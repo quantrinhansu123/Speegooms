@@ -33,7 +33,9 @@ import {
   type QuoteLine,
   type QuoteNotes,
   type QuoteOrder,
+  processingRollup,
   shippingNoteKeys,
+  type MessageProcessingStatus,
   type ShippingNoteKey,
   type SaleContractPaymentInput,
   type SentQuote,
@@ -1376,15 +1378,16 @@ export class PostgresCrmRepository implements CrmRepository {
 
   async pageMessages(lane: CrmLane, search: MessageListSearch, page: PageRequest): Promise<ListPage<MessageRecord>> {
     const compiled = messageSearch({ ...search, saleName: "" }).build();
-    const params = [...compiled.values, search.processingStatus ?? "", (search.saleName ?? "").toLowerCase()];
+    // Lọc theo mức L cộng dồn (processingRollup); L0 hoặc không chọn thì lấy đúng mức đó / tất cả.
+    const status = search.processingStatus as MessageProcessingStatus | undefined;
+    const statuses = status ? [...(processingRollup[status] ?? [status])] : [];
+    const params = [...compiled.values, statuses, (search.saleName ?? "").toLowerCase()];
     // saleName có thể gồm nhiều dạng tên của cùng một người, ngăn cách bằng "|".
     const saleFilter = `($${params.length}::text = '' or lower(btrim(sale_name)) = any(string_to_array($${params.length}, '|')))`;
     const result = await queryPage<MessageRow>({ query: this.query.bind(this) },
       `${messageSelect(lane)} where true ${compiled.sql}`, params, page, {
         orderBy: "created_at desc, id desc",
-        // Lọc theo mức L cộng dồn: chọn Ln lấy L1…Ln (tư vấn = L1+L2, L3 = L1+L2+L3, …). L0 chỉ lấy đúng L0.
-        where: `${saleFilter} and ($${params.length - 1}::text = '' or processing_status = $${params.length - 1}
-          or (processing_status ~ '^L[1-8]$' and substr(processing_status, 2)::int <= case when $${params.length - 1}::text ~ '^L[1-8]$' then substr($${params.length - 1}::text, 2)::int else 0 end))`,
+        where: `${saleFilter} and (cardinality($${params.length - 1}::text[]) = 0 or processing_status = any($${params.length - 1}::text[]))`,
         summary: `jsonb_build_object(
           'statusCounts', (select coalesce(jsonb_object_agg(processing_status, n), '{}'::jsonb) from
             (select processing_status, count(*)::int as n from records where processing_status is not null and ${saleFilter} group by processing_status) c)
