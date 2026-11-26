@@ -401,7 +401,7 @@ export const quotePrintCss = `
 
   .masthead {
     display: block;
-    padding-bottom: 10px;
+    padding-bottom: 6px;
   }
   .accent-bar { display: none; }
   .brand {
@@ -781,8 +781,8 @@ export const quotePrintCss = `
     display: flow-root;
   }
   .bank {
-    margin-top: 12px;
-    padding: 8px 10px 8px 12px;
+    margin-top: 6px;
+    padding: 6px 10px 6px 12px;
     border: 1px solid #c5d0de;
     border-left: 4px solid #F26522;
     background: #F6F8FC;
@@ -814,7 +814,7 @@ export const quotePrintCss = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 24px;
-    margin-top: 18px;
+    margin-top: 8px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -831,7 +831,7 @@ export const quotePrintCss = `
   .sign div::after {
     content: "";
     display: block;
-    height: 28mm;
+    height: 14mm;
   }
   .sign span {
     display: block;
