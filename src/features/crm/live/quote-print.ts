@@ -809,6 +809,8 @@ export const quotePrintCss = `
   .bank h3 { margin: 8px 0 2px; font-size: 9.5pt; color: #082A59; }
   /* Hai cột cùng nhịp dòng để PDF tìm được chỗ ngắt giữa các hàng. */
   .bank-cols .r, .bank-cols h3 { margin: 0 0 2px; line-height: 18px; }
+  /* Cột nhãn rộng hơn để "Tên tài khoản (Account Name)" không xuống dòng. */
+  .bank-cols .r { grid-template-columns: 190px 1fr; }
 
   .sign {
     display: grid;
@@ -831,7 +833,7 @@ export const quotePrintCss = `
   .sign div::after {
     content: "";
     display: block;
-    height: 14mm;
+    height: 12mm;
   }
   .sign span {
     display: block;
@@ -864,6 +866,16 @@ export const quotePrintFrameCss = `
   .frame-foot { padding-top: 3mm !important; padding-bottom: 8mm !important; border-top: 1px solid #cbd5e1; }
   .frame-foot .print-foot { color: #082A59; font-size: 8pt; line-height: 1.35; }
   .page-break { page-break-after: always; break-after: page; }
+  /* Báo giá chỉ vừa 1 trang sau khi thu gọn khoảng cách (xem fitFramesToOnePage). */
+  .fit-one .sign { margin-top: 4px; }
+  .fit-one .sign div { padding-top: 4px; }
+  .fit-one .sign div::after { height: 6mm; }
+  .fit-one .bank { margin-top: 4px; padding-top: 4px; padding-bottom: 4px; }
+  .fit-one .freight-note { margin-top: 3px; }
+  .fit-one .freight-note li { margin: 0; }
+  .fit-one .bank-cols .r, .fit-one .bank-cols h3 { margin-bottom: 0; line-height: 16px; }
+  .fit-one .doc-title { margin: 4px 0 3px; }
+  .fit-one .masthead { padding-bottom: 3px; }
 `;
 
 export function quotePrintFootHtml(): string {
@@ -894,6 +906,20 @@ export function mountQuotePrintFrames(doc: Document, footHtml = quotePrintFootHt
       headCell.innerHTML = `<div style="height:8mm"></div>`;
     }
     if (footCell) footCell.innerHTML = footHtml;
+  });
+}
+
+/**
+ * Mỗi báo giá tràn sang trang 2 chỉ vì phần chữ ký: thu gọn khoảng cách cho vừa 1 trang.
+ * Thu gọn rồi vẫn tràn (báo giá dài thật) thì trả về như cũ để chảy sang trang 2 bình thường.
+ * Phải gọi khi khung có bề ngang đúng khổ giấy in (A4 ngang 297mm), nên iframe in 0×0 cần mở rộng tạm.
+ */
+export function fitFramesToOnePage(doc: Document, pageHeightPx: number): void {
+  doc.querySelectorAll<HTMLElement>("table.frame").forEach((table) => {
+    const height = () => table.getBoundingClientRect().height;
+    if (height() <= pageHeightPx) return;
+    table.classList.add("fit-one");
+    if (height() > pageHeightPx) table.classList.remove("fit-one");
   });
 }
 
@@ -948,6 +974,13 @@ export async function printQuoteSheet(html: string | string[]): Promise<void> {
   mountQuotePrintFrames(doc);
   await waitForImages(doc);
   await doc.fonts.ready;
+  // Đo ở đúng khổ A4 ngang (iframe in rộng 0 nên mở rộng tạm), trừ 1px cho sai số làm tròn.
+  frame.style.width = "297mm";
+  frame.style.height = "210mm";
+  frame.style.visibility = "hidden";
+  fitFramesToOnePage(doc, (210 / 25.4) * 96 - 1);
+  frame.style.width = "0";
+  frame.style.height = "0";
   win.focus();
   win.print();
   win.addEventListener("afterprint", () => frame.remove());
