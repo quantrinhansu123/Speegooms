@@ -126,7 +126,13 @@ function colgroupHtml(cols: Column[]): string {
 function bankInfoBlock(model: QuoteSheetModel): string {
   const rowsHtml = (rows: [string, string][]) => rows.filter(([, value]) => value.trim()).map(([label, value]) => `<div class="r"><span>${escapeHtml(label)}</span>${escapeHtml(value)}</div>`).join("");
   const payment = model.payment ? `<h3>${escapeHtml(model.t.paymentInfo)}</h3>${model.payment.error ? `<p>${escapeHtml(model.payment.error)}</p>` : ""}${rowsHtml(model.payment.rows)}` : "";
-  if (!model.bank.sections) return `<section class="bank"><h2>${escapeHtml(model.bank.title || model.t.paymentInfo)}</h2>${payment}${rowsHtml(model.bank.rows)}</section>`;
+  if (!model.bank.sections) {
+    // Hai cột (thanh toán | tài khoản nhận) cho ngắn lại, tránh tràn sang trang 2; bỏ tiêu đề lặp.
+    const title = model.bank.title || model.t.paymentInfo;
+    const left = model.payment ? `${model.payment.error ? `<p>${escapeHtml(model.payment.error)}</p>` : ""}${rowsHtml(model.payment.rows)}` : "";
+    const sub = model.payment && title !== model.t.paymentInfo ? `<h3>${escapeHtml(model.t.paymentInfo)}</h3>` : "";
+    return `<section class="bank"><h2>${escapeHtml(title)}</h2><div class="bank-cols"><div>${sub}${left}</div><div>${rowsHtml(model.bank.rows)}</div></div></section>`;
+  }
   const [company, wire, ach] = model.bank.sections;
   const group = (section: typeof company) => `<h3>${escapeHtml(section.title)}</h3>${rowsHtml(section.rows)}`;
   return `<section class="bank">
