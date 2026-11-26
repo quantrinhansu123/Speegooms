@@ -13,23 +13,25 @@ import { formatMoney, formatMoneyInput, parseMoneyInput } from "@/lib/format";
 import { crmPath } from "./lane";
 import type { ContractRecord } from "./contracts-live-view";
 
-export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
+export function DirectContractCreateDialog({ lane, contract, onClose, onCreated }: {
   lane: CrmLane;
+  /** Có thì dialog ở chế độ sửa thông tin hợp đồng trực tiếp. */
+  contract?: ContractRecord;
   onClose: () => void;
   onCreated: (contract: ContractRecord) => void;
 }) {
   const user = useSession();
-  const [customerName, setCustomerName] = useState("");
-  const [shipTo, setShipTo] = useState("");
-  const [product, setProduct] = useState("");
-  const [industry, setIndustry] = useState<IndustryCategory | "">("");
-  const [quantity, setQuantity] = useState("");
-  const [currency, setCurrency] = useState<QuoteCurrency>("VND");
-  const [productValue, setProductValue] = useState("");
-  const [shippingCost, setShippingCost] = useState("");
+  const [customerName, setCustomerName] = useState(contract?.customerName ?? "");
+  const [shipTo, setShipTo] = useState(contract?.shipTo ?? "");
+  const [product, setProduct] = useState(contract?.product ?? "");
+  const [industry, setIndustry] = useState<IndustryCategory | "">(contract?.industry ?? "");
+  const [quantity, setQuantity] = useState(contract?.quantity != null ? String(contract.quantity) : "");
+  const [currency, setCurrency] = useState<QuoteCurrency>(contract?.currency ?? "VND");
+  const [productValue, setProductValue] = useState(contract ? formatMoneyInput(String(contract.productValue).replace(".", ",")) : "");
+  const [shippingCost, setShippingCost] = useState(contract ? formatMoneyInput(String(contract.shippingCost).replace(".", ",")) : "");
   const [paidAmount, setPaidAmount] = useState("");
-  const [signedOn, setSignedOn] = useState("");
-  const [vndRate, setVndRate] = useState("");
+  const [signedOn, setSignedOn] = useState(contract?.signedOn?.slice(0, 10) ?? "");
+  const [vndRate, setVndRate] = useState(contract?.amounts.vndRates?.[contract.currency] != null ? String(contract.amounts.vndRates[contract.currency]).replace(".", ",") : "");
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const total = Math.round(((parseMoneyInput(productValue) ?? 0) + (parseMoneyInput(shippingCost) ?? 0)) * 100) / 100;
@@ -43,7 +45,7 @@ export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
       currency,
       productValue: productValue.trim() ? parseMoneyInput(productValue) : 0,
       shippingCost: shippingCost.trim() ? parseMoneyInput(shippingCost) : 0,
-      paidAmount: paidAmount.trim() ? parseMoneyInput(paidAmount) : 0,
+      paidAmount: contract ? contract.paidAmount : paidAmount.trim() ? parseMoneyInput(paidAmount) : 0,
       signedOn,
       vndRates: currency !== "VND" && vndRate.trim() ? { [currency]: parseMoneyInput(vndRate) } : {},
     });
@@ -54,12 +56,12 @@ export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
     setPending(true);
     setError(undefined);
     try {
-      const body = await api<{ contract: ContractRecord }>(crmPath("/api/crm/contracts", lane), {
-        method: "POST", body: JSON.stringify(parsed.data),
+      const body = await api<{ contract: ContractRecord }>(crmPath(contract ? `/api/crm/contracts/${contract.id}/direct` : "/api/crm/contracts", lane), {
+        method: contract ? "PATCH" : "POST", body: JSON.stringify(parsed.data),
       });
       onCreated(body.contract);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không tạo được hợp đồng");
+      setError(cause instanceof ApiError ? cause.message : contract ? "Không lưu được hợp đồng" : "Không tạo được hợp đồng");
     } finally {
       setPending(false);
     }
@@ -68,7 +70,7 @@ export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <DialogContent className="max-h-[92dvh] sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Tạo hợp đồng trực tiếp · {lane === "vn" ? "Việt Nam" : "Global"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{contract ? `Sửa hợp đồng ${contract.code}` : "Tạo hợp đồng trực tiếp"} · {lane === "vn" ? "Việt Nam" : "Global"}</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="grid min-h-0 gap-4">
           <div className="max-h-[65dvh] overflow-y-auto pr-1">
             {error && <InlineAlert className="mb-4">{error}</InlineAlert>}
@@ -108,9 +110,9 @@ export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
               <Field label={`Chi phí vận chuyển (${currency})`} htmlFor="direct-contract-shipping-cost">
                 <Input id="direct-contract-shipping-cost" inputMode="decimal" placeholder="0" value={shippingCost} onChange={(event) => setShippingCost(formatMoneyInput(event.target.value))} />
               </Field>
-              <Field label={`Đã thanh toán (${currency})`} htmlFor="direct-contract-paid">
+              {!contract && <Field label={`Đã thanh toán (${currency})`} htmlFor="direct-contract-paid">
                 <Input id="direct-contract-paid" inputMode="decimal" placeholder="0" value={paidAmount} onChange={(event) => setPaidAmount(formatMoneyInput(event.target.value))} />
-              </Field>
+              </Field>}
               <Field label="Ngày ký" htmlFor="direct-contract-signed-on">
                 <Input id="direct-contract-signed-on" type="date" value={signedOn} onChange={(event) => setSignedOn(event.target.value)} />
               </Field>
@@ -122,7 +124,7 @@ export function DirectContractCreateDialog({ lane, onClose, onCreated }: {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Đóng</Button>
-            <Button type="submit" disabled={pending}>{pending ? "Đang tạo…" : "Tạo hợp đồng"}</Button>
+            <Button type="submit" disabled={pending}>{pending ? "Đang lưu…" : contract ? "Lưu thay đổi" : "Tạo hợp đồng"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

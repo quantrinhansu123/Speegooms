@@ -53,6 +53,7 @@ export function crmRoutes(container: AppContainer) {
   router.post("/quotes/:id/contract", requirePermission("contract.create"), validate({ body: createContractSchema }), asyncHandler(crm.createContract));
   router.patch("/contracts/:id/ops", requirePermission("contract.ops"), validate({ body: opsContractSchema }), asyncHandler(crm.updateOpsContract));
   router.patch("/contracts/:id/accounting", requirePermission("contract.accounting"), validate({ body: accountingContractSchema }), asyncHandler(crm.updateAccountingContract));
+  router.patch("/contracts/:id/direct", requirePermission("contract.create"), validate({ body: createDirectContractSchema }), asyncHandler(crm.updateDirectContract));
   router.patch("/contracts/:id/commercial", requirePermission("contract.create"), validate({ body: saleContractPaymentSchema }), asyncHandler(crm.updateCommercialContract));
   router.post("/contracts/:id/resend", requirePermission("contract.resend"), asyncHandler(crm.resendContract));
   router.get("/import/:kind/template", asyncHandler(crm.importTemplate));

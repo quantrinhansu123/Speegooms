@@ -30,7 +30,7 @@ const convertFieldIds: Record<string, string> = {
   shipToAddress: "convert-shipToAddress", reason: "convert-reason",
   shippingMode: "convert-mode", logisticsClass: "convert-class",
 };
-const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: row.brand ?? "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", quantityNote: orderSummary(row.order).quantityNote, address: "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
+const detailsFrom = (row: MessageRecord): Details => ({ phone: row.phone ?? "", brand: row.brand ?? "", customerType: row.customerType ?? "", careChannel: "", productInterest: row.goods ?? "", quantityNote: orderSummary(row.order).quantityNote, address: row.address ?? "", saleNote: row.note ?? "", requirements: [row.goods, row.painPoint, row.note].filter(Boolean).join("\n\n"), shipToAddress: "", reason: "" });
 
 /**
  * Luồng chuyển mess thành khách tiềm năng: chọn đường bay/biển (Vận chuyển) → chuyển → tạo báo giá →

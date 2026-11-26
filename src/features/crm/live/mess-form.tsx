@@ -21,7 +21,7 @@ export const marketPresets = ["Mỹ", "Úc", "Canada", "Anh", "Đức", "Pháp",
 export const messFieldIds: Record<string, string> = {
   receivedOn: "mess-date", customerName: "mess-name", market: "mess-market", classification: "mess-class",
   customerType: "mess-type", demand: "mess-demand", goods: "mess-goods", industry: "mess-industry",
-  saleName: "mess-sale", painPoint: "mess-pain", linkMess: "mess-link", note: "mess-note", brand: "lead-brand",
+  saleName: "mess-sale", painPoint: "mess-pain", linkMess: "mess-link", address: "mess-address", note: "mess-note", brand: "lead-brand",
   phone: "mess-phone", email: "mess-email", shippingMode: "lead-mode", logisticsClass: "lead-class",
 };
 
@@ -141,7 +141,7 @@ export function draftFrom(row: MessageRecord): MessDraft {
     brand: row.brand ?? "",
     careChannel: "",
     quantityNote: "",
-    address: "",
+    address: row.address ?? "",
     shipToAddress: "",
     convertReason: "",
   };
@@ -290,6 +290,9 @@ export function MessFormDialog({
               <Field label="Sales - hot & warm" htmlFor="mess-sale" error={fieldErrors?.["mess-sale"]} className="sm:col-span-2" hint="Tự động theo tài khoản đăng nhập">
                 <Input id="mess-sale" value={draft.saleName} readOnly />
               </Field>
+              {!lead && <Field label="Địa chỉ" htmlFor="mess-address" error={fieldErrors?.["mess-address"]} className="sm:col-span-2" hint="Khách tiềm năng sẽ lấy theo địa chỉ này">
+                <Input id="mess-address" maxLength={300} value={draft.address} onChange={(event) => update({ address: event.target.value })} />
+              </Field>}
               <Field label="Pain-Point của KH" htmlFor="mess-pain" error={fieldErrors?.["mess-pain"]} className="sm:col-span-2" hint="Ghi chi tiết mô tả pain-point của khách">
                 <Textarea id="mess-pain" rows={4} value={draft.painPoint} placeholder="Mô tả chi tiết vấn đề / nhu cầu của khách…" onChange={(event) => update({ painPoint: event.target.value })} />
               </Field>

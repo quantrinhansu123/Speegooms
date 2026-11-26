@@ -94,6 +94,7 @@ type MessageRow = {
   sale_name: string | null;
   pain_point: string | null;
   link_mess: string | null;
+  address: string | null;
   brand: string | null;
   order_info: unknown;
   order_lines: unknown;
@@ -685,7 +686,7 @@ function messageSelect(lane: CrmLane): string {
          m.trang_thai_xu_ly as processing_status, m.trang_thai::text as status, m.hang_hoa as goods, m.nganh_hang as industry, m.nhu_cau::text as demand,
          m.loai_khach_hang::text as customer_type, m.ghi_chu as note,
          m.thi_truong as market, m.phan_loai::text as classification,
-         m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess,
+         m.nhan_vien_ban as sale_name, m.ghi_chu_van_de as pain_point, m.link_mess as link_mess, m.dia_chi as address,
          m.thong_tin_don_hang as order_info, m.thuong_hieu::text as brand,
          case ${hideQuote} when l.nhom_khach = 'LOGISTICS' and l.phan_loai_logistics is distinct from 'FCL'
            then lq.chi_tiet_don_hang when l.nhom_khach = 'SOURCING' then sq.chi_tiet_don_hang end as order_lines,
@@ -1286,6 +1287,7 @@ function toMessage(row: MessageRow): MessageRecord {
     saleName: row.sale_name,
     painPoint: row.pain_point,
     linkMess: row.link_mess,
+    address: row.address,
     brand: row.brand,
     order: quoteOrder
       ? (row.demand === "SHIPPING" && quoteOrder.insurance === true
@@ -1513,12 +1515,12 @@ export class PostgresCrmRepository implements CrmRepository {
       `insert into ${messageTable} (
          ten_khach_hang_tho, so_dien_thoai, thu_dien_tu, hang_hoa, nhu_cau, loai_khach_hang, ghi_chu,
          nhan_luc, thi_truong, phan_loai, nhan_vien_ban, ghi_chu_van_de, link_mess, nganh_hang, thong_tin_don_hang, nguon,
-         thuong_hieu, nguoi_tao_id
+         thuong_hieu, nguoi_tao_id, dia_chi
        )
        values (
          $1, $2, $3, $4, $5::text::crm.message_demand, $6::text::crm.customer_type, $7,
          coalesce($8::timestamptz, now()), $9, $10::text::crm.message_classification, $11, $12, $13, $14, $15::jsonb,
-         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source), $17::text::crm.lead_brand, $18
+         coalesce($16::text::crm.lead_source, 'ADS'::crm.lead_source), $17::text::crm.lead_brand, $18, $19
        )
        returning id::text as id`,
       [
@@ -1540,6 +1542,7 @@ export class PostgresCrmRepository implements CrmRepository {
         input.source ?? null,
         input.brand ?? null,
         creatorId ?? null,
+        blank(input.address ?? ""),
       ],
     );
     const id = inserted.rows[0]?.id;
@@ -1574,7 +1577,8 @@ export class PostgresCrmRepository implements CrmRepository {
          link_mess = $14,
          nganh_hang = $15,
          thong_tin_don_hang = case when $16::boolean then $17::jsonb else thong_tin_don_hang end,
-         thuong_hieu = $18::text::crm.lead_brand
+         thuong_hieu = $18::text::crm.lead_brand,
+         dia_chi = case when $19::boolean then $20 else dia_chi end
        where id = $1::uuid
        returning id::text as id`,
       [
@@ -1596,6 +1600,8 @@ export class PostgresCrmRepository implements CrmRepository {
         input.order !== undefined,
         input.order ? JSON.stringify(input.order) : null,
         input.brand ?? null,
+        input.address !== undefined,
+        blank(input.address ?? ""),
       ],
     );
     if (!updated.rows[0]) return null;
@@ -1606,9 +1612,10 @@ export class PostgresCrmRepository implements CrmRepository {
          so_dien_thoai = coalesce($3, so_dien_thoai),
          thu_dien_tu = coalesce($4, thu_dien_tu),
          san_pham_quan_tam = $5,
-         thuong_hieu = coalesce($6::text::crm.lead_brand, thuong_hieu)
+         thuong_hieu = coalesce($6::text::crm.lead_brand, thuong_hieu),
+         dia_chi = coalesce($7, dia_chi)
        where ma_tin_nhan = $1::uuid and xoa_luc is null`,
-      [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods), input.brand ?? null],
+      [id, input.customerName, blank(input.phone), blank(input.email), blank(input.goods), input.brand ?? null, blank(input.address ?? "")],
     );
     if (input.order !== undefined) {
       const tables = quoteTables[lane];
@@ -2539,6 +2546,33 @@ export class PostgresCrmRepository implements CrmRepository {
         [id, image, index + 1],
       );
     }
+    return (await this.findContractById(lane, id, "sale")) ?? "missing";
+  }
+
+  async updateDirectContract(lane: CrmLane, id: string, input: CreateDirectContractInput): Promise<ContractRecord | "missing" | "invalid"> {
+    if (!this.connection.getStore() && saleOwnerId()) return this.transaction(() => this.updateDirectContract(lane, id, input));
+    const current = await this.findContractById(lane, id, "sale");
+    if (!current) return "missing" as const;
+    // Chỉ hợp đồng trực tiếp (không gắn báo giá) mới sửa được thông tin gốc; thanh toán sửa riêng ở tab Thanh toán.
+    if (current.quoteId) return "invalid" as const;
+    const vndRates = { ...(current.amounts.vndRates ?? {}), ...input.vndRates };
+    delete vndRates.VND;
+    const amounts = {
+      product: [{ currency: input.currency, amount: input.productValue }],
+      shipping: [{ currency: input.currency, amount: input.shippingCost }],
+      vndRates,
+    };
+    const values = [id, lane, input.customerName.trim(), blank(input.shipTo), blank(input.product), input.quantity,
+      input.productValue, input.shippingCost, input.totalValue, input.signedOn || null, input.currency, input.industry, JSON.stringify(amounts)];
+    const ownership = contractSaleScope(quoteTables[lane], values);
+    const updated = await this.query(
+      `update crm.hop_dong h set ten_khach_hang = $3, van_chuyen_den = $4, san_pham = $5, so_luong = $6,
+         gia_tri_san_pham = $7, chi_phi_van_chuyen = $8, tong_gia_tri = $9, ngay_ky = $10::date,
+         loai_tien = $11, loai_tien_van_chuyen = $11, nganh_hang = $12, khoan_tien = $13::jsonb
+       where id = $1::uuid and tuyen = $2 and ma_bao_gia is null${ownership}`,
+      values,
+    );
+    if (!updated.rowCount) return "missing" as const;
     return (await this.findContractById(lane, id, "sale")) ?? "missing";
   }
 

@@ -115,7 +115,7 @@ function repositoryFixture(lane: CrmLane, input: CreateDirectContractInput, fail
     },
     release: () => { calls.push({ sql: "release", values: [] }); },
   };
-  return { calls, repo: new PostgresCrmRepository({ connect: async () => client } as unknown as pg.Pool) };
+  return { calls, repo: new PostgresCrmRepository({ connect: async () => client, query: client.query } as unknown as pg.Pool) };
 }
 
 test("direct contracts persist amounts, initial payment and ops snapshot atomically on both lanes", async () => {
@@ -148,4 +148,17 @@ test("direct creation rolls back the contract and payment if saving the snapshot
   assert.ok(calls.some(call => call.sql === "rollback"));
   assert.equal(calls.some(call => call.sql === "commit"), false);
   assert.equal(calls.at(-1)?.sql, "release");
+});
+
+test("updateDirectContract rewrites commercial columns, only for quote-less contracts, keeps payments", async () => {
+  const parsed = createDirectContractSchema.parse({ ...draft, customerName: "Khách sửa" });
+  const { calls, repo } = repositoryFixture("vn", parsed);
+  const result = await crmActor.run(actor("admin"), () => repo.updateDirectContract("vn", "direct-id", parsed));
+  assert.notEqual(result, "missing");
+  const update = calls.find((call) => call.sql.includes("ten_khach_hang = $3"));
+  assert.ok(update, "update statement issued");
+  assert.match(update.sql, /ma_bao_gia is null/);
+  assert.equal(update.values[2], "Khách sửa");
+  assert.equal(update.values[8], 120.25);
+  assert.equal(calls.some((call) => /^s*(insert into|delete from) crm.hop_dong_dong_thanh_toan/i.test(call.sql)), false);
 });

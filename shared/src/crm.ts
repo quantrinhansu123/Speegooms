@@ -116,6 +116,7 @@ const messageFields = {
   customerName: z.string().trim().min(1, "Nhập tên khách").max(160),
   phone: text(30),
   email: text(160),
+  address: text(300).optional(),
   /** Nguồn (SPEEGO NAIL, SPEEGO US…). Khách tiềm năng chuyển từ mess dùng luôn nguồn này. */
   brand: leadBrandSchema.optional(),
   goods: text(500),

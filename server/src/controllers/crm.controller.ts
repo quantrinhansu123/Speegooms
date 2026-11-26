@@ -236,6 +236,10 @@ export class CrmController {
     res.status(200).json({ contract: await this.crm.updateAccountingContract(laneOf(req), one(req.params.id), req.body) });
   };
 
+  updateDirectContract = async (req: Request, res: Response) => {
+    res.status(200).json({ contract: await this.crm.updateDirectContract(laneOf(req), one(req.params.id), req.body, actorOf(req)) });
+  };
+
   updateCommercialContract = async (req: Request, res: Response) => {
     res.status(200).json({ contract: await this.crm.updateCommercialContract(laneOf(req), one(req.params.id), req.body) });
   };

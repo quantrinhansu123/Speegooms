@@ -422,6 +422,7 @@ export function ContractsLiveView({
   const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<ContractRecord | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ContractRecord | null>(null);
   const [printing, setPrinting] = useState<{ row: ContractRecord; quote: QuoteRecord } | null>(null);
   const printContract = async (row: ContractRecord) => {
     try {
@@ -751,6 +752,12 @@ export function ContractsLiveView({
                           setSelected(row);
                         },
                       },
+                ...(canSale && !row.quoteId ? [{
+                        key: "edit-direct",
+                        label: "Sửa thông tin hợp đồng",
+                        icon: <Pencil />,
+                        onClick: () => setEditing(row),
+                      }] : []),
                       ...(canSale ? [{
                         key: "print",
                         label: "In hợp đồng",
@@ -787,6 +794,18 @@ export function ContractsLiveView({
           setNotice(`Đã tạo hợp đồng ${contract.code}`);
           markSeen(contract);
           setSelected(contract);
+          void load();
+        }}
+      />}
+      {editing && canSale && <DirectContractCreateDialog
+        lane={editing.lane}
+        contract={editing}
+        onClose={() => setEditing(null)}
+        onCreated={(contract) => {
+          setEditing(null);
+          setNotice(`Đã cập nhật hợp đồng ${contract.code}`);
+          markSeen(contract);
+          if (selected?.id === contract.id) setSelected(contract);
           void load();
         }}
       />}

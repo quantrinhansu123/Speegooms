@@ -51,6 +51,7 @@ export interface MessageRecord extends CrmHandler {
   saleName: string | null;
   painPoint: string | null;
   linkMess: string | null;
+  address: string | null;
   /** Nguồn của mess (SPEEGO NAIL, SPEEGO US…); khách tiềm năng lấy theo. */
   brand: string | null;
   /** Nháp thông tin sản phẩm/đơn hàng của Sale; chuyển sang báo giá khi bấm Chuyển. */
@@ -294,6 +295,7 @@ export interface CrmRepository {
   createDirectContract(lane: CrmLane, input: CreateDirectContractInput): Promise<ContractRecord>;
   updateOpsContract(lane: CrmLane, id: string, input: OpsContractInput): Promise<ContractRecord | "missing">;
   updateAccountingContract(lane: CrmLane, id: string, input: AccountingContractInput): Promise<ContractRecord | "missing" | "pending">;
+  updateDirectContract(lane: CrmLane, id: string, input: CreateDirectContractInput): Promise<ContractRecord | "missing" | "invalid">;
   updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord | "missing" | "invalid">;
   resendContract(lane: CrmLane, id: string, target: "ops" | "accounting" | "parties"): Promise<ContractRecord | "missing" | "pending">;
 }

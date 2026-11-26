@@ -579,6 +579,14 @@ export class CrmService {
     return result;
   }
 
+  async updateDirectContract(lane: CrmLane, id: string, input: CreateDirectContractInput, actor: PublicUser): Promise<ContractRecord> {
+    const parsed = createDirectContractSchema.parse({ ...input, saleName: actor.name });
+    const result = await this.ready().updateDirectContract(lane, id, parsed);
+    if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
+    if (result === "invalid") throw new AppError(400, "VALIDATION", "Chỉ sửa được hợp đồng tạo trực tiếp");
+    return result;
+  }
+
   async updateCommercialContract(lane: CrmLane, id: string, input: SaleContractPaymentInput): Promise<ContractRecord> {
     const result = await this.ready().updateCommercialContract(lane, id, input);
     if (result === "missing") throw new AppError(404, "NOT_FOUND", "Không tìm thấy hợp đồng");
