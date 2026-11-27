@@ -643,11 +643,6 @@ function orderedContractDays(
   }
 }
 
-const requiredDay = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Nhập ngày giao hàng dự kiến");
-
 export const opsContractSchema = z.object({
   opsStatus: z.union([z.literal(""), opsStatusSchema]),
   tracking: text(200),
@@ -656,7 +651,7 @@ export const opsContractSchema = z.object({
   chinaWarehouseOn: day,
   containerOn: day,
   arrivalOn: day,
-  deliveryOn: requiredDay,
+  deliveryOn: day,
   send: z.boolean().optional(),
 }).superRefine(orderedContractDays);
 

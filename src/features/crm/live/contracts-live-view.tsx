@@ -1436,8 +1436,8 @@ function ContractDialog({
               <Field label="Ngày cập cảng đến" htmlFor="ops-arrival">
                 <Input id="ops-arrival" type="date" value={arrivalOn} disabled={!canOps} onChange={(event) => setArrivalOn(event.target.value)} />
               </Field>
-              <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery" required={canOps}>
-                <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} required={canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
+              <Field label="Ngày giao hàng dự kiến" htmlFor="ops-delivery">
+                <Input id="ops-delivery" type="date" value={deliveryOn} disabled={!canOps} onChange={(event) => setDeliveryOn(event.target.value)} />
               </Field>
               {canOps && (
                 <div className="flex gap-2 sm:col-span-2">
