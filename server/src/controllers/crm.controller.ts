@@ -4,6 +4,7 @@ import { readPagination } from "../lib/pagination";
 import { can, type Permission } from "../config/permissions";
 import { isImportKind } from "../services/crm-import-sheets";
 import { AppError } from "../lib/errors";
+import { contractAgentCost } from "../services/contract-cost";
 import type { ContractView } from "../repositories/crm.repository";
 import { readContractSearch, readMessageSearch, readPotentialSearch, readQuoteDeskFilter, readQuoteSearch } from "../search/parse-list-search";
 import type { CrmService } from "../services/crm.service";
@@ -217,7 +218,12 @@ export class CrmController {
     // Accounting needs every contract for reconciliation, including older clients sending sent=1.
     const sentOnly = view !== "accounting" && req.query.sent === "1";
     const result = await this.crm.pageContracts(laneOf(req), sentOnly, view, readContractSearch(req), readPagination(req));
-    res.status(200).json({ contracts: result.rows, pagination: result.pagination });
+    const lane = laneOf(req);
+    const rows = view === "accounting" ? await Promise.all(result.rows.map(async row => {
+      if (!row.quoteId) return row;
+      return { ...row, agentCost: contractAgentCost(await this.crm.findQuoteAnyDesk(lane, row.quoteId)) };
+    })) : result.rows;
+    res.status(200).json({ contracts: rows, pagination: result.pagination });
   };
 
   createDirectContract = async (req: Request, res: Response) => {

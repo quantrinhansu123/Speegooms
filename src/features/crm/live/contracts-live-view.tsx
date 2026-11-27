@@ -94,6 +94,8 @@ export type ContractRecord = {
   confirmedBackAt: string | null;
   confirmedAmount: number | null;
   accountingStatus: string | null;
+  /** Giá gốc trả agent (chỉ Kế toán nhận từ server, không in). */
+  agentCost?: { label: string; currency: string; amount: number }[];
   confirmations: ContractConfirmationLine[];
   images: string[];
   createdAt: string;
@@ -1195,6 +1197,7 @@ function ContractDialog({
               <p><span className="text-muted-foreground">Tổng giá trị: </span><VndOnly value={vnd.total} /></p>
               <p><span className="text-muted-foreground">Còn lại: </span><VndOnly value={vnd.remaining} /></p>
               <p><span className="text-muted-foreground">Đã thanh toán: </span><VndOnly value={paidVnd} /></p>
+              {canAccounting && contract.agentCost?.map(cost => <p key={cost.label} className="rounded bg-amber-50 px-2 py-1"><span className="text-muted-foreground">{cost.label} (chi trả agent): </span><strong>{formatMoneyGrouped(cost.amount)} {cost.currency}</strong></p>)}
             </section>
             <section className="grid gap-3 rounded-xl border p-4 sm:grid-cols-3">
               <div>
@@ -1227,6 +1230,7 @@ function ContractDialog({
               <p><span className="text-muted-foreground">Chi phí vận chuyển: </span><VndOnly value={vnd.shipping} /></p>
               <p><span className="text-muted-foreground">Tổng giá trị: </span><VndOnly value={vnd.total} /></p>
               <p><span className="text-muted-foreground">Còn lại: </span><VndOnly value={vnd.remaining} /></p>
+              {canAccounting && contract.agentCost?.map(cost => <p key={cost.label} className="rounded bg-amber-50 px-2 py-1"><span className="text-muted-foreground">{cost.label} (chi trả agent): </span><strong>{formatMoneyGrouped(cost.amount)} {cost.currency}</strong></p>)}
             </section>
             {canSale && contractCurrencies.length > 0 && (
               <section className="space-y-3 rounded-xl border p-4">

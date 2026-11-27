@@ -241,6 +241,8 @@ export interface ContractRecord {
   confirmedBackAt: string | null;
   confirmedAmount: number | null;
   accountingStatus: string | null;
+  /** Giá gốc trả agent, chỉ gắn khi Kế toán xem; không in. */
+  agentCost?: { label: string; currency: string; amount: number }[];
   /** Các lần kế toán xác nhận (số tiền + ảnh về TK). */
   confirmations: ContractConfirmationLine[];
   images: string[];

@@ -144,6 +144,10 @@ export class CrmService {
     return this.ready().pageRfqQuotes(lane, search, desk, page);
   }
 
+  async findQuoteAnyDesk(lane: CrmLane, id: string) {
+    return await this.ready().findQuote(lane, "sourcing", id) ?? await this.ready().findQuote(lane, "logistics", id);
+  }
+
   pageContracts(lane: CrmLane, sentOnly: boolean, view: ContractView, search: ContractListSearch, page: PageRequest) {
     return this.ready().pageContracts(lane, sentOnly, view, search, page);
   }
