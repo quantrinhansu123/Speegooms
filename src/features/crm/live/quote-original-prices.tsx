@@ -11,7 +11,8 @@ import { formatMoneyGrouped } from "@/lib/format";
 import { pricingBasisLabels } from "@/services/crm/quote-lines";
 import { TableHScroll } from "./table-h-scroll";
 
-export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, onLinePrice, onNotesChange, shippingMode = null }: {
+export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, onLinePrice, onNotesChange, shippingMode = null, contractStatus }: {
+  contractStatus?: string;
   shippingMode?: "AIR" | "SEA" | null;
   desk: QuoteDesk;
   orders: QuoteOrder[];
@@ -23,7 +24,7 @@ export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, on
 }) {
   const user = useSession();
   const currencyId = useId();
-  if (!canViewQuoteOriginalPrice(user.role)) return null;
+  if (!canViewQuoteOriginalPrice(user.role) || (user.role === "ke-toan" && contractStatus !== "DA_TAO")) return null;
   const order = orders.find(order => order.selected) ?? orders[0];
   const currency = notes.fcl ? notes.payment?.quoteCurrency ?? "USD" : resolvedFreightCurrency(notes, order?.currency ?? "VND");
   const currencies = quoteCurrencies.includes(currency as (typeof quoteCurrencies)[number]) ? quoteCurrencies : [...quoteCurrencies, currency];

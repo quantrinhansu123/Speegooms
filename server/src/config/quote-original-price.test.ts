@@ -4,7 +4,7 @@ import express from "express";
 import type { Request } from "express";
 import type { AddressInfo } from "node:net";
 import { canAccessQuoteDesk, canEditQuoteDesk, canViewQuoteOriginalPrice, defaultQuoteBank, emptyQuoteFreight, logisticsOrderFromSourcing, quoteOrderSchema, updateQuoteSchema, type Role } from "@speego/shared";
-import { protectQuoteOriginalPrices } from "../middlewares/quote-original-price";
+import { protectQuoteOriginalPrices, withoutOriginalPrices } from "../middlewares/quote-original-price";
 import { preserveQuotePrices, quoteDeskPatch } from "../services/quote-edit-policy";
 import type { QuoteRecord } from "../repositories/crm.repository";
 
@@ -59,9 +59,18 @@ test("HTTP boundary removes original prices from every nested snapshot and rejec
     for (const role of ["sale-vn", "sale-global", "ban-gd", "admin", "sourcing", "logistics", "van-hanh", "ke-toan"] as const) {
       const res = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify({ originalPrice: 999, originalDetails: { rate: 777, currency: "USD" }, name: "Normal data" }) });
       const text = await res.text();
-      assert.equal(text.includes('"originalPrice"'), canViewQuoteOriginalPrice(role));
-      assert.equal(text.includes('"originalDetails"'), canViewQuoteOriginalPrice(role));
+      assert.equal(text.includes('"originalPrice"'), canViewQuoteOriginalPrice(role) && role !== "ke-toan");
+      assert.equal(text.includes('"originalDetails"'), canViewQuoteOriginalPrice(role) && role !== "ke-toan");
       assert.ok(text.includes("Normal data"));
     }
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test("Kế toán chỉ thấy giá gốc khi báo giá đã ra hợp đồng", () => {
+  const row = (contractStatus: string) => ({ contractStatus, orders: [{ lines: [{ originalPrice: 5, name: "x" }] }], notes: { freight: { originalPrice: 3 } } });
+  const text = (value: unknown) => JSON.stringify(withoutOriginalPrices(value, true));
+  assert.equal(text([row("DA_TAO")]).includes('"originalPrice"'), true);
+  assert.equal(text([row("CHUA_TAO")]).includes('"originalPrice"'), false);
+  assert.equal(text([row("DA_TAO"), row("CHUA_TAO")]).split('"originalPrice"').length - 1, 2);
+  assert.equal(JSON.stringify(withoutOriginalPrices(row("DA_TAO"))).includes('"originalPrice"'), false);
 });

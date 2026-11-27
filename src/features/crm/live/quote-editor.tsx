@@ -2830,7 +2830,7 @@ export function QuoteEditor({
         </TabsContent>}
 
         <TabsContent value={pureLogistics || saleFill ? "sale" : "sourcing"} className={pureLogistics || saleFill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-1" : tabPanelClass}>
-          {!pureLogistics && !saleFill && <QuoteOriginalPrices desk="sourcing" orders={orders} notes={notes} editable={canEditPricing} pending={pending} onLinePrice={(orderId, index, originalPrice) => patchOrderLine(orderId, index, { originalPrice })} onNotesChange={setNotes} />}
+          {!pureLogistics && !saleFill && <QuoteOriginalPrices contractStatus={contractStatus} desk="sourcing" orders={orders} notes={notes} editable={canEditPricing} pending={pending} onLinePrice={(orderId, index, originalPrice) => patchOrderLine(orderId, index, { originalPrice })} onNotesChange={setNotes} />}
           {quoteStep && saleDraft && (
             <>
               {/* Nhu cầu Tìm hàng: Sale chỉ nhập mặt hàng/ảnh/số lượng/lưu ý từng dòng, không hiện Yêu cầu của khách + Ghi chú sale. */}
@@ -3150,7 +3150,7 @@ export function QuoteEditor({
         </div>}
 
         <TabsContent value="logistics" className={tabPanelClass}>
-          <QuoteOriginalPrices shippingMode={lead.shippingMode} desk="logistics" orders={orders} notes={notes} editable={canEditLogisticsFees} pending={pending} onLinePrice={() => undefined} onNotesChange={setNotes} />
+          <QuoteOriginalPrices contractStatus={contractStatus} shippingMode={lead.shippingMode} desk="logistics" orders={orders} notes={notes} editable={canEditLogisticsFees} pending={pending} onLinePrice={() => undefined} onNotesChange={setNotes} />
           {!pureLogistics && desk === "logistics" && quote.sourcingContext && (
             <section className="grid gap-3 rounded-xl border bg-muted/20 p-4">
               <h3 className="font-semibold">Thông tin Sourcing đã chuyển · {quote.sourcingContext.order.name}</h3>
