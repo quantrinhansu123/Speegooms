@@ -182,29 +182,104 @@ th {
     background-color: var(--muted);
   }
 
-  [data-sticky-identity] :is(th, td):first-child:not([colspan]),
-  [data-sticky-identity] :is(th, td):nth-child(2):not([colspan]) {
+  [data-sticky-cols~="1"] :is(th, td):nth-child(1):not([colspan]) {
     position: sticky;
+    left: var(--sticky-left-1, 0px);
     z-index: 1;
     background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
   }
 
-  [data-sticky-identity] :is(th, td):first-child:not([colspan]) {
-    left: 0;
-    white-space: nowrap;
+  [data-sticky-cols~="2"] :is(th, td):nth-child(2):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-2, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
   }
 
-  [data-sticky-identity] :is(th, td):nth-child(2):not([colspan]) {
-    left: var(--sticky-code-width, 0px);
-    max-width: 12rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-shadow: 1px 0 0 var(--border), 6px 0 10px -10px var(--foreground);
+  [data-sticky-cols~="3"] :is(th, td):nth-child(3):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-3, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
   }
 
-  [data-sticky-identity] thead th:first-child,
-  [data-sticky-identity] thead th:nth-child(2) {
-    z-index: 2;
+  [data-sticky-cols~="4"] :is(th, td):nth-child(4):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-4, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="5"] :is(th, td):nth-child(5):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-5, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="6"] :is(th, td):nth-child(6):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-6, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="7"] :is(th, td):nth-child(7):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-7, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="8"] :is(th, td):nth-child(8):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-8, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="9"] :is(th, td):nth-child(9):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-9, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="10"] :is(th, td):nth-child(10):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-10, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="11"] :is(th, td):nth-child(11):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-11, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-cols~="12"] :is(th, td):nth-child(12):not([colspan]) {
+    position: sticky;
+    left: var(--sticky-left-12, 0px);
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: 1px 0 0 var(--border);
+  }
+
+  [data-sticky-identity] thead th {
+    z-index: 2 !important;
   }
 }
 

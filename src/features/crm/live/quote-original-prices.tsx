@@ -11,7 +11,7 @@ import { formatMoneyGrouped } from "@/lib/format";
 import { pricingBasisLabels } from "@/services/crm/quote-lines";
 import { TableHScroll } from "./table-h-scroll";
 
-export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, onLinePrice, onNotesChange, shippingMode = null, contractStatus }: {
+export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, onLinePrice, onLineCurrency, onNotesChange, shippingMode = null, contractStatus }: {
   contractStatus?: string;
   shippingMode?: "AIR" | "SEA" | null;
   desk: QuoteDesk;
@@ -20,6 +20,7 @@ export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, on
   editable: boolean;
   pending: boolean;
   onLinePrice: (orderId: string, lineIndex: number, value: number | null) => void;
+  onLineCurrency?: (orderId: string, lineIndex: number, code: string) => void;
   onNotesChange: (notes: QuoteNotes) => void;
 }) {
   const user = useSession();
@@ -32,12 +33,12 @@ export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, on
     <div><h3 className="font-semibold">Giá gốc nội bộ</h3><p className="text-sm text-muted-foreground">Chỉ dùng nội bộ. Lợi nhuận = giá báo Sale − giá gốc, quy đổi VND. Nhập markup (%) rồi rời ô để tính giá báo Sale.</p></div>
     <FreightPricingTable notes={notes} order={order} shippingMode={shippingMode} original disabled={!editable || pending} onChange={onNotesChange} />
   </section>;
-  const rows: { key: string; label: string; currency: string; unit: string; value: number | null | undefined; quantity?: number | null; vat?: number; sale?: number | null; writeSale?: (value: number) => boolean | void; write: (value: number | null) => void }[] = [];
+  const rows: { key: string; label: string; currency: string; setCurrency?: (code: string) => void; unit: string; value: number | null | undefined; quantity?: number | null; vat?: number; sale?: number | null; writeSale?: (value: number) => boolean | void; write: (value: number | null) => void }[] = [];
   if (desk === "sourcing") {
     for (const order of orders) {
       order.lines.forEach((line, index) => rows.push({
         key: `${order.id}-${index}`, label: `${order.name} · ${line.stt || index + 1}. ${line.productName || line.spec || "Mặt hàng"}`,
-        currency: order.currency, unit: pricingBasisLabels[line.basis], value: line.originalPrice,
+        currency: line.originalCurrency || order.currency, setCurrency: code => onLineCurrency?.(order.id, index, code), unit: pricingBasisLabels[line.basis], value: line.originalPrice,
         write: value => onLinePrice(order.id, index, value),
       }));
     }
@@ -70,7 +71,11 @@ export function QuoteOriginalPrices({ desk, orders, notes, editable, pending, on
       <tbody>{rows.map(row => <tr key={row.key} className="border-b last:border-0">
         <td className="px-3 py-2">{row.label}</td>
         <td className="px-3 py-2"><MoneyInput className="min-w-32" aria-label={`Giá gốc · ${row.label}`} value={row.value ?? null} fractionDigits={3} disabled={!editable || pending} onValueChange={row.write} /></td>
-        <td className="px-3 py-2">{row.currency}</td><td className="px-3 py-2">{row.unit}</td>
+        <td className="px-3 py-2">{desk === "sourcing" && row.setCurrency
+          ? <NativeSelect aria-label={`Loại tiền giá gốc · ${row.label}`} className="w-fit min-w-24" value={row.currency} disabled={!editable || pending} onChange={event => row.setCurrency!(event.target.value)}>
+            {(quoteCurrencies.includes(row.currency as (typeof quoteCurrencies)[number]) ? quoteCurrencies : [...quoteCurrencies, row.currency]).map(code => <option key={code} value={code}>{code}</option>)}
+          </NativeSelect>
+          : row.currency}</td><td className="px-3 py-2">{row.unit}</td>
         {desk === "logistics" && <>
           <td className="px-3 py-2">{row.quantity ?? "—"}</td>
           <td className="px-3 py-2">{row.value == null || row.quantity == null ? "Chưa đủ dữ liệu" : formatMoneyGrouped(row.value * row.quantity + (row.vat ?? 0))}</td>

@@ -390,6 +390,7 @@ function asLines(value: unknown): QuoteLine[] {
       quantity: optionalAmount(row.quantity),
       pricePerSet: optionalAmount(row.pricePerSet),
       ...(row.originalPrice === undefined ? {} : { originalPrice: optionalAmount(row.originalPrice) }),
+      ...(typeof row.originalCurrency === "string" && /^[A-Za-z]{3}$/.test(row.originalCurrency) ? { originalCurrency: row.originalCurrency.toUpperCase() } : {}),
       lineTotal: optionalAmount(row.lineTotal),
       lineTotalManual: row.lineTotalManual === true,
       weightKg: optionalAmount(row.weightKg),

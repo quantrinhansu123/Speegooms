@@ -8,13 +8,14 @@ export function contractAgentCost(quote: QuoteRecord | null): Cost[] {
   if (!quote) return [];
   const costs: Cost[] = [];
   const order = quote.orders.find(row => row.selected) ?? quote.orders[0];
-  const items = order?.lines.flatMap(line => {
-    if (line.originalPrice == null) return [];
+  const byCurrency = new Map<string, number>();
+  order?.lines.forEach(line => {
+    if (line.originalPrice == null) return;
     const metric = line.basis === "kg" ? line.weightKg : line.basis === "m2" ? line.areaM2 : line.basis === "cbm" ? line.cbm : 1;
     const amount = line.basis === "lump" ? line.originalPrice : line.quantity == null || metric == null ? null : line.quantity * metric * line.originalPrice;
-    return amount == null ? [] : [amount];
-  }) ?? [];
-  if (order && items.length) costs.push({ label: "Giá gốc hàng", currency: order.currency, amount: Math.round(items.reduce((a, b) => a + b, 0) * 1000) / 1000 });
+    if (amount != null) byCurrency.set(line.originalCurrency || order.currency, (byCurrency.get(line.originalCurrency || order.currency) ?? 0) + amount);
+  });
+  for (const [currency, sum] of byCurrency) costs.push({ label: "Giá gốc hàng", currency, amount: Math.round(sum * 1000) / 1000 });
   const sheet = quote.customerKind === "LOGISTICS" ? quote : quote.logisticsSheet;
   const logistics = sheet && logisticsQuoteFinancials(sheet).cost;
   if (logistics != null) costs.push({ label: "Giá gốc vận chuyển", currency: "VND", amount: logistics });

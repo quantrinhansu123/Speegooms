@@ -294,6 +294,8 @@ export const quotePriceColumnSchema = z.object({
 export const quoteLineSchema = z.object({
   /** Giá gốc nội bộ theo loại tiền/cách tính giá của dòng. */
   originalPrice: amount.optional(),
+  /** Loại tiền của giá gốc; trống = loại tiền của đơn. */
+  originalCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).optional(),
   stt: text(20),
   productName: text(300).optional(),
   /** Ảnh chính (tương thích cũ) = phần tử đầu của images. */

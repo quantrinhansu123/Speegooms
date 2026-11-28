@@ -4,6 +4,8 @@ import { createElement, isValidElement, useCallback, useEffect, useRef, useState
 import { FilterableTable } from "@/components/ui/filterable-table";
 import { cn } from "@/lib/utils";
 
+const MAX_PIN = 12;
+
 /** Wide table with synchronized sticky identity column measurements. */
 export function TableHScroll({
   children,
@@ -21,6 +23,9 @@ export function TableHScroll({
   const bodyRef = useRef<HTMLDivElement>(null);
   const scrollbarRef = useRef<HTMLDivElement>(null);
   const [scrollWidth, setScrollWidth] = useState(0);
+  const [pinOn, setPinOn] = useState(true);
+  const [pinCount, setPinCount] = useState(2);
+  const pinN = pinOn ? Math.min(Math.max(pinCount, 0), MAX_PIN) : 0;
 
   const syncWidth = useCallback(() => {
     const body = bodyRef.current;
@@ -31,8 +36,12 @@ export function TableHScroll({
     }
     const table = body.querySelector("table");
     if (stickyIdentity) {
-      const codeHeader = table?.querySelector("thead th:first-child");
-      body.style.setProperty("--sticky-code-width", `${codeHeader?.getBoundingClientRect().width ?? 0}px`);
+      let left = 0;
+      table?.querySelectorAll("thead tr:first-child th").forEach((th, i) => {
+        if (i >= MAX_PIN) return;
+        body.style.setProperty(`--sticky-left-${i + 1}`, `${left}px`);
+        left += th.getBoundingClientRect().width;
+      });
     }
   }, [stickyIdentity, localScrollbar]);
 
@@ -44,8 +53,7 @@ export function TableHScroll({
     observer.observe(body);
     const table = body.querySelector("table");
     if (table) observer.observe(table);
-    const codeHeader = table?.querySelector("thead th:first-child");
-    if (codeHeader) observer.observe(codeHeader);
+    table?.querySelectorAll("thead tr:first-child th").forEach((th) => observer.observe(th));
     window.addEventListener("resize", syncWidth);
     return () => {
       observer.disconnect();
@@ -70,10 +78,23 @@ export function TableHScroll({
           <div style={{ width: scrollWidth, height: 14 }} />
         </div>
       )}
+      {stickyIdentity && (
+        <label className="flex items-center gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground print:hidden">
+          <input type="checkbox" checked={pinOn} onChange={(e) => setPinOn(e.target.checked)} />
+          Cố định
+          <input
+            type="number" min={1} max={MAX_PIN} value={pinCount} disabled={!pinOn}
+            onChange={(e) => setPinCount(Number(e.target.value) || 1)}
+            className="h-6 w-14 rounded border bg-background px-1 text-foreground"
+          />
+          cột đầu tiên
+        </label>
+      )}
       <div
         ref={bodyRef}
         className="overflow-x-auto [&_th]:whitespace-nowrap"
         data-sticky-identity={stickyIdentity || undefined}
+        data-sticky-cols={stickyIdentity ? Array.from({ length: pinN }, (_, i) => i + 1).join(" ") : undefined}
         data-table-local-scroll={localScrollbar || undefined}
         onScroll={localScrollbar ? (event) => {
           if (scrollbarRef.current) scrollbarRef.current.scrollLeft = event.currentTarget.scrollLeft;
